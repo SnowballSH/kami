@@ -3,10 +3,6 @@ import { svgEl } from "./dom";
 const ICON_VIEW_BOX = "0 0 24 24";
 
 const ICON_PATHS = {
-  left: ["M15 5 7 12l8 7Z"],
-  right: ["M9 5l8 7-8 7Z"],
-  up: ["M5 15l7-8 7 8Z"],
-  down: ["M5 9l7 8 7-8Z"],
   draw: ["M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1Z", "M14.5 6.5l3 3"],
   write: ["M5 7V4h14v3", "M12 4v16", "M9 20h6"],
   erase: ["M4 15 13 5l7 6-9 10H8Z", "M9 9.5l7 6", "M4 21h16"],

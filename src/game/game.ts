@@ -1,3 +1,4 @@
+import type { Autopilot, Scene } from "../autopilot/types";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
 import { boundsOf, type Rect, rectGap, translateRect, type Vec } from "../core/geometry";
@@ -34,6 +35,7 @@ import {
   REJECTION_LINES,
   RULE_REPEALED_LINE,
   SHRUGS,
+  STUCK_LINE,
   TAGLINE,
   WORDMARK,
 } from "./lines";
@@ -55,6 +57,8 @@ const ALREADY_AWAKE_MS = 10_000;
 
 export interface GameModules {
   readonly sim: Simulation;
+  /** Alice's own mind; the keyboard and d-pad only override it while held. */
+  readonly autopilot: Autopilot;
   readonly cat: Cat;
   readonly renderer: Renderer;
   readonly handwriting: Handwriting;
@@ -92,7 +96,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
   private nowMs = 0;
   private lastFrameMs = 0;
   private tool: Tool = "draw";
-  private walkIntent: WalkIntent = { x: 0, y: 0 };
+  private manualIntent: WalkIntent = IDLE_INTENT;
+  private wasStuck = false;
   private hasAskedWhatItIs = false;
   private shrugs = 0;
 
@@ -126,6 +131,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
 
     sim.setTimeScale(this.ink.isDrawing ? BULLET_TIME_SCALE : 1);
     for (let step = 0; step < steps; step++) {
+      sim.setWalkIntent(this.chooseIntent());
       for (const event of sim.step()) this.handle(event);
     }
     this.ink.update(nowMs, {
@@ -184,6 +190,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
 
   onCommit(drawing: Drawing): void {
     this.modules.sim.addDrawing(drawing);
+    this.modules.autopilot.invalidate();
     this.ledger.add(drawing);
     this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
     void this.offerGuesses(drawing);
@@ -194,9 +201,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
   }
 
   onWalkIntent(intent: WalkIntent): void {
-    this.walkIntent = intent;
-    this.modules.sim.setWalkIntent(intent);
+    this.manualIntent = intent;
     if (intent.x !== 0) this.camera.resumeFollowing();
+    else this.modules.autopilot.invalidate();
   }
 
   onToolChanged(tool: Tool): void {
@@ -232,7 +239,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     this.board = boardFor(boardId);
 
     sim.loadBoard(this.board);
-    sim.setWalkIntent(this.walkIntent);
+    this.modules.autopilot.reset();
+    this.wasStuck = false;
     renderer.setBoard(this.board);
     this.ink.reset(Number.POSITIVE_INFINITY);
     this.ledger.clear();
@@ -268,6 +276,32 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     this.rules.replaceAll(rules);
     for (const rule of rules) this.writeGloss(rule);
     sim.setPhysics(this.rules.physics);
+    this.modules.autopilot.invalidate();
+  }
+
+  /** Held keys drive her; otherwise she drives herself. */
+  private chooseIntent(): WalkIntent {
+    const { autopilot } = this.modules;
+    if (this.manualIntent.x !== 0 || this.manualIntent.y !== 0) return this.manualIntent;
+    const intent = autopilot.drive(this.scene());
+    const { stuck } = autopilot.status;
+    if (stuck && !this.wasStuck) this.remark(STUCK_LINE);
+    this.wasStuck = stuck;
+    return intent;
+  }
+
+  private scene(): Scene {
+    const { sim } = this.modules;
+    const world = sim.snapshot();
+    return {
+      board: this.board,
+      alice: world.alice,
+      inks: this.ledger.sceneInks(world.drawings),
+      keyTaken: world.keyTaken,
+      doorOpen: world.doorOpen,
+      walkSpeed: sim.walkSpeed(),
+      bounceArc: (strength) => sim.bounceArc(strength),
+    };
   }
 
   private async listBoards(epoch: number): Promise<void> {
@@ -442,6 +476,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
   private enact(rule: Rule): void {
     this.rules.enact(rule);
     this.modules.sim.setPhysics(this.rules.physics);
+    this.modules.autopilot.invalidate();
     this.modules.store.saveRule(this.board.id, rule);
     this.understood(rule.noteId);
     this.writeGloss(rule);
@@ -461,6 +496,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     if (awake === null) return;
 
     this.modules.sim.applyRuling(id, ruling);
+    this.modules.autopilot.invalidate();
     this.modules.store.saveDrawing(this.board.id, { drawing: awake.drawing, ruling });
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
     this.notes.attach(label.id, { type: "drawing", id });
@@ -573,12 +609,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     if (repealed === null) return;
     this.modules.store.deleteRule(this.board.id, repealed.id);
     this.modules.sim.setPhysics(this.rules.physics);
+    this.modules.autopilot.invalidate();
     this.remark(RULE_REPEALED_LINE);
   }
 
   private discard(id: DrawingId): void {
     if (this.ledger.remove(id) === null) return;
     this.modules.sim.removeDrawing(id);
+    this.modules.autopilot.invalidate();
     this.modules.store.deleteDrawing(this.board.id, id);
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
   }
@@ -614,6 +652,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     return this.modules.renderer.toWorld(client, this.camera.camera);
   }
 }
+
+const IDLE_INTENT: WalkIntent = { x: 0, y: 0 };
 
 const isPlayers = (note: Note): boolean => note.author === "player";
 

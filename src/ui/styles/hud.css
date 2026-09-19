@@ -9,7 +9,6 @@
   --kami-radius-inner: 6px;
   --kami-line: 1px solid var(--kami-ink);
   --kami-hairline: 0 1px 0 rgb(17 17 17 / 0.08);
-  --kami-dpad-row: 100px;
 
   position: absolute;
   inset: 0;
@@ -25,24 +24,19 @@
   display: none;
 }
 
-.kami-island,
-.kami-dpad-button {
+.kami-island {
   border: var(--kami-line);
   border-radius: var(--kami-radius);
   background: var(--kami-board);
   box-shadow: var(--kami-hairline);
   pointer-events: auto;
-}
-
-.kami-island {
   display: flex;
   gap: 2px;
   padding: var(--kami-island-padding);
 }
 
 .kami-control,
-.kami-menu-item,
-.kami-dpad-button {
+.kami-menu-item {
   min-width: var(--kami-control);
   min-height: var(--kami-control);
   margin: 0;
@@ -65,8 +59,7 @@
 }
 
 .kami-control:focus-visible,
-.kami-menu-item:focus-visible,
-.kami-dpad-button:focus-visible {
+.kami-menu-item:focus-visible {
   outline: 2px solid var(--kami-ink);
   outline-offset: 1px;
 }
@@ -82,8 +75,7 @@
 .kami-control[aria-pressed="true"],
 .kami-control[aria-expanded="true"],
 .kami-menu-item:active,
-.kami-menu-item[aria-checked="true"],
-.kami-dpad-button.is-held {
+.kami-menu-item[aria-checked="true"] {
   background: var(--kami-pressed);
 }
 
@@ -213,48 +205,6 @@
 
 .kami-board-clear.is-confirming {
   background: var(--kami-danger);
-}
-
-.kami-dpad {
-  position: absolute;
-  left: var(--kami-safe-left);
-  bottom: var(--kami-safe-bottom);
-  height: var(--kami-dpad-row);
-  display: grid;
-  grid-template-columns: 72px 72px 56px;
-  grid-template-rows: 1fr 1fr;
-  gap: 8px;
-}
-
-.kami-dpad-button {
-  padding: 0;
-}
-
-.kami-dpad-button .kami-icon {
-  width: 26px;
-  height: 26px;
-}
-
-.kami-dpad-left {
-  grid-area: 1 / 1 / 3 / 2;
-}
-
-.kami-dpad-right {
-  grid-area: 1 / 2 / 3 / 3;
-}
-
-.kami-dpad-up {
-  grid-area: 1 / 3 / 2 / 4;
-}
-
-.kami-dpad-down {
-  grid-area: 2 / 3 / 3 / 4;
-}
-
-.kami-dpad-up .kami-icon,
-.kami-dpad-down .kami-icon {
-  width: 20px;
-  height: 20px;
 }
 
 .kami-prompt {

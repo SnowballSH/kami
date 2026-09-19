@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
 import type { Vec } from "../core/geometry";
@@ -44,6 +45,7 @@ class Player {
     this.game = new Game(
       {
         sim: createSimulation(),
+        autopilot: createAutopilot(),
         cat: createCat(),
         renderer: this.renderer,
         handwriting: new FakeHandwriting(),
@@ -232,6 +234,56 @@ describe("Game on the Wonderland board", () => {
       undefined,
       "a bouncy mushroom",
     ]);
+  });
+});
+
+describe("Alice on her own", () => {
+  let player: Player;
+
+  beforeEach(async () => {
+    player = new Player("wonderland");
+    await player.arrive();
+  });
+
+  it("walks to the ditch, stops short of it, and says so", async () => {
+    expect(await player.until(() => player.alice.center.x > 150)).toBe(true);
+    expect(
+      await player.until(() => player.written.some((text) => text.includes("Draw her one"))),
+    ).toBe(true);
+    await player.wait(3_000);
+    expect(player.alice.center.x).toBeGreaterThan(150);
+    expect(player.alice.center.x).toBeLessThan(380);
+    expect(player.alice.grounded).toBe(true);
+  });
+
+  it("crosses all of Wonderland with nothing but drawings", async () => {
+    await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
+    expect(await player.until(() => player.alice.center.x > 700)).toBe(true);
+
+    await player.draw(blob({ x: 1430, y: 540 }, 30, 18));
+    await player.write("a bouncy mushroom", { x: 1380, y: 440 });
+    expect(await player.until(() => player.alice.center.x > 1740 && player.alice.grounded)).toBe(
+      true,
+    );
+
+    await player.draw(blob({ x: 2150, y: 324 }, 18, 14));
+    await player.write("a cake", { x: 2120, y: 250 });
+    expect(await player.until(() => player.alice.size === "big")).toBe(true);
+    expect(await player.until(() => player.alice.hasKey)).toBe(true);
+
+    await player.draw(blob({ x: 2300, y: 324 }, 18, 14));
+    await player.write("drink me", { x: 2270, y: 250 });
+    expect(
+      await player.until(() => player.written.some((text) => text.includes("rabbit hole"))),
+    ).toBe(true);
+  });
+
+  it("yields to the keyboard while a key is held", async () => {
+    player.walk(-1);
+    await player.wait(1_000);
+    expect(player.alice.center.x).toBeLessThan(100);
+    player.walk(0);
+    expect(await player.until(() => player.alice.center.x > 150)).toBe(true);
   });
 });
 

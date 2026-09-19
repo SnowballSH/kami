@@ -20,6 +20,7 @@ export const DOOR_OPENED_LINE = "Click. After you.";
 export const GROW_BLOCKED_LINE = "No room to grow in here.";
 export const GOAL_LINE = "Down the rabbit hole. You drew your way here.";
 export const RULE_REPEALED_LINE = "Struck from the laws of nature.";
+export const STUCK_LINE = "She can't see a way on. Draw her one.";
 export const PONDERING_LINE = "hmm...";
 export const OFFER_HELP_HINT = "(write 'help' anywhere)";
 

@@ -1,0 +1,51 @@
+import type { Vec } from "../core/geometry";
+import { FIXED_STEP_MS } from "../core/world";
+import type { WorldPhysics } from "../rules/types";
+import { ALICE_AIR_FRICTION, BOUNCE_SPEED, WALK_SPEED } from "./constants";
+import type { BounceArc } from "./types";
+import { accelerationOf, airFrictionUnder } from "./worldPhysics";
+
+const ARC_TICK_LIMIT = 100_000;
+
+const pullPerTick = (gravity: Vec): number =>
+  Math.hypot(gravity.x, gravity.y) * FIXED_STEP_MS * FIXED_STEP_MS;
+
+/** Replays matter-js's per-tick velocity update for a body thrown straight up, so the planner sees the same arc Alice will fly. */
+export const traceArc = (speed: number, pull: number, drag: number): BounceArc => {
+  const heights: number[] = [0];
+  let velocity = -speed;
+  let height = 0;
+  let apexPx = 0;
+  let ticksToApex = 0;
+  while (heights.length < ARC_TICK_LIMIT) {
+    velocity = velocity * (1 - drag) + pull;
+    height -= velocity;
+    if (height <= 0) break;
+    heights.push(height);
+    if (height > apexPx) {
+      apexPx = height;
+      ticksToApex = heights.length - 1;
+    }
+  }
+  const unbounded = heights.length >= ARC_TICK_LIMIT;
+  return {
+    apexPx: unbounded ? Number.POSITIVE_INFINITY : apexPx,
+    ticksToApex: unbounded ? Number.POSITIVE_INFINITY : ticksToApex,
+    ticksAloftAbove: (risePx) => {
+      if (risePx > apexPx) return null;
+      for (let tick = heights.length - 1; tick >= 0; tick--) {
+        if ((heights[tick] ?? 0) >= risePx) return tick;
+      }
+      return null;
+    },
+  };
+};
+
+export const bounceArcUnder = (physics: WorldPhysics, strength: number): BounceArc =>
+  traceArc(
+    BOUNCE_SPEED * Math.sqrt(strength),
+    pullPerTick(accelerationOf(physics.gravity)),
+    airFrictionUnder(physics, ALICE_AIR_FRICTION),
+  );
+
+export const walkSpeedAt = (scale: number): number => WALK_SPEED * Math.sqrt(scale);

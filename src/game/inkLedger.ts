@@ -1,3 +1,4 @@
+import type { SceneInk } from "../autopilot/types";
 import type { Ruling } from "../cat/types";
 import type { Drawing, DrawingId, PosedDrawing } from "../ink/types";
 import type { StoredDrawing } from "../persistence/types";
@@ -48,6 +49,15 @@ export class InkLedger {
       pose,
       nature: ruling?.nature ?? "ink",
       awakenedAtMs,
+    }));
+  }
+
+  sceneInks(poses: readonly DrawingPose[]): readonly SceneInk[] {
+    return this.join(poses, ({ drawing, ruling }, pose) => ({
+      drawing,
+      pose,
+      nature: ruling?.nature ?? "ink",
+      strength: ruling?.strength ?? 1,
     }));
   }
 
