@@ -22,6 +22,7 @@ export const ALICE_CHAMFER_RADIUS = 13;
 export const ALICE_AIR_FRICTION = 0.02;
 export const WALK_SPEED = 2.2;
 export const CLIMB_SPEED = 2;
+export const JUMP_SPEED = 8.5;
 export const SLIDE_ACCELERATION = 0.04;
 export const MAX_WALKABLE_SLOPE_DEG = 50;
 export const PROBE_AHEAD = 1.5;

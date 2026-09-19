@@ -25,7 +25,7 @@ import {
   isFreeAt,
   supports,
 } from "./contacts";
-import { walkSpeedAt } from "./flight";
+import { jumpSpeedAt, walkSpeedAt } from "./flight";
 import {
   ALICE_BASE,
   ALICE_SCALE,
@@ -73,6 +73,7 @@ export class AliceController {
   private ahead: readonly Contact[] = [];
   private passing: readonly Contact[] = [];
   private blockedTicks = 0;
+  private jumpArmed = true;
   private lastFootingY: number;
 
   constructor(
@@ -153,8 +154,26 @@ export class AliceController {
       : this.walkVelocity(velocity.x, intent.x, surroundings);
 
     if (this.climbing) cancelGravity(this.body, accelerationOf(this.physics.gravity));
-    const velocityY = this.climbing ? intent.y * CLIMB_SPEED : stepped ? 0 : velocity.y;
+    const velocityY = this.climbing
+      ? intent.y * CLIMB_SPEED
+      : this.takeOff(intent)
+        ? -jumpSpeedAt(this.currentScale)
+        : stepped
+          ? 0
+          : velocity.y;
     Matter.Body.setVelocity(this.body, { x: velocityX, y: velocityY });
+  }
+
+  /** Up, off the ground and away from anything climbable, is a jump; holding up does not hop again. */
+  private takeOff(intent: WalkIntent): boolean {
+    if (intent.y >= 0) {
+      this.jumpArmed = true;
+      return false;
+    }
+    if (!this.jumpArmed || !this.grounded || this.onClimbable) return false;
+    this.jumpArmed = false;
+    this.footing = [];
+    return true;
   }
 
   launch(speed: number): void {
@@ -178,6 +197,7 @@ export class AliceController {
     this.passing = [];
     this.onClimbable = false;
     this.blockedTicks = 0;
+    this.jumpArmed = true;
     this.lastFootingY = feet.y;
   }
 

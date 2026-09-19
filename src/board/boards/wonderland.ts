@@ -27,7 +27,7 @@ export const wonderland: BoardDefinition = {
     {
       id: "riverbank",
       title: "The Riverbank",
-      intro: "She can't jump. You can draw.",
+      intro: "She can hop, not fly. You can draw.",
       fromX: Number.NEGATIVE_INFINITY,
       checkpoint: { x: 120, y: GROUND_TOP },
       allowedNatures: "all",

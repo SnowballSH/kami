@@ -86,13 +86,13 @@ A bare noun phrase with no physics word ("a mushroom", "rock") is never a rule. 
 
 ## autopilot/
 
-Alice walks herself; the player only draws. `game/` hands the pilot a `Scene` every step — the board, Alice's snapshot, every committed drawing with its live `Pose` and its nature, key/door progress, and two sim-derived callables (`walkSpeed`, `bounceArc(strength)`) so plans are made with the world's actual physics — and gets back a `WalkIntent`.
+Alice walks herself; the player only draws. `game/` hands the pilot a `Scene` every step — the board, Alice's snapshot, every committed drawing with its live `Pose` and its nature, key/door progress, and the sim's own figures (`walkSpeed`, `bounceArc(strength)`, `jumpArc`) so plans are made with the world's actual physics — and gets back a `WalkIntent`.
 
 - **Chart.** An 8 px grid over the board's extent (plus margin) stamped with board solids, the closed door, the goal and every drawing's transformed strokes, flagged by nature: `solid`, `climbable`, `bouncy` (with strength), `edible` (grow/shrink, remembering the owning drawing), `hazard`, `goal`.
-- **Pathfinder.** A* over foot positions for her current footprint (`small` / `normal` / `big`): walk with small steps up, fall onto anything landable, climb through climbable ink, bounce off bouncy ink to wherever the arc's apex and drift reach. Hazards are never entered. Bounded by a node budget.
+- **Pathfinder.** A* over foot positions for her current footprint (`small` / `normal` / `big`): walk with small steps up, fall onto anything landable, climb through climbable ink, bounce off bouncy ink to wherever the arc's apex and drift reach, and jump — up onto a ledge too tall to step, or level across a ditch or a hazard too wide to step — wherever her standing jump's arc lands on something and the parabola in between is clear. A jump costs more per cell than walking, so she walks to the very edge and only jumps where walking fails. Hazards are never entered. Bounded by a node budget.
 - **Errands.** Key → door → goal. If the objective is unreachable but a grow/shrink drawing would make it reachable, the errand is to eat it. Otherwise she `wait`s at the nearest reachable stance short of the obstacle (a few body widths back) and `status.stuck` is set; `game/` has Kami write *"She can't see a way on. Draw her one."* once.
 - **Replanning.** Every ¼ s, plus immediately on `invalidate()` — `game/` calls it whenever a drawing commits, is named, ruled, erased or eaten, a rule is enacted or repealed, or a board opens — and whenever her size or key/door progress changes. A route that stops making progress for four seconds is dropped and she sulks briefly before trying again.
-- **Override.** Arrow keys still walk her; while a key is held the pilot is bypassed, and she resumes on release.
+- **Override.** Arrow keys still walk her; while a key is held the pilot is bypassed, and she resumes on release. ↑ on climbable ink climbs; ↑ on the ground jumps, once per press.
 
 ## cat/
 
@@ -142,6 +142,7 @@ Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_U
 - **Funnel** for written text at a world point: `rules.compile` → a `Rule` (note turns green, Kami writes the gloss beneath, `sim.setPhysics(resolvePhysics(rules))`); else the nearest drawing within ~160 px → `cat.name` → `applyRuling` (Kami writes his line); else Kami writes a shrug and the note stays as plain writing.
 - **Guesses.** On commit, Kami writes three tappable guesses beside the drawing; tapping one names it; they vanish when it is named, erased, or after ~20 s. Nothing blocks and nothing holds time still.
 - **Eraser** removes drawings (and their guesses) and notes; erasing a rule's note repeals the rule.
+- **Layout.** No note is written on top of another. `NoteBook.write` measures the script where it was asked for and, if that overlaps existing writing, slides it whole line-heights clear (`noteLayout.settle`): Kami's remarks above Alice drift up, replies beneath a note and guess chips drift down, and the player's own notes drift down off Kami's glosses. The placed position is what gets persisted.
 - **Camera** follows Alice loosely when she walks outside a central dead-zone; any manual pan or zoom suspends following until she walks again or ⌖ is pressed. Zoom 0.25–4.
 - **Walking.** Before every sim step: a held arrow key wins, else `autopilot.drive(scene)`. The pilot is reset on board open and invalidated on every ink or rule change (see `autopilot/`).
 - **Boards.** `?board=<id>` in the URL; default `wonderland`. On load: `store.load` → re-add drawings and rulings, notes, rules. Held walk input survives a board load.

@@ -12,7 +12,7 @@ import { Checkpoints } from "./checkpoints";
 import { GRAVITY_SCALE, GROW_REFUSAL_COOLDOWN_MS, MIN_TIME_SCALE } from "./constants";
 import { type Contact, contactsWith, toContact } from "./contacts";
 import { EMPTY_BOARD } from "./emptyBoard";
-import { bounceArcUnder, walkSpeedAt } from "./flight";
+import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "./flight";
 import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
 import { NATURES, type NatureWorld } from "./natures";
@@ -139,6 +139,10 @@ export class MatterSimulation implements Simulation {
 
   bounceArc(strength: number): BounceArc {
     return bounceArcUnder(this.physics, strength);
+  }
+
+  jumpArc(): BounceArc {
+    return jumpArcUnder(this.physics, this.world.alice.scale);
   }
 
   private tick(timeScale: number): void {

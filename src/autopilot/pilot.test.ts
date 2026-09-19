@@ -4,7 +4,7 @@ import type { Nature } from "../cat/types";
 import type { Rect, Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 import { EARTH } from "../rules/types";
-import { bounceArcUnder, walkSpeedAt } from "../sim/flight";
+import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "../sim/flight";
 import { ALICE_BASE, type AliceSize, type AliceSnapshot } from "../sim/types";
 import { createAutopilot } from "./index";
 import type { Scene, SceneInk } from "./types";
@@ -72,6 +72,7 @@ const scene = (overrides: Partial<Scene> = {}): Scene => ({
   doorOpen: false,
   walkSpeed: walkSpeedAt(1),
   bounceArc: (strength) => bounceArcUnder(EARTH, strength),
+  jumpArc: jumpArcUnder(EARTH, 1),
   ...overrides,
 });
 
@@ -122,6 +123,55 @@ describe("Pilot", () => {
     const intent = pilot.drive(withBridge);
 
     expect(intent.x).toBe(1);
+    expect(pilot.status).toMatchObject({
+      errand: { kind: "objective", objective: "goal" },
+      stuck: false,
+    });
+  });
+
+  it("jumps a ditch too wide to step but short enough to clear", () => {
+    const pilot = createAutopilot();
+    const ditch = 64;
+    const goal: Rect = { x: 700, y: GROUND_Y - 60, width: 40, height: 60 };
+    const board_ = board({
+      goal,
+      solids: [
+        solid({ x: 0, y: GROUND_Y, width: GAP.x, height: 40 }),
+        solid({ x: GAP.x + ditch, y: GROUND_Y, width: 500, height: 40 }),
+      ],
+    });
+    let feet: Vec = { x: GAP.x - 40, y: GROUND_Y };
+    let intent = pilot.drive(scene({ board: board_, alice: alice(feet) }));
+    expect(pilot.status).toMatchObject({
+      errand: { kind: "objective", objective: "goal" },
+      stuck: false,
+    });
+
+    for (let tick = 0; tick < 40 && intent.y === 0; tick++) {
+      expect(intent.x).toBe(1);
+      feet = { x: feet.x + walkSpeedAt(1), y: GROUND_Y };
+      intent = pilot.drive(scene({ board: board_, alice: alice(feet) }));
+    }
+
+    expect(intent).toEqual({ x: 1, y: -1 });
+    expect(feet.x).toBeGreaterThan(GAP.x - ALICE_BASE.width);
+    expect(feet.x).toBeLessThan(GAP.x + ALICE_BASE.width / 2);
+  });
+
+  it("jumps up onto a ledge too tall to step onto", () => {
+    const pilot = createAutopilot();
+    const ledgeTop = GROUND_Y - 56;
+    const goal: Rect = { x: 700, y: ledgeTop - 60, width: 40, height: 60 };
+    const stepped = board({
+      goal,
+      solids: [
+        solid({ x: 0, y: GROUND_Y, width: 400, height: 40 }),
+        solid({ x: 400, y: ledgeTop, width: 500, height: 96 }),
+      ],
+    });
+
+    pilot.drive(scene({ board: stepped, alice: alice({ x: 380, y: GROUND_Y }) }));
+
     expect(pilot.status).toMatchObject({
       errand: { kind: "objective", objective: "goal" },
       stuck: false,

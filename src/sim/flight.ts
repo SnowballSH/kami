@@ -1,7 +1,7 @@
 import type { Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import type { WorldPhysics } from "../rules/types";
-import { ALICE_AIR_FRICTION, BOUNCE_SPEED, WALK_SPEED } from "./constants";
+import { ALICE_AIR_FRICTION, BOUNCE_SPEED, JUMP_SPEED, WALK_SPEED } from "./constants";
 import type { BounceArc } from "./types";
 import { accelerationOf, airFrictionUnder } from "./worldPhysics";
 
@@ -41,11 +41,20 @@ export const traceArc = (speed: number, pull: number, drag: number): BounceArc =
   };
 };
 
-export const bounceArcUnder = (physics: WorldPhysics, strength: number): BounceArc =>
+const arcUnder = (physics: WorldPhysics, speed: number): BounceArc =>
   traceArc(
-    BOUNCE_SPEED * Math.sqrt(strength),
+    speed,
     pullPerTick(accelerationOf(physics.gravity)),
     airFrictionUnder(physics, ALICE_AIR_FRICTION),
   );
 
+export const bounceArcUnder = (physics: WorldPhysics, strength: number): BounceArc =>
+  arcUnder(physics, BOUNCE_SPEED * Math.sqrt(strength));
+
+/** Speeds grow with the square root of her scale, so a big Alice covers proportionally more ground. */
 export const walkSpeedAt = (scale: number): number => WALK_SPEED * Math.sqrt(scale);
+
+export const jumpSpeedAt = (scale: number): number => JUMP_SPEED * Math.sqrt(scale);
+
+export const jumpArcUnder = (physics: WorldPhysics, scale: number): BounceArc =>
+  arcUnder(physics, jumpSpeedAt(scale));

@@ -3,6 +3,7 @@ import type { Handwriting, PenScript } from "../handwriting/types";
 import type { DrawingId } from "../ink/types";
 import type { Note, NoteId } from "../notes/types";
 import type { NoteView } from "../render/types";
+import { type Drift, settle } from "./noteLayout";
 
 const FADE_MS = 700;
 const TAP_MARGIN = 12;
@@ -32,6 +33,8 @@ export interface NotePlacement {
   readonly nowMs: number;
   readonly lifetimeMs?: number;
   readonly anchor?: NoteAnchor;
+  /** Slide the note clear of writing already on the board, this way first. Omit to pin it. */
+  readonly drift?: Drift;
 }
 
 /** Everything written on the board, as pen scripts ready to be revealed stroke by stroke. */
@@ -41,9 +44,10 @@ export class NoteBook {
 
   constructor(private readonly handwriting: Handwriting) {}
 
-  write({ note, nowMs, lifetimeMs, anchor }: NotePlacement): Rect {
-    const entry = this.inscribe(note, nowMs, anchor ?? null, lifetimeMs);
-    return entry.script.bounds;
+  /** Inscribes the note and returns it as placed, which may sit above or below where it was asked for. */
+  write({ note, nowMs, lifetimeMs, anchor, drift }: NotePlacement): Note {
+    const placed = drift === undefined ? note : this.clearSpotFor(note, drift);
+    return this.inscribe(placed, nowMs, anchor ?? null, lifetimeMs).note;
   }
 
   /** A note from a previous session: already on the board, fully written. */
@@ -121,6 +125,25 @@ export class NoteBook {
     }));
   }
 
+  private clearSpotFor(note: Note, drift: Drift): Note {
+    const wanted = this.scriptFor(note, this.seed + 1).bounds;
+    const taken = [...this.entries.values()].map((entry) => entry.script.bounds);
+    const settled = settle(wanted, taken, drift);
+    const position = {
+      x: note.position.x + settled.x - wanted.x,
+      y: note.position.y + settled.y - wanted.y,
+    };
+    return { ...note, position };
+  }
+
+  private scriptFor(note: Note, seed: number): PenScript {
+    return this.handwriting.write(note.text, {
+      origin: note.position,
+      ...NOTE_STYLE[note.author],
+      seed,
+    });
+  }
+
   private inscribe(
     note: Note,
     writtenAtMs: number,
@@ -128,11 +151,7 @@ export class NoteBook {
     lifetimeMs?: number,
   ): Entry {
     this.seed += 1;
-    const script = this.handwriting.write(note.text, {
-      origin: note.position,
-      ...NOTE_STYLE[note.author],
-      seed: this.seed,
-    });
+    const script = this.scriptFor(note, this.seed);
     const expiresAtMs =
       lifetimeMs === undefined ? null : writtenAtMs + script.durationMs + lifetimeMs;
     const entry = { note, script, writtenAtMs, expiresAtMs, anchor };
