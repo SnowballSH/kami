@@ -21,6 +21,7 @@ import type {
 } from "../ink/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore } from "../persistence/types";
+import type { PenReader } from "../reading/types";
 import type { Sighting } from "../recognition/types";
 import type { Renderer } from "../render/types";
 import type { CompiledRule, Rule, RuleCompiler, RuleId, WorldPhysics } from "../rules/types";
@@ -100,6 +101,8 @@ export interface GameModules {
   /** A model behind the server (the GX10): may take seconds, so it is asked last and only if needed. */
   readonly thinker: RuleCompiler;
   readonly store: BoardStore;
+  /** Reads pen strokes as words (a vision model behind the server); without one, ink is only ink. */
+  readonly penReader?: PenReader;
   readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
   readonly boardFor: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
@@ -118,6 +121,7 @@ export interface GameModules {
 
 export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, LawsPanelHandlers {
   private readonly ink: InkSession;
+  private readonly penReader: PenReader | null;
   private readonly hud: Hud;
   private readonly laws: LawsPanel;
   private readonly loop = new FixedStepLoop(FIXED_STEP_MS, MAX_STEPS_PER_FRAME);
@@ -142,6 +146,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private sumikuiLoose = false;
   private meals = 0;
   private recital: Recital[] = [];
+  /** Ink that landed while the pen reader was still reading it: Kami does not name it himself until the reader has answered. */
+  private readonly unread = new Map<DrawingId, Promise<string | null>>();
   private glimpsing = false;
   private glimpseAgain = false;
   private glimpse: { readonly noteId: NoteId; readonly word: string } | null = null;
@@ -157,6 +163,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.notes = new NoteBook(modules.handwriting);
     this.rules = new RuleBook(modules.resolvePhysics);
     this.ink = modules.createInkSession(this);
+    this.penReader = modules.penReader ?? null;
     this.hud = modules.createHud(this);
     this.laws = modules.createLawsPanel(this);
   }
@@ -221,6 +228,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   penUp(): void {
     this.ink.penUp();
     if (this.ink.isDrawing) void this.glimpseInk();
+    this.penReader?.glimpse([...this.ink.activeStrokes]);
   }
 
   penCancel(): void {
@@ -243,15 +251,35 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   onCommit(drawing: Drawing): void {
-    this.modules.sim.addDrawing(drawing);
-    this.modules.autopilot.invalidate();
-    this.ledger.add(drawing);
-    this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
-    void this.offerGuesses(drawing);
+    if (this.penReader === null) {
+      this.land(drawing);
+      return;
+    }
+    const known = this.penReader.recall(drawing.strokes);
+    const reading = this.penReader.settle(drawing.strokes);
+    if (typeof known === "string") {
+      this.ink.refund(drawing.cost);
+      void this.interpret(known, writingOrigin(drawing.strokes));
+      return;
+    }
+    if (known === undefined) this.unread.set(drawing.id, reading);
+    this.land(drawing);
+    if (known === undefined) void this.liftWords(drawing, reading);
   }
 
-  onReject(reason: PlacementRejection): void {
+  onReject(reason: PlacementRejection, strokes: readonly Stroke[]): void {
+    if (this.penReader === null) {
+      this.remark(REJECTION_LINES[reason]);
+      return;
+    }
+    const known = this.penReader.recall(strokes);
+    const reading = this.penReader.settle(strokes);
+    if (typeof known === "string") {
+      void this.interpret(known, writingOrigin(strokes));
+      return;
+    }
     this.remark(REJECTION_LINES[reason]);
+    if (known === undefined) void this.readWords(strokes, reading);
   }
 
   onWalkIntent(intent: WalkIntent): void {
@@ -310,6 +338,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.wasStuck = false;
     renderer.setBoard(this.board);
     this.ink.reset(Number.POSITIVE_INFINITY);
+    this.penReader?.forget();
+    this.unread.clear();
     this.ledger.clear();
     this.notes.clear();
     this.labelsByKami.clear();
@@ -501,9 +531,40 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.glimpse = null;
   }
 
+  private land(drawing: Drawing): void {
+    this.modules.sim.addDrawing(drawing);
+    this.modules.autopilot.invalidate();
+    this.ledger.add(drawing);
+    this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
+    void this.offerGuesses(drawing);
+  }
+
+  /** The ink landed before the reader answered: if it was words after all, take it back up. */
+  private async liftWords(drawing: Drawing, reading: Promise<string | null>): Promise<void> {
+    const epoch = this.epoch;
+    const text = await reading;
+    this.unread.delete(drawing.id);
+    if (text === null || epoch !== this.epoch) return;
+    const record = this.ledger.get(drawing.id);
+    if (record === null || record.ruling !== null) return;
+    this.discard(drawing.id);
+    this.ink.refund(drawing.cost);
+    await this.interpret(text, writingOrigin(drawing.strokes));
+  }
+
+  private async readWords(
+    strokes: readonly Stroke[],
+    reading: Promise<string | null>,
+  ): Promise<void> {
+    const epoch = this.epoch;
+    const text = await reading;
+    if (text !== null && epoch === this.epoch) await this.interpret(text, writingOrigin(strokes));
+  }
+
   private async offerGuesses(drawing: Drawing): Promise<void> {
     const epoch = this.epoch;
     const { certain, guesses } = await this.modules.cat.look(drawing);
+    if (certain !== null) await this.unread.get(drawing.id);
     if (epoch !== this.epoch || this.ledger.get(drawing.id)?.ruling !== null) return;
 
     const corner = guessCornerOf(drawing.strokes);
@@ -844,6 +905,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 const IDLE_INTENT: WalkIntent = { x: 0, y: 0 };
 
 const isPlayers = (note: Note): boolean => note.author === "player";
+
+const writingOrigin = (strokes: readonly Stroke[]): Vec => {
+  const { x, y } = boundsOf(strokes.flat());
+  return { x, y };
+};
 
 const currentBounds = (drawing: Drawing, { pose }: DrawingPose): Rect =>
   translateRect(boundsOf(drawing.strokes.flat()), {

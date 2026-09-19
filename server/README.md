@@ -24,8 +24,8 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 |---|---|
 | `PORT` | HTTP port, default `8787` (what `vite.config.ts` proxies `/api` to) |
 | `MONGODB_URI` | Use this MongoDB instead of the embedded one, e.g. the Atlas `mongodb+srv://…` string. Database `kami`. |
-| `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
-| `KAMI_LLM_MODEL` | Model name to request. Model compile is **off** unless both URL and model are set. |
+| `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile` and `/api/transcribe`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
+| `KAMI_LLM_MODEL` | Model name to request. Model compile and handwriting reading are **off** unless both URL and model are set; reading also needs the model to take images (`qwen3.8` does). |
 | `KAMI_LLM_API_KEY` | Optional bearer token. |
 | `KAMI_CONTROLLER_UDP_PORT` | UDP port physical controllers send to, default `8788`; `off` disables. See `docs/controllers.md`. |
 | `KAMI_CONTROLLER_SERIAL` | `auto` (default: every `/dev/ttyACM*`, rescanned every 3 s), a device path, or `off`. The user needs the `dialout` group. |
@@ -44,6 +44,7 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `POST /api/controllers/:id/state` `<x> <y> [buttons]` (plain text) | `204`; a joystick's whole state, axes -100 … 100 with y up (`docs/controllers.md`) |
 | `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
 | `GET /api/controllers` | `[{ id, x, y, held, buttons, transport, idleMs }]` |
+| `POST /api/transcribe` `{ strokes: {x,y}[][] }` | `{ text: string \| null }` — the strokes read as handwriting, `null` for a drawing; `501` without a model |
 
 Every body is validated with zod (`schemas.ts`, which mirrors `src/*/types.ts` and is checked
 against them at compile time). A bad payload is a `400` with `{ error, issues }`; nothing throws
@@ -172,6 +173,20 @@ routes use, and clamped (`compile/effectRanges.ts`): gravity ±30 g per axis, wi
 "not a rule". It has been tested with an injected fetch and end to end against a fake
 OpenAI-compatible server, not yet against the real GX10.
 
+## Handwriting reading
+
+`transcribe/llmTranscriber.ts` lets the player write with the pen instead of the text prompt. The
+strokes are drawn black-on-white into a small grayscale PNG (`transcribe/strokeImage.ts`, a line of
+writing fitted to 64 px tall, no image library) and shown to the same `KAMI_LLM_MODEL` as a vision
+model through `llm/chatClient.ts`, the OpenAI-compatible client `/api/compile` also uses, with
+`reasoning_effort: "none"` so it answers in one breath (~2 s warm on the GX10; a `400` from a server
+that does not know the field retries without it). The prompt (`transcribe/prompt.ts`) asks for
+`{"text": "…"}` for words and `{"text": null}` for a drawing; the answer is parsed like the
+compiler's, then must read as writing (≤ 80 characters, at least two different letters — a fence
+once came back as `IIIIII`). Anything else, a timeout (20 s), an HTTP error or an abort is `null`:
+the strokes stay ink. `/api/transcribe` forwards the request's abort signal, so a client that
+cancels a read of a prefix costs the model nothing more.
+
 ## Two things that would otherwise bite
 
 - **Bun and `bson`.** `bson` 7 probes `v8.startupSnapshot.isBuildingSnapshot()` while it loads, and
@@ -200,6 +215,7 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 | `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[], names: string[], natures: Nature[], strengths: number[], lines: string[] }` — parallel arrays, best first, at most three, all empty when unsure. `guesses` are bare Quick, Draw! words, each with a 0–1 `confidence`; the other four say what each guess is for the game (below) |
 | `POST /api/beautify` | `{ strokes: {x,y}[][], name: string }` | whatever the attached model answers, content-type preserved: **`application/json` `{ strokes: {x,y}[][] }`** (preferred — drawn with the pen, scales with zoom, fits the whiteboard) or an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
+| `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no model is attached (`KAMI_LLM_URL`/`KAMI_LLM_MODEL`). Stateless; the client may abort a request (the read of a prefix) freely. |
 | boards, drawings, notes, rules | see the table above | |
 | `POST /api/controllers/:id/state` | `text/plain` `<x> <y> [buttons]`, e.g. `100 0 A`: axes -100 … 100 (y up), then the letters of the buttons held (`A` `B` `X` `Y`). `:id` is `[a-z0-9-]{1,32}` | `204`, or `400` `{ error }` |
 | `GET /api/controllers/:id/events` | — | `text/event-stream`: `retry: 1000`, then `data: {"x":-0.7,"y":0.85,"held":["left","up"],"buttons":["a"]}` on connect and on every change (`x`, `y` -1 … 1; `held` of `left` `right` `up` `down`, with `up` also while `a` is held; everything let go after 1 s without a message), and `: keep-alive` every 5 s |

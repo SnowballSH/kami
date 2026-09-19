@@ -17,7 +17,9 @@ import {
   recognizeRequestSchema,
   ruleSchema,
   storedDrawingSchema,
+  transcribeRequestSchema,
 } from "../schemas";
+import type { HandwritingTranscriber } from "../transcribe/llmTranscriber";
 import {
   badRequest,
   json,
@@ -61,6 +63,8 @@ export interface ApiDependencies {
   readonly compiler: RuleCompiler;
   readonly beautifier: Beautifier;
   readonly controllers: ControllerHub;
+  /** Reads the player's handwriting; null when no vision-capable model is configured. */
+  readonly transcriber?: HandwritingTranscriber | null;
   readonly natures?: NatureTable;
 }
 
@@ -120,6 +124,7 @@ export const createApi = ({
   compiler,
   beautifier,
   controllers,
+  transcriber = null,
   natures = quickdrawNatureTable,
 }: ApiDependencies): Router =>
   new Router()
@@ -177,4 +182,11 @@ export const createApi = ({
       isControllerId(params.id)
         ? controllerEventStream(controllers, params.id, { signal: request.signal })
         : badRequest(INVALID_CONTROLLER_ID),
-    );
+    )
+    .on("POST", "/api/transcribe", async ({ request }) => {
+      if (transcriber === null) return notImplemented("no handwriting reader is attached");
+      const body = await parseJsonBody(request, transcribeRequestSchema);
+      if (!body.ok) return body.response;
+      const text = await transcriber.transcribe(body.value.strokes, { signal: request.signal });
+      return json({ text });
+    });

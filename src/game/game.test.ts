@@ -5,6 +5,8 @@ import { createCat } from "../cat";
 import { rectsOverlap, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
+import type { HandwritingReader } from "../persistence/types";
+import { createPenReader } from "../reading";
 import type { LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import type { CompiledRule } from "../rules/types";
@@ -48,6 +50,7 @@ interface PlayerOptions {
   readonly store?: MemoryBoardStore;
   readonly thoughts?: Thoughts;
   readonly eyes?: LiveRecognizer;
+  readonly reader?: HandwritingReader;
 }
 
 const seen = (word: string, nature: Sighting["nature"], certain = false): Sighting => ({
@@ -84,6 +87,36 @@ class Eyes implements LiveRecognizer {
   }
 }
 
+/** Short vertical strokes side by side: what a scrawled word looks like to the ink session. */
+const scrawl = (at: Vec, letters: number): Vec[][] =>
+  Array.from({ length: letters }, (_, i) => [
+    { x: at.x + i * 14, y: at.y },
+    { x: at.x + i * 14 + 6, y: at.y + 12 },
+    { x: at.x + i * 14, y: at.y + 24 },
+  ]);
+
+/** Reads any scrawl of at least three strokes as the given words, after a delay in frames. */
+class ScriptedReader implements HandwritingReader {
+  readonly asked: number[] = [];
+  readonly pending: (() => void)[] = [];
+
+  constructor(
+    private readonly says: string,
+    private readonly slow = false,
+  ) {}
+
+  read(strokes: readonly Vec[][]): Promise<string | null> {
+    this.asked.push(strokes.length);
+    const answer = strokes.length >= 3 ? this.says : null;
+    if (!this.slow) return Promise.resolve(answer);
+    return new Promise((resolve) => this.pending.push(() => resolve(answer)));
+  }
+
+  answerAll(): void {
+    for (const reply of this.pending.splice(0)) reply();
+  }
+}
+
 class Player {
   readonly renderer = new FakeRenderer();
   readonly store: MemoryBoardStore;
@@ -96,7 +129,7 @@ class Player {
 
   constructor(
     boardId: string,
-    { store = new MemoryBoardStore(), thoughts = {}, eyes }: PlayerOptions = {},
+    { store = new MemoryBoardStore(), thoughts = {}, eyes, reader }: PlayerOptions = {},
   ) {
     this.store = store;
     this.game = new Game(
@@ -114,6 +147,7 @@ class Player {
           },
         },
         store,
+        ...(reader === undefined ? {} : { penReader: createPenReader(reader) }),
         resolvePhysics,
         boardFor,
         createInkSession,
@@ -178,6 +212,19 @@ class Player {
     this.game.penDown(first);
     for (const point of rest) this.game.penMove(point);
     this.game.penUp();
+    await this.wait(COMMIT_WAIT_MS);
+  }
+
+  async scrawl(strokes: readonly Vec[][]): Promise<void> {
+    this.use("draw");
+    for (const stroke of strokes) {
+      const [first, ...rest] = stroke;
+      if (first === undefined) continue;
+      this.game.penDown(first);
+      for (const point of rest) this.game.penMove(point);
+      this.game.penUp();
+      await this.wait(50);
+    }
     await this.wait(COMMIT_WAIT_MS);
   }
 
@@ -548,6 +595,85 @@ describe("Game with Kami's eyes on the ink", () => {
       "a zebra?",
       "a mushroom?",
     ]);
+  });
+});
+
+describe("Game with a pen that reads", () => {
+  it("reads a scrawl as words while the pen is still up, and never lands it as ink", async () => {
+    const reader = new ScriptedReader("no gravity");
+    const player = new Player("wonderland", { reader });
+    await player.arrive();
+
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 4));
+    expect(reader.asked).toEqual([1, 2, 3, 4]);
+    expect(player.written).toContain("no gravity");
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    const board = await player.store.load("wonderland");
+    expect(board.drawings).toHaveLength(0);
+    expect(board.rules.map((rule) => rule.sourceText)).toEqual(["no gravity"]);
+  });
+
+  it("lifts a landed drawing into words when the reading comes in late", async () => {
+    const reader = new ScriptedReader("slow motion", true);
+    const player = new Player("wonderland", { reader });
+    await player.arrive();
+
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(1);
+    expect(player.written).not.toContain("slow motion");
+
+    reader.answerAll();
+    await player.wait(100);
+    expect(player.written).toContain("slow motion");
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    const board = await player.store.load("wonderland");
+    expect(board.drawings).toHaveLength(0);
+    expect(board.rules.map((rule) => rule.sourceText)).toEqual(["slow motion"]);
+  });
+
+  it("does not let Kami name ink he is sure about while the reader may still call it words", async () => {
+    const reader = new ScriptedReader("no gravity", true);
+    const eyes = new Eyes([], [seen("snake", "slippery", true)]);
+    const player = new Player("wonderland", { reader, eyes });
+    await player.arrive();
+
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(player.written).not.toContain("a snake");
+
+    reader.answerAll();
+    await player.wait(100);
+    expect(player.written).toContain("no gravity");
+    expect(player.written).not.toContain("a snake");
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  it("lets Kami name it himself once the reader has seen no words in it", async () => {
+    const reader = new ScriptedReader("never said", true);
+    const eyes = new Eyes([], [seen("snake", "slippery", true)]);
+    const player = new Player("wonderland", { reader, eyes });
+    await player.arrive();
+
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 2));
+    expect(player.written).not.toContain("a snake");
+
+    reader.answerAll();
+    await player.wait(100);
+    expect(player.written).toContain("a snake");
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["slippery"]);
+  });
+
+  it("leaves a drawing alone when the reader sees no words, and does not bother it with a line", async () => {
+    const reader = new ScriptedReader("never");
+    const player = new Player("wonderland", { reader });
+    await player.arrive();
+
+    await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
+    expect(reader.asked).toEqual([]);
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    expect(reader.asked).toEqual([1]);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(2);
+    expect(player.written).not.toContain("never");
   });
 });
 

@@ -92,7 +92,7 @@ export class PenInkSession implements InkSession {
     this.#dropPending();
     if (cost < MIN_DRAWING_LENGTH) return;
     if (verdict !== "ok") {
-      this.#listener.onReject(verdict);
+      this.#listener.onReject(verdict, strokes);
       return;
     }
     this.#ledger.spend(cost);
