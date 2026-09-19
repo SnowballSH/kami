@@ -244,6 +244,7 @@ export class MatterSimulation implements Simulation {
     return {
       alice,
       gravity: accelerationOf(this.physics.gravity),
+      intent: this.intent,
       feelers: {
         touches: (ink, offset) => this.feltBy(ink, offset),
         groundBelow: (ink, foot, drop) => this.groundBelow(ink, foot, drop),

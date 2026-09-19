@@ -86,7 +86,7 @@ const aliceRect = (scene: Scene): Rect => ({
   height: scene.alice.height,
 });
 
-const CREATURES: ReadonlySet<Nature> = new Set<Nature>(["walker", "hopper", "flier"]);
+const CREATURES: ReadonlySet<Nature> = new Set<Nature>(["walker", "hopper", "flier", "vehicle"]);
 const CRAMP_INSET = 2;
 
 /**

@@ -41,7 +41,7 @@ Each layer is a complete game without the ones above it.
 
 | Layer | What the player does | What it needs | Status |
 |---|---|---|---|
-| **1. Ink is solid** | Draws a line; Alice walks on it | Physics only. No AI, no latency. | Floor |
+| **1. Ink is solid** | Draws a line; Alice walks on it. A drawing's load-bearing strokes are solid; what is drawn above a span (a bridge's towers and cables, a house's roof) is scenery behind the walkway | Physics only. No AI, no latency. | Floor |
 | **2. Ink is what you say it is** | Names the drawing; it takes on a nature | Vision + voice + the Cat | **The game** |
 | **2½. Adjectives** | "A *very* bouncy mushroom." "A *huge* heavy rock." | Same call — one extra dial | Cheap, high charm |
 | **3. Enchantments** | Speaks a *behavior* onto a drawing: "it drifts to the right" | The compile-once rule engine from the original Paper concept | Lives mainly in the Tea Party sandbox; optional solution in Room 4. First big thing to cut. |
@@ -66,6 +66,7 @@ One per drawing. The player never sees this list — they see the ink change tin
 | **walker** | cat, dog, turtle, knight, any animal that walks | Alive. Paces its ground, turns at walls, edges and Alice; carries her if she stands on it |
 | **hopper** | rabbit, frog, kangaroo, grasshopper | Alive. Sits, then leaps forward on a beat; looks before it leaps |
 | **flier** | bird, butterfly, bee, bat, dragon, fairy | Alive. Flies level and bobbing, roaming only so far from where it was drawn; carries her |
+| **vehicle** | car, cart, boat, bicycle, train, skateboard | Something to drive. Alice steps aboard and it rolls where she points, faster than she walks; she jumps off |
 | **attractor** | black hole, sun, vortex, whirlpool | Pulls Alice and every loose drawing toward itself |
 | **lantern** | lantern, lamp, candle, torch | Lights its patch of the board when it's night |
 
