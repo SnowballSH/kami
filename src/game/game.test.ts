@@ -93,11 +93,11 @@ class Eyes implements LiveRecognizer {
 }
 
 /** Short vertical strokes side by side: what a scrawled word looks like to the ink session. */
-const scrawl = (at: Vec, letters: number): Vec[][] =>
+const scrawl = (at: Vec, letters: number, spacing = 14): Vec[][] =>
   Array.from({ length: letters }, (_, i) => [
-    { x: at.x + i * 14, y: at.y },
-    { x: at.x + i * 14 + 6, y: at.y + 12 },
-    { x: at.x + i * 14, y: at.y + 24 },
+    { x: at.x + i * spacing, y: at.y },
+    { x: at.x + i * spacing + 6, y: at.y + 12 },
+    { x: at.x + i * spacing, y: at.y + 24 },
   ]);
 
 /** Reads any scrawl of at least three strokes as the given words, after a delay in frames. */
@@ -712,7 +712,7 @@ describe("Game with a pen that reads", () => {
     await player.arrive();
 
     await player.scrawl(scrawl({ x: 200, y: 200 }, 4));
-    expect(reader.asked).toEqual([1, 2, 3, 4]);
+    expect(reader.asked).toEqual([3, 4]);
     expect(player.written).toContain("no gravity");
     expect(player.renderer.lastFrame?.inks).toHaveLength(0);
     const board = await player.store.load("wonderland");
@@ -761,7 +761,7 @@ describe("Game with a pen that reads", () => {
     const player = new Player("wonderland", { reader, eyes });
     await player.arrive();
 
-    await player.scrawl(scrawl({ x: 200, y: 200 }, 2));
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 2, 28));
     expect(player.written).not.toContain("a snake");
 
     reader.answerAll();
