@@ -96,8 +96,10 @@ export class Ears implements Listening {
   }
 
   async #listen(mode: Exclude<Mode, null>, generation: number): Promise<void> {
-    const session = await this.#microphone.open((frame) => this.#capture(frame));
-    if (generation !== this.#generation) {
+    const session = await this.#microphone.open((frame) => {
+      if (this.#current(generation)) this.#capture(frame);
+    });
+    if (!this.#current(generation)) {
       void session?.close();
       return;
     }
@@ -109,12 +111,26 @@ export class Ears implements Listening {
     this.#socket = this.#dial(
       session.sampleRate,
       {
-        opened: () => this.#opened(),
-        message: (raw) => this.#say(raw, mode),
-        closed: () => this.#closed(mode),
+        opened: () => {
+          if (this.#current(generation)) this.#opened();
+        },
+        message: (raw) => {
+          if (this.#current(generation)) this.#say(raw, mode);
+        },
+        closed: () => {
+          if (this.#current(generation)) this.#closed(mode);
+        },
       },
       { wake: mode === "wake" },
     );
+  }
+
+  /**
+   * A socket this listening still owns. One closed on the way to the next one goes on shouting
+   * for a while, and what it has to say is about a microphone nobody is holding any more.
+   */
+  #current(generation: number): boolean {
+    return generation === this.#generation;
   }
 
   #capture(frame: Uint8Array<ArrayBuffer>): void {

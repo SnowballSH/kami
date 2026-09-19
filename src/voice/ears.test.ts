@@ -258,6 +258,22 @@ describe("Ears", () => {
     expect(ears.waking).toBe(true);
   });
 
+  it("does not let the hung-up wake stream take the microphone back off the press", async () => {
+    const { ears, microphone, socket, later } = listen();
+    ears.wake(true);
+    await settle(microphone, socket);
+    const hungUp = socket.handlers;
+
+    ears.hold();
+    hungUp.closed();
+    await settle(microphone, socket);
+
+    expect(socket.wake).toBe(false);
+    expect(later).toHaveLength(0);
+    microphone.speak();
+    expect(socket.frames).toBe(1);
+  });
+
   it("listens again after Deepgram hangs up on a standing stream", async () => {
     const { ears, microphone, socket, later } = listen();
     ears.wake(true);
