@@ -1,4 +1,4 @@
-import { CLOSE_STREAM, hear } from "./deepgram";
+import { CLOSE_STREAM, hear, isUtteranceEnd } from "./deepgram";
 import { Hearing } from "./hearing";
 import type { VoiceMessage } from "./types";
 
@@ -84,12 +84,20 @@ export class VoiceRelay {
   }
 
   #heard(raw: string): void {
+    if (this.#continuous && isUtteranceEnd(raw)) {
+      this.#utterance();
+      return;
+    }
     const heard = hear(raw);
     if (heard === null) return;
     if (this.#hearing.take(heard)) {
       this.#listener.tell({ type: "hearing", text: this.#hearing.transcript });
     }
-    if (!this.#continuous || !heard.ended) return;
+    if (this.#continuous && heard.ended) this.#utterance();
+  }
+
+  /** The speaker stopped: hand on what they said, and leave the stream open for the next one. */
+  #utterance(): void {
     const utterance = this.#hearing.settledTranscript;
     this.#hearing.reset();
     if (utterance !== "") this.#listener.tell({ type: "heard", text: utterance });

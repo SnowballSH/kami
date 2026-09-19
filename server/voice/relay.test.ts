@@ -137,6 +137,25 @@ describe("VoiceRelay", () => {
     expect(ear.closed).toBe(false);
   });
 
+  it("hands on an utterance when the words stop but the microphone does not", () => {
+    const { ear, listener } = started({ continuous: true });
+    ear.handlers.opened();
+    ear.handlers.message(results("kami, gravity is the moon's.", true));
+    ear.handlers.message(JSON.stringify({ type: "UtteranceEnd", last_word_end: 2.1 }));
+
+    expect(listener.last).toEqual({ type: "heard", text: "kami, gravity is the moon's." });
+    expect(ear.closed).toBe(false);
+  });
+
+  it("ignores the word-gap timer while the button is what ends an utterance", () => {
+    const { ear, listener } = started();
+    ear.handlers.opened();
+    ear.handlers.message(results("kami", true));
+    ear.handlers.message(JSON.stringify({ type: "UtteranceEnd", last_word_end: 1 }));
+
+    expect(listener.told.some((message) => message.type === "heard")).toBe(false);
+  });
+
   it("lets go of Deepgram when the browser disappears", () => {
     const { relay, ear, listener } = started();
     ear.handlers.opened();

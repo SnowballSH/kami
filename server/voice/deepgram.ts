@@ -15,6 +15,9 @@ export const tokenProtocol = (config: VoiceConfig): string[] => ["token", config
 /** How long Deepgram waits for more words before it calls an utterance finished. */
 const ENDPOINTING_MS = 400;
 
+/** How long a gap between words counts as the speaker stopping, when the audio itself never does. */
+const UTTERANCE_END_MS = 1000;
+
 export const listenUrl = (config: VoiceConfig, { sampleRate }: AudioFormat): string => {
   const url = new URL(LISTEN_ORIGIN);
   url.search = new URLSearchParams({
@@ -27,6 +30,7 @@ export const listenUrl = (config: VoiceConfig, { sampleRate }: AudioFormat): str
     smart_format: "true",
     interim_results: "true",
     endpointing: String(ENDPOINTING_MS),
+    utterance_end_ms: String(UTTERANCE_END_MS),
   }).toString();
   return url.toString();
 };
@@ -64,6 +68,15 @@ export const hear = (raw: string): Heard | null => {
   const text = results.data.channel.alternatives[0]?.transcript.trim() ?? "";
   return { text, settled: results.data.is_final, ended: results.data.speech_final };
 };
+
+const utteranceEndSchema = z.object({ type: z.literal("UtteranceEnd") });
+
+/**
+ * Deepgram's own word-gap timer. `speech_final` needs silence in the audio to fire; `UtteranceEnd`
+ * fires on the gap alone, so a speaker who stops mid-stream is still heard out.
+ */
+export const isUtteranceEnd = (raw: string): boolean =>
+  utteranceEndSchema.safeParse(jsonOrNull(raw)).success;
 
 const jsonOrNull = (raw: string): unknown => {
   try {
