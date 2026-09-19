@@ -6,10 +6,12 @@ import { TAU } from "./canvas2d";
 export type Pen = StrokeOptions & { readonly size: number };
 
 export const NOTE_THICKNESS = 2.2;
+/** Drawn thinner than the ink's physical thickness: a fine pen over a body that stays as solid as before. */
+export const PEN_THICKNESS = INK_THICKNESS / 2;
 
 /** A pen that reports pressure draws with it; a mouse or a finger gets pressure faked from speed. */
 export const INK_PEN: Pen = {
-  size: INK_THICKNESS * 0.8,
+  size: PEN_THICKNESS,
   thinning: 0.55,
   smoothing: 0.5,
   streamline: 0.2,
