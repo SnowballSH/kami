@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
-# Run on the Mac, on the venue Wi-Fi, after join-wifi.sh. Finds the box on the shared network, tells it
-# to stay there (otherwise it returns to its hotspot after ten minutes), and points the `gx10` SSH alias at it.
+# Run on the Mac once the box is on the same network. Finds the box, tells it to stay there (after a
+# join-wifi.sh move it otherwise returns to its hotspot in ten minutes), and points the `gx10` SSH alias at it.
+#   find.sh              look for it by name (gx10-d8fb.local) and by its Wi-Fi hardware address
+#   find.sh 10.189.4.20  you already know its address (e.g. from `hostname -I` on its screen)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 HOST_ALIAS=gx10
 SSH_CONFIG=$HOME/.ssh/config
-PATIENCE_SECONDS=${1:-120}
+KNOWN_HOSTNAME=gx10-d8fb
+PATIENCE_SECONDS=120
+GIVEN_ADDRESS=${1:-}
 
 candidates() {
   local name mac
-  name=$(cat .gx10/box-hostname 2>/dev/null || true)
+  [ -n "$GIVEN_ADDRESS" ] && echo "$GIVEN_ADDRESS"
+  name=$(cat .gx10/box-hostname 2>/dev/null || echo "$KNOWN_HOSTNAME")
   mac=$(cat .gx10/box-wifi-mac 2>/dev/null || true)
   if [ -n "$name" ]; then echo "$name.local"; fi
   [ -n "$mac" ] && arp -an | awk -v wanted="$mac" '
@@ -36,12 +41,13 @@ while [ -z "$found" ] && [ "$SECONDS" -lt "$deadline" ]; do
 done
 
 if [ -z "$found" ]; then
-  echo "✗ Not found. If 'gx10-4d82' is back in the Wi-Fi list, the join failed and the box rolled back:"
-  echo "  join it and read ~/kami/logs/wifi.log, or just re-run join-wifi.sh."
+  echo "✗ Not found on this network. If you can see the box's screen, run 'hostname -I' there and pass"
+  echo "  the address:  bun run gx10:find <address>"
   exit 1
 fi
 
-ssh -o BatchMode=yes -o "HostName=$found" "$HOST_ALIAS" 'bash ~/kami/box/wifi.sh confirm' >/dev/null
+ssh -o BatchMode=yes -o "HostName=$found" "$HOST_ALIAS" \
+  'test -x ~/kami/box/wifi.sh && bash ~/kami/box/wifi.sh confirm || true' >/dev/null
 /usr/bin/sed -E -i '' "/^Host $HOST_ALIAS\$/,/^(Host|Match) /s|^  HostName .*|  HostName $found|" "$SSH_CONFIG"
 echo "$found" > .gx10/box-address
 echo "✓ The box is at $found and will stay on this network. 'ssh $HOST_ALIAS' now goes there."
