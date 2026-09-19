@@ -27,7 +27,9 @@
 | Command | What |
 |---|---|
 | `bun install` | Install dependencies |
-| `bun run dev` | Dev server on the LAN (open the printed Network URL on the iPad) |
+| `bun run dev` | Web (:5173, on the LAN — open the printed Network URL on the iPad) + API/MongoDB server (:8787) |
+| `bun run quickdraw:ingest` | Once: load Quick, Draw! samples into MongoDB so Kami can recognise sketches (restart the server after) |
+| `bun run font:build` | Regenerate the handwriting stroke font from `hersheytext` |
 | `bun run check` | Typecheck + lint + tests — the gate before every push |
 | `bun run format` | Auto-format and apply safe lint fixes |
 | `bun run build` | Production build to `dist/` |

@@ -57,7 +57,7 @@ As before (3 px point filter, one drawing per 900 ms pause, placement verdicts, 
 matter-js 0.20. What changed from the page build:
 
 - `loadBoard(board)`; no page-edge walls; nothing clamps to a page. Alice or ink further than `LOST_DISTANCE` from every solid, or below `board.killY`, is lost: Alice respawns (`fell`), ink is left to fall.
-- **Checkpoints.** Alice respawns at the checkpoint of the zone she is in (by `fromX`), else `board.spawn`; a drawing ruled `spawn` overrides both from then on. Crossing into a zone for the first time emits `zone-entered`.
+- **Checkpoints.** Alice respawns at the checkpoint of the zone she most recently entered, else `board.spawn`; a drawing ruled `spawn` overrides both from then on. Entering a zone for the first time emits `zone-entered` — including the zone she spawns in.
 - **Goal.** `board.goal` overlap → `goal-reached`, once per load. So does touching ink ruled `goal`.
 - **Roles.** `solid` ink is static exactly where it was drawn, anchored or not. `goal` and `spawn` ink is static and does not collide with Alice. `hazard` ink is static; touching it respawns her (`fell`).
 - **World physics.** `setPhysics(p)` persists across `loadBoard`: `gravity` (g, either axis, zero and negative allowed) drives `engine.gravity`; `wind` is a per-body force in g on every dynamic body including Alice; `timeScale` multiplies with bullet-time; `airDrag`, `friction` and `bounciness` scale or set `frictionAir`, `friction` and `restitution` on ink and Alice. Alice's walk stays a set horizontal velocity; under sideways or zero gravity she may drift — that is the point.
@@ -96,11 +96,11 @@ Thin HTTP clients for the server, same origin (`/api`, proxied by Vite in dev). 
 
 ## render/
 
-Canvas 2D at device pixel ratio (cap 2). `toWorld(client, camera)` and `viewport()` are the only geometry it exports. Per frame: clear to white → faint dot grid that thins out as you zoom away → the board's pre-sketched solids (roughjs, seeded, cached per board as drawables and replayed under the camera transform; glass pale blue; no-ink zones red hatching; goal a scribbled black hole; door; key) → inks (perfect-freehand, black until awake, then the nature's marker tint, ~500 ms shiver) → notes (`handwriting.reveal(script, now - writtenAtMs)` through perfect-freehand, thinner than ink; blue for Kami, black for the player, green/red by tone; tappable ones underlined; `opacity`) → Alice (black marker stick doodle, two-frame walk, scales with size, holds the key) → active strokes (red when the verdict isn't `ok`) → eraser cursor ring. Cull anything whose bounds miss the viewport. Depends on `handwriting/types` only; `createRenderer(canvas, handwriting)`.
+Canvas 2D at device pixel ratio (cap 2). `toWorld(client, camera)` and `viewport()` are the only geometry it exports. Per frame: clear to white → faint dot grid that thins out as you zoom away → the board's pre-sketched solids (roughjs, seeded, cached per board as drawables and replayed under the camera transform; glass pale blue; no-ink zones red hatching; goal a scribbled black hole; door; key) → inks (perfect-freehand, black until awake, then the nature's marker tint, ~500 ms shiver) → notes (`handwriting.reveal(script, now - writtenAtMs)` through perfect-freehand, thinner than ink; blue for Kami, black for the player, green/red by tone; tappable ones underlined; `opacity`) → Alice (black marker stick doodle, two-frame walk, scales with size, holds the key) → active strokes (red when the verdict isn't `ok`). Cull anything whose bounds miss the viewport. Depends on `handwriting/types` only; `createRenderer(canvas, handwriting)`.
 
 ## ui/
 
-`touch-action: none` and every iPad guard from before. Floating **toolbar** top-centre: draw ✎ · write T · erase ⌫ · pan ✋ (`aria-pressed`, keys `D` `T` `E` `H`; holding Space pans temporarily). **D-pad** bottom-left. **Zoom** − / + / ⌖ recentre bottom-right. **Board menu** top-left: the wordmark "kami", current board, a list of boards, "new board", "clear board". No bubbles, meters, title cards or modals.
+`touch-action: none` and every iPad guard from before. Floating **toolbar** top-centre: draw ✎ · write T · erase ⌫ · pan ✋ (`aria-pressed`, keys `D` `T` `E` `H`; holding Space pans temporarily — so walking is arrow keys only). **D-pad** bottom-left. **Zoom** − / + / ⌖ recentre bottom-right. **Board menu** top-left: the wordmark "kami", current board, a list of boards, "new board", "clear board". No bubbles, meters, title cards or modals.
 
 `promptText(client)`: an absolutely positioned single-line input at the tap, handwriting-style CSS font, ≥16 px, transparent with a marker underline, `enterkeyhint="done"`; Enter commits, Escape or blur with no text abandons; works with Apple Pencil Scribble since it is a real text field. While it is open, keys never walk Alice or switch tools.
 
@@ -132,3 +132,13 @@ Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_U
 - **Boards.** `?board=<id>` in the URL; default `wonderland`. On load: `store.load` → re-add drawings and rulings, notes, rules. Held walk input survives a board load.
 - **Bullet-time** only while the pen is down.
 - On `goal-reached` Kami writes a closing line; play continues.
+
+## Known limits of the demo
+
+- **Poses are not remembered.** A drawing is stored where it was drawn, so after a reload dynamic ink reappears there and settles again.
+- **One effect per rule.** "low gravity and slow time" is two notes. Relative phrasings ("flip", "double") are relative to Earth, not to the current value.
+- **Clamps differ** between the offline grammar (`rules/`) and the model-backed compiler (`server/compile/effectRanges.ts`); the latter is wider.
+- **The model-backed compiler has never met a real model.** It is tested against an injected fetch and a fake OpenAI-compatible server only.
+- **Recognition is k-NN**, good on distinctive shapes (mushroom, ladder) and weak on scribbly ones (zigzag, bird); measured accuracy is in `server/README.md`. Restart the server after an ingest.
+- **No eraser cursor**, since the renderer is never told where the pointer is.
+- **Not yet touched by a real finger.** Gestures and palm rejection are unit-tested with synthetic pointers, and the page renders correctly in iPadOS Safari (simulator), but nobody has drawn on it with an Apple Pencil.

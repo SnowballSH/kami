@@ -17,7 +17,7 @@ bun run quickdraw:ingest   # once: teaches Kami to recognise sketches from Googl
 bun run dev                # web on :5173 + API/MongoDB on :8787
 ```
 
-Open the printed **Network** URL on an iPad on the same Wi-Fi (landscape; *Share → Add to Home Screen* for full-screen). On a laptop: mouse draws, arrows / WASD walk, `D` `T` `E` `H` pick draw / write / erase / pan, wheel pans, pinch or ctrl-wheel zooms.
+Open the printed **Network** URL on an iPad on the same Wi-Fi (landscape; *Share → Add to Home Screen* for full-screen). On a laptop: mouse draws, arrow keys walk, `D` `T` `E` `H` pick draw / write / erase / pan (hold Space to pan), wheel pans, pinch or ctrl-wheel zooms.
 
 - **The Alice demo** is the `wonderland` board: bridge the ditch → get up the ledge (*a bouncy mushroom*, *a ladder*, *a cloud* — or just write *g = moon* and see what that does to a bounce) → *a cake* to grow and take the key, *drink me* to shrink through the tiny door → the rabbit hole. Stuck? Write *help*.
 - **A new game** is a blank board: board menu → *new board* (or `?board=anything`). Sketch ground and write *ground*; sketch a flag and write *goal*; add *lava*, *start here*, a few laws of physics. It saves as you go.
