@@ -73,6 +73,8 @@ matter-js 0.20, gravity `y = 1`, `Engine.update(engine, FIXED_STEP_MS)` per `ste
 
 `applyRuling` may rebuild the body (static ↔ dynamic) but keeps the drawing's `Pose.origin` stable.
 
+**Bounds.** Invisible static walls stand just outside `x = 0` and `x = WORLD.width` so Alice can't leave the page sideways; they never anchor ink.
+
 **Props.** *Key:* a circle of radius 18 at `level.key`; taken when it intersects Alice's bounds expanded by `0.5 · height` on every side (her reach) → `key-taken`. *Door:* a static solid at `level.door`; on Alice contact while she holds the key it is removed → `door-opened`. *Exit:* Alice's bounds overlapping `level.exit` → `exit-reached`, once.
 
 ## cat/
