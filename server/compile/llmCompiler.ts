@@ -17,6 +17,8 @@ const API_VERSION_PATH = "/v1";
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_REPLY_TOKENS = 1500;
 const WARM_UP_LINE = "hello";
+const NO_REASONING = { reasoning_effort: "none" } as const;
+const REJECTED_REQUEST = 400;
 const REASONING_BLOCK = /<think>[\s\S]*?(<\/think>|$)/gi;
 const MAX_EXPLANATION_LENGTH = 80;
 
@@ -80,6 +82,7 @@ const parseModelReply = (content: string): CompiledRule | null => {
 export class LlmRuleCompiler implements RuleCompiler {
   readonly #config: LlmConfig;
   readonly #fetch: FetchLike;
+  #skipsReasoning = true;
 
   constructor(config: LlmConfig, fetchFn: FetchLike = fetch) {
     this.#config = config;
@@ -96,28 +99,41 @@ export class LlmRuleCompiler implements RuleCompiler {
     return content === null ? null : parseModelReply(content);
   }
 
+  /**
+   * A one-line rule needs no chain of thought: on the GX10's qwen3.8, asking for none answers in
+   * 1.6 s instead of 13.8 s. A server that rejects the field is asked again without it, once.
+   */
   async #ask(text: string): Promise<string | null> {
     try {
-      const response = await this.#fetch(chatCompletionsUrl(this.#config.url), {
-        method: "POST",
-        headers: this.#headers(),
-        body: JSON.stringify({
-          model: this.#config.model,
-          temperature: 0,
-          max_tokens: MAX_REPLY_TOKENS,
-          messages: [
-            { role: "system", content: COMPILER_SYSTEM_PROMPT },
-            { role: "user", content: text },
-          ],
-        }),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
+      let response = await this.#post(text);
+      if (response.status === REJECTED_REQUEST && this.#skipsReasoning) {
+        this.#skipsReasoning = false;
+        response = await this.#post(text);
+      }
       if (!response.ok) return null;
       const chat = chatResponseSchema.safeParse(await response.json());
       return chat.success ? (chat.data.choices[0]?.message.content ?? null) : null;
     } catch {
       return null;
     }
+  }
+
+  #post(text: string): Promise<Response> {
+    return this.#fetch(chatCompletionsUrl(this.#config.url), {
+      method: "POST",
+      headers: this.#headers(),
+      body: JSON.stringify({
+        model: this.#config.model,
+        temperature: 0,
+        max_tokens: MAX_REPLY_TOKENS,
+        ...(this.#skipsReasoning ? NO_REASONING : {}),
+        messages: [
+          { role: "system", content: COMPILER_SYSTEM_PROMPT },
+          { role: "user", content: text },
+        ],
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
   }
 
   #headers(): Record<string, string> {

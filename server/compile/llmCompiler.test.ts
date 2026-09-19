@@ -10,6 +10,7 @@ interface SeenRequest {
   readonly body: {
     model: string;
     max_tokens: number;
+    reasoning_effort?: string;
     messages: { role: string; content: string }[];
   };
 }
@@ -164,5 +165,32 @@ describe("warmUp", () => {
     };
     expect(await createLlmCompiler(CONFIG, unreachable).warmUp()).toBe(false);
     expect(await createLlmCompiler(null).warmUp()).toBe(false);
+  });
+});
+
+describe("reasoning", () => {
+  const MARS_JSON = '{"effect":{"governs":"gravity","x":0,"y":0.38},"explanation":"Mars"}';
+
+  it("asks for none, because a one-line rule does not need a chain of thought", async () => {
+    const seen: SeenRequest[] = [];
+    await createLlmCompiler(CONFIG, modelSaying(MARS_JSON, seen)).compile("red planet");
+    expect(seen[0]?.body.reasoning_effort).toBe("none");
+  });
+
+  it("drops the field, once and for good, for a server that rejects it", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const strict: FetchLike = async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      bodies.push(body);
+      return "reasoning_effort" in body
+        ? new Response("unknown field", { status: 400 })
+        : Response.json({ choices: [{ message: { role: "assistant", content: MARS_JSON } }] });
+    };
+    const compiler = createLlmCompiler(CONFIG, strict);
+    expect((await compiler.compile("red planet"))?.effect).toMatchObject({ governs: "gravity" });
+    expect((await compiler.compile("red planet again"))?.effect).toMatchObject({
+      governs: "gravity",
+    });
+    expect(bodies.map((body) => "reasoning_effort" in body)).toEqual([true, false, false]);
   });
 });
