@@ -7,7 +7,8 @@ import { noContent } from "../controllers/responses";
 import type { ControllerHub } from "../controllers/types";
 import { type BoardRepository, type EntityKind, isEntityKind } from "../db/boardRepository";
 import { type NatureTable, quickdrawNatureTable } from "../natures/natureTable";
-import type { RankedCategory } from "../quickdraw/recognizer";
+import { isCertain } from "../recognition/certainty";
+import type { Reading } from "../recognition/types";
 import {
   beautifyRequestSchema,
   boardIdSchema,
@@ -17,7 +18,9 @@ import {
   recognizeRequestSchema,
   ruleSchema,
   storedDrawingSchema,
+  transcribeRequestSchema,
 } from "../schemas";
+import type { HandwritingTranscriber } from "../transcribe/llmTranscriber";
 import {
   badRequest,
   json,
@@ -36,14 +39,14 @@ export interface RankOptions {
 }
 
 export interface SketchRecognizer {
-  rank(strokes: readonly Stroke[], options?: RankOptions): Promise<readonly RankedCategory[]>;
+  read(strokes: readonly Stroke[], options?: RankOptions): Promise<Reading>;
 }
 
 const MAX_GUESSES = 3;
 const CONFIDENCE_DECIMALS = 3;
 
-const recognitionOf = (ranked: readonly RankedCategory[], natures: NatureTable) => {
-  const best = natures.merge(ranked).slice(0, MAX_GUESSES);
+const recognitionOf = ({ ranking, certainAbove }: Reading, natures: NatureTable) => {
+  const best = natures.merge(ranking).slice(0, MAX_GUESSES);
   const described = best.map(({ category }) => natures.describe(category));
   return {
     guesses: best.map(({ category }) => category),
@@ -52,6 +55,7 @@ const recognitionOf = (ranked: readonly RankedCategory[], natures: NatureTable) 
     natures: described.map(({ nature }) => nature),
     strengths: described.map(({ strength }) => strength),
     lines: described.map(({ line }) => line),
+    certain: isCertain(best[0], certainAbove),
   };
 };
 
@@ -61,6 +65,8 @@ export interface ApiDependencies {
   readonly compiler: RuleCompiler;
   readonly beautifier: Beautifier;
   readonly controllers: ControllerHub;
+  /** Reads the player's handwriting; null when no vision-capable model is configured. */
+  readonly transcriber?: HandwritingTranscriber | null;
   readonly natures?: NatureTable;
 }
 
@@ -120,6 +126,7 @@ export const createApi = ({
   compiler,
   beautifier,
   controllers,
+  transcriber = null,
   natures = quickdrawNatureTable,
 }: ApiDependencies): Router =>
   new Router()
@@ -154,7 +161,7 @@ export const createApi = ({
       const body = await parseJsonBody(request, recognizeRequestSchema);
       if (!body.ok) return body.response;
       const { strokes, partial = false } = body.value;
-      return json(recognitionOf(await recognizer.rank(strokes, { partial }), natures));
+      return json(recognitionOf(await recognizer.read(strokes, { partial }), natures));
     })
     .on("POST", "/api/beautify", async ({ request }) => {
       const body = await parseJsonBody(request, beautifyRequestSchema);
@@ -177,4 +184,11 @@ export const createApi = ({
       isControllerId(params.id)
         ? controllerEventStream(controllers, params.id, { signal: request.signal })
         : badRequest(INVALID_CONTROLLER_ID),
-    );
+    )
+    .on("POST", "/api/transcribe", async ({ request }) => {
+      if (transcriber === null) return notImplemented("no handwriting reader is attached");
+      const body = await parseJsonBody(request, transcribeRequestSchema);
+      if (!body.ok) return body.response;
+      const text = await transcriber.transcribe(body.value.strokes, { signal: request.signal });
+      return json({ text });
+    });

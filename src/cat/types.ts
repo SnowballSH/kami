@@ -1,4 +1,6 @@
+import type { Stroke } from "../core/geometry";
 import type { Drawing } from "../ink/types";
+import type { Sighting } from "../recognition/types";
 
 export const NATURES = [
   "ink",
@@ -66,6 +68,11 @@ export interface RoomBrief {
  * The single face of all the AI in the game. Methods are async where a model
  * could sit behind them; the demo implementation is offline and instant.
  */
+export interface Look {
+  readonly certain: Ruling | null;
+  readonly guesses: readonly [string, string, string];
+}
+
 export interface Cat {
   /** Resets the hint ladder and the once-per-room offer of help. */
   enterRoom(room: RoomBrief): void;
@@ -76,6 +83,13 @@ export interface Cat {
    * recognizer saw comes first; a geometric hunch fills in when it saw nothing.
    */
   guess(drawing: Drawing): Promise<readonly [string, string, string]>;
+  /**
+   * A proper look at a finished drawing. When he is sure what it is, `certain` is the ruling he
+   * would give it himself; otherwise it is null and `guesses` are his three best.
+   */
+  look(drawing: Drawing): Promise<Look>;
+  /** A glance at ink still under the pen: his best guess so far, or null when he has nothing to say yet. */
+  glimpse(strokes: readonly Stroke[]): Promise<Sighting | null>;
   /** "And what is that supposed to be?" */
   askWhatItIs(): string;
   /** Climbs one rung per call, never skips, stays on the answer once reached. */

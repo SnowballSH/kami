@@ -20,6 +20,8 @@ export interface Sighting {
   readonly strength: number;
   /** Kami's remark about it, short enough to handwrite. */
   readonly line: string;
+  /** Sure enough to name without offering the player a choice. At most the first sighting is. */
+  readonly certain: boolean;
 }
 
 export interface SightOptions {

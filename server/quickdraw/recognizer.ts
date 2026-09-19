@@ -1,22 +1,16 @@
 import type { Stroke } from "../../src/core/geometry";
+import { floorFor } from "../recognition/certainty";
+import type { CertaintyFloors, RankedCategory, RankOptions, Reading } from "../recognition/types";
 import { computeFeature, FEATURE_LENGTH } from "./feature";
 import { COMPLETE_FRACTION } from "./prefix";
+
+export type { RankedCategory, RankOptions };
 
 export interface LabelledFeature {
   readonly category: string;
   readonly feature: Float32Array;
   /** The share of the drawing's points this row was computed from; absent means all of them. */
   readonly fraction?: number;
-}
-
-export interface RankedCategory {
-  readonly category: string;
-  readonly confidence: number;
-}
-
-export interface RankOptions {
-  /** The drawing is still under the pen: compare it with half-finished sketches too, and speak only when sure. */
-  readonly partial?: boolean | undefined;
 }
 
 export interface RecognizerOptions {
@@ -26,6 +20,8 @@ export interface RecognizerOptions {
   readonly similarityFloor: number;
   readonly partialLeaderFloor: number;
   readonly maxGuesses: number;
+  /** The leading vote share from which a drawing may be named without asking; null where the share cannot be trusted. */
+  readonly certainAbove: CertaintyFloors;
 }
 
 export const DEFAULT_RECOGNIZER_OPTIONS: RecognizerOptions = {
@@ -35,6 +31,7 @@ export const DEFAULT_RECOGNIZER_OPTIONS: RecognizerOptions = {
   similarityFloor: 0.35,
   partialLeaderFloor: 0.6,
   maxGuesses: 3,
+  certainAbove: { finished: 0.8, partial: null },
 };
 
 /** What any sketch recogniser, local or remote, looks like to the route. */
@@ -120,6 +117,14 @@ export class QuickdrawRecognizer {
     { partial = false }: RankOptions = {},
   ): readonly RankedCategory[] {
     return statedGuesses(this.score(strokes, { partial }), partial, this.#options);
+  }
+
+  /** The stated guesses, and the vote share from which the leader may be taken without asking. */
+  read(strokes: readonly Stroke[], options: RankOptions = {}): Reading {
+    return {
+      ranking: this.rank(strokes, options),
+      certainAbove: floorFor(this.#options.certainAbove, options),
+    };
   }
 
   /** Every category the neighbours voted for, best first, before deciding what is worth saying. */
