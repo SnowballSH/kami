@@ -2,6 +2,7 @@
 # Run on the Mac while it is on the GX10's hotspot. Moves the box onto the venue Wi-Fi, so that from
 # then on the Mac and the box share a network (and the box has internet) with no more hopping.
 # You type the venue Wi-Fi password here; it goes straight to the box and is never stored on the Mac.
+# It also stops the box from suspending when idle, which is what makes its Wi-Fi vanish.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -21,6 +22,14 @@ echo "→ Sending the network script to the box"
 scp -q -o "HostName=$HOTSPOT_ADDRESS" scripts/gx10/box/wifi.sh "$HOST_ALIAS:kami/box/wifi.sh"
 "${SSH[@]}" 'hostname' > .gx10/box-hostname
 "${SSH[@]}" 'cat /sys/class/net/$(nmcli -t -f DEVICE,TYPE device status | awk -F: "\$2==\"wifi\"{print \$1; exit}")/address' > .gx10/box-wifi-mac
+
+echo "→ Did the box fall asleep earlier? (suspend events in the last 3 hours)"
+"${SSH[@]}" 'journalctl --since "-3h" --no-pager 2>/dev/null | grep -iE "suspend entry|PM: suspend|Reached target.*[Ss]leep" | tail -3 || true' | sed 's/^/    /'
+
+echo "→ Keeping the box awake: desktop Ubuntu suspends when idle, which takes its Wi-Fi down with it."
+echo "  This needs sudo on the box — type the BOX password. (Undo later: sudo systemctl unmask sleep.target suspend.target)"
+"${SSH[@]}" -t 'sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target' ||
+  echo "  ! Could not disable sleep — carrying on, but the box may doze off again after ~20 idle minutes."
 
 read -rs -p "Wi-Fi password for '$SSID': " wifi_password
 echo
