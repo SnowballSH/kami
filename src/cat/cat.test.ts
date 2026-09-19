@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { wonderland } from "../board/boards/wonderland";
 import type { Stroke } from "../core/geometry";
 import type { Drawing, DrawingId } from "../ink/types";
-import type { Recognizer } from "../recognition/types";
+import type { LiveRecognizer, Recognizer, Sighting } from "../recognition/types";
 import { createCat } from "./index";
 import { REFUSALS } from "./lines";
 import { isAllowed } from "./natures";
@@ -36,6 +36,29 @@ const ROOMS: readonly RoomBrief[] = [...wonderland.zones, inkOnlyRiverbank, shel
 
 const seeing = (...words: readonly string[]): Recognizer => ({
   recognize: () => Promise.resolve(words),
+});
+
+const sighting = (
+  word: string,
+  nature: Sighting["nature"] = "ink",
+  certain?: boolean,
+): Sighting => ({
+  word,
+  confidence: 0.9,
+  name: `${/^[aeiou]/.test(word) ? "an" : "a"} ${word}`,
+  nature,
+  strength: 1,
+  line: `Ah. ${/^[aeiou]/.test(word) ? "An" : "A"} ${word}.`,
+  ...(certain === undefined ? {} : { certain }),
+});
+
+const sightingsOf = (
+  final: readonly Sighting[],
+  partial: readonly Sighting[] = final,
+): LiveRecognizer => ({
+  recognize: () => Promise.resolve(final.map(({ word }) => word)),
+  sight: (_, options) => Promise.resolve(options?.partial === true ? partial : final),
+  complete: () => Promise.resolve(null),
 });
 
 const drawingOf = (...strokes: Stroke[]): Drawing => ({
@@ -95,6 +118,15 @@ describe("ScriptedCat", () => {
       expect(ruling.nature).toBe(nature);
       expect(ruling.name).toBe(name);
       expect(ruling.strength).toBe(1);
+    });
+
+    it("hears people as walkers, not as laws on Alice", async () => {
+      cat.enterRoom(hallOfDoors);
+      expect(await cat.name("a little girl", SKETCH)).toMatchObject({
+        nature: "walker",
+        name: "a little girl",
+      });
+      expect(await cat.name("a hero", SKETCH)).toMatchObject({ nature: "walker", name: "a hero" });
     });
 
     it("maps the book's labels onto size", async () => {
@@ -301,6 +333,64 @@ describe("ScriptedCat", () => {
       cat.enterRoom(shelves);
       expect(await guessesIn(shelves, recognizer)).toEqual(await cat.guess(ROUND));
       expect(await guessesIn(shelves, recognizer)).toEqual(["a mushroom", "a balloon", "a rock"]);
+    });
+  });
+
+  describe("look and glimpse, with a live recognizer", () => {
+    const ROUND = SHAPES.round ?? drawingOf();
+    const watching = (recognizer: LiveRecognizer, room: RoomBrief = hallOfDoors) => {
+      const watchful = createCat(recognizer);
+      watchful.enterRoom(room);
+      return watchful;
+    };
+
+    it("is sure only when the first sighting is marked certain, and rules it as seen", async () => {
+      const sure = watching(sightingsOf([sighting("okapi", "walker", true), sighting("zebra")]));
+      const look = await sure.look(ROUND);
+      expect(look.certain).toMatchObject({ name: "an okapi", nature: "walker" });
+      expect(look.guesses).toEqual(["an okapi", "a zebra", "a mushroom"]);
+
+      const unsure = watching(sightingsOf([sighting("okapi", "walker"), sighting("zebra")]));
+      expect((await unsure.look(ROUND)).certain).toBeNull();
+      const older = watching(sightingsOf([sighting("okapi", "walker")]));
+      expect((await older.look(ROUND)).certain).toBeNull();
+    });
+
+    it("is never sure of a bare shape, nor of a nature the room would not honour", async () => {
+      const shape = watching(sightingsOf([sighting("circle", "ink", true)]));
+      expect((await shape.look(ROUND)).certain).toBeNull();
+      const creature = watching(sightingsOf([sighting("okapi", "walker", true)]), shelves);
+      expect((await creature.look(ROUND)).certain).toBeNull();
+    });
+
+    it("lends the sighting's nature to a name the lexicon does not know", async () => {
+      const cat = watching(
+        sightingsOf([sighting("okapi", "walker"), sighting("numbat", "hopper")]),
+      );
+      expect((await cat.name("an okapi", ROUND)).nature).toBe("ink");
+      await cat.look(ROUND);
+      expect(await cat.name("an okapi", ROUND)).toMatchObject({
+        name: "an okapi",
+        nature: "walker",
+        line: "Ah. An okapi.",
+      });
+      expect((await cat.name("a tall numbat", ROUND)).nature).toBe("hopper");
+      expect((await cat.name("a bouncy okapi", ROUND)).nature).toBe("bouncy");
+      expect((await cat.name("a sword", ROUND)).nature).toBe("ink");
+      expect((await cat.name("a tapir", ROUND)).nature).toBe("ink");
+    });
+
+    it("glimpses the best honoured sighting of unfinished ink, or nothing", async () => {
+      const cat = watching(sightingsOf([], [sighting("circle"), sighting("okapi", "walker")]));
+      expect(await cat.glimpse(ROUND.strokes)).toMatchObject({ word: "okapi" });
+      const shy = watching(sightingsOf([], []));
+      expect(await shy.glimpse(ROUND.strokes)).toBeNull();
+      const offline = watching({
+        ...sightingsOf([]),
+        sight: () => Promise.reject(new Error("offline")),
+      });
+      expect(await offline.glimpse(ROUND.strokes)).toBeNull();
+      expect((await offline.look(ROUND)).guesses).toEqual(await cat.guess(ROUND));
     });
   });
 

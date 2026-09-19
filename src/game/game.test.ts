@@ -5,6 +5,7 @@ import { createCat } from "../cat";
 import { rectsOverlap, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
+import type { LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import type { CompiledRule } from "../rules/types";
 import { createSimulation } from "../sim";
@@ -16,7 +17,13 @@ import {
   SUMIKUI_SEALED_LINE,
   SUMIKUI_SUMMONED_LINES,
 } from "./lines";
-import { FakeHandwriting, FakeHud, FakeRenderer, MemoryBoardStore } from "./testing/fakes";
+import {
+  FakeHandwriting,
+  FakeHud,
+  FakeLawsPanel,
+  FakeRenderer,
+  MemoryBoardStore,
+} from "./testing/fakes";
 
 const COMMIT_WAIT_MS = 1_200;
 const PATIENCE_MS = 40_000;
@@ -37,22 +44,66 @@ const blob = (center: Vec, rx: number, ry: number): Vec[] =>
 
 type Thoughts = Readonly<Record<string, CompiledRule>>;
 
+interface PlayerOptions {
+  readonly store?: MemoryBoardStore;
+  readonly thoughts?: Thoughts;
+  readonly eyes?: LiveRecognizer;
+}
+
+const seen = (word: string, nature: Sighting["nature"], certain = false): Sighting => ({
+  word,
+  confidence: 0.9,
+  name: `${/^[aeiou]/.test(word) ? "an" : "a"} ${word}`,
+  nature,
+  strength: 1,
+  line: `That is ${word}, plainly.`,
+  ...(certain ? { certain } : {}),
+});
+
+/** Eyes that glimpse one thing while the pen is up and settle on another when the drawing is done. */
+class Eyes implements LiveRecognizer {
+  readonly asked: { readonly strokes: number; readonly partial: boolean }[] = [];
+
+  constructor(
+    private readonly glimpsed: readonly Sighting[],
+    private readonly settled: readonly Sighting[],
+  ) {}
+
+  recognize(): Promise<readonly string[]> {
+    return Promise.resolve([]);
+  }
+
+  sight(strokes: readonly unknown[], options?: { readonly partial?: boolean }) {
+    const partial = options?.partial === true;
+    this.asked.push({ strokes: strokes.length, partial });
+    return Promise.resolve(partial ? this.glimpsed : this.settled);
+  }
+
+  complete(): Promise<null> {
+    return Promise.resolve(null);
+  }
+}
+
 class Player {
   readonly renderer = new FakeRenderer();
   readonly store: MemoryBoardStore;
   readonly game: Game;
   private hudRef: FakeHud | null = null;
+  private lawsRef: FakeLawsPanel | null = null;
   private nowMs = 0;
 
   readonly pondered: string[] = [];
 
-  constructor(boardId: string, store = new MemoryBoardStore(), thoughts: Thoughts = {}) {
+  constructor(
+    boardId: string,
+    { store = new MemoryBoardStore(), thoughts = {}, eyes }: PlayerOptions = {},
+  ) {
     this.store = store;
     this.game = new Game(
       {
         sim: createSimulation(),
         autopilot: createAutopilot(),
-        cat: createCat(),
+        cat: createCat(eyes),
         renderer: this.renderer,
         handwriting: new FakeHandwriting(),
         compiler: createRuleCompiler(),
@@ -70,6 +121,10 @@ class Player {
           this.hudRef = new FakeHud(handlers);
           return this.hudRef;
         },
+        createLawsPanel: (handlers) => {
+          this.lawsRef = new FakeLawsPanel(handlers);
+          return this.lawsRef;
+        },
         findDrawingAt,
       },
       boardId,
@@ -79,6 +134,11 @@ class Player {
   get hud(): FakeHud {
     if (this.hudRef === null) throw new Error("HUD was never created");
     return this.hudRef;
+  }
+
+  get laws(): FakeLawsPanel {
+    if (this.lawsRef === null) throw new Error("Laws panel was never created");
+    return this.lawsRef;
   }
 
   get written(): readonly string[] {
@@ -189,6 +249,40 @@ describe("Game on the Wonderland board", () => {
     expect(player.written.some((text) => text.startsWith("kami: gravity"))).toBe(false);
   });
 
+  it("lists the standing laws in order, and a tap on one repeals it and erases its note", async () => {
+    await player.write("set g equal to the moon's gravity", { x: 200, y: 200 });
+    await player.write("it is night", { x: 200, y: 300 });
+    expect(player.laws.laws.map((law) => law.text)).toEqual([
+      "set g equal to the moon's gravity",
+      "it is night",
+    ]);
+    expect(player.laws.laws[0]?.gloss).toMatch(/gravity/);
+
+    const [gravity] = player.laws.laws;
+    if (gravity === undefined) throw new Error("no law to repeal");
+    player.laws.handlers.onRepealLaw(gravity.id);
+    await player.wait(50);
+    expect(player.laws.laws.map((law) => law.text)).toEqual(["it is night"]);
+    expect(player.written).not.toContain("set g equal to the moon's gravity");
+    expect(player.written).toContain(RULE_REPEALED_LINE);
+    expect((await player.store.load("wonderland")).rules.map((rule) => rule.sourceText)).toEqual([
+      "it is night",
+    ]);
+
+    const returning = new Player("wonderland", { store: player.store });
+    await returning.arrive();
+    expect(returning.laws.laws.map((law) => law.text)).toEqual(["it is night"]);
+  });
+
+  it("stops the lore mid-recital when the Sumikui is sealed within moments of summoning", async () => {
+    await player.write("summon the ink eater", { x: 200, y: 200 });
+    await player.erase({ x: 210, y: 215 });
+    expect(player.written).toContain(SUMIKUI_SEALED_LINE);
+    const unspoken = SUMIKUI_SUMMONED_LINES.slice(1);
+    await player.wait(SUMIKUI_LORE_LINE_DELAY_MS * SUMIKUI_SUMMONED_LINES.length + 100);
+    for (const line of unspoken) expect(player.written).not.toContain(line);
+  });
+
   it("summons the Sumikui with its lore, keeps it while the law stands, and seals it when erased", async () => {
     await player.write("summon the ink eater", { x: 200, y: 200 });
     expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
@@ -229,7 +323,7 @@ describe("Game on the Wonderland board", () => {
     await player.write("a rock", { x: 250, y: 450 });
     await player.write("no gravity", { x: 200, y: 200 });
 
-    const returning = new Player("wonderland", player.store);
+    const returning = new Player("wonderland", { store: player.store });
     await returning.arrive();
     expect(returning.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["heavy"]);
     expect(returning.written).toContain("a rock");
@@ -355,7 +449,7 @@ describe("Game with a model to think with", () => {
   };
 
   it("asks the model only about what nothing else understood", async () => {
-    const player = new Player("wonderland", new MemoryBoardStore(), { [RED_PLANET]: MARS });
+    const player = new Player("wonderland", { thoughts: { [RED_PLANET]: MARS } });
     await player.arrive();
 
     await player.write("no friction", { x: 200, y: 100 });
@@ -381,6 +475,79 @@ describe("Game with a model to think with", () => {
     expect(player.pondered).toEqual(["my friend gerald"]);
     const [stored] = (await player.store.load("wonderland")).drawings;
     expect(stored?.ruling).toMatchObject({ nature: "ink" });
+  });
+});
+
+describe("Game with Kami's eyes on the ink", () => {
+  const sketch = async (player: Player, points: readonly Vec[]): Promise<void> => {
+    player.use("draw");
+    const [first, ...rest] = points;
+    if (first === undefined) return;
+    player.game.penDown(first);
+    for (const point of rest) player.game.penMove(point);
+    player.game.penUp();
+    await player.wait(50);
+  };
+
+  it("pencils in a guess between strokes, keeps quiet on nothing, and clears it once the ink settles", async () => {
+    const eyes = new Eyes([seen("mushroom", "bouncy")], []);
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await sketch(player, blob({ x: 300, y: 530 }, 30, 20));
+    expect(player.written).toContain("a mushroom?");
+    expect(eyes.asked).toEqual([{ strokes: 1, partial: true }]);
+
+    await sketch(player, line({ x: 270, y: 530 }, { x: 330, y: 530 }));
+    expect(player.written.filter((text) => text === "a mushroom?")).toHaveLength(1);
+    expect(eyes.asked.at(-1)).toEqual({ strokes: 2, partial: true });
+
+    await player.wait(COMMIT_WAIT_MS);
+    const notes = player.renderer.lastFrame?.notes ?? [];
+    expect(notes.filter((note) => note.script.text === "a mushroom?" && !note.tappable)).toEqual(
+      [],
+    );
+    expect(eyes.asked.at(-1)).toEqual({ strokes: 2, partial: false });
+    expect(notes.filter((note) => note.tappable)).toHaveLength(3);
+  });
+
+  it("labels a drawing himself when he is certain, and lets a written name overrule him", async () => {
+    const eyes = new Eyes([], [seen("okapi", "walker", true), seen("zebra", "walker")]);
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.wait(100);
+    expect(player.written).toContain("an okapi");
+    expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(0);
+    const [stored] = (await player.store.load("wonderland")).drawings;
+    expect(stored?.ruling).toMatchObject({ name: "an okapi", nature: "walker" });
+    expect((await player.store.load("wonderland")).notes.map((note) => note.text)).toEqual([
+      "an okapi",
+    ]);
+
+    await player.write("a rock", { x: 300, y: 470 });
+    expect(player.written).not.toContain("an okapi");
+    const [renamed] = (await player.store.load("wonderland")).drawings;
+    expect(renamed?.ruling).toMatchObject({ name: "a rock", nature: "heavy" });
+    expect((await player.store.load("wonderland")).notes.map((note) => note.text)).toEqual([
+      "a rock",
+    ]);
+  });
+
+  it("offers guesses as usual when he is not certain", async () => {
+    const player = new Player("wonderland", {
+      eyes: new Eyes([], [seen("okapi", "walker"), seen("zebra", "walker")]),
+    });
+    await player.arrive();
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.wait(100);
+    const guesses = player.renderer.lastFrame?.notes.filter((note) => note.tappable) ?? [];
+    expect(guesses.map((note) => note.script.text)).toEqual([
+      "an okapi?",
+      "a zebra?",
+      "a mushroom?",
+    ]);
   });
 });
 
