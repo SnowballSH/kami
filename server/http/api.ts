@@ -1,6 +1,10 @@
 import type { Stroke } from "../../src/core/geometry";
 import type { RuleCompiler } from "../../src/rules/types";
 import type { Beautifier } from "../beautify/beautifier";
+import { controllerEventStream } from "../controllers/eventStream";
+import { isControllerId, parseControllerReading } from "../controllers/message";
+import { noContent } from "../controllers/responses";
+import type { ControllerHub } from "../controllers/types";
 import { type BoardRepository, type EntityKind, isEntityKind } from "../db/boardRepository";
 import { type NatureTable, quickdrawNatureTable } from "../natures/natureTable";
 import type { RankedCategory } from "../quickdraw/recognizer";
@@ -56,8 +60,12 @@ export interface ApiDependencies {
   readonly recognizer: SketchRecognizer;
   readonly compiler: RuleCompiler;
   readonly beautifier: Beautifier;
+  readonly controllers: ControllerHub;
   readonly natures?: NatureTable;
 }
+
+const INVALID_CONTROLLER_ID = "a controller id is 1–32 of a-z, 0-9 and '-'";
+const INVALID_CONTROLLER_STATE = "the body is '<x> <y> [buttons]', e.g. '100 0 A'";
 
 interface IdentifiedEntity {
   readonly id: string;
@@ -111,6 +119,7 @@ export const createApi = ({
   recognizer,
   compiler,
   beautifier,
+  controllers,
   natures = quickdrawNatureTable,
 }: ApiDependencies): Router =>
   new Router()
@@ -155,4 +164,17 @@ export const createApi = ({
     .on("POST", "/api/compile", async ({ request }) => {
       const body = await parseJsonBody(request, compileRequestSchema);
       return body.ok ? json({ rule: await compiler.compile(body.value.text) }) : body.response;
-    });
+    })
+    .on("GET", "/api/controllers", () => json(controllers.list()))
+    .on("POST", "/api/controllers/:id/state", async ({ request, params }) => {
+      if (!isControllerId(params.id)) return badRequest(INVALID_CONTROLLER_ID);
+      const reading = parseControllerReading(await request.text());
+      if (reading === null) return badRequest(INVALID_CONTROLLER_STATE);
+      controllers.report(params.id, reading, "http");
+      return noContent();
+    })
+    .on("GET", "/api/controllers/:id/events", ({ request, params }) =>
+      isControllerId(params.id)
+        ? controllerEventStream(controllers, params.id, { signal: request.signal })
+        : badRequest(INVALID_CONTROLLER_ID),
+    );

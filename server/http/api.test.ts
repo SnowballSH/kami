@@ -6,6 +6,9 @@ import type { Note, NoteId } from "../../src/notes/types";
 import type { BoardSnapshot, StoredDrawing } from "../../src/persistence/types";
 import type { Rule, RuleId } from "../../src/rules/types";
 import { createBeautifier } from "../beautify/beautifier";
+import { InMemoryControllerHub, STALE_AFTER_MS } from "../controllers/hub";
+import { readEvents } from "../controllers/testing/eventReader";
+import { ManualClock } from "../controllers/testing/manualClock";
 import { BoardRepository } from "../db/boardRepository";
 import type { DatabaseConnection } from "../db/connect";
 import { computeFeature } from "../quickdraw/feature";
@@ -72,6 +75,8 @@ let connection: DatabaseConnection;
 let api: Router;
 let apiParts: () => Omit<ApiDependencies, "beautifier">;
 let beautifier: ApiDependencies["beautifier"];
+let clock: ManualClock;
+let controllers: InMemoryControllerHub;
 
 const call = (method: string, path: string, body?: unknown): Promise<Response> =>
   api.handle(
@@ -114,7 +119,9 @@ beforeAll(async () => {
       ? new Response("model fell over", { status: 500 })
       : Response.json({ strokes: PRETTIER });
   });
-  apiParts = () => ({ boards, recognizer, compiler });
+  clock = new ManualClock();
+  controllers = new InMemoryControllerHub(clock);
+  apiParts = () => ({ boards, recognizer, compiler, controllers });
   api = createApi({ ...apiParts(), beautifier });
 }, 120_000);
 
@@ -348,6 +355,102 @@ describe("recognise and compile", () => {
     expect(await understood.json()).toEqual({ rule: MARS_RULE });
     const shrug = await call("POST", "/api/compile", { text: "a mushroom" });
     expect(await shrug.json()).toEqual({ rule: null });
+  });
+});
+
+describe("controllers", () => {
+  const AT_REST = { x: 0, y: 0, held: [], buttons: [] };
+
+  const say = (controller: string, body: string): Promise<Response> =>
+    api.handle(
+      new Request(`${ORIGIN}/api/controllers/${controller}/state`, {
+        method: "POST",
+        headers: { "content-type": "text/plain" },
+        body,
+      }),
+    );
+
+  it("takes a stick's state over HTTP and lists who is connected", async () => {
+    const response = await say("desk", "100 0 A");
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe("");
+    clock.advance(120);
+    const listed = await call("GET", "/api/controllers");
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toContainEqual({
+      id: "desk",
+      x: 1,
+      y: 0,
+      held: ["right", "up"],
+      buttons: ["a"],
+      transport: "http",
+      idleMs: 120,
+    });
+  });
+
+  it("reads the body whatever curl calls it", async () => {
+    const response = await api.handle(
+      new Request(`${ORIGIN}/api/controllers/curl/state`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "-100 0",
+      }),
+    );
+    expect(response.status).toBe(204);
+    expect((await (await call("GET", "/api/controllers")).json()) as unknown[]).toContainEqual(
+      expect.objectContaining({ id: "curl", held: ["left"] }),
+    );
+  });
+
+  it.each([
+    ["no body", "arcade", ""],
+    ["words for axes", "arcade", "fast 0"],
+    ["one axis", "arcade", "100"],
+    ["JSON", "arcade", '{"x":100,"y":0}'],
+    ["a controller name outside a-z, 0-9 and '-'", "Arcade_1", "100 0"],
+  ])("answers 400 to %s", async (_what, controller, body) => {
+    const response = await say(controller, body);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toHaveProperty("error");
+    expect((await (await call("GET", "/api/controllers")).json()) as unknown[]).not.toContainEqual(
+      expect.objectContaining({ id: controller }),
+    );
+  });
+
+  it("streams the state on connect, then every change, then the release when the stick goes quiet", async () => {
+    const response = await call("GET", "/api/controllers/arcade/events");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("text/event-stream");
+    const events = readEvents(response);
+    expect(await events.nextEvent()).toEqual(AT_REST);
+
+    await say("arcade", "-70 85 A");
+    expect(await events.nextEvent()).toEqual({
+      x: -0.7,
+      y: 0.85,
+      held: ["left", "up"],
+      buttons: ["a"],
+    });
+
+    await say("arcade", "-70 85 A");
+    await say("other", "100 0");
+    await say("arcade", "0 -100");
+    expect(await events.nextEvent()).toEqual({ x: 0, y: -1, held: ["down"], buttons: [] });
+
+    clock.advance(STALE_AFTER_MS);
+    expect(await events.nextEvent()).toEqual(AT_REST);
+    await events.cancel();
+  });
+
+  it("hands a late subscriber what is held right now", async () => {
+    await say("late", "0 100");
+    const events = readEvents(await call("GET", "/api/controllers/late/events"));
+    expect(await events.nextEvent()).toEqual({ x: 0, y: 1, held: ["up"], buttons: [] });
+    await events.cancel();
+  });
+
+  it("answers 400 to events for a name no controller can have", async () => {
+    expect((await call("GET", "/api/controllers/NOT%20A%20NAME/events")).status).toBe(400);
   });
 });
 

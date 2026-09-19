@@ -1,3 +1,4 @@
+import { createRemoteStick } from "../controller";
 import type { Vec } from "../core/geometry";
 import { BoardMenu } from "./boardMenu";
 import { el } from "./dom";
@@ -36,6 +37,7 @@ export class DomHud implements Hud {
     this.boards = new BoardMenu(handlers);
     this.prompt = new TextPrompt(host);
     this.stick = new Joystick(walk.source());
+    const remoteStick = createRemoteStick(walk.source());
     this.overlay.append(
       this.boards.element,
       this.toolbar.element,
@@ -46,6 +48,7 @@ export class DomHud implements Hud {
     root.append(this.overlay);
     this.detachers = [
       new KeyboardWalk(walk.source()).attach(host),
+      ...(remoteStick === null ? [] : [remoteStick.attach()]),
       this.stick.attach(host),
       new ToolHotkeys(this.tools).attach(host),
       this.boards.attach(owner),

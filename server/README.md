@@ -27,6 +27,8 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
 | `KAMI_LLM_MODEL` | Model name to request. Model compile is **off** unless both URL and model are set. |
 | `KAMI_LLM_API_KEY` | Optional bearer token. |
+| `KAMI_CONTROLLER_UDP_PORT` | UDP port physical controllers send to, default `8788`; `off` disables. See `docs/controllers.md`. |
+| `KAMI_CONTROLLER_SERIAL` | `auto` (default: every `/dev/ttyACM*`, rescanned every 3 s), a device path, or `off`. The user needs the `dialout` group. |
 
 ## Routes
 
@@ -39,6 +41,9 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `DELETE /api/boards/:board` | clear the board |
 | `POST /api/recognize` `{ strokes: {x,y}[][] }` | `{ guesses: string[] }`, best first, at most three, `[]` when unsure or not ingested |
 | `POST /api/compile` `{ text }` | `{ rule: CompiledRule \| null }` |
+| `POST /api/controllers/:id/state` `<x> <y> [buttons]` (plain text) | `204`; a joystick's whole state, axes -100 … 100 with y up (`docs/controllers.md`) |
+| `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
+| `GET /api/controllers` | `[{ id, x, y, held, buttons, transport, idleMs }]` |
 
 Every body is validated with zod (`schemas.ts`, which mirrors `src/*/types.ts` and is checked
 against them at compile time). A bad payload is a `400` with `{ error, issues }`; nothing throws
@@ -196,6 +201,12 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 | `POST /api/beautify` | `{ strokes: {x,y}[][], name: string }` | whatever the attached model answers, content-type preserved: **`application/json` `{ strokes: {x,y}[][] }`** (preferred — drawn with the pen, scales with zoom, fits the whiteboard) or an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
 | boards, drawings, notes, rules | see the table above | |
+| `POST /api/controllers/:id/state` | `text/plain` `<x> <y> [buttons]`, e.g. `100 0 A`: axes -100 … 100 (y up), then the letters of the buttons held (`A` `B` `X` `Y`). `:id` is `[a-z0-9-]{1,32}` | `204`, or `400` `{ error }` |
+| `GET /api/controllers/:id/events` | — | `text/event-stream`: `retry: 1000`, then `data: {"x":-0.7,"y":0.85,"held":["left","up"],"buttons":["a"]}` on connect and on every change (`x`, `y` -1 … 1; `held` of `left` `right` `up` `down`, with `up` also while `a` is held; everything let go after 1 s without a message), and `: keep-alive` every 5 s |
+| `GET /api/controllers` | — | `[{ id, x, y, held, buttons, transport: "udp" \| "serial" \| "http", idleMs }]`, forgotten after a minute of silence |
+
+The controller routes are the HTTP face of `server/controllers/` (UDP `:8788` and USB serial feed the same
+hub); the whole protocol, the Arduino sketch included, is `docs/controllers.md`.
 
 **Live guessing.** `partial: true` marks a drawing still under the pen. The route is stateless on purpose:
 post the strokes so far every ~150 ms and the whole prefix is re-read each time — at a few hundred points

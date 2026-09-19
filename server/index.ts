@@ -1,6 +1,7 @@
 import { createBeautifier } from "./beautify/beautifier";
 import { createLlmCompiler } from "./compile/llmCompiler";
 import { readConfig } from "./config";
+import { startControllers } from "./controllers";
 import { BoardRepository } from "./db/boardRepository";
 import { connectDatabase } from "./db/connect";
 import { createApi } from "./http/api";
@@ -24,12 +25,17 @@ const eye = createRecognizerChain(config.recognizerUrl, knn, {
   log: (line) => console.log(`  ${line}`),
 });
 
+const controllers = await startControllers(config.controllers, {
+  log: (line) => console.log(`  ${line}`),
+});
+
 const compiler = createLlmCompiler(config.llm);
 const api = createApi({
   boards,
   recognizer: eye.recognizer,
   compiler,
   beautifier: createBeautifier(config.beautifyUrl),
+  controllers: controllers.hub,
 });
 const site = config.webDirectory === null ? null : createStaticSite(config.webDirectory);
 const isApiCall = (request: Request): boolean =>
@@ -54,6 +60,7 @@ console.log(
 );
 void eye.describe().then((line) => console.log(`  ${line}`));
 console.log(`  beautifier: ${config.beautifyUrl ?? "none attached"}`);
+console.log(`  controllers: ${controllers.description}`);
 console.log(`  model compile: ${config.llm === null ? "off" : config.llm.model}`);
 if (config.llm !== null) {
   void compiler
@@ -72,6 +79,7 @@ const once = (task: () => Promise<void>): (() => Promise<void>) => {
 };
 
 const shutDown = once(async () => {
+  await controllers.close();
   await server.stop(true);
   await connection.close();
   process.exit(0);
