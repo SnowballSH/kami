@@ -17,7 +17,9 @@
     "quickdraw:ingest": "bun server/quickdraw/ingest.ts",
     "font:build": "bun scripts/buildStrokeFont.ts",
     "gx10:tunnel": "scripts/gx10/tunnel.sh",
-    "gx10:bootstrap": "scripts/gx10/bootstrap.sh"
+    "gx10:bootstrap": "scripts/gx10/bootstrap.sh",
+    "gx10:prepare": "scripts/gx10/prepare.sh",
+    "gx10:deploy": "scripts/gx10/deploy.sh"
   },
   "dependencies": {
     "matter-js": "^0.20.0",

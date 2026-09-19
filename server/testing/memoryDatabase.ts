@@ -13,6 +13,5 @@ export const startMemoryDatabase = async (): Promise<DatabaseConnection> => {
     db: client.db(DATABASE_NAME),
     description: "in-memory mongod for tests",
     close,
-    shutDown: close,
   };
 };

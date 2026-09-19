@@ -7,6 +7,12 @@ export interface QuickdrawSample extends LabelledFeature {
   readonly drawing: readonly SimplifiedStroke[];
 }
 
+export interface StoredSketch {
+  readonly category: string;
+  readonly keyId: string;
+  readonly drawing: readonly SimplifiedStroke[];
+}
+
 interface SampleDocument {
   readonly category: string;
   readonly keyId: string;
@@ -61,6 +67,14 @@ export class QuickdrawSampleRepository {
       category,
       feature: decodeFeature(feature),
     }));
+  }
+
+  /** Every stored drawing without its feature: what a snapshot needs, since features can be recomputed. */
+  async loadDrawings(): Promise<readonly StoredSketch[]> {
+    return this.#samples
+      .find({}, { projection: { _id: 0, category: 1, keyId: 1, drawing: 1 } })
+      .sort({ category: 1, keyId: 1 })
+      .toArray();
   }
 
   async keyIdsOf(category: string): Promise<ReadonlySet<string>> {

@@ -10,10 +10,8 @@ const ADOPTION_TIMEOUT_MS = 500;
 export interface DatabaseConnection {
   readonly db: Db;
   readonly description: string;
-  /** Disconnects. Stops the embedded mongod only if this connection started it. */
+  /** Disconnects, and stops the embedded mongod if — and only if — this connection started it. */
   close(): Promise<void>;
-  /** Disconnects and stops the embedded mongod even if it was found already running. */
-  shutDown(): Promise<void>;
 }
 
 export interface DatabaseOptions {
@@ -28,16 +26,7 @@ const connectToUri = async (uri: string): Promise<DatabaseConnection> => {
     db: client.db(DATABASE_NAME),
     description: "the MongoDB at MONGODB_URI",
     close,
-    shutDown: close,
   };
-};
-
-const stopAdopted = async (client: MongoClient): Promise<void> => {
-  await client
-    .db("admin")
-    .command({ shutdown: 1, force: true })
-    .catch(() => undefined);
-  await client.close();
 };
 
 const adoptRunningEmbedded = async (dataDirectory: string): Promise<DatabaseConnection | null> => {
@@ -49,7 +38,6 @@ const adoptRunningEmbedded = async (dataDirectory: string): Promise<DatabaseConn
       db: client.db(DATABASE_NAME),
       description: `embedded mongod (already running) with its data in ${dataDirectory}`,
       close: () => client.close(),
-      shutDown: () => stopAdopted(client),
     };
   } catch {
     return null;
@@ -71,7 +59,6 @@ const startEmbedded = async (dataDirectory: string): Promise<DatabaseConnection>
     db: client.db(DATABASE_NAME),
     description: `embedded mongod with its data in ${dataDirectory}`,
     close,
-    shutDown: close,
   };
 };
 

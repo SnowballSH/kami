@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Run on the Mac while it can reach the GX10 (its 'gx10-4d82' Wi-Fi). Ships what prepare.sh gathered
+# into ~/kami on the box, installs the runtimes there (no sudo), and starts MongoDB + the Kami server.
+#   --autostart   also start Kami whenever the box boots (a user crontab entry; remove with box/autostart.sh disable)
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+HOST_ALIAS=gx10
+BOX_ADDRESS=10.13.37.1
+PORT=8787
+BUILD=.gx10/build
+CACHE=.gx10/cache
+LOG=.gx10/deploy.log
+AUTOSTART=${1:-}
+
+for needed in dist/index.html "$BUILD/server.js" "$BUILD/snapshot.js" "$BUILD/quickdraw.ndjson.gz"; do
+  [ -s "$needed" ] || { echo "✗ $needed is missing — run 'bun run gx10:prepare' first (with internet)."; exit 1; }
+done
+if ! ssh -o BatchMode=yes "$HOST_ALIAS" true 2>/dev/null; then
+  echo "✗ Can't reach the GX10. Join the 'gx10-4d82' Wi-Fi, then re-run. (First time? bun run gx10:bootstrap)"
+  exit 1
+fi
+
+mkdir -p .gx10
+exec > >(tee "$LOG") 2>&1
+date
+
+echo "→ Shipping the game and the server"
+ssh "$HOST_ALIAS" 'mkdir -p ~/kami/cache ~/kami/app && rm -rf ~/kami/dist ~/kami/box'
+tar -czf - dist | ssh "$HOST_ALIAS" 'tar -xzf - -C ~/kami'
+tar -czf - -C "$BUILD" . | ssh "$HOST_ALIAS" 'tar -xzf - -C ~/kami/app'
+tar -czf - -C scripts/gx10 box | ssh "$HOST_ALIAS" 'tar -xzf - -C ~/kami'
+
+echo "→ Shipping runtimes the box doesn't have yet"
+for archive in "$CACHE"/*; do
+  name=$(basename "$archive")
+  if ssh "$HOST_ALIAS" "test -s ~/kami/cache/$name"; then echo "  ✓ $name (already there)"
+  else echo "  ↑ $name"; scp -q "$archive" "$HOST_ALIAS:kami/cache/$name"; fi
+done
+
+echo "→ Installing and starting on the box"
+ssh "$HOST_ALIAS" 'bash ~/kami/box/install.sh && bash ~/kami/box/start.sh'
+[ "$AUTOSTART" = "--autostart" ] && ssh "$HOST_ALIAS" 'bash ~/kami/box/autostart.sh enable'
+
+echo "→ Checking it from this side of the Wi-Fi"
+if curl -fs -m 8 "http://$BOX_ADDRESS:$PORT/api/boards" >/dev/null; then
+  echo "✓ Kami is live. On the iPad: join 'gx10-4d82', open  http://$BOX_ADDRESS:$PORT"
+else
+  echo "✗ The server runs on the box but port $PORT isn't reachable from the Wi-Fi — likely its firewall."
+  echo "  On the box:  sudo ufw allow $PORT/tcp     (needs the box password)"
+fi
+echo "(log saved to $LOG)"

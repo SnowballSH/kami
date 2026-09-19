@@ -3,8 +3,11 @@ import { readConfig } from "./config";
 import { BoardRepository } from "./db/boardRepository";
 import { connectDatabase } from "./db/connect";
 import { createApi } from "./http/api";
+import { createStaticSite } from "./http/staticSite";
 import { QuickdrawRecognizer } from "./quickdraw/recognizer";
 import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
+
+const API_PREFIX = "/api";
 
 const config = readConfig();
 const connection = await connectDatabase(config.database);
@@ -18,10 +21,22 @@ const recognizer = new QuickdrawRecognizer(
 
 const compiler = createLlmCompiler(config.llm);
 const api = createApi({ boards, recognizer, compiler });
-const server = Bun.serve({ port: config.port, hostname: "0.0.0.0", fetch: api.handle });
+const site = config.webDirectory === null ? null : createStaticSite(config.webDirectory);
+const isApiCall = (request: Request): boolean =>
+  new URL(request.url).pathname.startsWith(API_PREFIX);
+
+const server = Bun.serve({
+  port: config.port,
+  hostname: "0.0.0.0",
+  fetch: async (request) =>
+    isApiCall(request) || site === null
+      ? api.handle(request)
+      : ((await site(request)) ?? api.handle(request)),
+});
 
 console.log(`Kami server on http://localhost:${server.port}`);
 console.log(`  memory: ${connection.description}`);
+console.log(`  game: ${config.webDirectory ?? "not built (Vite serves it in development)"}`);
 console.log(
   recognizer.size > 0
     ? `  recognition: ${recognizer.size} Quick, Draw! sketches`
@@ -46,7 +61,7 @@ const once = (task: () => Promise<void>): (() => Promise<void>) => {
 
 const shutDown = once(async () => {
   await server.stop(true);
-  await connection.shutDown();
+  await connection.close();
   process.exit(0);
 });
 

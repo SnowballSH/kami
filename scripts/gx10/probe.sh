@@ -10,6 +10,9 @@ section "disk";          df -h / /home 2>/dev/null | sort -u
 section "network";       nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device status 2>/dev/null; ip -4 -brief addr 2>/dev/null; ip route show default 2>/dev/null
 section "internet";      (curl -s -m 5 -o /dev/null -w 'https ok (%{http_code})\n' https://ollama.com || echo "no internet")
 section "passwordless sudo"; (sudo -n true 2>/dev/null && echo yes || echo no)
+section "kernel page size"; getconf PAGESIZE
+section "firewall";      (systemctl is-active ufw 2>/dev/null; command -v ufw >/dev/null && echo "ufw installed")
+section "docker access"; (docker ps >/dev/null 2>&1 && echo "yes, without sudo" || echo "no (needs sudo or the docker group)")
 section "docker";        (docker --version && docker info --format 'runtimes: {{json .Runtimes}}' 2>/dev/null | cut -c1-200) 2>&1 | head -3
 section "ollama";        (command -v ollama && ollama --version && ollama list) 2>&1 | head -12
 section "python";        (python3 --version; command -v uv pip3 conda) 2>&1 | head -5

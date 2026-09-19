@@ -4,7 +4,7 @@ import type { Stroke } from "../../src/core/geometry";
 const DATASET_BASE_URL = "https://storage.googleapis.com/quickdraw_dataset/full/simplified";
 const DEFAULT_RANGE_BYTES = 1_500_000;
 
-const simplifiedStrokeSchema = z.tuple([z.array(z.number()), z.array(z.number())]);
+export const simplifiedStrokeSchema = z.tuple([z.array(z.number()), z.array(z.number())]);
 
 const simplifiedLineSchema = z.object({
   key_id: z.string(),

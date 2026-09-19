@@ -1,14 +1,18 @@
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { LlmConfig } from "./compile/llmCompiler";
 import type { DatabaseOptions } from "./db/connect";
 
 const DEFAULT_PORT = 8787;
 const EMBEDDED_DATA_DIRECTORY = fileURLToPath(new URL("../.kami-data", import.meta.url));
+const BUILT_WEB_DIRECTORY = fileURLToPath(new URL("../dist", import.meta.url));
 
 export interface ServerConfig {
   readonly port: number;
   readonly database: DatabaseOptions;
   readonly llm: LlmConfig | null;
+  /** The built game to serve alongside the API; null in development, where Vite serves it. */
+  readonly webDirectory: string | null;
 }
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -29,8 +33,14 @@ const llmFrom = (env: Env): LlmConfig | null => {
   return apiKey === undefined ? { url, model } : { url, model, apiKey };
 };
 
+const webDirectoryFrom = (env: Env): string | null => {
+  const directory = nonEmpty(env.KAMI_WEB_DIR) ?? BUILT_WEB_DIRECTORY;
+  return existsSync(directory) ? directory : null;
+};
+
 export const readConfig = (env: Env = process.env): ServerConfig => ({
   port: portFrom(env.PORT),
   database: { uri: nonEmpty(env.MONGODB_URI), embeddedDataDirectory: EMBEDDED_DATA_DIRECTORY },
   llm: llmFrom(env),
+  webDirectory: webDirectoryFrom(env),
 });

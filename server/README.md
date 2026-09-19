@@ -127,21 +127,40 @@ OpenAI-compatible server, not yet against the real GX10.
 MongoDB start their own throwaway in-memory `mongod` (`testing/memoryDatabase.ts`), never
 `.kami-data/`.
 
-## Using the ASUS Ascent GX10
+## Running everything on the ASUS Ascent GX10
 
-The team's box (`gx10-d8fb`, GB10, 121 GB, Ubuntu 24.04) already has Ollama with `qwen3.8` and
-`nemotron-3.5-lightning` pulled. It serves its own Wi-Fi (`gx10-4d82`, gateway `10.13.37.1`), has no
-internet, and Ollama listens on the box's localhost only — so it is reached through an SSH tunnel and
-nothing on the box is changed.
+The goal: all computation on the box, nothing on a laptop during the demo.
 
-```bash
-bun run gx10:bootstrap   # once, on its Wi-Fi: installs an SSH key (you type the password), saves .gx10/probe.txt
-bun run gx10:tunnel      # each session: localhost:11434 → Ollama, localhost:11000 → DGX Dashboard
+```
+iPad ──Wi-Fi "gx10-4d82"──►  GX10 (10.13.37.1):  game + API (:8787) ─► MongoDB (:27017, local)
+                                                                    └► Ollama  (:11434, local) qwen3.8
 ```
 
-`.env.local` (gitignored) sets `KAMI_LLM_URL=http://localhost:11434` and `KAMI_LLM_MODEL=qwen3.8:latest`.
-The server warms the model up at start and says whether it answered. The game asks it **last**: the
-offline grammar and known names are instant; only a note nothing else understood goes to the model,
-while Kami writes "hmm…". With no tunnel it answers "no rule" at once and nothing breaks.
+The box (`gx10-d8fb`, GB10, 121 GB, Ubuntu 24.04) serves its own Wi-Fi, has **no internet**, no
+passwordless sudo, and already has Ollama with `qwen3.8` and `nemotron-3.5-lightning`. So the Mac
+carries everything to it and installs under `~/kami` — nothing system-wide, nothing needing sudo.
 
-The Mac has one Wi-Fi radio: to keep internet while on the box's network, tether an iPhone over USB.
+```bash
+bun run gx10:bootstrap   # once, on the box's Wi-Fi: installs an SSH key (you type the password once)
+bun run gx10:prepare     # with internet: build, bundle the server to one file, export the Quick, Draw!
+                         #   snapshot, fetch Bun + MongoDB for Linux arm64 into .gx10/cache (156 MB, once)
+bun run gx10:deploy      # on the box's Wi-Fi: ship, install, (re)start, health-check → .gx10/deploy.log
+                         #   add --autostart to bring Kami back whenever the box boots
+```
+
+Then on the iPad: join `gx10-4d82`, open `http://10.13.37.1:8787`. On the box, `~/kami/box/status.sh`
+shows what is running and `stop.sh` / `start.sh` do what they say.
+
+How it fits: the server serves the built game itself (`KAMI_WEB_DIR`, `server/http/staticSite.ts`), so one
+process is the product. `bun build` bundles it to a single `server.js`, so the box needs no
+`node_modules`. The box can't run the Quick, Draw! ingest, so `server/quickdraw/snapshot.ts` exports the
+drawings on the Mac and imports them there, recomputing features on arrival. The game asks the model
+**last** — the offline grammar and known names are instant — and the server warms the model at start.
+
+For development on the Mac instead, `bun run gx10:tunnel` forwards the box's Ollama to `localhost:11434`
+(what `.env.local` points at). The Mac has one Wi-Fi radio, so staying online while on the box's Wi-Fi
+needs internet on another interface (iPhone USB tethering, or Ethernet to the box with a USB-C adapter).
+
+**Not yet run on the box:** `install.sh` / `start.sh`. Known unknowns the first deploy will answer:
+whether MongoDB 8.2 is happy with the kernel's page size, and whether the box's firewall lets the
+Wi-Fi reach port 8787 (if not: `sudo ufw allow 8787/tcp` on the box).
