@@ -69,6 +69,19 @@ export const distanceToRect = (point: Vec, rect: Rect): number =>
     Math.max(rect.y - point.y, 0, point.y - (rect.y + rect.height)),
   );
 
+/** The shortest distance between two rects; 0 when they touch or overlap. */
+export const rectGap = (a: Rect, b: Rect): number =>
+  Math.hypot(
+    Math.max(a.x - (b.x + b.width), 0, b.x - (a.x + a.width)),
+    Math.max(a.y - (b.y + b.height), 0, b.y - (a.y + a.height)),
+  );
+
+export const translateRect = (rect: Rect, by: Vec): Rect => ({
+  ...rect,
+  x: rect.x + by.x,
+  y: rect.y + by.y,
+});
+
 export const distanceToSegment = (point: Vec, a: Vec, b: Vec): number => {
   const lengthSquared = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
   if (lengthSquared === 0) return distance(point, a);

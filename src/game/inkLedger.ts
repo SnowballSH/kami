@@ -1,50 +1,41 @@
 import type { Ruling } from "../cat/types";
 import type { Drawing, DrawingId, PosedDrawing } from "../ink/types";
+import type { StoredDrawing } from "../persistence/types";
 import type { InkView } from "../render/types";
 import type { DrawingPose } from "../sim/types";
 
-export interface InkRecord {
-  readonly drawing: Drawing;
-  readonly ruling: Ruling | null;
+export interface InkRecord extends StoredDrawing {
   readonly awakenedAtMs: number | null;
 }
 
-/** Everything the player has drawn in the current room: what is still on the page, and what Alice ate. */
+/** Everything the player has drawn on the current board that is still there. */
 export class InkLedger {
-  private readonly live = new Map<DrawingId, InkRecord>();
-  private readonly eaten: InkRecord[] = [];
+  private readonly records = new Map<DrawingId, InkRecord>();
 
   add(drawing: Drawing): void {
-    this.live.set(drawing.id, { drawing, ruling: null, awakenedAtMs: null });
+    this.records.set(drawing.id, { drawing, ruling: null, awakenedAtMs: null });
   }
 
-  awaken(id: DrawingId, ruling: Ruling, nowMs: number): void {
-    const record = this.live.get(id);
-    if (record !== undefined) this.live.set(id, { ...record, ruling, awakenedAtMs: nowMs });
+  awaken(id: DrawingId, ruling: Ruling, atMs: number): InkRecord | null {
+    const record = this.records.get(id);
+    if (record === undefined) return null;
+    const awake = { ...record, ruling, awakenedAtMs: atMs };
+    this.records.set(id, awake);
+    return awake;
   }
 
-  has(id: DrawingId): boolean {
-    return this.live.has(id);
+  get(id: DrawingId): InkRecord | null {
+    return this.records.get(id) ?? null;
   }
 
-  erase(id: DrawingId): InkRecord | null {
-    const record = this.live.get(id) ?? null;
-    this.live.delete(id);
+  remove(id: DrawingId): InkRecord | null {
+    const record = this.get(id);
+    this.records.delete(id);
     return record;
   }
 
-  markEaten(id: DrawingId): void {
-    const record = this.erase(id);
-    if (record !== null) this.eaten.push(record);
-  }
-
   clear(): void {
-    this.live.clear();
-    this.eaten.length = 0;
-  }
-
-  everything(): readonly InkRecord[] {
-    return [...this.eaten, ...this.live.values()];
+    this.records.clear();
   }
 
   posed(poses: readonly DrawingPose[]): readonly PosedDrawing[] {
@@ -65,7 +56,7 @@ export class InkLedger {
     combine: (record: InkRecord, pose: DrawingPose["pose"]) => T,
   ): readonly T[] {
     return poses.flatMap(({ id, pose }) => {
-      const record = this.live.get(id);
+      const record = this.records.get(id);
       return record === undefined ? [] : [combine(record, pose)];
     });
   }

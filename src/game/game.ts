@@ -1,6 +1,8 @@
+import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat } from "../cat/types";
-import type { Vec } from "../core/geometry";
+import { boundsOf, type Rect, rectGap, translateRect, type Vec } from "../core/geometry";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
+import type { Handwriting } from "../handwriting/types";
 import type {
   Drawing,
   DrawingId,
@@ -9,33 +11,56 @@ import type {
   PlacementRejection,
   PosedDrawing,
 } from "../ink/types";
+import type { Note, NoteAction, NoteId } from "../notes/types";
+import type { BoardSnapshot, BoardStore } from "../persistence/types";
 import type { Renderer } from "../render/types";
-import type { SimEvent, Simulation, WalkIntent } from "../sim/types";
-import type { EndingEntry, Hud, HudHandlers, PenSink } from "../ui/types";
+import type { Rule, RuleCompiler, RuleId, WorldPhysics } from "../rules/types";
+import type { DrawingPose, SimEvent, Simulation, WalkIntent } from "../sim/types";
+import type { CanvasInputSink, Hud, HudHandlers, Tool } from "../ui/types";
+import { CameraRig } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
+import { IdMint } from "./idMint";
 import { InkLedger, type InkRecord } from "./inkLedger";
 import {
+  BLANK_BOARD_BRIEF,
   DOOR_OPENED_LINE,
-  GAME_TITLE_CARD,
+  GOAL_LINE,
   GROW_BLOCKED_LINE,
+  glossOf,
+  isHelpRequest,
   KEY_TAKEN_LINE,
-  pageCard,
+  OFFER_HELP_HINT,
   REJECTION_LINES,
-  UNNAMED_CAPTION,
+  RULE_REPEALED_LINE,
+  SHRUGS,
+  TAGLINE,
+  WORDMARK,
 } from "./lines";
+import { type NoteAnchor, NoteBook } from "./noteBook";
+import { RuleBook } from "./ruleBook";
 import { StuckDetector } from "./stuckDetector";
-import type { LevelDefinition } from "./types";
 
 const MAX_STEPS_PER_FRAME = 5;
-const NAMING_TIMEOUT_MS = 12_000;
 const ERASER_TOLERANCE = 18;
-const THUMBNAIL_PX = 420;
+const NAMING_REACH = 190;
+const GUESS_OFFSET = { x: 30, y: -4, line: 42 } as const;
+const GUESS_LIFETIME_MS = 20_000;
+const REMARK_LIFETIME_MS = 6_000;
+const HINT_LIFETIME_MS = 14_000;
+const ABOVE_ALICE = { x: -90, y: -120 } as const;
+const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
+const TAGLINE_DROP = 46;
+const ALREADY_AWAKE_MS = 10_000;
 
 export interface GameModules {
-  readonly levels: readonly LevelDefinition[];
   readonly sim: Simulation;
   readonly cat: Cat;
   readonly renderer: Renderer;
+  readonly handwriting: Handwriting;
+  readonly compiler: RuleCompiler;
+  readonly store: BoardStore;
+  readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
+  readonly boardFor: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
   readonly createHud: (handlers: HudHandlers) => Hud;
   readonly findDrawingAt: (
@@ -43,175 +68,225 @@ export interface GameModules {
     drawings: readonly PosedDrawing[],
     tolerance: number,
   ) => DrawingId | null;
+  readonly onBoardOpened?: (boardId: string) => void;
 }
 
-type Phase = "playing" | "between-pages" | "ending";
-
-interface PendingNaming {
-  readonly drawing: Drawing;
-  readonly openedAtMs: number;
-}
-
-export class Game implements PenSink, InkSessionListener, HudHandlers {
+export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
   private readonly ink: InkSession;
   private readonly hud: Hud;
   private readonly loop = new FixedStepLoop(FIXED_STEP_MS, MAX_STEPS_PER_FRAME);
   private readonly ledger = new InkLedger();
-  private readonly gallery: InkRecord[] = [];
+  private readonly notes: NoteBook;
+  private readonly rules: RuleBook;
+  private readonly camera = new CameraRig();
   private readonly stuck = new StuckDetector();
+  private readonly ids = new IdMint();
+  private readonly introduced = new Set<string>();
 
-  private phase: Phase = "playing";
-  private roomIndex = 0;
-  private roomEpoch = 0;
+  private board: BoardDefinition;
+  private epoch = 0;
   private nowMs = 0;
   private lastFrameMs = 0;
-  private naming: PendingNaming | null = null;
-  private eraserActive = false;
-  private catHasAsked = false;
+  private tool: Tool = "draw";
+  private walkIntent: WalkIntent = { x: 0, y: 0 };
+  private hasAskedWhatItIs = false;
+  private shrugs = 0;
 
-  constructor(private readonly modules: GameModules) {
+  constructor(
+    private readonly modules: GameModules,
+    initialBoardId: string,
+  ) {
+    this.board = modules.boardFor(initialBoardId);
+    this.notes = new NoteBook(modules.handwriting);
+    this.rules = new RuleBook(modules.resolvePhysics);
     this.ink = modules.createInkSession(this);
     this.hud = modules.createHud(this);
   }
 
-  start(nowMs: number): void {
-    this.nowMs = nowMs;
-    this.lastFrameMs = nowMs;
-    this.gallery.length = 0;
-    this.catHasAsked = false;
-    this.hud.hideEnding();
-    this.enterRoom(0);
+  get currentTool(): Tool {
+    return this.tool;
   }
 
-  jumpToRoom(index: number): void {
-    if (index < 0 || index >= this.modules.levels.length) return;
-    this.hud.hideEnding();
-    this.enterRoom(index);
+  start(nowMs: number): Promise<void> {
+    this.nowMs = nowMs;
+    this.lastFrameMs = nowMs;
+    this.hud.setTool(this.tool);
+    return this.open(this.board.id);
   }
 
   frame(nowMs: number): void {
+    const { sim, renderer } = this.modules;
     const steps = this.loop.advance(nowMs - this.lastFrameMs);
     this.nowMs = nowMs;
     this.lastFrameMs = nowMs;
-    if (this.phase === "playing") this.play(steps);
-    this.draw();
+
+    sim.setTimeScale(this.ink.isDrawing ? BULLET_TIME_SCALE : 1);
+    for (let step = 0; step < steps; step++) {
+      for (const event of sim.step()) this.handle(event);
+    }
+    this.ink.update(nowMs, {
+      noInkZones: this.board.noInkZones,
+      aliceBounds: sim.aliceBounds(),
+    });
+    this.notes.expire(nowMs);
+    if (this.stuck.isStuck(nowMs)) this.offerHelp();
+    this.camera.follow(sim.aliceBounds(), renderer.viewport());
+
+    const world = sim.snapshot();
+    renderer.render({
+      nowMs,
+      camera: this.camera.camera,
+      world,
+      inks: this.ledger.views(world.drawings),
+      notes: this.notes.views(nowMs),
+      activeStrokes: this.ink.activeStrokes,
+      activeVerdict: this.ink.activeVerdict,
+      eraserActive: this.tool === "erase",
+    });
   }
 
-  penDown(point: Vec): void {
-    if (this.phase !== "playing") return;
-    if (this.eraserActive) this.eraseAt(point);
-    else this.ink.penDown(point);
+  penDown(client: Vec): void {
+    if (this.tool === "erase") this.eraseAt(this.toWorld(client));
+    else this.ink.penDown(this.toWorld(client));
   }
 
-  penMove(point: Vec): void {
-    if (this.phase === "playing" && !this.eraserActive) this.ink.penMove(point);
+  penMove(client: Vec): void {
+    if (this.tool === "erase") this.eraseAt(this.toWorld(client));
+    else this.ink.penMove(this.toWorld(client));
   }
 
   penUp(): void {
     this.ink.penUp();
   }
 
+  penCancel(): void {
+    this.ink.penCancel();
+  }
+
+  tap(client: Vec): void {
+    const world = this.toWorld(client);
+    const offered = this.notes.at(world, (note) => note.action !== undefined);
+    if (offered?.action !== undefined) this.perform(offered.action, offered);
+    else if (this.tool === "write") void this.promptAt(client, world);
+  }
+
+  panBy(deltaClient: Vec): void {
+    this.camera.panBy(deltaClient);
+  }
+
+  zoomAt(client: Vec, factor: number): void {
+    this.camera.zoomAt(client, factor, this.modules.renderer.toWorld.bind(this.modules.renderer));
+  }
+
   onCommit(drawing: Drawing): void {
     this.modules.sim.addDrawing(drawing);
     this.ledger.add(drawing);
-    if (this.level.namingEnabled) void this.beginNaming(drawing);
+    this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
+    void this.offerGuesses(drawing);
   }
 
   onReject(reason: PlacementRejection): void {
-    this.hud.say(REJECTION_LINES[reason]);
+    this.remark(REJECTION_LINES[reason]);
   }
 
   onWalkIntent(intent: WalkIntent): void {
+    this.walkIntent = intent;
     this.modules.sim.setWalkIntent(intent);
+    if (intent.x !== 0) this.camera.resumeFollowing();
   }
 
-  onNameChosen(name: string): void {
-    void this.nameIt(name);
+  onToolChanged(tool: Tool): void {
+    this.tool = tool;
   }
 
-  onNamingDismissed(): void {
-    this.closeNaming();
+  onZoom(factor: number): void {
+    const { width, height } = this.modules.renderer.viewport();
+    this.zoomAt({ x: width / 2, y: height / 2 }, factor);
   }
 
-  onAskCat(): void {
-    if (this.phase === "playing") this.hud.say(this.modules.cat.hint().line);
+  onRecenter(): void {
+    this.camera.frame(this.aliceFeet(), this.modules.renderer.viewport());
   }
 
-  onEraserToggled(active: boolean): void {
-    this.eraserActive = active;
-    this.hud.setEraserActive(active);
+  onOpenBoard(boardId: string): void {
+    void this.open(boardId);
   }
 
-  onResetRoom(): void {
-    if (this.phase === "playing") this.enterRoom(this.roomIndex);
+  onNewBoard(): void {
+    void this.open(this.ids.next("sketch"));
   }
 
-  private get level(): LevelDefinition {
-    const level = this.modules.levels[this.roomIndex];
-    if (level === undefined) throw new Error(`No room at index ${this.roomIndex}`);
-    return level;
+  onClearBoard(): void {
+    this.modules.store.clear(this.board.id);
+    void this.open(this.board.id, { remember: false });
   }
 
-  private get bulletTime(): boolean {
-    return this.ink.isDrawing || this.naming !== null;
-  }
+  private async open(boardId: string, { remember = true } = {}): Promise<void> {
+    const { sim, cat, renderer, store, boardFor, onBoardOpened } = this.modules;
+    this.epoch += 1;
+    const epoch = this.epoch;
+    this.board = boardFor(boardId);
 
-  private enterRoom(index: number): void {
-    const { sim, cat, renderer, levels } = this.modules;
-    this.roomIndex = index;
-    this.roomEpoch += 1;
-    this.phase = "playing";
-    this.naming = null;
-    const level = this.level;
-    sim.loadLevel(level);
-    renderer.setLevel(level);
-    cat.enterRoom(level);
-    this.ink.reset(level.ink);
+    sim.loadBoard(this.board);
+    sim.setWalkIntent(this.walkIntent);
+    renderer.setBoard(this.board);
+    this.ink.reset(Number.POSITIVE_INFINITY);
     this.ledger.clear();
+    this.notes.clear();
+    this.rules.replaceAll([]);
+    sim.setPhysics(this.rules.physics);
+    this.introduced.clear();
+    this.hasAskedWhatItIs = false;
     this.stuck.reset(this.nowMs);
-    this.onEraserToggled(false);
-    this.hud.hideNaming();
-    this.hud.setRoom(level.title, index + 1, levels.length);
-    this.hud.say(level.intro);
+    this.camera.frame(this.board.spawn, renderer.viewport());
+    this.writeWordmark();
+    const [firstZone] = this.board.zones;
+    if (firstZone === undefined) cat.enterRoom(BLANK_BOARD_BRIEF);
+    else this.introduce(firstZone);
+    onBoardOpened?.(boardId);
+    void this.listBoards(epoch);
+
+    if (!remember) return;
+    const snapshot = await store.load(boardId);
+    if (epoch === this.epoch) this.restore(snapshot);
   }
 
-  private play(steps: number): void {
+  private restore({ drawings, notes, rules }: BoardSnapshot): void {
     const { sim } = this.modules;
-    sim.setTimeScale(this.bulletTime ? BULLET_TIME_SCALE : 1);
-    for (let step = 0; step < steps && this.phase === "playing"; step++) {
-      for (const event of sim.step()) this.handle(event);
+    for (const { drawing, ruling } of drawings) {
+      sim.addDrawing(drawing);
+      this.ledger.add(drawing);
+      if (ruling === null) continue;
+      sim.applyRuling(drawing.id, ruling);
+      this.ledger.awaken(drawing.id, ruling, this.nowMs - ALREADY_AWAKE_MS);
     }
-    this.ink.update(this.nowMs, {
-      noInkZones: this.level.noInkZones,
-      aliceBounds: sim.aliceBounds(),
-    });
-    if (this.naming !== null && this.nowMs - this.naming.openedAtMs > NAMING_TIMEOUT_MS) {
-      this.closeNaming();
-    }
-    if (this.stuck.isStuck(this.nowMs)) this.offerHelp();
+    for (const note of notes) this.notes.restore(note, this.nowMs);
+    this.rules.replaceAll(rules);
+    for (const rule of rules) this.writeGloss(rule);
+    sim.setPhysics(this.rules.physics);
   }
 
-  private draw(): void {
-    const world = this.modules.sim.snapshot();
-    this.modules.renderer.render({
-      nowMs: this.nowMs,
-      world,
-      inks: this.ledger.views(world.drawings),
-      activeStrokes: this.ink.activeStrokes,
-      activeVerdict: this.ink.activeVerdict,
-      bulletTime: this.phase === "playing" && this.bulletTime,
-      eraserActive: this.eraserActive,
-    });
-    this.hud.setInk(this.ink.budget);
+  private async listBoards(epoch: number): Promise<void> {
+    const remembered = await this.modules.store.listBoards();
+    if (epoch !== this.epoch) return;
+    const demo = this.modules.boardFor("wonderland");
+    const ids = new Set([demo.id, this.board.id, ...remembered.map((summary) => summary.id)]);
+    this.hud.setBoards(
+      [...ids].map((id) => ({ id, title: this.modules.boardFor(id).title })),
+      this.board.id,
+    );
   }
 
   private handle(event: SimEvent): void {
     switch (event.type) {
-      case "exit-reached":
-        void this.clearRoom();
+      case "goal-reached":
+        this.remark(GOAL_LINE, HINT_LIFETIME_MS);
         return;
       case "fell":
         this.stuck.fell();
+        return;
+      case "zone-entered":
+        this.enterZone(event.zoneId);
         return;
       case "key-taken":
         this.progress(KEY_TAKEN_LINE);
@@ -223,96 +298,287 @@ export class Game implements PenSink, InkSessionListener, HudHandlers {
         this.stuck.progress(this.nowMs);
         return;
       case "consumed":
-        this.forget(event.drawingId);
-        this.ledger.markEaten(event.drawingId);
+        this.discard(event.drawingId);
         this.stuck.progress(this.nowMs);
         return;
       case "grow-blocked":
-        this.hud.say(GROW_BLOCKED_LINE);
+        this.remark(GROW_BLOCKED_LINE);
         return;
     }
   }
 
+  private enterZone(zoneId: string): void {
+    const zone = this.board.zones.find((candidate) => candidate.id === zoneId);
+    if (zone !== undefined) this.introduce(zone);
+  }
+
+  private introduce(zone: Zone): void {
+    if (this.introduced.has(zone.id)) return;
+    this.introduced.add(zone.id);
+    this.modules.cat.enterRoom(zone);
+    this.stuck.reset(this.nowMs);
+    this.kamiWrites(
+      zone.intro,
+      { x: zone.checkpoint.x + ABOVE_ALICE.x, y: zone.checkpoint.y + ABOVE_ALICE.y - 80 },
+      { lifetimeMs: HINT_LIFETIME_MS },
+    );
+  }
+
   private progress(line: string): void {
-    this.hud.say(line);
+    this.remark(line);
     this.stuck.progress(this.nowMs);
   }
 
   private offerHelp(): void {
     const line = this.modules.cat.offerHelp();
-    if (line !== null) this.hud.say(line);
+    if (line !== null) this.remark(`${line} ${OFFER_HELP_HINT}`, HINT_LIFETIME_MS);
     this.stuck.reset(this.nowMs);
   }
 
-  private async beginNaming(drawing: Drawing): Promise<void> {
-    const epoch = this.roomEpoch;
-    this.naming = { drawing, openedAtMs: this.nowMs };
-    if (!this.catHasAsked) {
-      this.catHasAsked = true;
-      this.hud.say(this.modules.cat.askWhatItIs());
-    }
+  private async offerGuesses(drawing: Drawing): Promise<void> {
+    const epoch = this.epoch;
     const guesses = await this.modules.cat.guess(drawing);
-    if (epoch === this.roomEpoch && this.naming?.drawing.id === drawing.id) {
-      this.hud.showNaming(guesses);
+    if (epoch !== this.epoch || this.ledger.get(drawing.id)?.ruling !== null) return;
+
+    const bounds = boundsOf(drawing.strokes.flat());
+    const corner = { x: bounds.x + bounds.width + GUESS_OFFSET.x, y: bounds.y + GUESS_OFFSET.y };
+    const anchor: NoteAnchor = { type: "drawing", id: drawing.id };
+    if (!this.hasAskedWhatItIs) {
+      this.hasAskedWhatItIs = true;
+      this.kamiWrites(
+        this.modules.cat.askWhatItIs(),
+        { x: corner.x, y: corner.y - GUESS_OFFSET.line },
+        { lifetimeMs: GUESS_LIFETIME_MS, anchor },
+      );
+    }
+    guesses.forEach((name, index) => {
+      this.kamiWrites(
+        `${name}?`,
+        { x: corner.x, y: corner.y + index * GUESS_OFFSET.line },
+        {
+          lifetimeMs: GUESS_LIFETIME_MS,
+          anchor,
+          action: { type: "name-drawing", drawingId: drawing.id, name },
+        },
+      );
+    });
+  }
+
+  private perform(action: NoteAction, offered: Note): void {
+    const label = this.playerWrites(action.name, offered.position);
+    void this.nameDrawing(action.drawingId, action.name, label);
+  }
+
+  private async promptAt(client: Vec, world: Vec): Promise<void> {
+    const epoch = this.epoch;
+    const text = await this.hud.promptText(client);
+    if (text !== null && epoch === this.epoch) await this.interpret(text, world);
+  }
+
+  /** The one funnel: a request for help, a law of physics, a name for a drawing, or a remark. */
+  private async interpret(text: string, position: Vec): Promise<void> {
+    if (isHelpRequest(text)) {
+      this.kamiWrites(this.modules.cat.hint().line, position, { lifetimeMs: HINT_LIFETIME_MS });
+      return;
+    }
+    const epoch = this.epoch;
+    const note = this.playerWrites(text, position);
+    const compiled = await this.modules.compiler.compile(text);
+    if (epoch !== this.epoch || this.notes.get(note.id) === null) return;
+
+    if (compiled !== null) {
+      this.enact({
+        ...compiled,
+        id: this.ids.next<RuleId>("rule"),
+        sourceText: text,
+        noteId: note.id,
+        position,
+        createdAt: Date.now(),
+      });
+      return;
+    }
+    const subject = this.drawingNear(note.id);
+    if (subject !== null) await this.nameDrawing(subject.drawing.id, text, note);
+    else this.shrug(note.id);
+  }
+
+  private enact(rule: Rule): void {
+    this.rules.enact(rule);
+    this.modules.sim.setPhysics(this.rules.physics);
+    this.modules.store.saveRule(this.board.id, rule);
+    this.understood(rule.noteId);
+    this.writeGloss(rule);
+    this.stuck.progress(this.nowMs);
+  }
+
+  private async nameDrawing(id: DrawingId, name: string, label: Note): Promise<void> {
+    const epoch = this.epoch;
+    const record = this.ledger.get(id);
+    if (record === null) return;
+    const ruling = await this.modules.cat.name(name, record.drawing);
+    if (epoch !== this.epoch) return;
+    const awake = this.ledger.awaken(id, ruling, this.nowMs);
+    if (awake === null) return;
+
+    this.modules.sim.applyRuling(id, ruling);
+    this.modules.store.saveDrawing(this.board.id, { drawing: awake.drawing, ruling });
+    this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
+    this.notes.attach(label.id, { type: "drawing", id });
+    if (ruling.nature !== "ink") this.understood(label.id);
+    const under = this.notes.below(label.id);
+    if (under !== null) this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS });
+    this.stuck.progress(this.nowMs);
+  }
+
+  private shrug(noteId: NoteId): void {
+    const under = this.notes.below(noteId);
+    const line = SHRUGS[this.shrugs % SHRUGS.length];
+    this.shrugs += 1;
+    if (under !== null && line !== undefined) {
+      this.kamiWrites(line, under, { lifetimeMs: REMARK_LIFETIME_MS });
     }
   }
 
-  private async nameIt(utterance: string): Promise<void> {
-    const pending = this.naming;
-    if (pending === null) return;
-    const epoch = this.roomEpoch;
-    this.closeNaming();
-    const { id } = pending.drawing;
-    const ruling = await this.modules.cat.name(utterance, pending.drawing);
-    if (epoch !== this.roomEpoch || !this.ledger.has(id)) return;
-    this.modules.sim.applyRuling(id, ruling);
-    this.ledger.awaken(id, ruling, this.nowMs);
-    this.progress(ruling.line);
+  private understood(noteId: NoteId): void {
+    const note = this.notes.restyle(noteId, "understood");
+    if (note !== null) this.modules.store.saveNote(this.board.id, note);
   }
 
-  private closeNaming(): void {
-    this.naming = null;
-    this.hud.hideNaming();
+  private writeGloss(rule: Rule): void {
+    const under = this.notes.below(rule.noteId);
+    if (under === null) return;
+    this.kamiWrites(glossOf(rule.explanation), under, {
+      anchor: { type: "note", id: rule.noteId },
+      tone: "understood",
+    });
   }
 
-  private forget(id: DrawingId): void {
-    if (this.naming?.drawing.id === id) this.closeNaming();
+  private writeWordmark(): void {
+    const at = {
+      x: this.board.spawn.x + WORDMARK_OFFSET.x,
+      y: this.board.spawn.y + WORDMARK_OFFSET.y,
+    };
+    this.kamiWrites(WORDMARK, at);
+    this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP });
+  }
+
+  private playerWrites(text: string, position: Vec): Note {
+    const note: Note = {
+      id: this.ids.next<NoteId>("note"),
+      author: "player",
+      text,
+      position,
+      tone: "plain",
+      createdAt: Date.now(),
+      fleeting: false,
+    };
+    this.notes.write({ note, nowMs: this.nowMs });
+    this.modules.store.saveNote(this.board.id, note);
+    return note;
+  }
+
+  private kamiWrites(
+    text: string,
+    position: Vec,
+    options: {
+      readonly lifetimeMs?: number;
+      readonly anchor?: NoteAnchor;
+      readonly action?: NoteAction;
+      readonly tone?: Note["tone"];
+    } = {},
+  ): void {
+    const { lifetimeMs, anchor, action, tone = "plain" } = options;
+    const note: Note = {
+      id: this.ids.next<NoteId>("kami"),
+      author: "kami",
+      text,
+      position,
+      tone,
+      createdAt: Date.now(),
+      fleeting: lifetimeMs !== undefined,
+      ...(action === undefined ? {} : { action }),
+    };
+    this.notes.write({
+      note,
+      nowMs: this.nowMs,
+      ...(lifetimeMs === undefined ? {} : { lifetimeMs }),
+      ...(anchor === undefined ? {} : { anchor }),
+    });
+  }
+
+  private remark(line: string, lifetimeMs: number = REMARK_LIFETIME_MS): void {
+    const alice = this.modules.sim.aliceBounds();
+    this.kamiWrites(
+      line,
+      { x: alice.x + ABOVE_ALICE.x, y: alice.y + ABOVE_ALICE.y },
+      { lifetimeMs },
+    );
   }
 
   private eraseAt(point: Vec): void {
     const { sim, findDrawingAt } = this.modules;
-    const id = findDrawingAt(point, this.ledger.posed(sim.snapshot().drawings), ERASER_TOLERANCE);
-    if (id === null) return;
-    const record = this.ledger.erase(id);
-    if (record === null) return;
-    this.forget(id);
-    sim.removeDrawing(id);
-    this.ink.refund(record.drawing.cost);
-  }
-
-  private async clearRoom(): Promise<void> {
-    const { levels } = this.modules;
-    this.phase = "between-pages";
-    this.closeNaming();
-    this.gallery.push(...this.ledger.everything());
-    const next = this.roomIndex + 1;
-    const nextLevel = levels[next];
-    if (nextLevel === undefined) {
-      this.showEnding();
+    const tolerance = ERASER_TOLERANCE / this.camera.camera.zoom;
+    const id = findDrawingAt(point, this.ledger.posed(sim.snapshot().drawings), tolerance);
+    if (id !== null) {
+      this.discard(id);
       return;
     }
-    await this.hud.showTitleCard(
-      this.roomIndex === 0 ? GAME_TITLE_CARD : pageCard(nextLevel.title, next + 1),
-    );
-    this.enterRoom(next);
+    const written = this.notes.at(point, isPlayers);
+    if (written !== null) this.eraseNote(written.id);
   }
 
-  private showEnding(): void {
-    this.phase = "ending";
-    const entries: readonly EndingEntry[] = this.gallery.map(({ drawing, ruling }) => ({
-      name: ruling?.name ?? UNNAMED_CAPTION,
-      thumbnail: this.modules.renderer.thumbnail(drawing, THUMBNAIL_PX),
-    }));
-    this.hud.showEnding(entries, () => this.start(this.nowMs));
+  private eraseNote(id: NoteId): void {
+    this.forget(this.notes.remove(id));
+    const repealed = this.rules.repealByNote(id);
+    if (repealed === null) return;
+    this.modules.store.deleteRule(this.board.id, repealed.id);
+    this.modules.sim.setPhysics(this.rules.physics);
+    this.remark(RULE_REPEALED_LINE);
+  }
+
+  private discard(id: DrawingId): void {
+    if (this.ledger.remove(id) === null) return;
+    this.modules.sim.removeDrawing(id);
+    this.modules.store.deleteDrawing(this.board.id, id);
+    this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
+  }
+
+  private forget(removed: readonly Note[]): void {
+    for (const note of removed.filter(isPlayers)) {
+      this.modules.store.deleteNote(this.board.id, note.id);
+    }
+  }
+
+  private drawingNear(noteId: NoteId): InkRecord | null {
+    const written = this.notes.boundsOf(noteId);
+    if (written === null) return null;
+    const poses = this.modules.sim.snapshot().drawings;
+    const nearest = poses
+      .flatMap((pose) => {
+        const record = this.ledger.get(pose.id);
+        return record === null
+          ? []
+          : [{ record, gap: rectGap(written, currentBounds(record.drawing, pose)) }];
+      })
+      .filter(({ gap }) => gap <= NAMING_REACH)
+      .sort((a, b) => a.gap - b.gap);
+    return nearest[0]?.record ?? null;
+  }
+
+  private aliceFeet(): Vec {
+    const bounds = this.modules.sim.aliceBounds();
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height };
+  }
+
+  private toWorld(client: Vec): Vec {
+    return this.modules.renderer.toWorld(client, this.camera.camera);
   }
 }
+
+const isPlayers = (note: Note): boolean => note.author === "player";
+
+const currentBounds = (drawing: Drawing, { pose }: DrawingPose): Rect =>
+  translateRect(boundsOf(drawing.strokes.flat()), {
+    x: pose.position.x - pose.origin.x,
+    y: pose.position.y - pose.origin.y,
+  });

@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { boardFor } from "../board";
 import { createCat } from "../cat";
 import type { Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
+import { createRuleCompiler, resolvePhysics } from "../rules";
 import { createSimulation } from "../sim";
+import type { Tool } from "../ui/types";
 import { Game } from "./game";
-import { LEVELS } from "./levels";
-import { FakeHud, FakeRenderer } from "./testing/fakes";
+import { FakeHandwriting, FakeHud, FakeRenderer, MemoryBoardStore } from "./testing/fakes";
 
 const COMMIT_WAIT_MS = 1_200;
-const ROOM_TIMEOUT_MS = 40_000;
+const PATIENCE_MS = 40_000;
 
 const line = (from: Vec, to: Vec, spacing = 8): Vec[] => {
   const count = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / spacing);
@@ -27,24 +29,32 @@ const blob = (center: Vec, rx: number, ry: number): Vec[] =>
 
 class Player {
   readonly renderer = new FakeRenderer();
+  readonly store: MemoryBoardStore;
   readonly game: Game;
   private hudRef: FakeHud | null = null;
   private nowMs = 0;
 
-  constructor() {
-    this.game = new Game({
-      levels: LEVELS,
-      sim: createSimulation(),
-      cat: createCat(),
-      renderer: this.renderer,
-      createInkSession,
-      createHud: (handlers) => {
-        this.hudRef = new FakeHud(handlers);
-        return this.hudRef;
+  constructor(boardId: string, store = new MemoryBoardStore()) {
+    this.store = store;
+    this.game = new Game(
+      {
+        sim: createSimulation(),
+        cat: createCat(),
+        renderer: this.renderer,
+        handwriting: new FakeHandwriting(),
+        compiler: createRuleCompiler(),
+        store,
+        resolvePhysics,
+        boardFor,
+        createInkSession,
+        createHud: (handlers) => {
+          this.hudRef = new FakeHud(handlers);
+          return this.hudRef;
+        },
+        findDrawingAt,
       },
-      findDrawingAt,
-    });
-    this.game.start(0);
+      boardId,
+    );
   }
 
   get hud(): FakeHud {
@@ -52,8 +62,19 @@ class Player {
     return this.hudRef;
   }
 
-  get room(): string | undefined {
-    return this.hud.rooms.at(-1);
+  get written(): readonly string[] {
+    return this.renderer.lastFrame?.notes.map((note) => note.script.text) ?? [];
+  }
+
+  get alice() {
+    const alice = this.renderer.lastFrame?.world.alice;
+    if (alice === undefined) throw new Error("Nothing has been rendered yet");
+    return alice;
+  }
+
+  async arrive(): Promise<void> {
+    await this.game.start(0);
+    await this.wait(50);
   }
 
   async wait(ms: number): Promise<void> {
@@ -61,13 +82,18 @@ class Player {
     while (this.nowMs < end) await this.frame();
   }
 
-  async waitUntil(done: () => boolean, timeoutMs = ROOM_TIMEOUT_MS): Promise<boolean> {
+  async until(done: () => boolean, timeoutMs = PATIENCE_MS): Promise<boolean> {
     const end = this.nowMs + timeoutMs;
     while (!done() && this.nowMs < end) await this.frame();
     return done();
   }
 
+  use(tool: Tool): void {
+    this.game.onToolChanged(tool);
+  }
+
   async draw(points: readonly Vec[]): Promise<void> {
+    this.use("draw");
     const [first, ...rest] = points;
     if (first === undefined) return;
     this.game.penDown(first);
@@ -76,11 +102,18 @@ class Player {
     await this.wait(COMMIT_WAIT_MS);
   }
 
-  async drawAndName(points: readonly Vec[], name: string): Promise<void> {
-    await this.draw(points);
-    expect(await this.waitUntil(() => this.hud.namingOpen, 2_000)).toBe(true);
-    this.game.onNameChosen(name);
+  async write(text: string, at: Vec): Promise<void> {
+    this.use("write");
+    this.hud.willWrite(text);
+    this.game.tap(at);
     await this.wait(100);
+  }
+
+  async erase(at: Vec): Promise<void> {
+    this.use("erase");
+    this.game.penDown(at);
+    this.game.penUp();
+    await this.wait(50);
   }
 
   walk(x: -1 | 0 | 1, y: -1 | 0 | 1 = 0): void {
@@ -94,65 +127,117 @@ class Player {
   }
 }
 
-describe("Game, played headlessly through every room", () => {
+describe("Game on the Wonderland board", () => {
   let player: Player;
 
-  beforeEach(() => {
-    player = new Player();
+  beforeEach(async () => {
+    player = new Player("wonderland");
+    await player.arrive();
   });
 
-  it("opens on the Riverbank with a full pen", async () => {
-    await player.wait(50);
-    expect(player.room).toBe("The Riverbank");
-    expect(player.hud.ink).toEqual({ total: 600, remaining: 600 });
-    expect(player.hud.said).toContain("She can't jump. Draw.");
+  it("opens with Kami's wordmark and the first zone's line written on the board", () => {
+    expect(player.written).toContain("kami");
+    expect(player.written).toContain("She can't jump. You can draw.");
+    expect(player.hud.boards.map((board) => board.id)).toContain("wonderland");
   });
 
-  it("spends ink while drawing and refunds it on erase", async () => {
+  it("offers three tappable guesses beside a fresh drawing, and a tap names it", async () => {
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.wait(100);
+    const guesses = player.renderer.lastFrame?.notes.filter((note) => note.tappable) ?? [];
+    expect(guesses).toHaveLength(3);
+
+    const [first] = guesses;
+    if (first === undefined) throw new Error("no guess to tap");
+    const { x, y, width, height } = first.script.bounds;
+    player.game.tap({ x: x + width / 2, y: y + height / 2 });
+    await player.wait(100);
+
+    expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(0);
+    const [stored] = (await player.store.load("wonderland")).drawings;
+    expect(stored?.ruling?.name).toBe(first.script.text.replace(/\?$/, ""));
+  });
+
+  it("turns a written law into physics, remembers it, and repeals it when erased", async () => {
+    await player.write("set g equal to the moon's gravity", { x: 200, y: 200 });
+    const remembered = (await player.store.load("wonderland")).rules;
+    expect(remembered).toHaveLength(1);
+    expect(remembered[0]?.effect).toMatchObject({ governs: "gravity" });
+    expect(player.written.some((text) => text.startsWith("= gravity"))).toBe(true);
+
+    await player.erase({ x: 210, y: 215 });
+    expect((await player.store.load("wonderland")).rules).toHaveLength(0);
+    expect(player.written.some((text) => text.startsWith("= gravity"))).toBe(false);
+  });
+
+  it("shrugs at writing that is neither a law nor near a drawing", async () => {
+    await player.write("hello there", { x: 200, y: 100 });
+    expect((await player.store.load("wonderland")).rules).toHaveLength(0);
+    expect(player.written).toContain("hello there");
+    expect(player.written.length).toBeGreaterThan(3);
+  });
+
+  it("brings a board back from memory", async () => {
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("a rock", { x: 250, y: 450 });
+    await player.write("no gravity", { x: 200, y: 200 });
+
+    const returning = new Player("wonderland", player.store);
+    await returning.arrive();
+    expect(returning.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["heavy"]);
+    expect(returning.written).toContain("a rock");
+    expect(returning.written).toContain("no gravity");
+    expect(returning.written.some((text) => text.startsWith("= gravity"))).toBe(true);
+  });
+
+  it("is completable start to goal: bridge, bouncy mushroom, cake, key, bottle, door", async () => {
     await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
-    expect(player.hud.ink.remaining).toBeCloseTo(360, 0);
-    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    await player.draw(blob({ x: 1430, y: 540 }, 30, 18));
+    await player.write("a bouncy mushroom", { x: 1380, y: 440 });
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toContain("bouncy");
 
-    player.game.onEraserToggled(true);
-    player.game.penDown({ x: 500, y: 558 });
-    player.game.penUp();
-    await player.wait(50);
-    expect(player.hud.ink.remaining).toBeCloseTo(600, 0);
-    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
-  });
-
-  it("is completable: bridge, bouncy mushroom, cake, key, bottle, door", async () => {
-    await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
     player.walk(1);
-    expect(await player.waitUntil(() => player.room === "The Shelves")).toBe(true);
-    expect(player.hud.cards.map((card) => card.title)).toEqual(["Kami"]);
-
-    player.walk(0);
-    await player.drawAndName(blob({ x: 640, y: 620 }, 30, 18), "a bouncy mushroom");
-    expect(player.renderer.lastFrame?.inks[0]?.nature).toBe("bouncy");
-    player.walk(1);
-    expect(await player.waitUntil(() => player.room === "The Hall of Doors")).toBe(true);
-
-    player.walk(0);
-    await player.drawAndName(blob({ x: 430, y: 624 }, 18, 14), "a cake");
-    player.walk(1);
-    expect(
-      await player.waitUntil(() => player.renderer.lastFrame?.world.alice.size === "big"),
-    ).toBe(true);
-    player.walk(-1);
-    expect(await player.waitUntil(() => player.renderer.lastFrame?.world.keyTaken === true)).toBe(
+    expect(await player.until(() => player.alice.center.x > 1560 && player.alice.grounded)).toBe(
       true,
     );
+    expect(player.written).toContain("Curiouser and curiouser.");
 
     player.walk(0);
-    await player.drawAndName(blob({ x: 560, y: 624 }, 18, 14), "drink me");
+    await player.draw(blob({ x: 2150, y: 324 }, 18, 14));
+    await player.write("a cake", { x: 2120, y: 250 });
     player.walk(1);
-    expect(await player.waitUntil(() => player.hud.ending !== null)).toBe(true);
-    expect(player.hud.ending?.map((entry) => entry.name)).toEqual([
-      "just ink",
+    expect(await player.until(() => player.alice.size === "big")).toBe(true);
+    player.walk(-1);
+    expect(await player.until(() => player.alice.hasKey)).toBe(true);
+
+    player.walk(0);
+    await player.draw(blob({ x: 2300, y: 324 }, 18, 14));
+    await player.write("drink me", { x: 2270, y: 250 });
+    player.walk(1);
+    expect(
+      await player.until(() => player.written.some((text) => text.includes("rabbit hole"))),
+    ).toBe(true);
+    expect((await player.store.load("wonderland")).drawings.map((d) => d.ruling?.name)).toEqual([
+      undefined,
       "a bouncy mushroom",
-      "a cake",
-      "drink me",
     ]);
+  });
+});
+
+describe("Game on a blank board", () => {
+  it("makes a new game out of sketches and notes", async () => {
+    const player = new Player("my-first-game");
+    await player.arrive();
+
+    await player.draw(line({ x: 200, y: -40 }, { x: 700, y: -40 }));
+    await player.write("platform", { x: 400, y: -130 });
+    await player.draw(blob({ x: 650, y: -80 }, 16, 16));
+    await player.write("goal", { x: 640, y: -170 });
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["solid", "goal"]);
+
+    player.walk(1);
+    expect(
+      await player.until(() => player.written.some((text) => text.includes("rabbit hole"))),
+    ).toBe(true);
   });
 });

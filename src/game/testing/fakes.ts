@@ -1,86 +1,152 @@
-import type { Vec } from "../../core/geometry";
-import type { Drawing } from "../../ink/types";
-import type { Renderer, RenderFrame } from "../../render/types";
-import type { EndingEntry, Hud, HudHandlers, TitleCard } from "../../ui/types";
-import type { LevelDefinition } from "../types";
+import type { BoardDefinition } from "../../board/types";
+import { boundsOf, type Stroke, type Vec } from "../../core/geometry";
+import type { Handwriting, PenScript, WriteOptions } from "../../handwriting/types";
+import type { DrawingId } from "../../ink/types";
+import type { Note, NoteId } from "../../notes/types";
+import type {
+  BoardSnapshot,
+  BoardStore,
+  BoardSummary,
+  StoredDrawing,
+} from "../../persistence/types";
+import type { Camera, Renderer, RenderFrame } from "../../render/types";
+import type { Rule, RuleId } from "../../rules/types";
+import type { BoardListing, Hud, HudHandlers, Tool } from "../../ui/types";
 
 export class FakeHud implements Hud {
-  readonly said: string[] = [];
-  readonly rooms: string[] = [];
-  readonly cards: TitleCard[] = [];
-  guesses: readonly string[] | null = null;
-  ending: readonly EndingEntry[] | null = null;
-  restart: (() => void) | null = null;
-  eraserActive = false;
-  ink = { total: 0, remaining: 0 };
+  tool: Tool = "draw";
+  boards: readonly BoardListing[] = [];
+  private readonly answers: (string | null)[] = [];
 
   constructor(readonly handlers: HudHandlers) {}
 
-  get namingOpen(): boolean {
-    return this.guesses !== null;
+  willWrite(text: string | null): void {
+    this.answers.push(text);
   }
 
-  setRoom(title: string): void {
-    this.rooms.push(title);
+  setTool(tool: Tool): void {
+    this.tool = tool;
   }
 
-  setInk(budget: { readonly total: number; readonly remaining: number }): void {
-    this.ink = { ...budget };
+  setBoards(boards: readonly BoardListing[]): void {
+    this.boards = boards;
   }
 
-  showNaming(guesses: readonly string[]): void {
-    this.guesses = guesses;
-  }
-
-  hideNaming(): void {
-    this.guesses = null;
-  }
-
-  say(line: string): void {
-    this.said.push(line);
-  }
-
-  setEraserActive(active: boolean): void {
-    this.eraserActive = active;
-  }
-
-  showTitleCard(card: TitleCard): Promise<void> {
-    this.cards.push(card);
-    return Promise.resolve();
-  }
-
-  showEnding(entries: readonly EndingEntry[], onRestart: () => void): void {
-    this.ending = entries;
-    this.restart = onRestart;
-  }
-
-  hideEnding(): void {
-    this.ending = null;
+  promptText(): Promise<string | null> {
+    return Promise.resolve(this.answers.shift() ?? null);
   }
 }
 
+/** Client space is world space: the camera is ignored, so tests can speak in world px. */
 export class FakeRenderer implements Renderer {
-  readonly levels: LevelDefinition[] = [];
+  board: BoardDefinition | null = null;
   lastFrame: RenderFrame | null = null;
 
-  setLevel(level: LevelDefinition): void {
-    this.levels.push(level);
+  setBoard(board: BoardDefinition): void {
+    this.board = board;
   }
 
   resize(): void {}
 
-  toWorld(clientX: number, clientY: number): Vec {
-    return { x: clientX, y: clientY };
+  toWorld(client: Vec, _camera: Camera): Vec {
+    return client;
+  }
+
+  viewport(): { readonly width: number; readonly height: number } {
+    return { width: 1180, height: 820 };
   }
 
   render(frame: RenderFrame): void {
     this.lastFrame = frame;
   }
+}
 
-  thumbnail(_drawing: Drawing, sizePx: number): HTMLCanvasElement {
-    const canvas = document.createElement("canvas");
-    canvas.width = sizePx;
-    canvas.height = sizePx;
-    return canvas;
+const GLYPH_WIDTH = 0.5;
+const INSTANT_MS = 1;
+
+/** Writes every note as one underline-shaped stroke, instantly. */
+export class FakeHandwriting implements Handwriting {
+  write(text: string, { origin, size }: WriteOptions): PenScript {
+    const stroke: Stroke = [
+      { x: origin.x, y: origin.y },
+      { x: origin.x + Math.max(1, text.length) * size * GLYPH_WIDTH, y: origin.y + size },
+    ];
+    return {
+      text,
+      strokes: [stroke],
+      startsAtMs: [0],
+      endsAtMs: [INSTANT_MS],
+      durationMs: INSTANT_MS,
+      bounds: boundsOf(stroke),
+    };
+  }
+
+  reveal(script: PenScript, elapsedMs: number): readonly Stroke[] {
+    return elapsedMs >= script.durationMs ? script.strokes : [];
+  }
+}
+
+interface Shelf {
+  readonly drawings: Map<DrawingId, StoredDrawing>;
+  readonly notes: Map<NoteId, Note>;
+  readonly rules: Map<RuleId, Rule>;
+}
+
+export class MemoryBoardStore implements BoardStore {
+  private readonly shelves = new Map<string, Shelf>();
+
+  load(boardId: string): Promise<BoardSnapshot> {
+    const shelf = this.shelf(boardId);
+    return Promise.resolve({
+      drawings: [...shelf.drawings.values()],
+      notes: [...shelf.notes.values()],
+      rules: [...shelf.rules.values()],
+    });
+  }
+
+  listBoards(): Promise<readonly BoardSummary[]> {
+    return Promise.resolve(
+      [...this.shelves].map(([id, shelf]) => ({
+        id,
+        drawings: shelf.drawings.size,
+        rules: shelf.rules.size,
+      })),
+    );
+  }
+
+  saveDrawing(boardId: string, stored: StoredDrawing): void {
+    this.shelf(boardId).drawings.set(stored.drawing.id, stored);
+  }
+
+  deleteDrawing(boardId: string, id: DrawingId): void {
+    this.shelf(boardId).drawings.delete(id);
+  }
+
+  saveNote(boardId: string, note: Note): void {
+    this.shelf(boardId).notes.set(note.id, note);
+  }
+
+  deleteNote(boardId: string, id: NoteId): void {
+    this.shelf(boardId).notes.delete(id);
+  }
+
+  saveRule(boardId: string, rule: Rule): void {
+    this.shelf(boardId).rules.set(rule.id, rule);
+  }
+
+  deleteRule(boardId: string, id: RuleId): void {
+    this.shelf(boardId).rules.delete(id);
+  }
+
+  clear(boardId: string): void {
+    this.shelves.delete(boardId);
+  }
+
+  private shelf(boardId: string): Shelf {
+    const existing = this.shelves.get(boardId);
+    if (existing !== undefined) return existing;
+    const shelf: Shelf = { drawings: new Map(), notes: new Map(), rules: new Map() };
+    this.shelves.set(boardId, shelf);
+    return shelf;
   }
 }
