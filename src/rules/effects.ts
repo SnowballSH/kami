@@ -75,6 +75,11 @@ const SCALAR_STYLES: Readonly<Record<ScalarGoverns, ScalarStyle>> = {
     gloss: (shown) => `${shown} more of Alice`,
     glossAtZero: "one Alice",
   },
+  inkEater: {
+    range: { min: 0, max: 1 },
+    gloss: () => "the Sumikui, the ink eater, is loose",
+    glossAtZero: "the Sumikui is sealed",
+  },
 };
 
 const EFFECT_DECIMALS = 3;

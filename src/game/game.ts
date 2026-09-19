@@ -36,6 +36,11 @@ import {
   RULE_REPEALED_LINE,
   SHRUGS,
   STUCK_LINE,
+  SUMIKUI_DEVOURED_LINES,
+  SUMIKUI_LORE_LINE_DELAY_MS,
+  SUMIKUI_SEALED_LINE,
+  SUMIKUI_SUMMONED_LINES,
+  SUMIKUI_WOKE_LINE,
   TAGLINE,
   WORDMARK,
 } from "./lines";
@@ -55,6 +60,12 @@ const ABOVE_ALICE = { x: -90, y: -120 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
 const ALREADY_AWAKE_MS = 10_000;
+
+interface Recital {
+  readonly at: number;
+  readonly line: string;
+  readonly epoch: number;
+}
 
 export interface GameModules {
   readonly sim: Simulation;
@@ -105,6 +116,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
   private selfDriving: boolean;
   private hasAskedWhatItIs = false;
   private shrugs = 0;
+  private sumikuiLoose = false;
+  private meals = 0;
+  private recital: Recital[] = [];
 
   constructor(
     private readonly modules: GameModules,
@@ -146,6 +160,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
       aliceBounds: sim.aliceBounds(),
     });
     this.notes.expire(nowMs);
+    this.speakDueRecital();
     if (this.stuck.isStuck(nowMs)) this.offerHelp();
     this.camera.follow(sim.aliceBounds(), renderer.viewport());
 
@@ -262,7 +277,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     this.ledger.clear();
     this.notes.clear();
     this.rules.replaceAll([]);
-    sim.setPhysics(this.rules.physics);
+    this.applyLaws({ silently: true });
     this.introduced.clear();
     this.hasAskedWhatItIs = false;
     this.stuck.reset(this.nowMs);
@@ -291,7 +306,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     for (const note of notes) this.notes.restore(note, this.nowMs);
     this.rules.replaceAll(rules);
     for (const rule of rules) this.writeGloss(rule);
-    sim.setPhysics(this.rules.physics);
+    this.applyLaws({ silently: true });
     this.modules.autopilot.invalidate();
   }
 
@@ -364,6 +379,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
         return;
       case "grow-blocked":
         this.remark(GROW_BLOCKED_LINE);
+        return;
+      case "sumikui-woke":
+        this.remark(SUMIKUI_WOKE_LINE, HINT_LIFETIME_MS);
+        return;
+      case "devoured":
+        this.discard(event.drawingId);
+        this.remark(SUMIKUI_DEVOURED_LINES[this.meals++ % SUMIKUI_DEVOURED_LINES.length] ?? "");
         return;
     }
   }
@@ -500,7 +522,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
 
   private enact(rule: Rule): void {
     this.rules.enact(rule);
-    this.modules.sim.setPhysics(this.rules.physics);
+    this.applyLaws({ silently: false });
     this.modules.autopilot.invalidate();
     this.modules.store.saveRule(this.board.id, rule);
     this.understood(rule.noteId);
@@ -615,6 +637,37 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     });
   }
 
+  /** Refolds the standing laws into the world; returns whether this fold sealed the Sumikui away. */
+  private applyLaws({ silently }: { readonly silently: boolean }): boolean {
+    const physics = this.rules.physics;
+    this.modules.sim.setPhysics(physics);
+    const loose = physics.inkEater > 0;
+    const summoned = loose && !this.sumikuiLoose;
+    const sealed = !loose && this.sumikuiLoose;
+    this.sumikuiLoose = loose;
+    if (silently) return sealed;
+    if (summoned) this.recite(SUMIKUI_SUMMONED_LINES);
+    if (sealed) this.remark(SUMIKUI_SEALED_LINE);
+    return sealed;
+  }
+
+  private recite(lines: readonly string[]): void {
+    const epoch = this.epoch;
+    this.recital = lines.map((line, index) => ({
+      at: this.nowMs + index * SUMIKUI_LORE_LINE_DELAY_MS,
+      line,
+      epoch,
+    }));
+  }
+
+  private speakDueRecital(): void {
+    const due = this.recital.filter(({ at }) => at <= this.nowMs);
+    if (due.length === 0) return;
+    this.recital = this.recital.filter(({ at }) => at > this.nowMs);
+    for (const { line, epoch } of due)
+      if (epoch === this.epoch) this.remark(line, HINT_LIFETIME_MS);
+  }
+
   private remark(line: string, lifetimeMs: number = REMARK_LIFETIME_MS): void {
     const alice = this.modules.sim.aliceBounds();
     this.kamiWrites(
@@ -641,9 +694,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     const repealed = this.rules.repealByNote(id);
     if (repealed === null) return;
     this.modules.store.deleteRule(this.board.id, repealed.id);
-    this.modules.sim.setPhysics(this.rules.physics);
+    const sealed = this.applyLaws({ silently: false });
     this.modules.autopilot.invalidate();
-    this.remark(RULE_REPEALED_LINE);
+    if (!sealed) this.remark(RULE_REPEALED_LINE);
   }
 
   private discard(id: DrawingId): void {

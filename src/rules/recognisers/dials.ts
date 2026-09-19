@@ -71,6 +71,15 @@ const WEATHER = union(SUBJECTS.temperature, HOT, COLD);
 const NIGHT = vocabulary("night, nighttime, dark, darkness, midnight, dusk, evening, nightfall");
 const DAY = vocabulary("day, dawn, morning, noon, midday, bright, sunrise, sunshine, sunny");
 const HOURS = union(SUBJECTS.daylight, NIGHT, DAY);
+const SUMMON = vocabulary(`
+  summon, summons, summoned, release, released, unleash, unleashed, awaken, awakens, wake, wakes,
+  call, calls, invoke, invokes, free, loose, unseal, unsealed, open, opens, come, comes, rise, rises,
+  monster, beast, hunger, hungry, eater, devourer, shadow, evil, ancient, old
+`);
+const BANISH = vocabulary(`
+  banish, banished, seal, sealed, sleep, sleeps, gone, leave, leaves, away, begone, vanish,
+  vanishes, kill, killed, dead, dies, die, rest, rests, dormant, stop, stops, no, none, without, out, remove
+`);
 
 const HOT_DEGREES = 60;
 const COLD_DEGREES = -10;
@@ -142,6 +151,16 @@ const DIALS: readonly Dial[] = [
     ],
     implied: null,
     fromAmount: (amount) => (amount.unit === "plain" ? amount.value : null),
+  },
+  {
+    governs: "inkEater",
+    about: [SUBJECTS.inkEater],
+    readings: [
+      { words: BANISH, value: 0 },
+      { words: SUMMON, value: 1 },
+    ],
+    implied: 1,
+    fromAmount: ({ value }) => (value === 0 ? 0 : 1),
   },
   {
     governs: "daylight",

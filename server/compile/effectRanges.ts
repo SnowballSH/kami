@@ -20,6 +20,7 @@ export const EFFECT_RANGES: Readonly<Record<Governs, Range>> = {
   aliceSize: { min: 0.25, max: 4 },
   attraction: { min: -3, max: 3 },
   clones: { min: 0, max: 8 },
+  inkEater: { min: 0, max: 1 },
 };
 
 export const clampEffect = (effect: RuleEffect): RuleEffect => {

@@ -17,6 +17,7 @@ import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "./flight";
 import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
 import { NATURES, type NatureWorld } from "./natures";
+import { Sumikui } from "./sumikui";
 import { Twins } from "./twins";
 import {
   ALICE_BASE,
@@ -43,6 +44,8 @@ interface BoardWorld {
   readonly checkpoints: Checkpoints;
   readonly activePairs: Matter.Pair[];
   readonly growthRefusedAt: Map<DrawingId, number>;
+  readonly touchedAt: Map<DrawingId, number>;
+  sumikui: Sumikui | null;
   goalReached: boolean;
   aliceLost: boolean;
 }
@@ -73,6 +76,8 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
     checkpoints: new Checkpoints(board),
     activePairs,
     growthRefusedAt: new Map(),
+    touchedAt: new Map(),
+    sumikui: physics.inkEater > 0 ? new Sumikui(alice) : null,
     goalReached: false,
     aliceLost: false,
   };
@@ -97,6 +102,13 @@ export class MatterSimulation implements Simulation {
     alice.applyPhysics(physics);
     twins.match(physics.clones, alice, physics);
     inks.setPhysics(physics);
+    this.matchSumikui(physics.inkEater);
+  }
+
+  private matchSumikui(inkEater: number): void {
+    const { sumikui, alice } = this.world;
+    if (inkEater > 0 && sumikui === null) this.world.sumikui = new Sumikui(alice);
+    if (inkEater <= 0) this.world.sumikui = null;
   }
 
   addDrawing(drawing: Drawing): void {
@@ -109,6 +121,7 @@ export class MatterSimulation implements Simulation {
 
   removeDrawing(id: DrawingId): void {
     this.world.inks.remove(id);
+    this.world.touchedAt.delete(id);
   }
 
   setWalkIntent(intent: WalkIntent): void {
@@ -128,10 +141,11 @@ export class MatterSimulation implements Simulation {
   }
 
   snapshot(): WorldSnapshot {
-    const { alice, twins, inks, props } = this.world;
+    const { alice, twins, inks, props, sumikui } = this.world;
     return {
       alice: alice.snapshot(),
       twins: twins.snapshots(),
+      sumikui: sumikui?.snapshot() ?? null,
       drawings: inks.poses,
       keyTaken: props.keyTaken,
       doorOpen: props.doorOpen,
@@ -183,6 +197,7 @@ export class MatterSimulation implements Simulation {
     this.resolveWeather(elapsedMs);
     this.resolveAliceTouches(natureWorld);
     this.resolveInkTouches(natureWorld);
+    this.feedSumikui(elapsedMs);
     this.resolveProps();
     this.resolveWhereabouts();
   }
@@ -292,8 +307,21 @@ export class MatterSimulation implements Simulation {
       if (ink !== undefined && !touched.has(ink)) touched.set(ink, contact);
     }
     for (const [ink, contact] of touched) {
+      this.world.touchedAt.set(ink.id, this.world.engine.timing.timestamp);
       NATURES[ink.nature].onAliceTouch?.(ink, contact, natureWorld);
     }
+  }
+
+  private feedSumikui(elapsedMs: number): void {
+    const { sumikui, alice, inks, touchedAt, engine } = this.world;
+    if (sumikui === null) return;
+    const wasAwake = sumikui.isAwake;
+    const eaten = sumikui.tick(elapsedMs, engine.timing.timestamp, alice, inks.all, touchedAt);
+    if (!wasAwake && sumikui.isAwake) this.events.push({ type: "sumikui-woke" });
+    if (eaten === null) return;
+    inks.remove(eaten.id);
+    touchedAt.delete(eaten.id);
+    this.events.push({ type: "devoured", drawingId: eaten.id, nature: eaten.nature });
   }
 
   private resolveInkTouches(natureWorld: NatureWorld): void {

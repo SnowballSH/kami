@@ -9,7 +9,7 @@ export type RuleId = string & { readonly __brand: "RuleId" };
  * `friction` and `bounciness` are multipliers or ratios; `temperature` is in °C and `daylight` is 0
  * (midnight) to 1 (noon). Dials on Alice: `flight` is 0 or 1, `walkSpeed` and `aliceSize` multiply
  * her own, `attraction` is the pull she exerts on ink in g, `clones` is how many copies of her walk
- * beside her.
+ * beside her. Dials on what haunts the board: `inkEater` is 0 (sealed) or 1 (the Sumikui is loose).
  */
 export type RuleEffect =
   | { readonly governs: "gravity"; readonly x: number; readonly y: number }
@@ -24,7 +24,8 @@ export type RuleEffect =
   | { readonly governs: "walkSpeed"; readonly value: number }
   | { readonly governs: "aliceSize"; readonly value: number }
   | { readonly governs: "attraction"; readonly value: number }
-  | { readonly governs: "clones"; readonly value: number };
+  | { readonly governs: "clones"; readonly value: number }
+  | { readonly governs: "inkEater"; readonly value: number };
 
 export type Governs = RuleEffect["governs"];
 
@@ -65,6 +66,7 @@ export interface WorldPhysics {
   readonly aliceSize: number;
   readonly attraction: number;
   readonly clones: number;
+  readonly inkEater: number;
 }
 
 export const EARTH: WorldPhysics = {
@@ -81,4 +83,5 @@ export const EARTH: WorldPhysics = {
   aliceSize: 1,
   attraction: 0,
   clones: 0,
+  inkEater: 0,
 };

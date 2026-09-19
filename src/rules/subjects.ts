@@ -15,6 +15,7 @@ export const GOVERNS = [
   "aliceSize",
   "attraction",
   "clones",
+  "inkEater",
 ] as const satisfies readonly Governs[];
 
 /** How the player refers to Alice; the dials on her need one of these beside the topic. */
@@ -37,4 +38,5 @@ export const SUBJECTS: Readonly<Record<Governs, Vocabulary>> = {
   aliceSize: vocabulary("size, sized, height, stature"),
   attraction: vocabulary("attraction, magnetism, magnetic, pull"),
   clones: vocabulary("clone, clones, cloned, copies, copy, twin, twins, duplicate, duplicates"),
+  inkEater: vocabulary("inkeater, inkeaters, sumikui, bokushoku"),
 };

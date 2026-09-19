@@ -33,28 +33,30 @@ kami <controller> <x> <y> [buttons]\n
 | `[buttons]` | optional: the letters of the buttons held right now, any order: `A` `B` `X` `Y`. Leave it out when none is |
 
 Examples: `kami arcade 100 0` (full right), `kami arcade -70 85` (up-left), `kami arcade 60 0 A`
-(right + button A), `kami arcade 0 0` (at rest). Values outside the range are clamped; unknown button
-letters are ignored, so a sketch can grow without breaking the server. A stick with four microswitches
-instead of axes just sends ±100.
+(right + button A), `kami arcade 0 0` (at rest). Values outside the range are clamped (a decimal is
+rounded); unknown button letters are ignored, so a sketch can grow without breaking the server. A line that
+is not this — another word first, a bad name, an axis that is not a number — is dropped without a sound. A
+stick with four microswitches instead of axes just sends ±100.
 
 **Send it** whenever an axis moves by 3 or more or a button changes, and again at least every **100 ms**
 while the stick is off centre or a button is held (a heartbeat). If a controller says nothing for **1 s**,
 the hub lets go of everything for it — an unplugged stick can never leave Alice walking. At rest, one
-message a second is enough to stay listed as connected.
+message a second is enough to stay listed as connected; after a **minute** of silence the hub forgets the
+controller (its subscribers stay subscribed and hear it again when it comes back).
 
 **What the server makes of it:** a direction becomes held when its axis passes **40**, and is let go when
 it falls back under **30** (the gap stops chatter at the threshold). `left`/`right` walk, `up` climbs or
-(on the ground) jumps once per press, `down` climbs down. Button `A` is jump as well (it counts as `up`).
-`B`, `X`, `Y` are delivered to the game but not bound yet. The game walks at one speed, so the analogue
+(on the ground) jumps once per press, `down` climbs down. Button `A` is jump as well: **the server puts `up` into `held` while `A` is held**, so
+the game only has to read `held`. `B`, `X`, `Y` are delivered to the game but not bound yet. The game walks at one speed, so the analogue
 value is passed along (`x`, `y` in the event below) but not used for pace yet.
 
 ## Transports
 
 | Transport | For | How |
 |---|---|---|
-| **UDP** `:8788` on the box | Uno R4 **WiFi** — the default: three lines of Arduino, no connection to keep alive, ~2 ms | one datagram = one message line |
-| **USB serial**, 115200 baud | Uno R4 **Minima**, or when the venue Wi-Fi misbehaves: plug the Arduino into a USB port **of the GX10** | print the same line to `Serial`; the server reads `/dev/ttyACM*` (`KAMI_CONTROLLER_SERIAL` names another device, `off` disables) |
-| **HTTP** `POST /api/controllers/:id/state` | scripts, tests, an ESP without UDP | body `text/plain`: `<x> <y> [buttons]` (e.g. `100 0 A`); answers `204` |
+| **UDP** `:8788` on the box | Uno R4 **WiFi** — the default: three lines of Arduino, no connection to keep alive, ~2 ms | one datagram = one message line (several lines in one datagram are all read) |
+| **USB serial**, 115200 baud | Uno R4 **Minima**, or when the venue Wi-Fi misbehaves: plug the Arduino into a USB port **of the GX10** | print the same line to `Serial`; the server reads every `/dev/ttyACM*` (on a Mac also `/dev/cu.usbmodem*`), looking again every 3 s, so the stick can be plugged in late or pulled and put back (`KAMI_CONTROLLER_SERIAL` names one device instead, `off` disables). The user running the server must be in the **`dialout`** group — the log says so once if not: `sudo usermod -aG dialout $USER`, then log in again |
+| **HTTP** `POST /api/controllers/:id/state` | scripts, tests, an ESP without UDP | body `<x> <y> [buttons]` as plain text (e.g. `100 0 A`; the content type is not looked at, so `curl -d` works); answers `204`, or `400` `{ error }` to a body or a controller name that makes no sense |
 
 Test any of them without hardware:
 
@@ -68,7 +70,7 @@ curl http://10.189.121.118:8787/api/controllers                                 
 
 | Route | |
 |---|---|
-| `GET /api/controllers/:id/events` | Server-Sent Events. One event on connect (the current state) and one per change: `data: {"x":-0.7,"y":0.85,"held":["left","up"],"buttons":["a"]}`. `x`, `y` are the axes as -1 … 1 (y up); directions are `left` `right` `up` `down`; buttons `a` `b` `x` `y`. A comment line every 15 s keeps proxies from closing it. |
+| `GET /api/controllers/:id/events` | Server-Sent Events. One event on connect (the current state) and one per change: `data: {"x":-0.7,"y":0.85,"held":["left","up"],"buttons":["a"]}`. `x`, `y` are the axes as -1 … 1 (y up); directions are `left` `right` `up` `down`; buttons `a` `b` `x` `y`; `held` already holds `up` while `a` is held. The stream opens with `retry: 1000`, so an `EventSource` is back a second after a server restart. A comment line (`: keep-alive`) every **5 s** keeps the connection open — `Bun.serve` drops one that has been silent for 10 s. A controller nobody has heard of is simply at rest. `400` to a name no controller can have. |
 | `GET /api/controllers` | `[{ id, x, y, held, buttons, transport: "udp" \| "serial" \| "http", idleMs }]` — for "is my stick connected?" |
 
 The game subscribes to controller **`arcade`** by default; `?controller=<id>` picks another and
@@ -159,7 +161,7 @@ void loop() {
 
 | | |
 |---|---|
-| `server/controllers/` | the message parser, the hub (state, staleness, subscribers), the UDP and serial listeners |
+| `server/controllers/` | `types.ts` (the contract), `message.ts` (the parser), `hub.ts` (hysteresis, staleness, subscribers), `udpListener.ts`, `serialListener.ts` (+ `tty.ts`, `lines.ts`), `eventStream.ts` (the SSE response), `index.ts` (`startControllers`) |
 | `server/http/api.ts` | the three routes above |
 | `src/controller/` | the browser side: `EventSource` → the merger's `PressedListener` |
-| `server/config.ts` | `KAMI_CONTROLLER_UDP_PORT` (8788, `off` disables), `KAMI_CONTROLLER_SERIAL` |
+| `server/config.ts` | `KAMI_CONTROLLER_UDP_PORT` (8788, `off` disables), `KAMI_CONTROLLER_SERIAL` (`auto`, a device path, or `off`) |

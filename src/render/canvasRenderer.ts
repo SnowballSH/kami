@@ -21,6 +21,7 @@ import { lightsOf, NightPainter } from "./nightPainter";
 import { NotePainter } from "./notePainter";
 import { BOARD_COLORS } from "./palette";
 import { PointerTracker } from "./pointerTracker";
+import { paintSumikui } from "./sumikuiPainter";
 import type { Camera, Renderer, RenderFrame } from "./types";
 
 const aliceInView = (alice: AliceSnapshot, view: Rect): boolean =>
@@ -89,6 +90,7 @@ export class CanvasRenderer implements Renderer {
     if (!moonlit) this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
     for (const twin of world.twins) if (aliceInView(twin, view)) paintAlice(ctx, twin, nowMs);
     if (aliceInView(world.alice, view)) paintAlice(ctx, world.alice, nowMs);
+    if (world.sumikui !== null) paintSumikui(ctx, world.sumikui, nowMs);
     this.inkPainter.paintActive(ctx, frame.activeStrokes, frame.activeVerdict);
     this.nightPainter.paint(
       ctx,
