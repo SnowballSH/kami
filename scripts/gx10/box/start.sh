@@ -3,7 +3,7 @@
 # this box: the game is served from here, memory is this MongoDB, rules are compiled by this Ollama, and
 # sketches are recognised by the Eye sidecar — or by the server's own k-NN when no trained model is here.
 set -euo pipefail
-cd ~/kami
+cd -P "$(dirname "$0")/.."
 PORT=${PORT:-8787}
 MONGO_PORT=27017
 EYE_PORT=${KAMI_EYE_PORT:-8790}
@@ -77,6 +77,16 @@ PORT=$PORT KAMI_WEB_DIR="$PWD/dist" KAMI_LLM_URL="http://127.0.0.1:11434" KAMI_L
   nohup runtime/bun app/server.js > logs/server.log 2>&1 &
 echo $! > run/server.pid
 wait_for_port "$PORT" || { echo "✗ the Kami server did not start:"; tail -15 logs/server.log; exit 1; }
+ready=false
+for _ in $(seq 1 120); do
+  if python3 box/release.py ready "$PWD" "http://127.0.0.1:$PORT" 2>/dev/null; then
+    ready=true
+    break
+  fi
+  kill -0 "$(cat run/server.pid)" 2>/dev/null || break
+  sleep 0.25
+done
+[ "$ready" = true ] || { echo "Kami failed application readiness" >&2; exit 1; }
 
 sleep 1
 sed 's/^/  /' logs/server.log

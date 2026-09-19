@@ -2,13 +2,13 @@
 # On the GX10: unpack Bun and MongoDB under ~/kami/runtime, and the Python packages Kami's Eye needs
 # under ~/kami/pydeps (from the wheels the Mac carried over). Nothing is installed system-wide.
 set -euo pipefail
-cd ~/kami
+cd "${KAMI_RELEASE:-$HOME/kami}"
 mkdir -p runtime data logs run
 
 EYE_REQUIREMENTS=app/eye/requirements.txt
 WHEELS=cache/wheels
 PYDEPS=pydeps
-PYDEPS_STAMP=run/pydeps.stamp
+PYDEPS_STAMP=pydeps.stamp
 
 install_eye_packages() {
   local stamp
@@ -34,11 +34,15 @@ if [ ! -x runtime/mongodb/bin/mongod ]; then
 fi
 echo "  bun $(runtime/bun --version) · $(runtime/mongodb/bin/mongod --version | head -1) · page size $(getconf PAGESIZE)"
 
-if [ ! -s "$EYE_REQUIREMENTS" ] || ! ls "$WHEELS"/*.whl >/dev/null 2>&1; then
+if [ ! -s "$EYE_REQUIREMENTS" ]; then
   echo "  eye: no sidecar was shipped — Kami will use the k-NN"
+elif ! ls "$WHEELS"/*.whl >/dev/null 2>&1; then
+  echo "  ! eye: requirements were shipped without wheels" >&2
+  exit 1
 elif install_eye_packages; then
   echo "  eye: onnxruntime $(PYTHONPATH=$PYDEPS python3 -c 'import onnxruntime; print(onnxruntime.__version__)') under ~/kami/$PYDEPS"
 else
   rm -rf "$PYDEPS" "$PYDEPS_STAMP"
-  echo "  ! eye: its Python packages did not install — Kami will use the k-NN"
+  echo "  ! eye: its Python packages did not install; release cannot be activated" >&2
+  exit 1
 fi
