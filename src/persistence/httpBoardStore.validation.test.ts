@@ -35,6 +35,22 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+it.each(["load", "list"] as const)(
+  "rejects invalid JSON during %s instead of empty data",
+  async (read) => {
+    const store = new HttpBoardStore(async () => new Response("{"));
+    const result = read === "load" ? store.load("demo") : store.listBoards();
+    await expect(result).rejects.toMatchObject({
+      name: "BoardResponseError",
+      problems: ["response: invalid JSON"],
+    });
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining("nothing was restored or deleted"),
+      expect.any(BoardResponseError),
+    );
+  },
+);
+
 describe("nested saved board validation", () => {
   it.each([
     ["top-level arrays", { ...snapshot, drawings: "lots" }],

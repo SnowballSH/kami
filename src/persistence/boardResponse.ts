@@ -10,6 +10,12 @@ export class BoardResponseError extends Error {
   }
 }
 
+export const rejectBoardResponse = (path: string, problems: readonly string[]): never => {
+  const error = new BoardResponseError(path, problems);
+  console.warn("Kami could not read the saved board data; nothing was restored or deleted.", error);
+  throw error;
+};
+
 export const parseBoardResponse = <Value>(
   schema: z.ZodType<Value>,
   path: string,
@@ -17,10 +23,8 @@ export const parseBoardResponse = <Value>(
 ): Value => {
   const parsed = schema.safeParse(body);
   if (parsed.success) return parsed.data;
-  const error = new BoardResponseError(
+  return rejectBoardResponse(
     path,
     parsed.error.issues.map(({ path, message }) => `${path.join(".") || "response"}: ${message}`),
   );
-  console.warn("Kami could not read the saved board data; nothing was restored or deleted.", error);
-  throw error;
 };

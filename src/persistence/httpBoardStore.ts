@@ -10,7 +10,7 @@ import {
   type FetchLike,
   JSON_HEADERS,
 } from "./api";
-import { parseBoardResponse } from "./boardResponse";
+import { parseBoardResponse, rejectBoardResponse } from "./boardResponse";
 import { withRequestDeadline } from "./requestDeadline";
 import { boardSnapshotSchema, boardSummaryListSchema } from "./schemas";
 import type { BoardSnapshot, BoardStore, BoardSummary, StoredDrawing } from "./types";
@@ -101,6 +101,7 @@ export class HttpBoardStore implements BoardStore {
         return await response.json();
       });
     } catch (error) {
+      if (error instanceof SyntaxError) rejectBoardResponse(path, ["response: invalid JSON"]);
       this.#warnOnce(error);
       return undefined;
     }

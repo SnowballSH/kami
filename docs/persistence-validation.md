@@ -11,6 +11,7 @@ An invalid snapshot rejects the entire load with `BoardResponseError`, including
 the request path and invalid field paths, and emits a console warning. It is not
 returned as an empty board or partially restored. No request deletes or repairs
 the saved data. Invalid summary lists likewise reject rather than hide boards.
+Successful responses containing invalid JSON also reject with this error.
 Callers should catch this error and present a load failure; game/UI handling and
 network/save-state reporting belong to the client lifecycle and R07 work.
 
