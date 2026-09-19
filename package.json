@@ -1,0 +1,29 @@
+{
+  "name": "kami",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "vitest run",
+    "check": "tsc --noEmit && biome check . && vitest run"
+  },
+  "dependencies": {
+    "matter-js": "^0.20.0",
+    "perfect-freehand": "^1.2.3",
+    "roughjs": "^4.6.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
+    "@types/matter-js": "^0.20.2",
+    "happy-dom": "^20.14.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}
