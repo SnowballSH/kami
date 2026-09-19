@@ -1,4 +1,4 @@
-import type { Vec } from "../core/geometry";
+import type { PenPoint, Vec } from "../core/geometry";
 import { blurFocusedTextField, capturePointer, releasePointer } from "./dom";
 import { GestureMachine, type PointerKind } from "./gestures";
 import type { CanvasInputSink, Detach, Tool } from "./types";
@@ -13,9 +13,13 @@ const clientOf = (event: MouseEvent): Vec => ({ x: event.clientX, y: event.clien
 const kindOf = (event: PointerEvent): PointerKind =>
   event.pointerType === "pen" || event.pointerType === "touch" ? event.pointerType : "mouse";
 
-const coalescedSamples = (event: PointerEvent): readonly Vec[] => {
+/** Only a pen reports pressure worth keeping; a mouse says a constant 0.5 and a finger says 0. */
+const penPointOf = (event: PointerEvent): PenPoint =>
+  kindOf(event) === "pen" ? { ...clientOf(event), pressure: event.pressure } : clientOf(event);
+
+const coalescedSamples = (event: PointerEvent): readonly PenPoint[] => {
   const samples = "getCoalescedEvents" in event ? event.getCoalescedEvents() : [];
-  return (samples.length > 0 ? samples : [event]).map(clientOf);
+  return (samples.length > 0 ? samples : [event]).map(penPointOf);
 };
 
 const wheelUnitPx = (event: WheelEvent, pagePx: number): number => {
@@ -61,7 +65,7 @@ export class CanvasInput {
     this.gestures.press({
       id: event.pointerId,
       kind: kindOf(event),
-      client: clientOf(event),
+      client: penPointOf(event),
       button: event.button,
     });
   }

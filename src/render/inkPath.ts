@@ -7,11 +7,12 @@ export type Pen = StrokeOptions & { readonly size: number };
 
 export const NOTE_THICKNESS = 2.2;
 
+/** A pen that reports pressure draws with it; a mouse or a finger gets pressure faked from speed. */
 export const INK_PEN: Pen = {
-  size: INK_THICKNESS,
-  thinning: 0.3,
+  size: INK_THICKNESS * 0.8,
+  thinning: 0.55,
   smoothing: 0.5,
-  streamline: 0.35,
+  streamline: 0.2,
   simulatePressure: true,
   last: true,
 };
@@ -25,15 +26,21 @@ export const NOTE_PEN: Pen = {
   last: true,
 };
 
+const hasPressure = (stroke: Stroke): boolean => stroke[0]?.pressure !== undefined;
+
+const penFor = (stroke: Stroke, pen: Pen): Pen =>
+  pen.simulatePressure === true && hasPressure(stroke) ? { ...pen, simulatePressure: false } : pen;
+
 const appendDot = (path: Path2D, stroke: Stroke, pen: Pen): void => {
   const [dot] = stroke;
   if (dot === undefined) return;
-  path.moveTo(dot.x + pen.size / 2, dot.y);
-  path.arc(dot.x, dot.y, pen.size / 2, 0, TAU);
+  const radius = (pen.size / 2) * (dot.pressure === undefined ? 1 : 0.5 + dot.pressure / 2);
+  path.moveTo(dot.x + radius, dot.y);
+  path.arc(dot.x, dot.y, radius, 0, TAU);
 };
 
 const appendOutline = (path: Path2D, stroke: Stroke, pen: Pen): void => {
-  const outline = getStroke([...stroke], pen);
+  const outline = getStroke([...stroke], penFor(stroke, pen));
   const [start] = outline;
   if (start === undefined) return;
   path.moveTo(start[0], start[1]);

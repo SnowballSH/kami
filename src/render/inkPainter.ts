@@ -5,7 +5,7 @@ import { awakening, inkTint, isSettled, shiverOffset } from "./awakening";
 import { posedInView } from "./culling";
 import { INK_PEN, strokesPath } from "./inkPath";
 import { MARKER, mapNatures, NATURE_TINTS, rgbCss } from "./palette";
-import type { InkView } from "./types";
+import type { HeldInkView, InkView } from "./types";
 
 interface SettledInk {
   readonly strokeCount: number;
@@ -28,6 +28,7 @@ const CULL_MARGIN = INK_THICKNESS * 2;
 
 export class InkPainter {
   private readonly settled = new Map<DrawingId, SettledInk>();
+  private readonly held = new WeakMap<readonly Stroke[], Path2D>();
   private live: LiveInk | null = null;
 
   forget(): void {
@@ -56,6 +57,25 @@ export class InkPainter {
     }
     ctx.fillStyle = verdict === "ok" ? LIVE_CSS : REJECTED_CSS;
     ctx.fill(this.livePath(strokes));
+  }
+
+  paintHeld(ctx: CanvasRenderingContext2D, held: readonly HeldInkView[]): void {
+    if (held.length === 0) return;
+    ctx.save();
+    ctx.fillStyle = LIVE_CSS;
+    for (const { strokes, opacity } of held) {
+      ctx.globalAlpha = opacity;
+      ctx.fill(this.heldPath(strokes));
+    }
+    ctx.restore();
+  }
+
+  private heldPath(strokes: readonly Stroke[]): Path2D {
+    const cached = this.held.get(strokes);
+    if (cached !== undefined) return cached;
+    const path = strokesPath(strokes, INK_PEN);
+    this.held.set(strokes, path);
+    return path;
   }
 
   private paintInk(ctx: CanvasRenderingContext2D, ink: InkView, view: Rect, nowMs: number): void {

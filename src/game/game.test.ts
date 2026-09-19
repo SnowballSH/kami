@@ -13,6 +13,7 @@ import type { CompiledRule } from "../rules/types";
 import { createSimulation } from "../sim";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
+import { HELD_INK_FADE_MS } from "./heldInk";
 import {
   RULE_REPEALED_LINE,
   SUMIKUI_LORE_LINE_DELAY_MS,
@@ -101,7 +102,7 @@ class ScriptedReader implements HandwritingReader {
   readonly pending: (() => void)[] = [];
 
   constructor(
-    private readonly says: string,
+    private readonly says: string | null,
     private readonly slow = false,
   ) {}
 
@@ -613,22 +614,45 @@ describe("Game with a pen that reads", () => {
     expect(board.rules.map((rule) => rule.sourceText)).toEqual(["no gravity"]);
   });
 
-  it("lifts a landed drawing into words when the reading comes in late", async () => {
+  it("holds a scrawl weightless while the reading is out, then fades it away as words", async () => {
     const reader = new ScriptedReader("slow motion", true);
     const player = new Player("wonderland", { reader });
     await player.arrive();
 
     await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
-    expect((await player.store.load("wonderland")).drawings).toHaveLength(1);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.heldInks.map((held) => held.opacity)).toEqual([1]);
     expect(player.written).not.toContain("slow motion");
 
     reader.answerAll();
     await player.wait(100);
     expect(player.written).toContain("slow motion");
     expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    const [fading] = player.renderer.lastFrame?.heldInks ?? [];
+    expect(fading?.opacity).toBeGreaterThan(0);
+    expect(fading?.opacity).toBeLessThan(1);
+    await player.wait(HELD_INK_FADE_MS);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(0);
     const board = await player.store.load("wonderland");
     expect(board.drawings).toHaveLength(0);
     expect(board.rules.map((rule) => rule.sourceText)).toEqual(["slow motion"]);
+  });
+
+  it("lets held ink down into the world once the reader has seen no words in it", async () => {
+    const reader = new ScriptedReader(null, true);
+    const player = new Player("wonderland", { reader });
+    await player.arrive();
+
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(1);
+
+    reader.answerAll();
+    await player.wait(100);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(1);
   });
 
   it("does not let Kami name ink he is sure about while the reader may still call it words", async () => {
@@ -638,7 +662,7 @@ describe("Game with a pen that reads", () => {
     await player.arrive();
 
     await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
-    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(1);
     expect(player.written).not.toContain("a snake");
 
     reader.answerAll();

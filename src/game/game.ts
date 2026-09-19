@@ -3,6 +3,7 @@ import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
 import {
   boundsOf,
+  type PenPoint,
   type Rect,
   rectGap,
   type Stroke,
@@ -36,6 +37,7 @@ import type {
 } from "../ui/types";
 import { CameraRig } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
+import { HeldInkBook } from "./heldInk";
 import { IdMint } from "./idMint";
 import { InkLedger, type InkRecord } from "./inkLedger";
 import {
@@ -146,8 +148,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private sumikuiLoose = false;
   private meals = 0;
   private recital: Recital[] = [];
-  /** Ink that landed while the pen reader was still reading it: Kami does not name it himself until the reader has answered. */
-  private readonly unread = new Map<DrawingId, Promise<string | null>>();
+  /** Settled ink the pen reader is still reading: weightless until it is known to be a drawing. */
+  private readonly held = new HeldInkBook();
   private glimpsing = false;
   private glimpseAgain = false;
   private glimpse: { readonly noteId: NoteId; readonly word: string } | null = null;
@@ -186,7 +188,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.nowMs = nowMs;
     this.lastFrameMs = nowMs;
 
-    sim.setTimeScale(this.ink.isDrawing ? BULLET_TIME_SCALE : 1);
+    sim.setTimeScale(this.ink.isDrawing || this.held.isHolding ? BULLET_TIME_SCALE : 1);
     for (let step = 0; step < steps; step++) {
       sim.setWalkIntent(this.chooseIntent());
       for (const event of sim.step()) this.handle(event);
@@ -211,18 +213,19 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       notes: this.notes.views(nowMs),
       activeStrokes: this.ink.activeStrokes,
       activeVerdict: this.ink.activeVerdict,
+      heldInks: this.held.views(nowMs),
       eraserActive: this.tool === "erase",
     });
   }
 
-  penDown(client: Vec): void {
+  penDown(client: PenPoint): void {
     if (this.tool === "erase") this.eraseAt(this.toWorld(client));
-    else this.ink.penDown(this.toWorld(client));
+    else this.ink.penDown(this.penPointToWorld(client));
   }
 
-  penMove(client: Vec): void {
+  penMove(client: PenPoint): void {
     if (this.tool === "erase") this.eraseAt(this.toWorld(client));
-    else this.ink.penMove(this.toWorld(client));
+    else this.ink.penMove(this.penPointToWorld(client));
   }
 
   penUp(): void {
@@ -257,14 +260,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     const known = this.penReader.recall(drawing.strokes);
     const reading = this.penReader.settle(drawing.strokes);
-    if (typeof known === "string") {
-      this.ink.refund(drawing.cost);
-      void this.interpret(known, writingOrigin(drawing.strokes));
+    if (known === null) {
+      this.land(drawing);
       return;
     }
-    if (known === undefined) this.unread.set(drawing.id, reading);
-    this.land(drawing);
-    if (known === undefined) void this.liftWords(drawing, reading);
+    this.held.hold(drawing.id, drawing.strokes);
+    void this.settleWords(drawing, reading);
   }
 
   onReject(reason: PlacementRejection, strokes: readonly Stroke[]): void {
@@ -339,7 +340,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     renderer.setBoard(this.board);
     this.ink.reset(Number.POSITIVE_INFINITY);
     this.penReader?.forget();
-    this.unread.clear();
+    this.held.clear();
     this.ledger.clear();
     this.notes.clear();
     this.labelsByKami.clear();
@@ -539,15 +540,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     void this.offerGuesses(drawing);
   }
 
-  /** The ink landed before the reader answered: if it was words after all, take it back up. */
-  private async liftWords(drawing: Drawing, reading: Promise<string | null>): Promise<void> {
+  /** Held ink is let down into the world if it was a drawing, or fades away as the words it was. */
+  private async settleWords(drawing: Drawing, reading: Promise<string | null>): Promise<void> {
     const epoch = this.epoch;
     const text = await reading;
-    this.unread.delete(drawing.id);
-    if (text === null || epoch !== this.epoch) return;
-    const record = this.ledger.get(drawing.id);
-    if (record === null || record.ruling !== null) return;
-    this.discard(drawing.id);
+    if (epoch !== this.epoch) return;
+    if (text === null) {
+      this.held.release(drawing.id);
+      this.land(drawing);
+      return;
+    }
+    this.held.fade(drawing.id, drawing.strokes, this.nowMs);
     this.ink.refund(drawing.cost);
     await this.interpret(text, writingOrigin(drawing.strokes));
   }
@@ -564,7 +567,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private async offerGuesses(drawing: Drawing): Promise<void> {
     const epoch = this.epoch;
     const { certain, guesses } = await this.modules.cat.look(drawing);
-    if (certain !== null) await this.unread.get(drawing.id);
     if (epoch !== this.epoch || this.ledger.get(drawing.id)?.ruling !== null) return;
 
     const corner = guessCornerOf(drawing.strokes);
@@ -899,6 +901,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private toWorld(client: Vec): Vec {
     return this.modules.renderer.toWorld(client, this.camera.camera);
+  }
+
+  private penPointToWorld(client: PenPoint): PenPoint {
+    const world = this.toWorld(client);
+    return client.pressure === undefined ? world : { ...world, pressure: client.pressure };
   }
 }
 

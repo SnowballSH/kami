@@ -1,4 +1,4 @@
-import type { Vec } from "../core/geometry";
+import type { PenPoint, Vec } from "../core/geometry";
 import type { RuleId } from "../rules/types";
 import type { WalkIntent } from "../sim/types";
 
@@ -58,8 +58,8 @@ export interface LawsPanel {
  * pinch-wheel / ctrl-wheel zooms.
  */
 export interface CanvasInputSink {
-  penDown(client: Vec): void;
-  penMove(client: Vec): void;
+  penDown(client: PenPoint): void;
+  penMove(client: PenPoint): void;
   penUp(): void;
   /** The stroke turned out not to be one: a second finger landed, or it never moved. */
   penCancel(): void;

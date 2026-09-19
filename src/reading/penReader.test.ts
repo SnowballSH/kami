@@ -43,6 +43,14 @@ describe("couldBeWriting", () => {
     const squiggle: Stroke = Array.from({ length: 40 }, (_, i) => ({ x: i * 3, y: (i % 2) * 30 }));
     expect(couldBeWriting([squiggle])).toBe(true);
   });
+
+  it("rules out a squarish heap of many strokes, but not a short word or a long one", () => {
+    const face = [stroke(0, 0, 40), stroke(40, 0, 40), stroke(10, 10), stroke(30, 10)];
+    expect(couldBeWriting(face)).toBe(false);
+    expect(couldBeWriting(face.slice(0, 3))).toBe(true);
+    const word = [H, I, stroke(40, 0, 40), stroke(60, 0, 40)];
+    expect(couldBeWriting(word)).toBe(true);
+  });
 });
 
 describe("PrefixPenReader", () => {
