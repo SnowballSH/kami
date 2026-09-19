@@ -108,6 +108,31 @@ describe("the Sumikui, the ink eater", () => {
     runSteps(sim, 1);
     expect(sumikuiOf(sim).awakeMs).toBeLessThan(before);
   });
+
+  it.each(["goal", "spawn", "solid"] as const)(
+    "abandons a target renamed to %s during hunting or feeding",
+    (nature) => {
+      for (const phase of ["hunting", "feeding"] as const) {
+        const sim = summonOver(["bait"]);
+        pebble(sim, "her rock", 60);
+        sim.setWalkIntent(RIGHT);
+        runSteps(sim, 45);
+        sim.setWalkIntent(STAY);
+        runUntil(sim, () => sumikuiOf(sim).phase === phase, A_MINUTE);
+        expect(sumikuiOf(sim).phase).toBe(phase);
+        sim.applyRuling(idOf("her rock"), {
+          name: nature,
+          nature,
+          strength: 1,
+          tags: [],
+          line: "",
+        });
+        expect(typesOf(runSteps(sim, A_MINUTE))).not.toContain("devoured");
+        expect(poseOf(sim, "her rock")).toBeDefined();
+        expect(sumikuiOf(sim).bite).toBe(0);
+      }
+    },
+  );
 });
 
 describe("its pace", () => {
