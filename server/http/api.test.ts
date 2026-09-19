@@ -169,6 +169,22 @@ describe("board memory", () => {
     expect((await loadBoard("demo")).notes).toEqual([guess]);
   });
 
+  it("validates an optional ruling on a guess action while keeping older actions readable", async () => {
+    const action = {
+      type: "name-drawing",
+      drawingId: "drawing-1",
+      name: MUSHROOM_RULING.name,
+      ruling: MUSHROOM_RULING,
+    };
+    const guess = { ...note("note-9", "a mushroom?", 9), action };
+    expect((await call("PUT", "/api/boards/demo/notes/note-9", guess)).status).toBe(200);
+    expect((await loadBoard("demo")).notes).toEqual([guess]);
+    const invalid = {
+      ...guess,
+      action: { ...action, ruling: { ...MUSHROOM_RULING, nature: "sparkly" } },
+    };
+    expect((await call("PUT", "/api/boards/demo/notes/note-9", invalid)).status).toBe(400);
+  });
   it("overwrites on a second save of the same id", async () => {
     await call("PUT", "/api/boards/demo/drawings/drawing-1", storedDrawing("drawing-1"));
     await call(

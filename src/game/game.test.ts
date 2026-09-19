@@ -602,6 +602,51 @@ describe("Game with Kami's eyes on the ink", () => {
       "a mushroom?",
     ]);
   });
+
+  it.each([
+    seen("baseball bat", "ink"),
+    seen("aircraft carrier", "heavy"),
+    seen("baseball", "bouncy"),
+    seen("asparagus", "grow"),
+  ])("carries $word's offered ruling through a tap, simulation and storage", async (sighting) => {
+    const offered = { ...sighting, strength: 1.7 };
+    const player = new Player("wonderland", { eyes: new Eyes([], [offered]) });
+    await player.arrive();
+    await player.draw(blob({ x: 300, y: 430 }, 30, 20));
+    await player.wait(100);
+    const guess = player.renderer.lastFrame?.notes.find(
+      (note) => note.tappable && note.script.text === `${offered.name}?`,
+    );
+    if (guess === undefined) throw new Error("No canonical guess to tap");
+    const { x, y, width, height } = guess.script.bounds;
+    player.game.tap({ x: x + width / 2, y: y + height / 2 });
+    await player.wait(100);
+
+    const expected = {
+      name: offered.name,
+      nature: offered.nature,
+      strength: offered.strength,
+      line: offered.line,
+      tags: [],
+    };
+    const board = await player.store.load("wonderland");
+    expect(board.drawings[0]?.ruling).toEqual(expected);
+    expect(player.renderer.lastFrame?.inks[0]?.nature).toBe(offered.nature);
+    expect(board.notes.some((note) => note.action !== undefined)).toBe(false);
+    expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(0);
+  });
+
+  it("never auto-accepts a certain partial sighting", async () => {
+    const player = new Player("wonderland", {
+      eyes: new Eyes([seen("aircraft carrier", "heavy", true)], []),
+    });
+    await player.arrive();
+    await sketch(player, blob({ x: 300, y: 430 }, 30, 20));
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
+    await player.wait(COMMIT_WAIT_MS);
+    expect((await player.store.load("wonderland")).drawings[0]?.ruling).toBeNull();
+    expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(3);
+  });
 });
 
 describe("Game with a Kami who tidies", () => {

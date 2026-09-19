@@ -1,6 +1,6 @@
 # cat/ — the scripted Cheshire Cat
 
-`ScriptedCat` is the offline stand-in for the model behind the `Cat` contract. It is composed from small pure parts; the only state it keeps is the current room (a board `Zone` is a `RoomBrief`), the hint ladder and whether help was offered. `createCat(recognizer?)` optionally hands him a `Recognizer` to look at drawings with.
+`ScriptedCat` is the offline stand-in for the model behind the `Cat` contract. It is composed from small pure parts; it remembers the current room (a board `Zone` is a `RoomBrief`), the hint ladder, whether help was offered, and recent sightings for typed-name fallback. `createCat(recognizer?)` optionally hands him a `Recognizer` to look at drawings with.
 
 ## How `name` rules
 
@@ -50,3 +50,14 @@ The usual rules still decide clashes: the longest keyword wins, so *a rabbit hol
 2. **The geometric hunch**, which fills whatever is left of the three. `shape.ts` sorts a drawing into dot / tall / flat / round / blob from its bounds, aspect ratio and whether its longest stroke closes on itself. `shapeGuesser.ts` holds an ordered candidate list per shape (a flat line may be "a platform", a tall one "a wall"); candidates whose nature the room allows come first, other shapes' candidates fill any gap, and forbidden natures appear only if nothing else is left.
 
 With no recognizer, a rejected call or an empty answer, the guesses are the hunch alone.
+
+With a `LiveRecognizer`, `look` uses `sight()` and preserves the server's reviewed display name,
+nature, strength and line in `Look.rulings`; `Look.guesses` and `guess()` retain the name-only
+projection for older callers. Bare shapes are excluded, and room filtering uses the offered nature,
+not the local interpretation of its spelling. Geometry fills any remaining places with offline rulings.
+
+The game carries each ruling in its transient guess action. `Cat.accept(ruling)` rechecks the current
+room, then applies the offer without parsing its name again. A forbidden offer becomes plain ink at
+strength 1 with a refusal. Typed names still use `name()`, including adjective overrides and unknown-name
+sighting fallback. Only a finished drawing's first `certain` sighting may name itself, after the pen
+reader has had its turn. Partial sightings remain suggestions.
