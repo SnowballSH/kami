@@ -97,6 +97,15 @@ describe("ScriptedCat", () => {
       expect(ruling.strength).toBe(1);
     });
 
+    it("hears people as walkers, not as laws on Alice", async () => {
+      cat.enterRoom(hallOfDoors);
+      expect(await cat.name("a little girl", SKETCH)).toMatchObject({
+        nature: "walker",
+        name: "a little girl",
+      });
+      expect(await cat.name("a hero", SKETCH)).toMatchObject({ nature: "walker", name: "a hero" });
+    });
+
     it("maps the book's labels onto size", async () => {
       cat.enterRoom(hallOfDoors);
       expect(await cat.name("eat me", SKETCH)).toMatchObject({ nature: "grow", name: "eat me" });

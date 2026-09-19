@@ -38,6 +38,10 @@ const SYMBOLS: readonly (readonly [RegExp, string])[] = [
   [/-(?![\d.])|(?<=[a-z0-9.])-/g, " "],
 ];
 
+const NAMED_ALICE: readonly (readonly [RegExp, string])[] = [
+  [/\b(?:the|this|our|my) (?:girl|character|player|hero|heroine|protagonist)\b/g, "alice"],
+];
+
 const PHRASES: readonly (readonly [RegExp, string])[] = [
   [/\bupside down\b/g, "flipped"],
   [/\banti gravity\b/g, "antigravity"],
@@ -61,7 +65,7 @@ const wordsOf = (text: string): readonly string[] =>
   text.split(/\s+/).filter((word) => word.length > 0);
 
 export const normalise = (text: string): Sentence => {
-  const meaningful = wordsOf(rewrite(text.toLowerCase(), SYMBOLS)).filter(
+  const meaningful = wordsOf(rewrite(rewrite(text.toLowerCase(), SYMBOLS), NAMED_ALICE)).filter(
     (word) => !FILLER.has(word),
   );
   return { words: wordsOf(rewrite(meaningful.join(" "), PHRASES)) };

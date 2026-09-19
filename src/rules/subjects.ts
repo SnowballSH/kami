@@ -18,7 +18,7 @@ export const GOVERNS = [
 ] as const satisfies readonly Governs[];
 
 /** How the player refers to Alice; the dials on her need one of these beside the topic. */
-export const ALICE = vocabulary("alice, alices, her, she, herself, girl, character, player, hero");
+export const ALICE = vocabulary("alice, alices, her, she, herself");
 
 /** The topic word each dial answers to: what a sentence must mention to be about it. */
 export const SUBJECTS: Readonly<Record<Governs, Vocabulary>> = {
