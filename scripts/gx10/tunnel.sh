@@ -9,8 +9,8 @@ OLLAMA_PORT=11434
 DASHBOARD_PORT=11000
 
 if ! ssh -o BatchMode=yes "$HOST_ALIAS" true 2>/dev/null; then
-  echo "✗ Can't reach the GX10. Join the 'gx10-4d82' Wi-Fi (keep internet on another interface,"
-  echo "  e.g. iPhone USB tethering), and run scripts/gx10/bootstrap.sh if the key isn't installed yet."
+  echo "✗ Can't reach the GX10 over 'ssh gx10'. Same network as the box?"
+  echo "  A new address or no key yet: bun run gx10:bootstrap <address>"
   exit 1
 fi
 

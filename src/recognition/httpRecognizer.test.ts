@@ -49,4 +49,75 @@ describe("HttpRecognizer", () => {
   ])("returns no guesses when %s", async (_what, fetchFn) => {
     expect(await new HttpRecognizer(fetchFn).recognize(drawing)).toEqual([]);
   });
+
+  const seenByServer = {
+    guesses: ["mushroom", "umbrella"],
+    confidence: [0.8, 0.1],
+    names: ["a mushroom", "an umbrella"],
+    natures: ["bouncy", "floaty"],
+    strengths: [1.2, 1],
+    lines: ["Spongy. Do try one.", "Up it goes."],
+  };
+
+  it("sights a finished sketch: each guess with what it is in the game", async () => {
+    const bodies: unknown[] = [];
+    const recognizer = new HttpRecognizer(async (_path, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return Response.json(seenByServer);
+    });
+    expect(await recognizer.sight(drawing.strokes)).toEqual([
+      {
+        word: "mushroom",
+        confidence: 0.8,
+        name: "a mushroom",
+        nature: "bouncy",
+        strength: 1.2,
+        line: "Spongy. Do try one.",
+      },
+      {
+        word: "umbrella",
+        confidence: 0.1,
+        name: "an umbrella",
+        nature: "floaty",
+        strength: 1,
+        line: "Up it goes.",
+      },
+    ]);
+    expect(bodies).toEqual([{ strokes: drawing.strokes }]);
+  });
+
+  it("says so when the pen is still moving", async () => {
+    const bodies: unknown[] = [];
+    const recognizer = new HttpRecognizer(async (_path, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return Response.json({
+        ...seenByServer,
+        guesses: [],
+        confidence: [],
+        names: [],
+        natures: [],
+        strengths: [],
+        lines: [],
+      });
+    });
+    expect(await recognizer.sight(drawing.strokes, { partial: true })).toEqual([]);
+    expect(bodies).toEqual([{ strokes: drawing.strokes, partial: true }]);
+  });
+
+  it.each<[string, unknown]>([
+    ["an older server that only lists words", { guesses: ["mushroom"], confidence: [0.8] }],
+    ["columns of different lengths", { ...seenByServer, lines: ["only one"] }],
+    ["a nature the game does not know", { ...seenByServer, natures: ["bouncy", "gaseous"] }],
+    ["nothing at all", null],
+  ])("sights nothing given %s", async (_what, body) => {
+    const recognizer = new HttpRecognizer(async () => Response.json(body));
+    expect(await recognizer.sight(drawing.strokes)).toEqual([]);
+  });
+
+  it("sights nothing when the server is away", async () => {
+    const recognizer = new HttpRecognizer(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    expect(await recognizer.sight(drawing.strokes, { partial: true })).toEqual([]);
+  });
 });

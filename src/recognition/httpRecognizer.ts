@@ -1,5 +1,7 @@
+import type { Stroke } from "../core/geometry";
 import type { Drawing } from "../ink/types";
-import type { Recognizer } from "./types";
+import { sightingsOf } from "./sightings";
+import type { LiveRecognizer, Sighting, SightOptions } from "./types";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -15,7 +17,7 @@ const isGuessList = (body: unknown): body is { readonly guesses: readonly string
   Array.isArray(body.guesses) &&
   body.guesses.every((guess) => typeof guess === "string");
 
-export class HttpRecognizer implements Recognizer {
+export class HttpRecognizer implements LiveRecognizer {
   readonly #fetch: FetchLike;
 
   constructor(fetchFn: FetchLike = browserFetch) {
@@ -23,18 +25,28 @@ export class HttpRecognizer implements Recognizer {
   }
 
   async recognize(drawing: Drawing): Promise<readonly string[]> {
+    const body = await this.#ask({ strokes: drawing.strokes });
+    return isGuessList(body) ? body.guesses : [];
+  }
+
+  async sight(
+    strokes: readonly Stroke[],
+    { partial = false }: SightOptions = {},
+  ): Promise<readonly Sighting[]> {
+    return sightingsOf(await this.#ask(partial ? { strokes, partial } : { strokes }));
+  }
+
+  async #ask(request: object): Promise<unknown> {
     try {
       const response = await this.#fetch(RECOGNIZE_PATH, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ strokes: drawing.strokes }),
+        body: JSON.stringify(request),
         signal: AbortSignal.timeout(RECOGNIZE_TIMEOUT_MS),
       });
-      if (!response.ok) return [];
-      const body: unknown = await response.json();
-      return isGuessList(body) ? body.guesses : [];
+      return response.ok ? await response.json() : null;
     } catch {
-      return [];
+      return null;
     }
   }
 }

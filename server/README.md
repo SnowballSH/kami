@@ -199,8 +199,12 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 
 **Live guessing.** `partial: true` marks a drawing still under the pen. The route is stateless on purpose:
 post the strokes so far every ~150 ms and the whole prefix is re-read each time — at a few hundred points
-that is far cheaper than keeping per-pen state on the server, and it survives dropped requests. The flag
-changes nothing for the k-NN; the trained streaming model will use it (no "I give up" on three points).
+that is far cheaper than keeping per-pen state on the server, and it survives dropped requests. With the
+flag set the answer is **all-empty until the recogniser is sure**: the k-NN also searches half-finished
+sketches and stays silent unless the leading category holds 0.6 of the vote; Kami's Eye is trained on
+prefixes and reads a half-drawn sketch like any other. An empty answer to a partial look means "nothing to
+say yet" — keep the last guess on screen. The client for all of this is `src/recognition`
+(`LiveRecognizer.sight(strokes, { partial })` → `Sighting[]`).
 Returned strokes from `beautify` are in the same world space as the request, fitted to the sketch's bounds.
 
 **From a noun to physics.** Every guess arrives already ruled on, from the reviewed table
@@ -222,38 +226,41 @@ confidence summed: `birthday cake` → `cake`, `coffee cup` and `mug` → `cup`,
 
 ## Running everything on the ASUS Ascent GX10
 
-The goal: all computation on the box, nothing on a laptop during the demo.
+All computation happens on the box; the Mac edits, tests and ships.
 
 ```
-iPad ──Wi-Fi "gx10-4d82"──►  GX10 (10.13.37.1):  game + API (:8787) ─► MongoDB (:27017, local)
-                                                                    └► Ollama  (:11434, local) qwen3.8
+iPad ──venue Wi-Fi──►  GX10 (`ssh gx10`):  game + API (:8787) ─► MongoDB (:27017, local)
+                                                              ├► Ollama  (:11434, local)  qwen3.8 compiles rules
+                                                              └► Kami's Eye (:8790, local) ONNX sidecar, else the k-NN
+                       ~/kami-ml: the training kit (`ml/`), its CUDA venv, the data and the trained models
 ```
 
-The box (`gx10-d8fb`, GB10, 121 GB, Ubuntu 24.04) serves its own Wi-Fi, has **no internet**, no
-passwordless sudo, and already has Ollama with `qwen3.8` and `nemotron-3.5-lightning`. So the Mac
-carries everything to it and installs under `~/kami` — nothing system-wide, nothing needing sudo.
+The box (`gx10-e861`, GB10, 121 GB, Ubuntu 24.04, CUDA 13) is on the venue network with internet, key login
+and passwordless sudo. Everything Kami needs lives under `~/kami`, nothing system-wide.
 
 ```bash
-bun run gx10:bootstrap   # once, on the box's Wi-Fi: installs an SSH key (you type the password once)
-bun run gx10:prepare     # with internet: build, bundle the server to one file, export the Quick, Draw!
-                         #   snapshot, fetch Bun + MongoDB for Linux arm64 into .gx10/cache (156 MB, once)
-bun run gx10:deploy      # on the box's Wi-Fi: ship, install, (re)start, health-check → .gx10/deploy.log
-                         #   add --autostart to bring Kami back whenever the box boots
+bun run gx10:bootstrap <address>   # once per box or address: SSH key + the `gx10` host alias
+bun run gx10:prepare               # build, bundle the server to one file, export the Quick, Draw! snapshot,
+                                   #   fetch Bun + MongoDB for Linux arm64 and the sidecar's wheels (.gx10/cache)
+bun run gx10:deploy                # ship, install, (re)start, health-check → .gx10/deploy.log
+                                   #   add --autostart to bring Kami back whenever the box boots
 ```
 
-Then on the iPad: join `gx10-4d82`, open `http://10.13.37.1:8787`. On the box, `~/kami/box/status.sh`
-shows what is running and `stop.sh` / `start.sh` do what they say.
+Then on the iPad: `http://<box address>:8787`. On the box, `~/kami/box/status.sh` shows what is running
+(and the Eye's health) and `stop.sh` / `start.sh` do what they say.
 
 How it fits: the server serves the built game itself (`KAMI_WEB_DIR`, `server/http/staticSite.ts`), so one
 process is the product. `bun build` bundles it to a single `server.js`, so the box needs no
-`node_modules`. The box can't run the Quick, Draw! ingest, so `server/quickdraw/snapshot.ts` exports the
-drawings on the Mac and imports them there, recomputing features on arrival. The game asks the model
-**last** — the offline grammar and known names are instant — and the server warms the model at start.
+`node_modules`. `server/quickdraw/snapshot.ts` exports the k-NN's drawings on the Mac and imports them on
+the box, recomputing features (prefixes included) on arrival; `start.sh` re-imports whenever the snapshot
+or the importer changes. The game asks the language model **last** — the offline grammar and known names
+are instant — and the server warms it at start.
 
-For development on the Mac instead, `bun run gx10:tunnel` forwards the box's Ollama to `localhost:11434`
-(what `.env.local` points at). The Mac has one Wi-Fi radio, so staying online while on the box's Wi-Fi
-needs internet on another interface (iPhone USB tethering, or Ethernet to the box with a USB-C adapter).
+**Kami's Eye on the box.** Training runs there (`ml/README.md`), and `start.sh` serves the model it finds at
+`~/kami-ml/artifacts/kami-eye` (`KAMI_EYE_MODEL_NAME` picks another; a model shipped from `ml/artifacts` is
+the fallback) with the sidecar code the deploy shipped to `~/kami/app/eye`. A retrained model needs only
+`~/kami/box/start.sh`. No model, no Python packages, or a sidecar that does not come up: the k-NN answers,
+and the start-up log says which.
 
-**Not yet run on the box:** `install.sh` / `start.sh`. Known unknowns the first deploy will answer:
-whether MongoDB 8.2 is happy with the kernel's page size, and whether the box's firewall lets the
-Wi-Fi reach port 8787 (if not: `sudo ufw allow 8787/tcp` on the box).
+For development on the Mac, `bun run gx10:tunnel` forwards the box's Ollama to `localhost:11434` (what
+`.env.local` points at).

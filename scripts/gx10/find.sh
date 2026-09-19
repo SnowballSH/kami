@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Run on the Mac once the box is on the same network. Finds the box, tells it to stay there (after a
 # join-wifi.sh move it otherwise returns to its hotspot in ten minutes), and points the `gx10` SSH alias at it.
-#   find.sh              look for it by name (gx10-d8fb.local) and by its Wi-Fi hardware address
+#   find.sh              look for it by name (gx10-e861.local) and by its Wi-Fi hardware address
 #   find.sh 10.189.4.20  you already know its address (e.g. from `hostname -I` on its screen)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 HOST_ALIAS=gx10
 SSH_CONFIG=$HOME/.ssh/config
-KNOWN_HOSTNAME=gx10-d8fb
+KNOWN_HOSTNAME=gx10-e861
 PATIENCE_SECONDS=120
 GIVEN_ADDRESS=${1:-}
 
