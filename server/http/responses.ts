@@ -19,6 +19,8 @@ export const badRequest = (error: string, issues: readonly string[] = []): Respo
 
 export const notFound = (): Response => json({ error: "not found" }, 404);
 
+export const notImplemented = (error: string): Response => json({ error }, 501);
+
 export const serverError = (): Response => json({ error: "internal error" }, 500);
 
 const describeIssues = (error: z.ZodError): readonly string[] =>

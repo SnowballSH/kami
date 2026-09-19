@@ -1,7 +1,10 @@
 import type { Stroke } from "../../src/core/geometry";
 import type { RuleCompiler } from "../../src/rules/types";
+import type { Beautifier } from "../beautify/beautifier";
 import { type BoardRepository, type EntityKind, isEntityKind } from "../db/boardRepository";
+import type { RankedCategory } from "../quickdraw/recognizer";
 import {
+  beautifyRequestSchema,
   boardIdSchema,
   compileRequestSchema,
   entityIdSchema,
@@ -10,17 +13,34 @@ import {
   ruleSchema,
   storedDrawingSchema,
 } from "../schemas";
-import { badRequest, json, notFound, ok, type Parsed, parseJsonBody, parseWith } from "./responses";
+import {
+  badRequest,
+  json,
+  notFound,
+  notImplemented,
+  ok,
+  type Parsed,
+  parseJsonBody,
+  parseWith,
+} from "./responses";
 import { Router } from "./router";
 
 export interface SketchRecognizer {
-  recognize(strokes: readonly Stroke[]): readonly string[];
+  rank(strokes: readonly Stroke[]): readonly RankedCategory[];
 }
+
+const CONFIDENCE_DECIMALS = 3;
+
+const guessesOf = (ranked: readonly RankedCategory[]) => ({
+  guesses: ranked.map(({ category }) => category),
+  confidence: ranked.map(({ confidence }) => Number(confidence.toFixed(CONFIDENCE_DECIMALS))),
+});
 
 export interface ApiDependencies {
   readonly boards: BoardRepository;
   readonly recognizer: SketchRecognizer;
   readonly compiler: RuleCompiler;
+  readonly beautifier: Beautifier;
 }
 
 interface IdentifiedEntity {
@@ -70,7 +90,7 @@ const parseAddress = (params: {
   return { ok: true, value: { boardId: boardId.value, kind: params.kind, id: id.value } };
 };
 
-export const createApi = ({ boards, recognizer, compiler }: ApiDependencies): Router =>
+export const createApi = ({ boards, recognizer, compiler, beautifier }: ApiDependencies): Router =>
   new Router()
     .on("GET", "/api/boards", async () => json({ boards: await boards.summaries() }))
     .on("GET", "/api/boards/:board", async ({ params }) => {
@@ -101,7 +121,12 @@ export const createApi = ({ boards, recognizer, compiler }: ApiDependencies): Ro
     })
     .on("POST", "/api/recognize", async ({ request }) => {
       const body = await parseJsonBody(request, recognizeRequestSchema);
-      return body.ok ? json({ guesses: recognizer.recognize(body.value.strokes) }) : body.response;
+      return body.ok ? json(guessesOf(recognizer.rank(body.value.strokes))) : body.response;
+    })
+    .on("POST", "/api/beautify", async ({ request }) => {
+      const body = await parseJsonBody(request, beautifyRequestSchema);
+      if (!body.ok) return body.response;
+      return (await beautifier.beautify(body.value)) ?? notImplemented("no beautifier is attached");
     })
     .on("POST", "/api/compile", async ({ request }) => {
       const body = await parseJsonBody(request, compileRequestSchema);

@@ -6,7 +6,7 @@ export interface LabelledFeature {
   readonly feature: Float32Array;
 }
 
-interface RankedCategory {
+export interface RankedCategory {
   readonly category: string;
   readonly confidence: number;
 }
@@ -63,10 +63,14 @@ export class QuickdrawRecognizer {
   }
 
   recognize(strokes: readonly Stroke[]): readonly string[] {
+    return this.rank(strokes).map(({ category }) => category);
+  }
+
+  /** Best first, each with its share of the neighbours' vote (0–1): how sure, not just what. */
+  rank(strokes: readonly Stroke[]): readonly RankedCategory[] {
     return this.#rank(computeFeature(strokes))
       .filter(({ confidence }) => confidence >= this.#options.confidenceFloor)
-      .slice(0, this.#options.maxGuesses)
-      .map(({ category }) => category);
+      .slice(0, this.#options.maxGuesses);
   }
 
   #rank(feature: Float32Array): readonly RankedCategory[] {

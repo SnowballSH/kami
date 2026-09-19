@@ -13,6 +13,8 @@ export interface ServerConfig {
   readonly llm: LlmConfig | null;
   /** The built game to serve alongside the API; null in development, where Vite serves it. */
   readonly webDirectory: string | null;
+  /** Where the sketch-beautifier model listens (`POST {strokes, name}`); null until one is attached. */
+  readonly beautifyUrl: string | null;
 }
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -43,4 +45,5 @@ export const readConfig = (env: Env = process.env): ServerConfig => ({
   database: { uri: nonEmpty(env.MONGODB_URI), embeddedDataDirectory: EMBEDDED_DATA_DIRECTORY },
   llm: llmFrom(env),
   webDirectory: webDirectoryFrom(env),
+  beautifyUrl: nonEmpty(env.KAMI_BEAUTIFY_URL) ?? null,
 });

@@ -16,6 +16,21 @@
 - Avoid "hacky" one-time fixes and write long-term solutions instead.
 - Separate files into directories in meaningful ways. Separate logic into helper functions in meaningful ways. Use concise but meaningful variable and function names.
 
+## Who owns what
+
+Two agents work on this repo in parallel. Stay on your side of the seam; cross it only by agreement.
+
+| Owner | Paths |
+|---|---|
+| **Client agent** | everything under `src/` — game, autopilot, sim, render, ui, ink, cat, handwriting, board, and `src/rules` (the offline grammar and its types) — except the two thin HTTP clients below |
+| **Server agent** | `server/`, `scripts/` (deploy, the GX10), `src/persistence`, `src/recognition`, the trained models, and the server sections of the docs |
+
+The seam is the HTTP API (`server/README.md` → "API contract") and `src/rules/types.ts`. The server mirrors
+`RuleEffect` with a zod schema that fails the typecheck when the two drift, on purpose: a change to
+`RuleEffect` updates `server/schemas.ts` and `server/compile/effectRanges.ts` in the same PR (the minimal
+mirror), says so in the PR description, and the server agent follows with the model prompt. Changes to the
+API are additive, or announced here first.
+
 ## Git
 
 - The remote is `origin` → `github.com/SnowballSH/kami`. Work happens on `main` unless told otherwise.

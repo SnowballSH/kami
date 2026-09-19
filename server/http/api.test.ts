@@ -5,13 +5,14 @@ import type { DrawingId } from "../../src/ink/types";
 import type { Note, NoteId } from "../../src/notes/types";
 import type { BoardSnapshot, StoredDrawing } from "../../src/persistence/types";
 import type { Rule, RuleId } from "../../src/rules/types";
+import { createBeautifier } from "../beautify/beautifier";
 import { BoardRepository } from "../db/boardRepository";
 import type { DatabaseConnection } from "../db/connect";
 import { computeFeature } from "../quickdraw/feature";
 import { QuickdrawRecognizer } from "../quickdraw/recognizer";
 import { startMemoryDatabase } from "../testing/memoryDatabase";
 import { circleSketch, lineSketch } from "../testing/sketches";
-import { createApi } from "./api";
+import { type ApiDependencies, createApi } from "./api";
 import type { Router } from "./router";
 
 const ORIGIN = "http://kami.test";
@@ -60,8 +61,16 @@ const moonRule: Rule = {
 
 const MARS_RULE = { effect: { governs: "gravity", x: 0, y: 0.38 }, explanation: "Mars" } as const;
 
+const PRETTIER = [
+  [
+    { x: 0, y: 0 },
+    { x: 10, y: 10 },
+  ],
+];
+
 let connection: DatabaseConnection;
 let api: Router;
+let apiParts: () => Omit<ApiDependencies, "beautifier">;
 
 const call = (method: string, path: string, body?: unknown): Promise<Response> =>
   api.handle(
@@ -95,7 +104,14 @@ beforeAll(async () => {
   const compiler = {
     compile: async (text: string) => (text.includes("mars") ? MARS_RULE : null),
   };
-  api = createApi({ boards, recognizer, compiler });
+  const beautifier = createBeautifier("http://beautifier.test/beautify", async (_url, init) => {
+    const { name } = JSON.parse(String(init?.body)) as { name: string };
+    return name === "a storm"
+      ? new Response("model fell over", { status: 500 })
+      : Response.json({ strokes: PRETTIER });
+  });
+  apiParts = () => ({ boards, recognizer, compiler });
+  api = createApi({ ...apiParts(), beautifier });
 }, 120_000);
 
 afterAll(async () => {
@@ -228,7 +244,46 @@ describe("bad requests", () => {
   });
 });
 
+describe("beautify", () => {
+  const strokes = circleSketch({ x: 0, y: 0 }, 40);
+
+  it("carries the sketch to the attached model and its answer back", async () => {
+    const response = await call("POST", "/api/beautify", { strokes, name: "a mushroom" });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(await response.json()).toEqual({ strokes: PRETTIER });
+  });
+
+  it("says so plainly when the model fails, or when none is attached", async () => {
+    expect((await call("POST", "/api/beautify", { strokes, name: "a storm" })).status).toBe(501);
+    const bare = createApi({ ...apiParts(), beautifier: createBeautifier(null) });
+    const response = await bare.handle(
+      new Request("http://kami.test/api/beautify", {
+        method: "POST",
+        body: JSON.stringify({ strokes, name: "a mushroom" }),
+      }),
+    );
+    expect(response.status).toBe(501);
+  });
+
+  it("rejects a sketch with no name", async () => {
+    expect((await call("POST", "/api/beautify", { strokes, name: " " })).status).toBe(400);
+  });
+});
+
 describe("recognise and compile", () => {
+  it("says how sure it is, and accepts a drawing still under the pen", async () => {
+    const strokes = circleSketch({ x: 5200, y: -340 }, 85, 0.02);
+    const response = await call("POST", "/api/recognize", { strokes, partial: true });
+    const { guesses, confidence } = (await response.json()) as {
+      guesses: string[];
+      confidence: number[];
+    };
+    expect(confidence).toHaveLength(guesses.length);
+    expect(confidence[0]).toBeGreaterThan(0.5);
+    expect(confidence[0]).toBeLessThanOrEqual(1);
+  });
+
   it("recognises a player's sketch in world px", async () => {
     const strokes = circleSketch({ x: 5200, y: -340 }, 85, 0.02);
     const response = await call("POST", "/api/recognize", { strokes });

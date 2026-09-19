@@ -1,3 +1,4 @@
+import { createBeautifier } from "./beautify/beautifier";
 import { createLlmCompiler } from "./compile/llmCompiler";
 import { readConfig } from "./config";
 import { BoardRepository } from "./db/boardRepository";
@@ -20,7 +21,12 @@ const recognizer = new QuickdrawRecognizer(
 );
 
 const compiler = createLlmCompiler(config.llm);
-const api = createApi({ boards, recognizer, compiler });
+const api = createApi({
+  boards,
+  recognizer,
+  compiler,
+  beautifier: createBeautifier(config.beautifyUrl),
+});
 const site = config.webDirectory === null ? null : createStaticSite(config.webDirectory);
 const isApiCall = (request: Request): boolean =>
   new URL(request.url).pathname.startsWith(API_PREFIX);
@@ -42,6 +48,7 @@ console.log(
     ? `  recognition: ${recognizer.size} Quick, Draw! sketches`
     : "  recognition: empty (run `bun run quickdraw:ingest`)",
 );
+console.log(`  beautifier: ${config.beautifyUrl ?? "none attached"}`);
 console.log(`  model compile: ${config.llm === null ? "off" : config.llm.model}`);
 if (config.llm !== null) {
   void compiler

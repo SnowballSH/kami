@@ -97,6 +97,17 @@ export const ruleSchema = z.looseObject({
   createdAt: z.number(),
 }) satisfies z.ZodType<Rule>;
 
-export const recognizeRequestSchema = z.object({ strokes: strokesSchema });
+/** `partial` marks a drawing still under the pen: a live guess, asked for many times a second. */
+export const recognizeRequestSchema = z.object({
+  strokes: strokesSchema,
+  partial: z.boolean().optional(),
+});
+
+const MAX_NAME_LENGTH = 80;
+
+export const beautifyRequestSchema = z.object({
+  strokes: strokesSchema,
+  name: z.string().trim().min(1).max(MAX_NAME_LENGTH),
+});
 
 export const compileRequestSchema = z.object({ text: text.min(1) });

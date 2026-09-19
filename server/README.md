@@ -127,6 +127,23 @@ OpenAI-compatible server, not yet against the real GX10.
 MongoDB start their own throwaway in-memory `mongod` (`testing/memoryDatabase.ts`), never
 `.kami-data/`.
 
+## API contract (what the client may rely on)
+
+Same origin, JSON unless noted. Additive changes only; anything else is announced in `AGENTS.md`.
+
+| Route | Request | Response |
+|---|---|---|
+| `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[] }` — bare Quick, Draw! words, best first, at most three, each with a 0–1 confidence; `[]`/`[]` when unsure |
+| `POST /api/beautify` | `{ strokes: {x,y}[][], name: string }` | whatever the attached model answers, content-type preserved: **`application/json` `{ strokes: {x,y}[][] }`** (preferred — drawn with the pen, scales with zoom, fits the whiteboard) or an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
+| `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
+| boards, drawings, notes, rules | see the table above | |
+
+**Live guessing.** `partial: true` marks a drawing still under the pen. The route is stateless on purpose:
+post the strokes so far every ~150 ms and the whole prefix is re-read each time — at a few hundred points
+that is far cheaper than keeping per-pen state on the server, and it survives dropped requests. The flag
+changes nothing for the k-NN; the trained streaming model will use it (no "I give up" on three points).
+Returned strokes from `beautify` are in the same world space as the request, fitted to the sketch's bounds.
+
 ## Running everything on the ASUS Ascent GX10
 
 The goal: all computation on the box, nothing on a laptop during the demo.
