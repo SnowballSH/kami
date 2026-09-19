@@ -21,6 +21,7 @@ const createHandlers = () =>
     onClearBoard: vi.fn(),
     onTalkStarted: vi.fn(),
     onTalkEnded: vi.fn(),
+    onWakeToggled: vi.fn<(enabled: boolean) => void>(),
   }) satisfies HudHandlers;
 
 const find = <T extends Element>(root: Element, selector: string): T => {
@@ -351,6 +352,21 @@ describe("DomHud", () => {
       window.dispatchEvent(key("keydown", { code: "Space" }));
       window.dispatchEvent(new FocusEvent("blur"));
       expect(handlers.onTalkEnded).toHaveBeenCalledOnce();
+    });
+
+    it("turns waiting for the wake word on and off from the ear", () => {
+      const { root, handlers, hud } = setup();
+      const ear = find<HTMLButtonElement>(root, ".kami-wake");
+
+      tap(ear);
+      expect(handlers.onWakeToggled.mock.calls).toEqual([[true]]);
+      hud.setWaking(true);
+      expect(ear.getAttribute("aria-pressed")).toBe("true");
+
+      tap(ear);
+      expect(handlers.onWakeToggled.mock.calls).toEqual([[true], [false]]);
+      hud.setWaking(false);
+      expect(ear.getAttribute("aria-pressed")).toBe("false");
     });
   });
 

@@ -187,6 +187,13 @@ class Player {
     await this.wait(100);
   }
 
+  /** Said with the microphone standing by, after his name woke him. */
+  async wake(text: string): Promise<void> {
+    this.game.onWakeToggled(true);
+    this.voice.woke(text);
+    await this.wait(100);
+  }
+
   get laws(): FakeLawsPanel {
     if (this.lawsRef === null) throw new Error("Laws panel was never created");
     return this.lawsRef;
@@ -308,8 +315,20 @@ describe("Game on the Wonderland board", () => {
     expect((await player.store.load("wonderland")).rules[0]?.effect).toMatchObject({
       governs: "gravity",
     });
-    expect(player.voice.said.some((line) => line.startsWith("kami: gravity"))).toBe(true);
+    expect(player.written.some((text) => text.startsWith("kami: gravity"))).toBe(true);
+    expect(player.voice.said.some((line) => line.startsWith("gravity"))).toBe(true);
+    expect(player.voice.said.some((line) => line.startsWith("kami:"))).toBe(false);
     expect(player.hud.listening).toBe(false);
+  });
+
+  it("takes a law woken by his name, with nothing held down", async () => {
+    await player.wake("set g equal to the moon's gravity");
+
+    expect(player.hud.waking).toBe(true);
+    expect(player.written).toContain("set g equal to the moon's gravity");
+    expect((await player.store.load("wonderland")).rules[0]?.effect).toMatchObject({
+      governs: "gravity",
+    });
   });
 
   it("turns a written law into physics, remembers it, and repeals it when erased", async () => {

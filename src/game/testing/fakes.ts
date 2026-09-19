@@ -25,8 +25,19 @@ import type { EarsHandlers, Voice } from "../../voice/types";
 export class FakeVoice implements Voice {
   readonly said: string[] = [];
   listening = false;
+  waking = false;
 
   constructor(readonly handlers: EarsHandlers) {}
+
+  wake(enabled: boolean): void {
+    this.waking = enabled;
+    this.handlers.onWakingChanged(enabled);
+  }
+
+  /** The player said his name and then something, with the microphone standing by. */
+  woke(text: string): void {
+    this.handlers.onHeard(text);
+  }
 
   hold(): void {
     this.listening = true;
@@ -66,6 +77,7 @@ export class FakeHud implements Hud {
 
   autopilot: boolean | null = null;
   listening = false;
+  waking = false;
 
   setAutopilot(enabled: boolean): void {
     this.autopilot = enabled;
@@ -73,6 +85,10 @@ export class FakeHud implements Hud {
 
   setListening(listening: boolean): void {
     this.listening = listening;
+  }
+
+  setWaking(waking: boolean): void {
+    this.waking = waking;
   }
 
   setTool(tool: Tool): void {

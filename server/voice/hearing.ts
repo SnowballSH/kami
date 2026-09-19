@@ -28,4 +28,10 @@ export class Hearing {
   get settledTranscript(): string {
     return this.#settled.join(" ");
   }
+
+  /** Start the next utterance: what was settled has been handed on. */
+  reset(): void {
+    this.#settled = [];
+    this.#pending = "";
+  }
 }

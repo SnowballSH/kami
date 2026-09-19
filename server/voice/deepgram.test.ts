@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { hear, listenUrl, speakUrl, tokenProtocol } from "./deepgram";
-import { sampleRateOf } from "./socket";
+import { isWaking, sampleRateOf } from "./socket";
 import type { VoiceConfig } from "./types";
 
 const CONFIG: VoiceConfig = {
@@ -10,10 +10,11 @@ const CONFIG: VoiceConfig = {
   speakModel: "aura-2-draco-en",
 };
 
-const results = (transcript: string, isFinal: boolean): string =>
+const results = (transcript: string, isFinal: boolean, speechFinal = false): string =>
   JSON.stringify({
     type: "Results",
     is_final: isFinal,
+    speech_final: speechFinal,
     channel: { alternatives: [{ transcript }] },
   });
 
@@ -48,11 +49,20 @@ describe("tokenProtocol", () => {
 
 describe("hear", () => {
   it("reads interim and final transcripts", () => {
-    expect(hear(results("what is", false))).toEqual({ text: "what is", settled: false });
+    expect(hear(results("what is", false))).toEqual({
+      text: "what is",
+      settled: false,
+      ended: false,
+    });
     expect(hear(results("  what is that?  ", true))).toEqual({
       text: "what is that?",
       settled: true,
+      ended: false,
     });
+  });
+
+  it("knows when the speaker stopped", () => {
+    expect(hear(results("make her fly", true, true))?.ended).toBe(true);
   });
 
   it("ignores metadata, keep-alives and nonsense", () => {
@@ -60,6 +70,13 @@ describe("hear", () => {
     expect(hear(JSON.stringify({ type: "Results" }))).toBeNull();
     expect(hear("not json")).toBeNull();
     expect(hear("")).toBeNull();
+  });
+});
+
+describe("isWaking", () => {
+  it("tells a standing wake-word stream from one press", () => {
+    expect(isWaking("ws://kami.test/api/voice/listen?rate=48000&wake=1")).toBe(true);
+    expect(isWaking("ws://kami.test/api/voice/listen?rate=48000")).toBe(false);
   });
 });
 

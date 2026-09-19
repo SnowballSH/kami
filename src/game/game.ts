@@ -40,6 +40,7 @@ import { FixedStepLoop } from "./fixedStepLoop";
 import { IdMint } from "./idMint";
 import { InkLedger, type InkRecord } from "./inkLedger";
 import {
+  aloud,
   BLANK_BOARD_BRIEF,
   DOOR_OPENED_LINE,
   GOAL_LINE,
@@ -332,6 +333,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.voice?.release();
   }
 
+  onWakeToggled(enabled: boolean): void {
+    this.voice?.wake(enabled);
+  }
+
   /** Speech is another way of writing: what the player said goes into the one funnel, as a note. */
   private ears(): EarsHandlers {
     return {
@@ -341,6 +346,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         void this.interpret(text, { x: alice.x + SPOKEN_AT.x, y: alice.y + SPOKEN_AT.y });
       },
       onListeningChanged: (listening) => this.hud.setListening(listening),
+      onWakingChanged: (waking) => this.hud.setWaking(waking),
     };
   }
 
@@ -808,7 +814,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     } = {},
   ): Note {
     const { lifetimeMs, anchor, action, tone = "plain", drift = "up", silent = false } = options;
-    if (!silent) this.voice?.say(text);
+    if (!silent) this.voice?.say(aloud(text));
     const note: Note = {
       id: this.ids.next<NoteId>("kami"),
       author: "kami",

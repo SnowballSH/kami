@@ -9,8 +9,8 @@ export type { EarsHandlers, Voice } from "./types";
 
 const dialBrowser =
   (location: Location): DialVoice =>
-  (sampleRate, handlers) => {
-    const socket = new WebSocket(listenSocketUrl(sampleRate, location));
+  (sampleRate, handlers, { wake }) => {
+    const socket = new WebSocket(listenSocketUrl(sampleRate, location, { wake }));
     socket.binaryType = "arraybuffer";
     socket.addEventListener("open", () => handlers.opened());
     socket.addEventListener("message", (event) => handlers.message(String(event.data)));
@@ -34,8 +34,12 @@ export const createVoice = (
   return {
     hold: () => ears.hold(),
     release: () => ears.release(),
+    wake: (enabled) => ears.wake(enabled),
     get listening() {
       return ears.listening;
+    },
+    get waking() {
+      return ears.waking;
     },
     say: (text) => mouth.say(text),
     hush: () => mouth.hush(),

@@ -10,8 +10,13 @@ const DONE = "done";
 
 export interface VoiceSocketData {
   readonly format: AudioFormat;
+  /** Listening for the wake word: one long stream of utterances, not one press. */
+  readonly continuous: boolean;
   relay: VoiceRelay | null;
 }
+
+/** `?wake=1`: the browser is listening for "kami" rather than holding a button. */
+export const isWaking = (url: string): boolean => new URL(url).searchParams.get("wake") === "1";
 
 export const sampleRateOf = (url: string): number => {
   const asked = Number(new URL(url).searchParams.get("rate"));
@@ -60,6 +65,7 @@ export const voiceSockets = (
     if (config === null) return false;
     const data: VoiceSocketData = {
       format: { sampleRate: sampleRateOf(request.url) },
+      continuous: isWaking(request.url),
       relay: null,
     };
     return server.upgrade(request, { data });
@@ -76,6 +82,7 @@ export const voiceSockets = (
           close: () => socket.close(),
         },
         dialDeepgram(config, socket.data.format),
+        { continuous: socket.data.continuous },
       );
     },
     message: (socket: ServerWebSocket<VoiceSocketData>, message) => {

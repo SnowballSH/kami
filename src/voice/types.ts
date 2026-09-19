@@ -27,7 +27,19 @@ export interface VoiceSocket {
   close(): void;
 }
 
-export type DialVoice = (sampleRate: number, handlers: SocketHandlers) => VoiceSocket;
+export interface ListenOptions {
+  /** A standing stream of utterances to watch for the wake word, rather than one held press. */
+  readonly wake: boolean;
+}
+
+export type DialVoice = (
+  sampleRate: number,
+  handlers: SocketHandlers,
+  options: ListenOptions,
+) => VoiceSocket;
+
+/** Runs `todo` after `ms`; the browser's `setTimeout`, and something instant in tests. */
+export type Schedule = (todo: () => void, ms: number) => void;
 
 export interface EarsHandlers {
   /** The words so far, while the player is still holding the button. */
@@ -35,13 +47,18 @@ export interface EarsHandlers {
   /** The whole utterance; empty when nothing was made out. */
   onHeard(text: string): void;
   onListeningChanged(listening: boolean): void;
+  /** The microphone is open waiting for "kami" — or it is not, because it could not be. */
+  onWakingChanged(waking: boolean): void;
 }
 
 /** Hold to talk: `hold` while the button or Space is down, `release` when it comes up. */
 export interface Listening {
   hold(): void;
   release(): void;
+  /** Or do not hold anything: leave the microphone open and say "kami" first. */
+  wake(enabled: boolean): void;
   readonly listening: boolean;
+  readonly waking: boolean;
 }
 
 export interface Speaking {

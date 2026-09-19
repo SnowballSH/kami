@@ -1,3 +1,4 @@
+import { iconButton } from "./controls";
 import { capturePointer, el, isTextField, releasePointer } from "./dom";
 import { icon } from "./icons";
 import type { Detach, HudHandlers } from "./types";
@@ -7,16 +8,17 @@ const PRIMARY_BUTTON = 0;
 const TALK_CODE = "Space";
 const LOST_EVENTS = ["pointercancel", "lostpointercapture"] as const;
 
-type TalkHandlers = Pick<HudHandlers, "onTalkStarted" | "onTalkEnded">;
+type TalkHandlers = Pick<HudHandlers, "onTalkStarted" | "onTalkEnded" | "onWakeToggled">;
 
 /**
- * Hold the CAT button, or Space, to talk; let go and Kami answers. Never an open microphone
- * (`docs/spec.md`), so every way of ending the press — lifting, leaving the page, cancelling —
- * ends the listening too.
+ * Hold the CAT button, or Space, to talk; let go and Kami answers. Every way of ending the press
+ * — lifting, leaving the page, cancelling — ends the listening too, so the microphone is never
+ * left open by accident. The ear beside it is the other way: leave it on and say "kami" first.
  */
 export class TalkButton {
   readonly element: HTMLElement;
   private readonly button: HTMLButtonElement;
+  private readonly ear: HTMLButtonElement;
   private readonly handlers: TalkHandlers;
   private pointer: number | null = null;
   private keyed = false;
@@ -36,10 +38,17 @@ export class TalkButton {
       },
       [icon("cat")],
     );
+    this.ear = iconButton({
+      label: 'Listen for "kami"',
+      className: "kami-wake",
+      icon: "ear",
+      onClick: () => handlers.onWakeToggled(this.ear.getAttribute(PRESSED) !== "true"),
+    });
+    this.ear.setAttribute(PRESSED, "false");
     this.element = el(
       "div",
       { className: "kami-island kami-voice", attrs: { role: "group", "aria-label": "Talk" } },
-      [this.button],
+      [this.ear, this.button],
     );
     this.listenForPointer();
   }
@@ -59,6 +68,10 @@ export class TalkButton {
   setListening(listening: boolean): void {
     this.button.setAttribute(PRESSED, String(listening));
     this.element.classList.toggle("kami-listening", listening);
+  }
+
+  setWaking(waking: boolean): void {
+    this.ear.setAttribute(PRESSED, String(waking));
   }
 
   private listenForPointer(): void {

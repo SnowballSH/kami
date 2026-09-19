@@ -82,6 +82,10 @@ export class DomHud implements Hud {
     this.talk.setListening(listening);
   }
 
+  setWaking(waking: boolean): void {
+    this.talk.setWaking(waking);
+  }
+
   dispose(): void {
     for (const detach of this.detachers) detach();
     this.overlay.remove();

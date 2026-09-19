@@ -27,6 +27,9 @@ export type DialEar = (handlers: EarHandlers) => Ear;
  * One press of hold-to-talk. Audio arrives before Deepgram has answered the phone, so it is held
  * until then; the release tells Deepgram there is no more, and the last words it sends back are
  * the utterance. Every failure ends the same way: one empty `heard`, and the game plays on.
+ *
+ * Listening for the wake word instead (`continuous`), the stream outlives each utterance: every
+ * time the speaker stops, what they said is sent on and the next utterance starts clean.
  */
 export class VoiceRelay {
   readonly #listener: Listener;
@@ -36,9 +39,11 @@ export class VoiceRelay {
   #open = false;
   #done = false;
   #finished = false;
+  readonly #continuous: boolean;
 
-  constructor(listener: Listener, dial: DialEar) {
+  constructor(listener: Listener, dial: DialEar, { continuous = false } = {}) {
     this.#listener = listener;
+    this.#continuous = continuous;
     this.#ear = dial({
       opened: () => this.#opened(),
       message: (raw) => this.#heard(raw),
@@ -84,6 +89,10 @@ export class VoiceRelay {
     if (this.#hearing.take(heard)) {
       this.#listener.tell({ type: "hearing", text: this.#hearing.transcript });
     }
+    if (!this.#continuous || !heard.ended) return;
+    const utterance = this.#hearing.settledTranscript;
+    this.#hearing.reset();
+    if (utterance !== "") this.#listener.tell({ type: "heard", text: utterance });
   }
 
   #trouble(): void {

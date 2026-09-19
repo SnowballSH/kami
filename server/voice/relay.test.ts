@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import { type DialEar, type Ear, type EarHandlers, type Listener, VoiceRelay } from "./relay";
 import type { VoiceMessage } from "./types";
 
-const results = (transcript: string, isFinal: boolean): string =>
+const results = (transcript: string, isFinal: boolean, speechFinal = false): string =>
   JSON.stringify({
     type: "Results",
     is_final: isFinal,
+    speech_final: speechFinal,
     channel: { alternatives: [{ transcript }] },
   });
 
@@ -52,10 +53,12 @@ class FakeListener implements Listener {
 
 const frame = (): Uint8Array<ArrayBuffer> => new Uint8Array([1, 2, 3, 4]);
 
-const started = (): { relay: VoiceRelay; ear: FakeEar; listener: FakeListener } => {
+const started = (
+  options: { continuous?: boolean } = {},
+): { relay: VoiceRelay; ear: FakeEar; listener: FakeListener } => {
   const ear = new FakeEar();
   const listener = new FakeListener();
-  return { relay: new VoiceRelay(listener, ear.dial), ear, listener };
+  return { relay: new VoiceRelay(listener, ear.dial, options), ear, listener };
 };
 
 describe("VoiceRelay", () => {
@@ -117,6 +120,21 @@ describe("VoiceRelay", () => {
     ear.handlers.closed();
     expect(listener.told).toEqual([{ type: "trouble" }]);
     expect(listener.closed).toBe(true);
+  });
+
+  it("hands on every utterance of a standing wake-word stream, and keeps listening", () => {
+    const { ear, listener } = started({ continuous: true });
+    ear.handlers.opened();
+    ear.handlers.message(results("kami make her", false));
+    ear.handlers.message(results("kami, make her fly.", true, true));
+    ear.handlers.message(results("and draw a ladder.", true, true));
+
+    expect(listener.told.filter((message) => message.type === "heard")).toEqual([
+      { type: "heard", text: "kami, make her fly." },
+      { type: "heard", text: "and draw a ladder." },
+    ]);
+    expect(listener.closed).toBe(false);
+    expect(ear.closed).toBe(false);
   });
 
   it("lets go of Deepgram when the browser disappears", () => {

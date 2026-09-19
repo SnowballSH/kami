@@ -5,6 +5,9 @@ you said is written on the board in your hand and goes into the same funnel a wr
 speech buys nothing extra — it is just another way to write. Every line Kami writes back is spoken
 in his voice while the handwriting reveals.
 
+Or hold nothing: tap the ear beside the CAT and say his name. "Kami, make gravity the moon's" is
+the same utterance the button would have caught.
+
 The board is still the truth. If Deepgram is unreachable, misconfigured or slow, nothing is said
 aloud and nothing is heard, and the game plays exactly as it did before.
 
@@ -18,6 +21,9 @@ aloud and nothing is heard, and the game plays exactly as it did before.
                                      ◄── {hearing|heard} ── final transcript
       heard ─► game.interpret(text, beside Alice) ─► law / name / help / the model, as ever
       kamiWrites(line) ─► voice/Mouth ─► POST /api/voice/speak ─► aura-2 mp3 ─► played in order
+
+ ear tapped ─► game.onWakeToggled ─► the same socket with ?wake=1, standing open: one `heard`
+               per utterance, and only the ones naming him are taken as said to him
 ```
 
 The Deepgram key never reaches the browser: the Bun server holds it and proxies both directions,
@@ -25,8 +31,17 @@ which also keeps voice working on the iPad's plain-HTTP LAN origin.
 
 ## Ears (speech → the funnel)
 
-- **Never an open mic.** The microphone is acquired on press and closed on release — a press is one
-  utterance, one socket, one transcript.
+- **A press is one utterance**, one socket, one transcript: the microphone is acquired on press and
+  closed by whatever ends the press — lifting, leaving the page, cancelling.
+- **Waking is the other way, and the player asks for it.** The ear is off until tapped; a tap holds
+  the microphone open until it is tapped off, or until the microphone is refused, which turns it
+  back off by itself. Deepgram cuts the stream into utterances (`speech_final`) and the browser
+  throws away every one that does not name him, so nothing else is written, spoken or acted on.
+- Anything that sounds like his name wakes him — Nova-3 spells him a dozen ways — and the rest of
+  that breath is the utterance; his name said alone takes the next breath instead. He never signs
+  his name aloud (`aloud()` drops the `kami:` he writes), so he cannot wake himself.
+- A press wins: holding the button takes the microphone from the standing stream, which resumes
+  once the press is done.
 - The browser sends mono signed 16-bit little-endian PCM at whatever rate the `AudioContext` gave
   it, and tells the server that rate in `?rate=`; the server passes it to Deepgram.
 - Audio captured before the socket opens is queued, not dropped, so the first word survives.
@@ -45,6 +60,9 @@ which also keeps voice working on the iPad's plain-HTTP LAN origin.
   byte budget — a hint costs one Deepgram call, not one per telling.
 
 ## Configuration
+
+A standing wake stream costs Deepgram's streaming rate for as long as it is on, and it is an open
+microphone — which is why it is a toggle the player turns on, and never the default.
 
 `DEEPGRAM_API_KEY` on the server turns voice on; without it the socket refuses and
 `POST /api/voice/speak` answers `501`, which the client treats as silence. `KAMI_VOICE_LISTEN_MODEL`
