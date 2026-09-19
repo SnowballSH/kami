@@ -1,11 +1,12 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
 import { rectsOverlap, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
-import type { HandwritingReader } from "../persistence/types";
+import { HttpBoardStore } from "../persistence/httpBoardStore";
+import type { BoardStore, HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
 import type { LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, resolvePhysics } from "../rules";
@@ -47,7 +48,7 @@ const blob = (center: Vec, rx: number, ry: number): Vec[] =>
 type Thoughts = Readonly<Record<string, CompiledRule>>;
 
 interface PlayerOptions {
-  readonly store?: MemoryBoardStore;
+  readonly store?: BoardStore;
   readonly thoughts?: Thoughts;
   readonly eyes?: LiveRecognizer;
   readonly reader?: HandwritingReader;
@@ -119,7 +120,7 @@ class ScriptedReader implements HandwritingReader {
 
 class Player {
   readonly renderer = new FakeRenderer();
-  readonly store: MemoryBoardStore;
+  readonly store: BoardStore;
   readonly game: Game;
   private hudRef: FakeHud | null = null;
   private lawsRef: FakeLawsPanel | null = null;
@@ -252,6 +253,76 @@ class Player {
     await Promise.resolve();
   }
 }
+
+describe("Game during persistence outages", () => {
+  it("keeps drawing and board navigation usable after load/list failure and recovers unsaved ink", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const saved = new MemoryBoardStore();
+    let offline = true;
+    const store = new HttpBoardStore(async (path, init) => {
+      if (offline) throw new TypeError("offline");
+      if (init?.method === "PUT") return Response.json({ ok: true });
+      return Response.json(
+        path === "/api/boards"
+          ? { boards: [{ id: "remembered", drawings: 0, rules: 0 }] }
+          : await saved.load("wonderland"),
+      );
+    });
+    try {
+      const player = new Player("wonderland", { store });
+      await player.arrive();
+      expect(player.hud.persistence?.errors.map(({ operation }) => operation)).toEqual([
+        "load",
+        "list",
+      ]);
+      await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+      await store.whenIdle();
+      const local = await store.load("wonderland");
+      expect(local.drawings).toHaveLength(1);
+      player.game.onOpenBoard("elsewhere");
+      await player.wait(100);
+      expect(player.hud.boards.map(({ id }) => id)).toContain("wonderland");
+      player.game.onOpenBoard("wonderland");
+      await player.wait(100);
+      expect(player.renderer.lastFrame?.world.drawings).toHaveLength(1);
+      expect(player.hud.persistence?.unsaved).toBeGreaterThan(0);
+
+      for (const entity of local.drawings) saved.saveDrawing("wonderland", entity);
+      for (const entity of local.notes) saved.saveNote("wonderland", entity);
+      offline = false;
+      await player.game.onRetryPersistence();
+      await player.wait(100);
+      expect(player.renderer.lastFrame?.world.drawings).toHaveLength(1);
+      expect(player.hud.persistence).toEqual({
+        loading: false,
+        saving: false,
+        unsaved: 0,
+        errors: [],
+      });
+      expect(player.hud.boards.map(({ id }) => id)).toContain("remembered");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("does not reopen a board after retry completes on a different board", async () => {
+    class RetryingStore extends MemoryBoardStore {
+      readonly retrying = Promise.withResolvers<void>();
+      override retry(): Promise<void> {
+        return this.retrying.promise;
+      }
+    }
+    const store = new RetryingStore();
+    const player = new Player("wonderland", { store });
+    await player.arrive();
+    const retry = player.game.onRetryPersistence();
+    player.game.onOpenBoard("elsewhere");
+    await player.wait(100);
+    store.retrying.resolve();
+    await retry;
+    expect(player.renderer.board?.id).toBe("elsewhere");
+  });
+});
 
 describe("Game on the Wonderland board", () => {
   let player: Player;

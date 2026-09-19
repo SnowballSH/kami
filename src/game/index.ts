@@ -7,6 +7,7 @@ import {
   createBoardStore,
   createHandwritingReader,
   createRemoteRuleCompiler,
+  guardUnsavedChanges,
 } from "../persistence";
 import { createPenReader } from "../reading";
 import { createRecognizer } from "../recognition";
@@ -56,6 +57,8 @@ export function startGame(root: HTMLElement): void {
   root.prepend(canvas);
   const handwriting = createHandwriting();
   const renderer = createRenderer(canvas, handwriting);
+  const store = createBoardStore();
+  guardUnsavedChanges(window, store);
   const game = new Game(
     {
       sim: createSimulation(),
@@ -65,7 +68,7 @@ export function startGame(root: HTMLElement): void {
       handwriting,
       compiler: createRuleCompiler(),
       thinker: createRemoteRuleCompiler(),
-      store: createBoardStore(),
+      store,
       penReader: createPenReader(createHandwritingReader()),
       resolvePhysics,
       boardFor,

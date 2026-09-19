@@ -7,6 +7,7 @@ import type {
   BoardSnapshot,
   BoardStore,
   BoardSummary,
+  PersistenceState,
   StoredDrawing,
 } from "../../persistence/types";
 import type { Camera, Renderer, RenderFrame } from "../../render/types";
@@ -24,6 +25,7 @@ import type {
 export class FakeHud implements Hud {
   tool: Tool = "draw";
   boards: readonly BoardListing[] = [];
+  persistence: PersistenceState | null = null;
   private readonly answers: (string | null)[] = [];
 
   constructor(readonly handlers: HudHandlers) {}
@@ -44,6 +46,10 @@ export class FakeHud implements Hud {
 
   setBoards(boards: readonly BoardListing[]): void {
     this.boards = boards;
+  }
+
+  setPersistence(state: PersistenceState): void {
+    this.persistence = state;
   }
 
   promptText(): Promise<string | null> {
@@ -118,6 +124,15 @@ interface Shelf {
 
 export class MemoryBoardStore implements BoardStore {
   private readonly shelves = new Map<string, Shelf>();
+  readonly hasUnsavedChanges = false;
+
+  state(): PersistenceState {
+    return { loading: false, saving: false, unsaved: 0, errors: [] };
+  }
+
+  retry(): Promise<void> {
+    return Promise.resolve();
+  }
 
   load(boardId: string): Promise<BoardSnapshot> {
     const shelf = this.shelf(boardId);

@@ -1,9 +1,11 @@
 import { createRemoteStick } from "../controller";
 import type { Vec } from "../core/geometry";
+import type { PersistenceState } from "../persistence/types";
 import { BoardMenu } from "./boardMenu";
 import { el } from "./dom";
 import { Joystick } from "./joystick";
 import { KeyboardWalk } from "./keyboard";
+import { PersistenceStatus } from "./persistenceStatus";
 import { TextPrompt } from "./textPrompt";
 import { Toolbar } from "./toolbar";
 import { ToolHotkeys } from "./toolHotkeys";
@@ -19,6 +21,7 @@ export class DomHud implements Hud {
   private readonly tools: ToolSelection;
   private readonly toolbar: Toolbar;
   private readonly boards: BoardMenu;
+  private readonly persistence: PersistenceStatus;
   private readonly prompt: TextPrompt;
   private readonly stick: Joystick;
   private readonly detachers: readonly Detach[];
@@ -35,6 +38,8 @@ export class DomHud implements Hud {
     this.toolbar = new Toolbar((tool) => this.tools.pick(tool));
     this.toolbar.show(this.tools.inForce);
     this.boards = new BoardMenu(handlers);
+    this.persistence = new PersistenceStatus(() => handlers.onRetryPersistence());
+    this.boards.element.append(this.persistence.element);
     this.prompt = new TextPrompt(host);
     this.stick = new Joystick(walk.source());
     const remoteStick = createRemoteStick(walk.source());
@@ -67,6 +72,10 @@ export class DomHud implements Hud {
 
   setBoards(boards: readonly BoardListing[], currentId: string): void {
     this.boards.setBoards(boards, currentId);
+  }
+
+  setPersistence(state: PersistenceState): void {
+    this.persistence.show(state);
   }
 
   promptText(client: Vec): Promise<string | null> {

@@ -1,4 +1,5 @@
 import type { Vec } from "../core/geometry";
+import type { PersistenceState } from "../persistence/types";
 import type { RuleId } from "../rules/types";
 import type { WalkIntent } from "../sim/types";
 
@@ -22,12 +23,14 @@ export interface HudHandlers {
   onNewBoard(): void;
   /** Wipe everything the player drew, wrote and ruled on this board. */
   onClearBoard(): void;
+  onRetryPersistence(): void;
 }
 
 export interface Hud {
   setTool(tool: Tool): void;
   setAutopilot(enabled: boolean): void;
   setBoards(boards: readonly BoardListing[], currentId: string): void;
+  setPersistence(state: PersistenceState): void;
   /**
    * An inline field at `client` (CSS px) to write a note into — typed, or handwritten with
    * Apple Pencil Scribble. Resolves with the trimmed text, or null if abandoned or empty.
