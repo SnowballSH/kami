@@ -5,58 +5,52 @@ One ResNet-18 that reads a 64×64 rendering of a sketch, finished or half-drawn,
 directory is the Python that honours it. Nothing here touches the game: the Bun server reaches the
 model through the sidecar and falls back to its k-NN when the sidecar is not there.
 
-## The real run (you have a GPU — this part is for you)
+## The real run — on the GX10
 
-Needs [uv](https://docs.astral.sh/uv/), internet, and disk for the rendered dataset (sizes below).
+All training happens on the box (`ssh gx10`), in `~/kami-ml`. Its environment is a `uv` venv with the CUDA 13
+build of torch for the GB10 (`~/kami-ml/setup-env.sh` made it; `uv sync` would replace that torch with the
+index default, so call the venv's Python directly):
 
 ```sh
-cd ml
-uv sync --group train                       # Python 3.12 + torch into ml/.venv, nothing system-wide
-uv run --group train python -c "import torch; print(torch.cuda.is_available())"   # must print True
-uv run --group train python train.py --all --samples-per-class 8000 --epochs 8 --name kami-eye
+rsync -az --delete --exclude .venv --exclude data --exclude artifacts --exclude '__pycache__' \
+  --exclude setup-env.sh --exclude logs ml/ gx10:kami-ml/          # from the repo root, on the Mac
+ssh gx10
+cd ~/kami-ml && .venv/bin/python -m pytest -q
+setsid nohup .venv/bin/python train.py --all --samples-per-class 8000 --epochs 8 --batch-size 1024 \
+  --name kami-eye > logs/kami-eye.log 2>&1 < /dev/null &
+~/kami/box/start.sh        # when it has finished: the game now answers with the new model
 ```
 
 `train.py` downloads the head of each category's `.bin`, renders it once into a memmap, trains
 (AdamW + OneCycle, AMP on CUDA, label smoothing 0.1, small affine augmentation), prints top-1/top-3
 on validation overall **and by prefix bucket**, fits the temperature, reports the test split, and
-writes `artifacts/kami-eye/`. It prints `img/s` after every epoch. Re-running with the same
-arguments reuses the download and the rendered dataset.
+writes `artifacts/<name>/`. It prints `img/s` after every epoch. Re-running with the same
+arguments reuses the download and the rendered dataset. `box/start.sh` serves `artifacts/kami-eye`;
+use another `--name` for experiments.
 
-Pick a row. **The times are estimates**, not measurements: this Mac (M4, MPS) measured 353 img/s,
-and I assume a modern CUDA card with AMP does about 8 000 img/s on this network (ResNet-18 at
-roughly a third of its ImageNet FLOPs). Check the `img/s` of your first epoch and scale
-`--samples-per-class` by `your img/s ÷ 8000`; about 12 minutes of each budget is download, render,
-validation and export.
+**Measured on the GB10** (batch 1024, AMP, GPU at 96 %): **6 800 img/s**, so an epoch over 2.5 M
+drawings takes 5 min 50 s. Downloading all 345 categories at 5.5 MB each (2.0 GB) took 3 min 20 s on the
+venue Wi-Fi; rendering 2.76 M drawings on 20 cores took 19 s.
 
 | Budget | Categories | Command arguments | Train passes | Dataset on disk | Download |
 |---|---|---|---|---|---|
-| ~1 h | all 345 | `--all --samples-per-class 8000 --epochs 8` | 19.9 M | 11 GB | 0.7 GB |
-| ~1 h | curated 113 | `--categories categories/curated.txt --samples-per-class 25000 --epochs 8` | 20.3 M | 12 GB | 0.8 GB |
-| ~3 h | all 345 | `--all --samples-per-class 22000 --epochs 10` | 68 M | 31 GB | 2.1 GB |
-| ~3 h | curated 113 | `--categories categories/curated.txt --samples-per-class 70000 --epochs 10` | 71 M | 32 GB | 2.0 GB |
+| ~50 min | all 345 | `--all --samples-per-class 8000 --epochs 8` | 19.9 M | 11 GB | 0.7 GB |
+| ~50 min | curated 113 | `--categories categories/curated.txt --samples-per-class 25000 --epochs 8` | 20.3 M | 12 GB | 0.8 GB |
+| ~2 h 50 | all 345 | `--all --samples-per-class 22000 --epochs 10` | 68 M | 31 GB | 2.1 GB |
+| ~2 h 55 | curated 113 | `--categories categories/curated.txt --samples-per-class 70000 --epochs 10` | 71 M | 32 GB | 2.0 GB |
 
 All 345 is the default choice: `server/natures/` already has a nature for every category, so every
 class the model can name is playable. The curated list (`categories/curated.txt`: the 42 categories
-the k-NN knows plus 71 distinct physical objects and shapes) trades vocabulary for accuracy and is
-the better pick if only an hour is available. Use a different `--name` per run.
+the k-NN knows plus 71 distinct physical objects and shapes) trades vocabulary for accuracy.
 
 Other switches: `--batch-size 512` (1024 is fine on a big card), `--learning-rate 2e-3`,
 `--thickness-jitter 1` (± px on training renders only, a build-time option), `--prefix-share 0.5`,
 `--megabytes-per-class N` (default is 250 B per requested drawing; a category that comes up short is
 reported and trained with what it has), `--device cuda|mps|cpu`, `--download-only`.
 
-No internet on the GPU machine (the GX10)? Run the same command with `--download-only` on a machine
-that has it, copy `ml/data/bin/` across, and run without the flag: fetched categories are skipped.
-The Python environment has to get there too (`uv sync` needs an index or a wheel cache). If
-`torch.cuda.is_available()` is `False` on a CUDA machine, install the torch build for its CUDA
-version from pytorch.org's selector into `ml/.venv` with `uv pip install`.
+### What a run leaves behind
 
-**Not exercised here:** the CUDA/AMP branch (no CUDA device on this Mac). MPS and CPU both ran end
-to end.
-
-### What to hand back
-
-The directory `ml/artifacts/<name>/` (it is gitignored — zip it or copy it):
+The directory `artifacts/<name>/` (gitignored; it stays on the box, where the sidecar reads it):
 
 | File | |
 |---|---|
@@ -66,7 +60,8 @@ The directory `ml/artifacts/<name>/` (it is gitignored — zip it or copy it):
 | `golden.json` | 50 held-out cases for parity tests |
 | `model.pt` | the PyTorch weights, only needed to re-export |
 
-Also paste the printed validation/test tables into the chat — they are the live-guessing curve.
+The printed validation/test tables by prefix bucket are the live-guessing curve; they are also kept in
+`preprocess.json`.
 
 ## Try a model locally
 
@@ -90,7 +85,7 @@ unexpected exception is `500 {"error"}` and the process keeps serving. `/health`
 reports `renderMatches` — whether `render.py` still has the sha256 the model was trained with.
 One log line per request: `POST /recognize 200 5.3 ms`.
 
-## Measured on this Mac — a smoke test, not the real model
+## The first smoke test (on a Mac, before the box was reachable) — not the real model
 
 `uv run --group train python train.py --categories categories/smoke.txt --samples-per-class 2500 --epochs 3 --name smoke`
 — 8 categories (circle, line, square, triangle, star, mushroom, ladder, cloud), 20 000 drawings,
