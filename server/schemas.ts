@@ -133,3 +133,5 @@ export const beautifyRequestSchema = z.object({
 });
 
 export const compileRequestSchema = z.object({ text: text.min(1) });
+
+export const transcribeRequestSchema = z.object({ strokes: strokesSchema.min(1) });

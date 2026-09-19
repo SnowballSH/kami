@@ -1,7 +1,14 @@
 import type { Autopilot, Scene } from "../autopilot/types";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
-import { boundsOf, type Rect, rectGap, translateRect, type Vec } from "../core/geometry";
+import {
+  boundsOf,
+  type Rect,
+  rectGap,
+  type Stroke,
+  translateRect,
+  type Vec,
+} from "../core/geometry";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
 import type { Handwriting } from "../handwriting/types";
 import type {
@@ -14,6 +21,7 @@ import type {
 } from "../ink/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore } from "../persistence/types";
+import type { PenReader } from "../reading/types";
 import type { Renderer } from "../render/types";
 import type { CompiledRule, Rule, RuleCompiler, RuleId, WorldPhysics } from "../rules/types";
 import type { DrawingPose, SimEvent, Simulation, WalkIntent } from "../sim/types";
@@ -79,6 +87,8 @@ export interface GameModules {
   /** A model behind the server (the GX10): may take seconds, so it is asked last and only if needed. */
   readonly thinker: RuleCompiler;
   readonly store: BoardStore;
+  /** Reads pen strokes as words (a vision model behind the server); without one, ink is only ink. */
+  readonly penReader?: PenReader;
   readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
   readonly boardFor: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
@@ -96,6 +106,7 @@ export interface GameModules {
 
 export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
   private readonly ink: InkSession;
+  private readonly penReader: PenReader | null;
   private readonly hud: Hud;
   private readonly loop = new FixedStepLoop(FIXED_STEP_MS, MAX_STEPS_PER_FRAME);
   private readonly ledger = new InkLedger();
@@ -129,6 +140,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     this.notes = new NoteBook(modules.handwriting);
     this.rules = new RuleBook(modules.resolvePhysics);
     this.ink = modules.createInkSession(this);
+    this.penReader = modules.penReader ?? null;
     this.hud = modules.createHud(this);
   }
 
@@ -190,6 +202,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
 
   penUp(): void {
     this.ink.penUp();
+    this.penReader?.glimpse([...this.ink.activeStrokes]);
   }
 
   penCancel(): void {
@@ -212,15 +225,34 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
   }
 
   onCommit(drawing: Drawing): void {
-    this.modules.sim.addDrawing(drawing);
-    this.modules.autopilot.invalidate();
-    this.ledger.add(drawing);
-    this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
-    void this.offerGuesses(drawing);
+    if (this.penReader === null) {
+      this.land(drawing);
+      return;
+    }
+    const known = this.penReader.recall(drawing.strokes);
+    const reading = this.penReader.settle(drawing.strokes);
+    if (typeof known === "string") {
+      this.ink.refund(drawing.cost);
+      void this.interpret(known, writingOrigin(drawing.strokes));
+      return;
+    }
+    this.land(drawing);
+    if (known === undefined) void this.liftWords(drawing, reading);
   }
 
-  onReject(reason: PlacementRejection): void {
+  onReject(reason: PlacementRejection, strokes: readonly Stroke[]): void {
+    if (this.penReader === null) {
+      this.remark(REJECTION_LINES[reason]);
+      return;
+    }
+    const known = this.penReader.recall(strokes);
+    const reading = this.penReader.settle(strokes);
+    if (typeof known === "string") {
+      void this.interpret(known, writingOrigin(strokes));
+      return;
+    }
     this.remark(REJECTION_LINES[reason]);
+    if (known === undefined) void this.readWords(strokes, reading);
   }
 
   onWalkIntent(intent: WalkIntent): void {
@@ -274,6 +306,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     this.wasStuck = false;
     renderer.setBoard(this.board);
     this.ink.reset(Number.POSITIVE_INFINITY);
+    this.penReader?.forget();
     this.ledger.clear();
     this.notes.clear();
     this.rules.replaceAll([]);
@@ -416,6 +449,35 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     const line = this.modules.cat.offerHelp();
     if (line !== null) this.remark(`${line} ${OFFER_HELP_HINT}`, HINT_LIFETIME_MS);
     this.stuck.reset(this.nowMs);
+  }
+
+  private land(drawing: Drawing): void {
+    this.modules.sim.addDrawing(drawing);
+    this.modules.autopilot.invalidate();
+    this.ledger.add(drawing);
+    this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
+    void this.offerGuesses(drawing);
+  }
+
+  /** The ink landed before the reader answered: if it was words after all, take it back up. */
+  private async liftWords(drawing: Drawing, reading: Promise<string | null>): Promise<void> {
+    const epoch = this.epoch;
+    const text = await reading;
+    if (text === null || epoch !== this.epoch) return;
+    const record = this.ledger.get(drawing.id);
+    if (record === null || record.ruling !== null) return;
+    this.discard(drawing.id);
+    this.ink.refund(drawing.cost);
+    await this.interpret(text, writingOrigin(drawing.strokes));
+  }
+
+  private async readWords(
+    strokes: readonly Stroke[],
+    reading: Promise<string | null>,
+  ): Promise<void> {
+    const epoch = this.epoch;
+    const text = await reading;
+    if (text !== null && epoch === this.epoch) await this.interpret(text, writingOrigin(strokes));
   }
 
   private async offerGuesses(drawing: Drawing): Promise<void> {
@@ -742,6 +804,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
 const IDLE_INTENT: WalkIntent = { x: 0, y: 0 };
 
 const isPlayers = (note: Note): boolean => note.author === "player";
+
+const writingOrigin = (strokes: readonly Stroke[]): Vec => {
+  const { x, y } = boundsOf(strokes.flat());
+  return { x, y };
+};
 
 const currentBounds = (drawing: Drawing, { pose }: DrawingPose): Rect =>
   translateRect(boundsOf(drawing.strokes.flat()), {

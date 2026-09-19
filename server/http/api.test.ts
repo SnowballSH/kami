@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Ruling } from "../../src/cat/types";
+import type { Stroke } from "../../src/core/geometry";
 import type { DrawingId } from "../../src/ink/types";
 import type { Note, NoteId } from "../../src/notes/types";
 import type { BoardSnapshot, StoredDrawing } from "../../src/persistence/types";
@@ -113,6 +114,10 @@ beforeAll(async () => {
   const compiler = {
     compile: async (text: string) => (text.includes("mars") ? MARS_RULE : null),
   };
+  const transcriber = {
+    transcribe: async (strokes: readonly Stroke[]) => (strokes.length > 1 ? "no gravity" : null),
+    warmUp: async () => true,
+  };
   beautifier = createBeautifier("http://beautifier.test/beautify", async (_url, init) => {
     const { name } = JSON.parse(String(init?.body)) as { name: string };
     return name === "a storm"
@@ -121,7 +126,7 @@ beforeAll(async () => {
   });
   clock = new ManualClock();
   controllers = new InMemoryControllerHub(clock);
-  apiParts = () => ({ boards, recognizer, compiler, controllers });
+  apiParts = () => ({ boards, recognizer, compiler, controllers, transcriber });
   api = createApi({ ...apiParts(), beautifier });
 }, 120_000);
 
@@ -279,6 +284,34 @@ describe("beautify", () => {
 
   it("rejects a sketch with no name", async () => {
     expect((await call("POST", "/api/beautify", { strokes, name: " " })).status).toBe(400);
+  });
+});
+
+describe("transcribe", () => {
+  const words = [
+    ...lineSketch({ x: 0, y: 0 }, { x: 0, y: 40 }),
+    ...lineSketch({ x: 0, y: 20 }, { x: 20, y: 20 }),
+  ];
+
+  it("answers with the words the reader saw, or null for a drawing", async () => {
+    const read = await call("POST", "/api/transcribe", { strokes: words });
+    expect(read.status).toBe(200);
+    expect(await read.json()).toEqual({ text: "no gravity" });
+    const drawn = await call("POST", "/api/transcribe", { strokes: [words[0]] });
+    expect(await drawn.json()).toEqual({ text: null });
+  });
+
+  it("rejects no strokes, and says so when no reader is attached", async () => {
+    expect((await call("POST", "/api/transcribe", { strokes: [] })).status).toBe(400);
+    expect((await call("POST", "/api/transcribe", { text: "hi" })).status).toBe(400);
+    const bare = createApi({ ...apiParts(), beautifier, transcriber: null });
+    const response = await bare.handle(
+      new Request("http://kami.test/api/transcribe", {
+        method: "POST",
+        body: JSON.stringify({ strokes: words }),
+      }),
+    );
+    expect(response.status).toBe(501);
   });
 });
 

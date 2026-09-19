@@ -3,7 +3,12 @@ import { boardFor, DEMO_BOARD_ID } from "../board";
 import { createCat } from "../cat";
 import { createHandwriting } from "../handwriting";
 import { createInkSession, findDrawingAt } from "../ink";
-import { createBoardStore, createRemoteRuleCompiler } from "../persistence";
+import {
+  createBoardStore,
+  createHandwritingReader,
+  createRemoteRuleCompiler,
+} from "../persistence";
+import { createPenReader } from "../reading";
 import { createRecognizer } from "../recognition";
 import { createRenderer } from "../render";
 import { createRuleCompiler, resolvePhysics } from "../rules";
@@ -61,6 +66,7 @@ export function startGame(root: HTMLElement): void {
       compiler: createRuleCompiler(),
       thinker: createRemoteRuleCompiler(),
       store: createBoardStore(),
+      penReader: createPenReader(createHandwritingReader()),
       resolvePhysics,
       boardFor,
       createInkSession,

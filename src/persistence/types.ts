@@ -1,4 +1,5 @@
 import type { Ruling } from "../cat/types";
+import type { Stroke } from "../core/geometry";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { Note, NoteId } from "../notes/types";
 import type { Rule, RuleId } from "../rules/types";
@@ -34,4 +35,17 @@ export interface BoardStore {
   saveRule(boardId: string, rule: Rule): void;
   deleteRule(boardId: string, id: RuleId): void;
   clear(boardId: string): void;
+}
+
+export interface ReadOptions {
+  /** The strokes were drawn over or the board changed: the answer is no longer wanted. */
+  readonly signal?: AbortSignal;
+}
+
+/**
+ * Reads the player's handwriting from pen strokes, on the server. `null` means the strokes are a
+ * drawing rather than writing — or the server has no reader, or did not answer in time.
+ */
+export interface HandwritingReader {
+  read(strokes: readonly Stroke[], options?: ReadOptions): Promise<string | null>;
 }
