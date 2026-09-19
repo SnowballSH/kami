@@ -163,11 +163,11 @@ describe("Game on the Wonderland board", () => {
     const remembered = (await player.store.load("wonderland")).rules;
     expect(remembered).toHaveLength(1);
     expect(remembered[0]?.effect).toMatchObject({ governs: "gravity" });
-    expect(player.written.some((text) => text.startsWith("= gravity"))).toBe(true);
+    expect(player.written.some((text) => text.startsWith("kami: gravity"))).toBe(true);
 
     await player.erase({ x: 210, y: 215 });
     expect((await player.store.load("wonderland")).rules).toHaveLength(0);
-    expect(player.written.some((text) => text.startsWith("= gravity"))).toBe(false);
+    expect(player.written.some((text) => text.startsWith("kami: gravity"))).toBe(false);
   });
 
   it("shrugs at writing that is neither a law nor near a drawing", async () => {
@@ -187,7 +187,7 @@ describe("Game on the Wonderland board", () => {
     expect(returning.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["heavy"]);
     expect(returning.written).toContain("a rock");
     expect(returning.written).toContain("no gravity");
-    expect(returning.written.some((text) => text.startsWith("= gravity"))).toBe(true);
+    expect(returning.written.some((text) => text.startsWith("kami: gravity"))).toBe(true);
   });
 
   it("is completable start to goal: bridge, bouncy mushroom, cake, key, bottle, door", async () => {

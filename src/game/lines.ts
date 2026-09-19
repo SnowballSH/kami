@@ -22,7 +22,7 @@ export const GOAL_LINE = "Down the rabbit hole. You drew your way here.";
 export const RULE_REPEALED_LINE = "Struck from the laws of nature.";
 export const OFFER_HELP_HINT = "(write 'help' anywhere)";
 
-export const glossOf = (explanation: string): string => `= ${explanation}`;
+export const glossOf = (explanation: string): string => `kami: ${explanation}`;
 
 const HELP_REQUEST = /^(help|hint|hints|stuck|i'?m stuck|i am stuck|\?+|what now|tell me)\b/i;
 
