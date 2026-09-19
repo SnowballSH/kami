@@ -4,6 +4,9 @@ import { MAX_WALKABLE_SLOPE_DEG } from "./constants";
 
 export const CATEGORY = { world: 0x0001, alice: 0x0002, ink: 0x0004 } as const;
 
+/** Bodies sharing a negative group never collide: Alice and her twins walk through one another. */
+export const ALICE_GROUP = -1;
+
 const EVERYTHING = 0xffffffff;
 
 export const SOLID_TO_ALL: Matter.ICollisionFilter = {

@@ -40,6 +40,41 @@ const SCALAR_STYLES: Readonly<Record<ScalarGoverns, ScalarStyle>> = {
     gloss: (shown) => `air drag = ${shown}`,
     glossAtZero: "air drag off",
   },
+  temperature: {
+    range: { min: -100, max: 1000 },
+    gloss: (shown) => `temperature = ${shown} °C`,
+    glossAtZero: null,
+  },
+  daylight: {
+    range: { min: 0, max: 1 },
+    gloss: (shown) => `daylight = ${shown}`,
+    glossAtZero: "night",
+  },
+  flight: {
+    range: { min: 0, max: 1 },
+    gloss: () => "Alice can fly",
+    glossAtZero: "Alice walks",
+  },
+  walkSpeed: {
+    range: { min: 0.1, max: 5 },
+    gloss: (shown) => `Alice walks at ${shown}x`,
+    glossAtZero: null,
+  },
+  aliceSize: {
+    range: { min: 0.25, max: 4 },
+    gloss: (shown) => `Alice is ${shown}x her size`,
+    glossAtZero: null,
+  },
+  attraction: {
+    range: { min: -3, max: 3 },
+    gloss: (shown) => `Alice pulls at ${shown} g`,
+    glossAtZero: "Alice pulls nothing",
+  },
+  clones: {
+    range: { min: 0, max: 8 },
+    gloss: (shown) => `${shown} more of Alice`,
+    glossAtZero: "one Alice",
+  },
 };
 
 const EFFECT_DECIMALS = 3;

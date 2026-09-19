@@ -17,6 +17,7 @@ import { context2d } from "./canvas2d";
 import { paintDotGrid } from "./dotGrid";
 import { paintEraserRing } from "./eraserRing";
 import { InkPainter } from "./inkPainter";
+import { lightsOf, NightPainter } from "./nightPainter";
 import { NotePainter } from "./notePainter";
 import { BOARD_COLORS } from "./palette";
 import { PointerTracker } from "./pointerTracker";
@@ -30,6 +31,7 @@ export class CanvasRenderer implements Renderer {
   private readonly boardPainter = new BoardPainter();
   private readonly inkPainter = new InkPainter();
   private readonly notePainter: NotePainter;
+  private readonly nightPainter = new NightPainter();
   private readonly pointer: PointerTracker;
   private box: Size = { width: 0, height: 0 };
   private pixelRatio = 1;
@@ -73,7 +75,8 @@ export class CanvasRenderer implements Renderer {
     const { ctx } = this;
     const { camera, world, nowMs } = frame;
     const view = visibleWorld(camera, this.box);
-    const { scale, dx, dy } = deviceTransform(camera, this.box, this.pixelRatio);
+    const transform = deviceTransform(camera, this.box, this.pixelRatio);
+    const { scale, dx, dy } = transform;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     ctx.fillStyle = BOARD_COLORS.board;
@@ -83,8 +86,16 @@ export class CanvasRenderer implements Renderer {
     this.boardPainter.paint(ctx, view, world);
     this.inkPainter.paintInks(ctx, frame.inks, view, nowMs);
     this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
+    for (const twin of world.twins) if (aliceInView(twin, view)) paintAlice(ctx, twin, nowMs);
     if (aliceInView(world.alice, view)) paintAlice(ctx, world.alice, nowMs);
     this.inkPainter.paintActive(ctx, frame.activeStrokes, frame.activeVerdict);
+    this.nightPainter.paint(
+      ctx,
+      frame.daylight,
+      lightsOf(world.alice, frame.inks),
+      { width: this.canvas.width, height: this.canvas.height },
+      transform,
+    );
     if (frame.eraserActive) this.paintEraserCursor();
   }
 

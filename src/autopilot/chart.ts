@@ -51,7 +51,7 @@ const grow = (range: CellRange, by: number): CellRange => ({
   r1: range.r1 + by,
 });
 
-/** How each nature reads underfoot; mirrors what the simulation lets Alice stand on and pass through. Creatures move, so the chart leaves them out. */
+/** How each nature reads underfoot; mirrors what the simulation lets Alice stand on and pass through. Creatures are charted where they stand right now; the plan is redrawn as they move. */
 const flagsFor = (nature: Nature): number => {
   switch (nature) {
     case "climbable":
@@ -59,9 +59,6 @@ const flagsFor = (nature: Nature): number => {
     case "goal":
       return CellFlag.goal;
     case "spawn":
-    case "walker":
-    case "hopper":
-    case "flier":
       return 0;
     case "bouncy":
       return CellFlag.solid | CellFlag.bouncy;
@@ -71,6 +68,7 @@ const flagsFor = (nature: Nature): number => {
     case "hazard":
       return CellFlag.solid | CellFlag.hazard;
     case "solid":
+    case "attractor":
       return CellFlag.solid | CellFlag.fixture;
     default:
       return CellFlag.solid;
@@ -111,15 +109,20 @@ export class Chart {
   private readonly edibleOwner = new Map<number, DrawingId>();
   private readonly stride: number;
 
-  private constructor(readonly range: CellRange) {
+  /** When she can fly, every cell of air holds her the way a ladder would. */
+  private constructor(
+    readonly range: CellRange,
+    airborne: boolean,
+  ) {
     this.stride = range.c1 - range.c0;
     const size = this.stride * (range.r1 - range.r0);
     this.cells = new Uint8Array(size);
+    if (airborne) this.cells.fill(CellFlag.climbable);
     this.bouncyStrength = new Float32Array(size);
   }
 
   static of(scene: Scene): Chart {
-    const chart = new Chart(extentOf(scene));
+    const chart = new Chart(extentOf(scene), scene.canFly);
     for (const solid of scene.board.solids) {
       chart.stampRect(solid.rect, CellFlag.solid | CellFlag.fixture);
     }

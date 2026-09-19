@@ -33,7 +33,7 @@ What makes it a puzzle rather than a sketchpad:
 - **The name gives the spirit; the shape gives the body.** Calling a dot "a ladder" gets you a climbable dot. Natures act through the geometry you actually drew — so *what* you draw, *where*, and *how big* all matter, even though *how well* doesn't.
 - **Ink is scarce.** Every room has an ink budget measured in stroke length. The obvious solution (a giant ramp) never fits. Small, clever ink wins.
 - **Some paper won't take ink.** The Queen has had parts of the page painted red. You can't draw there.
-- **Alice isn't yours to rewrite.** Nothing you say can change her, the room, or the rules — only your own drawings. She changes only by touching what you drew.
+- **The room isn't yours to rewrite; the laws are.** You can't move a wall or resize a door. But a sentence on the board is a law — of the world ("g = moon", "it's night", "it's 100 degrees") or of Alice herself ("make Alice fly", "Alice walks twice as fast", "clone Alice") — and erasing the note repeals it. See `docs/laws.md`.
 
 ## 4. Three layers (also the cut order)
 
@@ -66,6 +66,8 @@ One per drawing. The player never sees this list — they see the ink change tin
 | **walker** | cat, dog, turtle, knight, any animal that walks | Alive. Paces its ground, turns at walls, edges and Alice; carries her if she stands on it |
 | **hopper** | rabbit, frog, kangaroo, grasshopper | Alive. Sits, then leaps forward on a beat; looks before it leaps |
 | **flier** | bird, butterfly, bee, bat, dragon, fairy | Alive. Flies level and bobbing, roaming only so far from where it was drawn; carries her |
+| **attractor** | black hole, sun, vortex, whirlpool | Pulls Alice and every loose drawing toward itself |
+| **lantern** | lantern, lamp, candle, torch | Lights its patch of the board when it's night |
 
 Creatures are natures, not names: a *walking* teapot walks, a *flying* pig flies. Any animal the Cat knows goes into the nature that says how it moves, and the player's own verb or adjective overrules the noun.
 
@@ -80,7 +82,8 @@ The Cat refuses in character. He never says "invalid."
 | Player tries | Ruling | Cat |
 |---|---|---|
 | "It's a key" | Plain ink. Drawn keys open drawn doors; that one's real. | *"A lovely picture of a key."* |
-| "A jetpack for Alice" / "make Alice fly" | Nothing attaches to Alice. | *"She isn't yours to rewrite. Only what you draw."* |
+| "A jetpack for Alice" | Nothing attaches to Alice; write a law instead. | *"She isn't yours to draw on. Write it."* |
+| "make Alice fly" | A law: she flies until the note is erased. | *(Kami writes "Alice can fly" beneath)* |
 | "A helicopter" | Nearest honest nature: floaty. | *"Near enough. Up it goes."* |
 | "A sword" / anything violent at the guard | Plain ink. Nobody gets hurt in Kami. | *"He's only cardboard. Be kind."* |
 | "Make the door bigger" / "remove the wall" | The page isn't yours either. | *"I didn't draw it. Neither did you."* |

@@ -6,6 +6,7 @@ import { FIXED_STEP_MS, LOST_DISTANCE } from "../core/world";
 import type { Drawing, DrawingId } from "../ink/types";
 import { EARTH, type WorldPhysics } from "../rules/types";
 import { AliceController, type AliceSurroundings } from "./alice";
+import { pullToward } from "./attraction";
 import { BoardProps } from "./boardProps";
 import { exactBounds } from "./bodyBounds";
 import { Checkpoints } from "./checkpoints";
@@ -16,6 +17,7 @@ import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "./flight";
 import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
 import { NATURES, type NatureWorld } from "./natures";
+import { Twins } from "./twins";
 import {
   ALICE_BASE,
   ALICE_SCALE,
@@ -26,6 +28,7 @@ import {
   type WalkIntent,
   type WorldSnapshot,
 } from "./types";
+import { weather } from "./weather";
 import { accelerationOf, push } from "./worldPhysics";
 
 const IDLE: WalkIntent = { x: 0, y: 0 };
@@ -37,6 +40,7 @@ interface BoardWorld {
   readonly props: BoardProps;
   readonly inks: InkLayer;
   readonly alice: AliceController;
+  readonly twins: Twins;
   readonly checkpoints: Checkpoints;
   readonly activePairs: Matter.Pair[];
   readonly growthRefusedAt: Map<DrawingId, number>;
@@ -50,6 +54,8 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
   const props = new BoardProps(engine.world, board);
   const alice = new AliceController(board.spawn, physics);
   Matter.Composite.add(engine.world, alice.body);
+  const twins = new Twins(engine.world);
+  twins.match(physics.clones, alice, physics);
 
   const activePairs: Matter.Pair[] = [];
   const collectPairs = (event: Matter.IEventCollision<Matter.Engine>): void => {
@@ -64,6 +70,7 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
     props,
     inks: new InkLayer(engine.world, props.anchorRects, physics),
     alice,
+    twins,
     checkpoints: new Checkpoints(board),
     activePairs,
     growthRefusedAt: new Map(),
@@ -86,9 +93,11 @@ export class MatterSimulation implements Simulation {
   }
 
   setPhysics(physics: WorldPhysics): void {
+    const { alice, twins, inks } = this.world;
     this.physics = physics;
-    this.world.alice.applyPhysics(physics);
-    this.world.inks.setPhysics(physics);
+    alice.applyPhysics(physics);
+    twins.match(physics.clones, alice, physics);
+    inks.setPhysics(physics);
   }
 
   addDrawing(drawing: Drawing): void {
@@ -120,9 +129,10 @@ export class MatterSimulation implements Simulation {
   }
 
   snapshot(): WorldSnapshot {
-    const { alice, inks, props } = this.world;
+    const { alice, twins, inks, props } = this.world;
     return {
       alice: alice.snapshot(),
+      twins: twins.snapshots(),
       drawings: inks.poses,
       keyTaken: props.keyTaken,
       doorOpen: props.doorOpen,
@@ -134,7 +144,11 @@ export class MatterSimulation implements Simulation {
   }
 
   walkSpeed(): number {
-    return walkSpeedAt(this.world.alice.scale);
+    return walkSpeedAt(this.world.alice.scale, this.physics.walkSpeed);
+  }
+
+  canFly(): boolean {
+    return this.world.alice.flying;
   }
 
   bounceArc(strength: number): BounceArc {
@@ -146,20 +160,27 @@ export class MatterSimulation implements Simulation {
   }
 
   private tick(timeScale: number): void {
-    const { alice, engine, inks, activePairs } = this.world;
+    const { alice, twins, engine, inks, activePairs } = this.world;
     const natureWorld = this.natureWorld();
+    const elapsedMs = FIXED_STEP_MS * timeScale;
     activePairs.length = 0;
     engine.gravity.x = this.physics.gravity.x;
     engine.gravity.y = this.physics.gravity.y;
     engine.timing.timeScale = timeScale;
 
-    alice.control(this.intent, this.surroundings(), timeScale);
+    const surroundings = this.surroundings();
+    alice.control(this.intent, surroundings, timeScale);
+    twins.control(this.intent, surroundings, timeScale);
     for (const ink of inks.all) NATURES[ink.nature].beforeStep?.(ink, natureWorld);
     this.blowWind();
+    pullToward(alice.body.position, this.physics.attraction, inks.dynamicBodies);
     Matter.Engine.update(engine, FIXED_STEP_MS);
-    alice.advanceResize(FIXED_STEP_MS * timeScale);
-    alice.sense(this.surroundings(), this.intent);
+    alice.advanceResize(elapsedMs);
+    const settled = this.surroundings();
+    alice.sense(settled, this.intent);
+    twins.settle(settled, this.intent, elapsedMs);
 
+    this.resolveWeather(elapsedMs);
     this.resolveAliceTouches(natureWorld);
     this.resolveInkTouches(natureWorld);
     this.resolveProps();
@@ -171,6 +192,15 @@ export class MatterSimulation implements Simulation {
     if (x === 0 && y === 0) return;
     const wind = accelerationOf(this.physics.wind);
     for (const body of [this.world.alice.body, ...this.world.inks.dynamicBodies]) push(body, wind);
+  }
+
+  private resolveWeather(elapsedMs: number): void {
+    const { inks } = this.world;
+    const { perished } = weather(this.physics.temperature, inks.all, elapsedMs);
+    for (const ink of perished) {
+      this.events.push({ type: "perished", drawingId: ink.id, nature: ink.nature });
+      inks.remove(ink.id);
+    }
   }
 
   private surroundings(): AliceSurroundings {
@@ -214,6 +244,10 @@ export class MatterSimulation implements Simulation {
         this.events.push({ type: "grow-blocked", drawingId: ink.id });
       },
       hasHeadroomFor: (size) => this.hasHeadroomFor(size),
+      pullToward: (ink, strengthInG) => {
+        const loose = inks.dynamicBodies.filter((body) => body !== ink.body);
+        pullToward(ink.body.position, strengthInG, [alice.body, ...loose]);
+      },
     };
   }
 
@@ -291,12 +325,13 @@ export class MatterSimulation implements Simulation {
   }
 
   private resolveWhereabouts(): void {
-    const { alice, checkpoints } = this.world;
+    const { alice, twins, board, checkpoints } = this.world;
     if (this.world.aliceLost || this.isAliceOffTheBoard()) {
       this.world.aliceLost = false;
       this.events.push({ type: "fell" });
       alice.placeAt(this.respawnPoint());
     }
+    twins.recallLost(alice, board.killY);
     const zone = checkpoints.visit(alice.body.position.x);
     if (zone !== null) this.events.push({ type: "zone-entered", zoneId: zone.id });
   }

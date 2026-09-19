@@ -69,7 +69,20 @@ export const noteSchema = z.looseObject({
 const vectorEffect = <Governs extends "gravity" | "wind">(governs: Governs) =>
   z.object({ governs: z.literal(governs), x: z.number(), y: z.number() });
 
-const scalarEffect = <Governs extends "timeScale" | "airDrag" | "friction" | "bounciness">(
+const scalarEffect = <
+  Governs extends
+    | "timeScale"
+    | "airDrag"
+    | "friction"
+    | "bounciness"
+    | "temperature"
+    | "daylight"
+    | "flight"
+    | "walkSpeed"
+    | "aliceSize"
+    | "attraction"
+    | "clones",
+>(
   governs: Governs,
 ) => z.object({ governs: z.literal(governs), value: z.number() });
 
@@ -80,6 +93,13 @@ export const ruleEffectSchema = z.discriminatedUnion("governs", [
   scalarEffect("airDrag"),
   scalarEffect("friction"),
   scalarEffect("bounciness"),
+  scalarEffect("temperature"),
+  scalarEffect("daylight"),
+  scalarEffect("flight"),
+  scalarEffect("walkSpeed"),
+  scalarEffect("aliceSize"),
+  scalarEffect("attraction"),
+  scalarEffect("clones"),
 ]) satisfies z.ZodType<RuleEffect>;
 
 export const compiledRuleSchema = z.object({

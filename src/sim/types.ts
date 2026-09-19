@@ -50,6 +50,8 @@ export interface BounceArc {
 
 export interface WorldSnapshot {
   readonly alice: AliceSnapshot;
+  /** Her copies, when a law has cloned her; they move as she moves. */
+  readonly twins: readonly AliceSnapshot[];
   /** Live drawings only; consumed and removed ones are gone. */
   readonly drawings: readonly DrawingPose[];
   readonly keyTaken: boolean;
@@ -64,6 +66,7 @@ export type SimEvent =
   | { readonly type: "door-opened" }
   | { readonly type: "bounced"; readonly drawingId: DrawingId }
   | { readonly type: "consumed"; readonly drawingId: DrawingId; readonly nature: Nature }
+  | { readonly type: "perished"; readonly drawingId: DrawingId; readonly nature: Nature }
   | { readonly type: "grow-blocked"; readonly drawingId: DrawingId };
 
 export interface Simulation {
@@ -82,8 +85,10 @@ export interface Simulation {
   step(): readonly SimEvent[];
   snapshot(): WorldSnapshot;
   aliceBounds(): Rect;
-  /** Her walking speed at her current size, px per tick. */
+  /** Her walking speed at her current size and under the standing pace law, px per tick. */
   walkSpeed(): number;
+  /** True while a flight law stands. */
+  canFly(): boolean;
   /** Where a spring of `strength` would throw her under the standing physics. */
   bounceArc(strength: number): BounceArc;
   /** The flight a jump from standing throws her on, at her current size. */

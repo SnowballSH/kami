@@ -52,7 +52,8 @@ export const bounceArcUnder = (physics: WorldPhysics, strength: number): BounceA
   arcUnder(physics, BOUNCE_SPEED * Math.sqrt(strength));
 
 /** Speeds grow with the square root of her scale, so a big Alice covers proportionally more ground. */
-export const walkSpeedAt = (scale: number): number => WALK_SPEED * Math.sqrt(scale);
+export const walkSpeedAt = (scale: number, pace = 1): number =>
+  WALK_SPEED * Math.sqrt(scale) * pace;
 
 export const jumpSpeedAt = (scale: number): number => JUMP_SPEED * Math.sqrt(scale);
 

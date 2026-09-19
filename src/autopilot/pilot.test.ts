@@ -71,6 +71,7 @@ const scene = (overrides: Partial<Scene> = {}): Scene => ({
   keyTaken: false,
   doorOpen: false,
   walkSpeed: walkSpeedAt(1),
+  canFly: false,
   bounceArc: (strength) => bounceArcUnder(EARTH, strength),
   jumpArc: jumpArcUnder(EARTH, 1),
   ...overrides,
@@ -108,6 +109,18 @@ describe("Pilot", () => {
     expect(pilot.status.errand).toEqual({ kind: "wait", objective: "goal" });
     expect(pilot.status.stuck).toBe(true);
     expect(pilot.drive(near)).toEqual({ x: 0, y: 0 });
+  });
+
+  it("flies over the gap under a flight law, with nothing drawn", () => {
+    const pilot = createAutopilot();
+    const goal: Rect = { x: 700, y: GROUND_Y - 60, width: 40, height: 60 };
+    const intent = pilot.drive(scene({ board: board({ goal }), canFly: true }));
+
+    expect(intent.x).toBe(1);
+    expect(pilot.status).toMatchObject({
+      errand: { kind: "objective", objective: "goal" },
+      stuck: false,
+    });
   });
 
   it("crosses the gap once a drawn bridge is committed", () => {

@@ -10,6 +10,25 @@ const time = (value: number): RuleEffect => ({ governs: "timeScale", value });
 const friction = (value: number): RuleEffect => ({ governs: "friction", value });
 const bounciness = (value: number): RuleEffect => ({ governs: "bounciness", value });
 const airDrag = (value: number): RuleEffect => ({ governs: "airDrag", value });
+const dial =
+  (
+    governs:
+      | "temperature"
+      | "daylight"
+      | "flight"
+      | "walkSpeed"
+      | "aliceSize"
+      | "attraction"
+      | "clones",
+  ) =>
+  (value: number): RuleEffect => ({ governs, value });
+const temperature = dial("temperature");
+const daylight = dial("daylight");
+const flight = dial("flight");
+const walkSpeed = dial("walkSpeed");
+const aliceSize = dial("aliceSize");
+const attraction = dial("attraction");
+const clones = dial("clones");
 
 const UNDERSTOOD: readonly Understood[] = [
   ["g = moon", gravity(0, 0.165), "gravity = 0.17 g (the Moon)"],
@@ -78,6 +97,22 @@ const UNDERSTOOD: readonly Understood[] = [
   ["normal speed", time(1), "time runs at 1x"],
   ["reset friction", friction(1), "friction = 1"],
   ["reset wind", wind(0, 0), "wind off"],
+  ["make alice fly", flight(1), "Alice can fly"],
+  ["Alice can fly", flight(1), "Alice can fly"],
+  ["alice cannot fly", flight(0), "Alice walks"],
+  ["alice walks twice as fast", walkSpeed(2), "Alice walks at 2x"],
+  ["alice is slow", walkSpeed(0.5), "Alice walks at 0.5x"],
+  ["alice is huge", aliceSize(2), "Alice is 2x her size"],
+  ["alice is tiny", aliceSize(0.5), "Alice is 0.5x her size"],
+  ["give alice gravitational attraction", attraction(1), "Alice pulls at 1 g"],
+  ["alice repels everything", attraction(-1), "Alice pulls at -1 g"],
+  ["clone alice", clones(1), "1 more of Alice"],
+  ["three alices", clones(2), "2 more of Alice"],
+  ["it's hot", temperature(60), "temperature = 60 °C"],
+  ["temperature = 100", temperature(100), "temperature = 100 °C"],
+  ["freezing cold", temperature(-10), "temperature = -10 °C"],
+  ["it's night", daylight(0.1), "daylight = 0.1"],
+  ["morning", daylight(1), "daylight = 1"],
 ];
 
 const NOT_RULES: readonly string[] = [

@@ -48,6 +48,7 @@ const PHRASES: readonly (readonly [RegExp, string])[] = [
   [/\btime scale\b/g, "timescale"],
   [/\bair (?:resistance|drag|friction)\b/g, "airdrag"],
   [/\bwind (?:speed|strength|force)\b/g, "wind"],
+  [/\bblack hole\b/g, "blackhole"],
 ];
 
 const rewrite = (text: string, rewrites: readonly (readonly [RegExp, string])[]): string =>

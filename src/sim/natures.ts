@@ -34,6 +34,8 @@ export interface NatureWorld {
   freeze(ink: InkEntity): void;
   refuseGrowth(ink: InkEntity): void;
   hasHeadroomFor(size: AliceSize): boolean;
+  /** Pulls Alice and every loose drawing but `ink` itself toward `ink`, at `strengthInG` up close. */
+  pullToward(ink: InkEntity, strengthInG: number): void;
 }
 
 type InkHook = (ink: InkEntity, world: NatureWorld) => void;
@@ -75,6 +77,10 @@ const PLAIN: NatureStrategy = {
 const CREATURE: NatureStrategy = { ...PLAIN, anchorsToHold: null, upright: true };
 
 const ROLE: NatureStrategy = { ...PLAIN, anchorsToHold: 0, pinned: true };
+
+const ATTRACTOR_PULL_G = 1.5;
+
+const attract: InkHook = (ink, world) => world.pullToward(ink, ATTRACTOR_PULL_G * ink.strength);
 
 const bounce: AliceTouchHook = (ink, contact, world) => {
   const { alice } = world;
@@ -136,6 +142,8 @@ export const NATURES: Readonly<Record<Nature, NatureStrategy>> = {
   walker: { ...CREATURE, beforeStep: walk },
   hopper: { ...CREATURE, beforeStep: hop },
   flier: { ...CREATURE, beforeStep: fly },
+  attractor: { ...ROLE, beforeStep: attract },
+  lantern: PLAIN,
   solid: ROLE,
   goal: {
     ...ROLE,

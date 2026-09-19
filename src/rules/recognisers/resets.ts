@@ -1,6 +1,6 @@
 import { earthRule } from "../effects";
 import type { Recogniser } from "../recogniser";
-import { GOVERNS, SUBJECTS } from "../subjects";
+import { ALICE, GOVERNS, SUBJECTS } from "../subjects";
 import { mentions, SCOPE, union, vocabulary } from "../vocabulary";
 
 const RESETS = vocabulary(`
@@ -9,7 +9,7 @@ const RESETS = vocabulary(`
 `);
 const HOME = vocabulary("earth, earths, earthlike");
 
-const KNOWN = union(RESETS, HOME, SCOPE, ...Object.values(SUBJECTS));
+const KNOWN = union(RESETS, HOME, SCOPE, ALICE, ...Object.values(SUBJECTS));
 
 export const recogniseReset: Recogniser = ({ words }) => {
   if (!words.every((word) => KNOWN.has(word)) || !mentions(words, RESETS)) return null;
