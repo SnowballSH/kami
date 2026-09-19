@@ -116,6 +116,46 @@
   bottom: var(--kami-safe-bottom);
 }
 
+.kami-stick {
+  --kami-stick-size: 128px;
+  --kami-thumb-size: 52px;
+
+  position: absolute;
+  left: var(--kami-safe-left);
+  bottom: var(--kami-safe-bottom);
+  width: var(--kami-stick-size);
+  height: var(--kami-stick-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--kami-line);
+  border-radius: 50%;
+  background: var(--kami-board);
+  box-shadow: var(--kami-hairline);
+  opacity: 0.55;
+  pointer-events: auto;
+  touch-action: none;
+  transition: opacity 120ms ease-out;
+}
+
+.kami-stick.is-held {
+  opacity: 1;
+}
+
+.kami-stick-thumb {
+  width: var(--kami-thumb-size);
+  height: var(--kami-thumb-size);
+  border: var(--kami-line);
+  border-radius: 50%;
+  background: var(--kami-pressed);
+  pointer-events: none;
+  transition: transform 80ms ease-out;
+}
+
+.kami-stick.is-held .kami-stick-thumb {
+  transition: none;
+}
+
 .kami-board-menu {
   position: absolute;
   top: var(--kami-safe-top);

@@ -16,6 +16,14 @@
 - Avoid "hacky" one-time fixes and write long-term solutions instead.
 - Separate files into directories in meaningful ways. Separate logic into helper functions in meaningful ways. Use concise but meaningful variable and function names.
 
+## Where computation happens
+
+**All training, all model inference and all heavy computation run on the ASUS GX10 — never on a laptop,
+not even a smoke test.** The box is `ssh gx10` (key login, passwordless sudo, NVIDIA GB10, 121 GB, CUDA 13,
+internet). The game lives in `~/kami` there (`box/start.sh`, `box/status.sh`); Python/ML work goes in
+`~/kami-ml` with `uv`. The Mac is for editing, unit tests and builds. To try ML code: copy `ml/` to the box
+and run it there. Ollama on the box holds ~37 GB for `qwen3.8`; leave it running.
+
 ## Who owns what
 
 Two agents work on this repo in parallel. Stay on your side of the seam; cross it only by agreement.
