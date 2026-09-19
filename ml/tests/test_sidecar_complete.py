@@ -9,7 +9,6 @@ from synthetic import EMPTY_CATEGORY, PER_CLASS, as_json, as_points
 from test_sidecar import SQUARE, call
 from tiny_model import TINY_LABELS
 
-from completion import Bounds
 from exemplar_set import EXEMPLARS_DIR, META_FILE, load_exemplars
 from quickdraw_bin import Drawing
 from recognizer import SketchRecognizer
@@ -19,10 +18,8 @@ WORLD_SCALE = 2.5
 WORLD_SHIFT = (4000.0, -700.0)
 
 
-def world_bounds(body: list[list[dict[str, float]]]) -> Bounds:
-    bounds = Bounds.of([[(point["x"], point["y"]) for point in stroke] for stroke in body])
-    assert bounds is not None
-    return bounds
+def shape_of(strokes: list[list[dict[str, float]]]) -> list[int]:
+    return [len(stroke) for stroke in strokes]
 
 
 def test_health_counts_the_exemplars(completing_sidecar_url: str) -> None:
@@ -31,7 +28,7 @@ def test_health_counts_the_exemplars(completing_sidecar_url: str) -> None:
     assert body["exemplars"] == PER_CLASS * (len(TINY_LABELS) - 1)
 
 
-def test_a_named_sketch_comes_back_as_an_exemplar_on_the_players_ink(
+def test_a_named_sketch_comes_back_as_the_players_own_strokes_tidied_toward_an_exemplar(
     completing_sidecar_url: str,
     completing_artifacts: Path,
     sure_drawings: dict[str, list[Drawing]],
@@ -41,21 +38,15 @@ def test_a_named_sketch_comes_back_as_an_exemplar_on_the_players_ink(
         f"{completing_sidecar_url}/complete", {"strokes": sketch, "name": "A Mushroom"}
     )
     assert status == 200
-    assert set(body) == {"strokes", "category", "confidence", "similarity"}
+    assert set(body) == {"tidied", "added", "category", "confidence", "similarity", "exemplar"}
     assert body["category"] == "mushroom"
     assert 0.0 <= body["confidence"] < 0.1
     assert -1.0 <= body["similarity"] <= 1.0
 
-    ink, placed = world_bounds(sketch), world_bounds(body["strokes"])
-    assert np.all(placed.low >= ink.low) and np.all(placed.high <= ink.high)
-    assert placed.centre == pytest.approx(ink.centre, abs=0.011)
-
+    assert shape_of(body["tidied"]) == shape_of(sketch)
     exemplars = load_exemplars(completing_artifacts / EXEMPLARS_DIR)
-    shapes = {
-        tuple(len(stroke) for stroke in exemplars.strokes(row))
-        for row in exemplars.of_label(TINY_LABELS.index("mushroom"))
-    }
-    assert tuple(len(stroke) for stroke in body["strokes"]) in shapes
+    mushrooms = exemplars.of_label(TINY_LABELS.index("mushroom"))
+    assert int(body["exemplar"]) in {int(exemplars.key_ids[row]) for row in mushrooms}
 
 
 def test_an_exemplar_sent_back_in_finds_itself(
@@ -69,7 +60,12 @@ def test_an_exemplar_sent_back_in_finds_itself(
     assert body["category"] == "cloud"
     assert body["confidence"] >= 0.9 - 1e-3
     assert body["similarity"] == pytest.approx(1.0, abs=1e-3)
-    assert body["strokes"] == sketch
+    assert body["exemplar"] == str(int(exemplars.key_ids[row]))
+    assert body["added"] == []
+    for tidied, drawn in zip(body["tidied"], sketch, strict=True):
+        assert np.asarray([[point["x"], point["y"]] for point in tidied]) == pytest.approx(
+            np.asarray([[point["x"], point["y"]] for point in drawn]), abs=0.5
+        )
 
 
 def test_the_answer_is_the_completers_own(

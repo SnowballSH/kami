@@ -56,6 +56,15 @@ easiest. The hard ones are mostly pairs people draw alike.
 
 ![Figure 4](figures/fig4_per_class.png)
 
+**Figure 5 — Kami tidies a drawing without taking it over** (`fig5_morph_contact_sheet`). Real held-out
+Quick, Draw! sketches, shaken to imitate an unsteady hand, finished and cut to their first half. Grey: the
+ink sent; black: the same strokes after the morph (every point moves at most 6 % of the drawing's
+diagonal; median largest move 4–5 %); blue: parts added, only when the exemplar fits tightly. Over 96
+finished and 96 half-drawn sketches of eight categories: something was added to 4 % of finished and 21 %
+of half-drawn ones; 39 ms median, 84 ms p95 per drawing on the box's CPU.
+
+![Figure 5](figures/fig5_morph_contact_sheet.png)
+
 ## The commonest mistakes are near-synonyms
 
 Most frequent confusions on finished test drawings: birthday cake ↔ cake, hurricane → tornado,

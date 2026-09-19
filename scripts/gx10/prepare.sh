@@ -14,7 +14,7 @@ CACHE=.gx10/cache
 EYE_BUILD=$BUILD/eye
 WHEELS=$CACHE/wheels
 EYE_PACKAGES=(onnxruntime numpy opencv-python-headless)
-EYE_SOURCES=(render.py recognizer.py exemplar_set.py completion.py sidecar.py)
+EYE_SOURCES=(render.py recognizer.py exemplar_set.py morph.py completion.py sidecar.py)
 BOX_PYTHON=3.12
 BOX_PLATFORMS=(manylinux_2_28_aarch64 manylinux_2_17_aarch64 manylinux2014_aarch64)
 mkdir -p "$BUILD" "$CACHE"

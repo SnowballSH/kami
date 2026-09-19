@@ -220,7 +220,7 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 | Route | Request | Response |
 |---|---|---|
 | `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[], names: string[], natures: Nature[], strengths: number[], lines: string[], certain: boolean }` — parallel arrays, best first, at most three, all empty when unsure. `guesses` are bare Quick, Draw! words, each with a 0–1 `confidence`; the other four say what each guess is for the game (below). `certain: true` means `guesses[0]` may be named without offering the player a choice (see "Naming without asking"); a client that ignores it keeps asking, as before |
-| `POST /api/beautify` | `{ strokes: {x,y}[][], name: string }` | whatever the attached model answers, content-type preserved: **`application/json` `{ strokes: {x,y}[][] }`** (preferred — drawn with the pen, scales with zoom, fits the whiteboard) or an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
+| `POST /api/beautify` | `{ strokes: {x,y}[][], name?: string }` | whatever the attached model answers, content-type preserved. With Kami's Eye attached (the box's default): **`application/json` `{ tidied, added, category, confidence, similarity, exemplar }`** — `tidied` is the player's own strokes, point for point, each nudged a bounded distance toward a clean drawing of the same thing; `added` is what theirs was missing (`ml/CONTRACT.md`, "Completion"). Another model may answer an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
 | `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no model is attached (`KAMI_LLM_URL`/`KAMI_LLM_MODEL`). Stateless; the client may abort a request (the read of a prefix) freely. |
 | boards, drawings, notes, rules | see the table above | |
@@ -239,7 +239,7 @@ sketches and stays silent unless the leading category holds 0.6 of the vote; Kam
 prefixes and reads a half-drawn sketch like any other. An empty answer to a partial look means "nothing to
 say yet" — keep the last guess on screen. The client for all of this is `src/recognition`
 (`LiveRecognizer.sight(strokes, { partial })` → `Sighting[]`).
-Returned strokes from `beautify` are in the same world space as the request, fitted to the sketch's bounds.
+Strokes returned by `beautify` are in the same world space as the request.
 
 **Naming without asking.** When Kami is sure what a drawing is, the game names it instead of offering three
 guesses. The server decides, because only it knows which recogniser answered and how far that one's

@@ -145,7 +145,7 @@ of their `.bin`, never exemplars) from 25 categories, each posted four ways in w
 | finished, `name` | 8.8 ms | 12.9 ms | 23 | 23 |
 | first half of the points | 6.9 ms | 13.8 ms | 3 | 2 |
 | first half of the points, `name` | 9.3 ms | 15.5 ms | 23 | 23 |
-| all 100 | 8.8 ms | 16.1 ms | 64 | all 64 answers inside the request's bounds |
+| all 100 | 8.8 ms | 16.1 ms | 64 | all 64 answers inside the request's bounds (measured before the morph: the answer was then the placed exemplar) |
 
 The 404s are this model, not the route: without a name a one-epoch model is rarely 0.5 sure, least
 of all of half a drawing, and two of the 25 categories had no exemplars. Example answers — finished
@@ -167,7 +167,7 @@ requests (their own 25 held-out drawings):
 | finished, `name` | 10.1 ms | 17.7 ms | 25 | 25 |
 | first half of the points | 9.8 ms | 18.2 ms | 17 | 11 |
 | first half of the points, `name` | 11.0 ms | 19.8 ms | 25 | 25 |
-| all 100 | 10.1 ms | 20.4 ms | 91 | all 91 answers inside the request's bounds |
+| all 100 | 10.1 ms | 20.4 ms | 91 | all 91 answers inside the request's bounds (measured before the morph) |
 
 Finished envelope, no name: envelope 0.95, similarity 0.97, 1 stroke / 24 points in, 1 stroke / 25
 points out. Half a bracelet named "a bracelet": confidence 0.55, similarity 0.76, 2 strokes in, a
@@ -228,7 +228,8 @@ points → mushroom 0.51, circle 0.26; half a ladder → ladder 0.99. The smoke 
 | `export.py` | ONNX export and the four artefact files |
 | `recognizer.py`, `sidecar.py` | artefact directory → recogniser; the stdlib HTTP server over it |
 | `exemplars.py`, `exemplar_set.py` | the CLI that picks each category's prototypical drawings with a trained model; the file set they are kept in (ragged uint8 strokes + float16 embeddings) |
-| `completion.py` | sketch + optional name → category → most similar exemplar → placed on the player's ink |
+| `completion.py` | sketch + optional name → category → most similar exemplar → the morph |
+| `morph.py` | the player's own strokes tidied toward the fitted exemplar (bounded, point for point), plus the parts that are missing |
 | `train.py` | the CLI that runs all of the above |
 
 - **Stem: 3×3 stride 2, no max-pool** (not stride 1): ink is ~1.5 px wide after the 256 → 64
