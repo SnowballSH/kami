@@ -9,22 +9,22 @@
 
 ## Play the software demo
 
-A proof of concept of Rooms 1–3 — draw, name, watch it wake up — that runs in any browser and is built for an iPad (finger or Apple Pencil draws, the on-screen d-pad walks, guess chips name things). No network or API keys: the Cat is an offline stand-in behind the same interface the real model will use.
+One endless whiteboard. **Sketch** and the ink is solid. **Write a note beside a sketch** and it *is* that thing — *a bouncy mushroom*, *ground*, *goal*, *lava*. **Write a law anywhere else** — *set g equal to the moon's gravity*, *no friction*, *wind blows right*, *slow motion* — and the world obeys. Kami answers in his own handwriting, on the board. Everything is remembered in MongoDB. Built for an iPad: finger or Apple Pencil draws, two fingers pan and pinch, the d-pad walks Alice, and the write tool takes typing or Pencil Scribble.
 
 ```bash
 bun install
-bun run dev
+bun run quickdraw:ingest   # once: teaches Kami to recognise sketches from Google's Quick, Draw! set
+bun run dev                # web on :5173 + API/MongoDB on :8787
 ```
 
-Open the printed **Network** URL on an iPad on the same Wi-Fi (landscape; *Share → Add to Home Screen* makes it full-screen). On a laptop: mouse draws, arrow keys / WASD walk, `1`–`3` jump to a room, `0` resets for the next player.
+Open the printed **Network** URL on an iPad on the same Wi-Fi (landscape; *Share → Add to Home Screen* for full-screen). On a laptop: mouse draws, arrows / WASD walk, `D` `T` `E` `H` pick draw / write / erase / pan, wheel pans, pinch or ctrl-wheel zooms.
 
-| Room | Try |
-|---|---|
-| The Riverbank | Draw a line across the ditch, touching both banks. |
-| The Shelves | Draw a blob by the bookcase → *a bouncy mushroom*. Or a tall line → *a ladder*. Or a platform → *a cloud*. |
-| The Hall of Doors | *A cake* → grow → key. *Drink me* → shrink → door. Order matters. |
+- **The Alice demo** is the `wonderland` board: bridge the ditch → get up the ledge (*a bouncy mushroom*, *a ladder*, *a cloud* — or just write *g = moon* and see what that does to a bounce) → *a cake* to grow and take the key, *drink me* to shrink through the tiny door → the rabbit hole. Stuck? Write *help*.
+- **A new game** is a blank board: board menu → *new board* (or `?board=anything`). Sketch ground and write *ground*; sketch a flag and write *goal*; add *lava*, *start here*, a few laws of physics. It saves as you go.
 
-`bun run check` is the gate: typecheck, lint, tests — including a headless playthrough of all three rooms. How it fits together: [`docs/architecture.md`](docs/architecture.md).
+`MONGODB_URI` points the server at Atlas; without it a real `mongod` is run for you with its data in `.kami-data/`. `KAMI_LLM_URL` + `KAMI_LLM_MODEL` (any OpenAI-compatible endpoint — e.g. a model served from the ASUS Ascent GX10) lets a model compile the laws the offline grammar can't; it is asked once per rule, never in the frame loop. Details: [`server/README.md`](server/README.md).
+
+`bun run check` is the gate: typecheck, lint, tests — including a headless playthrough of the whole Wonderland board and of a game made from scratch. How it fits together: [`docs/architecture.md`](docs/architecture.md).
 
 ## Read these
 
