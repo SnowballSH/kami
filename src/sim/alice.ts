@@ -126,10 +126,15 @@ export class AliceController {
     this.physics = physics;
     this.body.frictionAir = airFrictionUnder(physics, ALICE_AIR_FRICTION);
     this.body.restitution = physics.bounciness;
-    const heading = this.resize?.to ?? this.currentScale;
-    if (heading !== ALICE_SCALE[this.currentSize] * physics.aliceSize) {
-      this.beginResize(this.currentSize);
-    }
+  }
+
+  /** The scale the standing laws ask for; the sim grants growth only once there is headroom. */
+  get lawfulScale(): number {
+    return ALICE_SCALE[this.currentSize] * this.physics.aliceSize;
+  }
+
+  get headingScale(): number {
+    return this.resize?.to ?? this.currentScale;
   }
 
   bounds(): Rect {

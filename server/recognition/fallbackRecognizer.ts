@@ -1,16 +1,17 @@
 /**
  * Asks the primary recogniser and, whenever it has no answer, the floor — so the caller always gets
- * a ranking. A circuit breaker keeps a dead primary from costing a timeout on every sketch.
+ * a reading, certainty floor included, from whichever of the two answered. A circuit breaker keeps a
+ * dead primary from costing a timeout on every sketch.
  */
 import type { Stroke } from "../../src/core/geometry";
 import { CircuitBreaker, type CircuitBreakerOptions, type Clock } from "./circuitBreaker";
-import type { Ranking, RankOptions, SketchRanker, UnreliableSketchRanker } from "./types";
+import type { RankOptions, Reading, SketchRanker, UnreliableSketchRanker } from "./types";
 
 export type RecognizerSource = "primary" | "floor";
 
-export interface SourcedRanking {
+export interface SourcedReading {
   readonly source: RecognizerSource;
-  readonly ranking: Ranking;
+  readonly reading: Reading;
 }
 
 export interface FallbackSettings {
@@ -45,30 +46,30 @@ export class FallbackRecognizer implements SketchRanker {
     return this.#lastAnsweredBy;
   }
 
-  async rank(strokes: readonly Stroke[], options: RankOptions = {}): Promise<Ranking> {
-    return (await this.rankWithSource(strokes, options)).ranking;
+  async read(strokes: readonly Stroke[], options: RankOptions = {}): Promise<Reading> {
+    return (await this.readWithSource(strokes, options)).reading;
   }
 
-  async rankWithSource(
+  async readWithSource(
     strokes: readonly Stroke[],
     options: RankOptions = {},
-  ): Promise<SourcedRanking> {
+  ): Promise<SourcedReading> {
     const fromPrimary =
       hasInk(strokes) && this.#breaker.tryEnter() ? await this.#askPrimary(strokes, options) : null;
-    const answer: SourcedRanking =
+    const answer: SourcedReading =
       fromPrimary === null
-        ? { source: "floor", ranking: await this.#floor.rank(strokes, options) }
-        : { source: "primary", ranking: fromPrimary };
+        ? { source: "floor", reading: await this.#floor.read(strokes, options) }
+        : { source: "primary", reading: fromPrimary };
     this.#lastAnsweredBy = answer.source;
     return answer;
   }
 
-  async #askPrimary(strokes: readonly Stroke[], options: RankOptions): Promise<Ranking | null> {
-    const ranking = await this.#primary.rank(strokes, options).catch(() => null);
+  async #askPrimary(strokes: readonly Stroke[], options: RankOptions): Promise<Reading | null> {
+    const reading = await this.#primary.read(strokes, options).catch(() => null);
     const wasOpen = this.#breaker.isOpen;
-    if (ranking === null) this.#breaker.recordFailure();
+    if (reading === null) this.#breaker.recordFailure();
     else this.#breaker.recordSuccess();
     if (this.#breaker.isOpen !== wasOpen) this.#onPrimaryAvailabilityChange(!this.#breaker.isOpen);
-    return ranking;
+    return reading;
   }
 }

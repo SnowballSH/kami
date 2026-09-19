@@ -2,5 +2,5 @@
 import type { InProcessSketchRanker, SketchRanker } from "./types";
 
 export const asSketchRanker = (recognizer: InProcessSketchRanker): SketchRanker => ({
-  rank: async (strokes, options) => recognizer.rank(strokes, options),
+  read: async (strokes, options) => recognizer.read(strokes, options),
 });

@@ -1,4 +1,5 @@
 import type { Vec } from "../core/geometry";
+import type { RuleId } from "../rules/types";
 import type { WalkIntent } from "../sim/types";
 
 export type Tool = "draw" | "write" | "erase" | "pan";
@@ -32,6 +33,23 @@ export interface Hud {
    * Apple Pencil Scribble. Resolves with the trimmed text, or null if abandoned or empty.
    */
   promptText(client: Vec): Promise<string | null>;
+}
+
+export interface LawListing {
+  readonly id: RuleId;
+  /** The law as the player wrote it. */
+  readonly text: string;
+  /** Kami's reading of it, as glossed under the note. */
+  readonly gloss: string;
+}
+
+export interface LawsPanelHandlers {
+  onRepealLaw(id: RuleId): void;
+}
+
+/** The standing laws, always on screen and each one tappable to repeal, long after the notes fade. */
+export interface LawsPanel {
+  setLaws(laws: readonly LawListing[]): void;
 }
 
 /**

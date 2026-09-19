@@ -9,6 +9,7 @@ import { createStaticSite } from "./http/staticSite";
 import { QuickdrawRecognizer } from "./quickdraw/recognizer";
 import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
 import { createRecognizerChain } from "./recognition/chain";
+import { createLlmTranscriber } from "./transcribe/llmTranscriber";
 
 const API_PREFIX = "/api";
 
@@ -30,12 +31,14 @@ const controllers = await startControllers(config.controllers, {
 });
 
 const compiler = createLlmCompiler(config.llm);
+const transcriber = createLlmTranscriber(config.llm);
 const api = createApi({
   boards,
   recognizer: eye.recognizer,
   compiler,
   beautifier: createBeautifier(config.beautifyUrl),
   controllers: controllers.hub,
+  transcriber,
 });
 const site = config.webDirectory === null ? null : createStaticSite(config.webDirectory);
 const isApiCall = (request: Request): boolean =>
@@ -62,12 +65,17 @@ void eye.describe().then((line) => console.log(`  ${line}`));
 console.log(`  beautifier: ${config.beautifyUrl ?? "none attached"}`);
 console.log(`  controllers: ${controllers.description}`);
 console.log(`  model compile: ${config.llm === null ? "off" : config.llm.model}`);
-if (config.llm !== null) {
+console.log(
+  `  handwriting: ${config.llm === null ? "off" : `${config.llm.model} (as a vision model)`}`,
+);
+if (transcriber !== null) {
   void compiler
     .warmUp()
     .then((awake) =>
       console.log(`  model ${awake ? "is awake" : "did not answer (is the GX10 tunnel up?)"}`),
-    );
+    )
+    .then(() => transcriber.warmUp())
+    .then((reads) => console.log(`  handwriting reader ${reads ? "is awake" : "did not answer"}`));
 }
 
 const once = (task: () => Promise<void>): (() => Promise<void>) => {

@@ -81,6 +81,23 @@ describe("the Sumikui, the ink eater", () => {
     expect(poseOf(sim, "bait")).toBeDefined();
   });
 
+  it("counts ink under a clone as hers, so no platform is eaten from beneath a twin", () => {
+    const sim = enter(board);
+    sim.setPhysics({ ...LOOSE, clones: 1 });
+    pebble(sim, "bait", 400);
+    runSteps(sim, 30);
+    const [twin] = sim.snapshot().twins;
+    if (twin === undefined) throw new Error("no twin walks beside her");
+    sim.addDrawing(drawingOf("her twin's rock", blob(twin.center.x, GROUND - 5, 60, 24)));
+    const events = runUntil(sim, saw("devoured"), A_MINUTE);
+    expect(events).toContainEqual({
+      type: "devoured",
+      drawingId: idOf("her twin's rock"),
+      nature: "ink",
+    });
+    expect(poseOf(sim, "bait")).toBeDefined();
+  });
+
   it("never eats roles: a goal is part of the board, not her ink", () => {
     const sim = summonOver(["bait"]);
     pebble(sim, "the door", 60);
@@ -108,6 +125,31 @@ describe("the Sumikui, the ink eater", () => {
     runSteps(sim, 1);
     expect(sumikuiOf(sim).awakeMs).toBeLessThan(before);
   });
+
+  it.each(["goal", "spawn", "solid"] as const)(
+    "abandons a target renamed to %s during hunting or feeding",
+    (nature) => {
+      for (const phase of ["hunting", "feeding"] as const) {
+        const sim = summonOver(["bait"]);
+        pebble(sim, "her rock", 60);
+        sim.setWalkIntent(RIGHT);
+        runSteps(sim, 45);
+        sim.setWalkIntent(STAY);
+        runUntil(sim, () => sumikuiOf(sim).phase === phase, A_MINUTE);
+        expect(sumikuiOf(sim).phase).toBe(phase);
+        sim.applyRuling(idOf("her rock"), {
+          name: nature,
+          nature,
+          strength: 1,
+          tags: [],
+          line: "",
+        });
+        expect(typesOf(runSteps(sim, A_MINUTE))).not.toContain("devoured");
+        expect(poseOf(sim, "her rock")).toBeDefined();
+        expect(sumikuiOf(sim).bite).toBe(0);
+      }
+    },
+  );
 });
 
 describe("its pace", () => {
