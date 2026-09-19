@@ -14,6 +14,7 @@ import { createRenderer } from "../render";
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import { createSimulation } from "../sim";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
+import { createVoice } from "../voice";
 import { Game } from "./game";
 
 const BOARD_PARAM = "board";
@@ -71,6 +72,7 @@ export function startGame(root: HTMLElement): void {
       boardFor,
       createInkSession,
       createHud: (handlers) => createHud(root, handlers),
+      createVoice,
       createLawsPanel: (handlers) => createLawsPanel(root, handlers),
       findDrawingAt,
       onBoardOpened: rememberBoardInUrl,

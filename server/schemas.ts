@@ -135,3 +135,7 @@ export const beautifyRequestSchema = z.object({
 export const compileRequestSchema = z.object({ text: text.min(1) });
 
 export const transcribeRequestSchema = z.object({ strokes: strokesSchema.min(1) });
+
+const MAX_SPOKEN_LENGTH = 400;
+
+export const speakRequestSchema = z.object({ text: text.min(1).max(MAX_SPOKEN_LENGTH) });

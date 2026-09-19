@@ -24,6 +24,7 @@ import {
   FakeHud,
   FakeLawsPanel,
   FakeRenderer,
+  FakeVoice,
   MemoryBoardStore,
 } from "./testing/fakes";
 
@@ -123,6 +124,7 @@ class Player {
   readonly game: Game;
   private hudRef: FakeHud | null = null;
   private lawsRef: FakeLawsPanel | null = null;
+  private voiceRef: FakeVoice | null = null;
   private nowMs = 0;
 
   readonly pondered: string[] = [];
@@ -159,6 +161,10 @@ class Player {
           this.lawsRef = new FakeLawsPanel(handlers);
           return this.lawsRef;
         },
+        createVoice: (handlers) => {
+          this.voiceRef = new FakeVoice(handlers);
+          return this.voiceRef;
+        },
         findDrawingAt,
       },
       boardId,
@@ -168,6 +174,17 @@ class Player {
   get hud(): FakeHud {
     if (this.hudRef === null) throw new Error("HUD was never created");
     return this.hudRef;
+  }
+
+  get voice(): FakeVoice {
+    if (this.voiceRef === null) throw new Error("Voice was never created");
+    return this.voiceRef;
+  }
+
+  async speak(text: string): Promise<void> {
+    this.game.onTalkStarted();
+    this.voice.heard(text);
+    await this.wait(100);
   }
 
   get laws(): FakeLawsPanel {
@@ -282,6 +299,17 @@ describe("Game on the Wonderland board", () => {
     expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(0);
     const [stored] = (await player.store.load("wonderland")).drawings;
     expect(stored?.ruling?.name).toBe(first.script.text.replace(/\?$/, ""));
+  });
+
+  it("takes a spoken law as if it had been written, and says his answer aloud", async () => {
+    await player.speak("set g equal to the moon's gravity");
+
+    expect(player.written).toContain("set g equal to the moon's gravity");
+    expect((await player.store.load("wonderland")).rules[0]?.effect).toMatchObject({
+      governs: "gravity",
+    });
+    expect(player.voice.said.some((line) => line.startsWith("kami: gravity"))).toBe(true);
+    expect(player.hud.listening).toBe(false);
   });
 
   it("turns a written law into physics, remembers it, and repeals it when erased", async () => {

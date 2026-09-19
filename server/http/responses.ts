@@ -12,6 +12,9 @@ export const json = (body: unknown, status = 200): Response =>
 
 export const ok = (): Response => json({ ok: true });
 
+export const audio = (body: ArrayBuffer, contentType = "audio/mpeg"): Response =>
+  new Response(body, { headers: { ...CORS_HEADERS, "content-type": contentType } });
+
 export const preflight = (): Response => new Response(null, { status: 204, headers: CORS_HEADERS });
 
 export const badRequest = (error: string, issues: readonly string[] = []): Response =>

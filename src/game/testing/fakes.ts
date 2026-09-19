@@ -20,6 +20,38 @@ import type {
   LawsPanelHandlers,
   Tool,
 } from "../../ui/types";
+import type { EarsHandlers, Voice } from "../../voice/types";
+
+export class FakeVoice implements Voice {
+  readonly said: string[] = [];
+  listening = false;
+
+  constructor(readonly handlers: EarsHandlers) {}
+
+  hold(): void {
+    this.listening = true;
+    this.handlers.onListeningChanged(true);
+  }
+
+  release(): void {
+    this.listening = false;
+    this.handlers.onListeningChanged(false);
+  }
+
+  /** The player spoke, and Deepgram made out `text`. */
+  heard(text: string): void {
+    this.release();
+    this.handlers.onHeard(text);
+  }
+
+  say(text: string): void {
+    this.said.push(text);
+  }
+
+  hush(): void {
+    this.said.length = 0;
+  }
+}
 
 export class FakeHud implements Hud {
   tool: Tool = "draw";
@@ -33,9 +65,14 @@ export class FakeHud implements Hud {
   }
 
   autopilot: boolean | null = null;
+  listening = false;
 
   setAutopilot(enabled: boolean): void {
     this.autopilot = enabled;
+  }
+
+  setListening(listening: boolean): void {
+    this.listening = listening;
   }
 
   setTool(tool: Tool): void {

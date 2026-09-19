@@ -27,6 +27,9 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile` and `/api/transcribe`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
 | `KAMI_LLM_MODEL` | Model name to request. Model compile and handwriting reading are **off** unless both URL and model are set; reading also needs the model to take images (`qwen3.8` does). |
 | `KAMI_LLM_API_KEY` | Optional bearer token. |
+| `DEEPGRAM_API_KEY` | Turns voice on: speech in (`nova-3`) and Kami's lines out (`aura-2`). Without it `/api/voice/*` answers `501` and the game plays silently. See `docs/voice.md`. |
+| `KAMI_VOICE_LISTEN_MODEL` | Deepgram speech-to-text model, default `nova-3`. |
+| `KAMI_VOICE_SPEAK_MODEL` | Deepgram text-to-speech voice, default `aura-2-draco-en`. |
 | `KAMI_CONTROLLER_UDP_PORT` | UDP port physical controllers send to, default `8788`; `off` disables. See `docs/controllers.md`. |
 | `KAMI_CONTROLLER_SERIAL` | `auto` (default: every `/dev/ttyACM*`, rescanned every 3 s), a device path, or `off`. The user needs the `dialout` group. |
 
@@ -44,6 +47,8 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `POST /api/controllers/:id/state` `<x> <y> [buttons]` (plain text) | `204`; a joystick's whole state, axes -100 … 100 with y up (`docs/controllers.md`) |
 | `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
 | `GET /api/controllers` | `[{ id, x, y, held, buttons, transport, idleMs }]` |
+| `WS /api/voice/listen?rate=<Hz>` | One held utterance: the browser sends mono `linear16` frames and `{"type":"done"}` on release; the server answers `{type:"listening"}`, `{type:"hearing",text}` as Deepgram guesses, one `{type:"heard",text}` when it settles, `{type:"trouble"}` if Deepgram fails |
+| `POST /api/voice/speak` `{ text }` | `audio/mpeg` of Kami saying it (Deepgram `aura-2`, repeated lines cached in memory); `501` without a key or if Deepgram did not answer |
 | `POST /api/transcribe` `{ strokes: {x,y}[][] }` | `{ text: string \| null }` — the strokes read as handwriting, `null` for a drawing; `501` without a model |
 
 Every body is validated with zod (`schemas.ts`, which mirrors `src/*/types.ts` and is checked
