@@ -120,8 +120,7 @@ export class MatterSimulation implements Simulation {
   }
 
   removeDrawing(id: DrawingId): void {
-    this.world.inks.remove(id);
-    this.world.touchedAt.delete(id);
+    this.forgetInk(id);
   }
 
   setWalkIntent(intent: WalkIntent): void {
@@ -209,12 +208,17 @@ export class MatterSimulation implements Simulation {
     for (const body of [this.world.alice.body, ...this.world.inks.dynamicBodies]) push(body, wind);
   }
 
+  private forgetInk(id: DrawingId): void {
+    this.world.inks.remove(id);
+    this.world.touchedAt.delete(id);
+  }
+
   private resolveWeather(elapsedMs: number): void {
     const { inks } = this.world;
     const { perished } = weather(this.physics.temperature, inks.all, elapsedMs);
     for (const ink of perished) {
       this.events.push({ type: "perished", drawingId: ink.id, nature: ink.nature });
-      inks.remove(ink.id);
+      this.forgetInk(ink.id);
     }
   }
 
@@ -249,7 +253,7 @@ export class MatterSimulation implements Simulation {
       loseAlice: () => {
         this.world.aliceLost = true;
       },
-      consume: (ink) => inks.remove(ink.id),
+      consume: (ink) => this.forgetInk(ink.id),
       freeze: (ink) => inks.freeze(ink),
       refuseGrowth: (ink) => {
         const now = engine.timing.timestamp;
@@ -313,14 +317,19 @@ export class MatterSimulation implements Simulation {
   }
 
   private feedSumikui(elapsedMs: number): void {
-    const { sumikui, alice, inks, touchedAt, engine } = this.world;
+    const { sumikui, alice, twins, inks, touchedAt, engine } = this.world;
     if (sumikui === null) return;
     const wasAwake = sumikui.isAwake;
-    const eaten = sumikui.tick(elapsedMs, engine.timing.timestamp, alice, inks.all, touchedAt);
+    const eaten = sumikui.tick(
+      elapsedMs,
+      engine.timing.timestamp,
+      [alice, ...twins.all],
+      inks.all,
+      touchedAt,
+    );
     if (!wasAwake && sumikui.isAwake) this.events.push({ type: "sumikui-woke" });
     if (eaten === null) return;
-    inks.remove(eaten.id);
-    touchedAt.delete(eaten.id);
+    this.forgetInk(eaten.id);
     this.events.push({ type: "devoured", drawingId: eaten.id, nature: eaten.nature });
   }
 

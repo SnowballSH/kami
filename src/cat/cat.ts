@@ -1,13 +1,19 @@
-import type { Drawing } from "../ink/types";
-import type { Recognizer } from "../recognition/types";
+import type { Stroke } from "../core/geometry";
+import type { Drawing, DrawingId } from "../ink/types";
+import type { LiveRecognizer, Recognizer, Sighting } from "../recognition/types";
 import { mergeGuesses } from "./guesses";
 import { HintLadder } from "./hintLadder";
 import { ASK_WHAT_IT_IS, OFFER_HELP } from "./lines";
 import { namesForRecognized } from "./recognizedNames";
-import { ruleOn } from "./ruling";
+import { isUnknownName, ruleOn } from "./ruling";
 import { isDot } from "./shape";
 import { type Guesses, guessNames } from "./shapeGuesser";
-import type { Cat, Hint, RoomBrief, Ruling } from "./types";
+import { bestSighting, isCertain, namesFor, rulingOf, speaksOf } from "./sight";
+import type { Cat, Hint, Look, RoomBrief, Ruling } from "./types";
+
+const REMEMBERED_SIGHTINGS = 32;
+
+const canSight = (recognizer: Recognizer): recognizer is LiveRecognizer => "sight" in recognizer;
 
 const NOWHERE: RoomBrief = {
   id: "nowhere",
@@ -21,6 +27,7 @@ const NOWHERE: RoomBrief = {
 
 export class ScriptedCat implements Cat {
   readonly #recognizer: Recognizer | null;
+  readonly #seen = new Map<DrawingId, readonly Sighting[]>();
   #room = NOWHERE;
   #ladder = new HintLadder(NOWHERE.hints);
   #helpOffered = false;
@@ -36,16 +43,39 @@ export class ScriptedCat implements Cat {
   }
 
   name(utterance: string, drawing: Drawing): Promise<Ruling> {
-    return Promise.resolve(
-      ruleOn(utterance, { allowed: this.#room.allowedNatures, drawingIsDot: isDot(drawing) }),
-    );
+    const allowed = this.#room.allowedNatures;
+    const ruling = ruleOn(utterance, { allowed, drawingIsDot: isDot(drawing) });
+    if (ruling.nature !== "ink" || !isUnknownName(utterance)) return Promise.resolve(ruling);
+    const seen = this.#seen.get(drawing.id)?.find((sighting) => speaksOf(utterance, sighting));
+    if (seen === undefined || seen.nature === "ink") return Promise.resolve(ruling);
+    return Promise.resolve({ ...rulingOf(seen, allowed), name: ruling.name, tags: ruling.tags });
   }
 
   async guess(drawing: Drawing): Promise<Guesses> {
+    return (await this.look(drawing)).guesses;
+  }
+
+  async look(drawing: Drawing): Promise<Look> {
     const allowed = this.#room.allowedNatures;
     const hunch = guessNames(drawing, allowed);
-    const seen = await this.#recognize(drawing);
-    return mergeGuesses(namesForRecognized(seen), hunch, allowed);
+    if (this.#recognizer === null || !canSight(this.#recognizer)) {
+      const seen = await this.#recognize(drawing);
+      return { certain: null, guesses: mergeGuesses(namesForRecognized(seen), hunch, allowed) };
+    }
+    const sightings = await this.#sight(this.#recognizer, drawing.strokes);
+    this.#remember(drawing.id, sightings);
+    const [first] = sightings;
+    const sure = first !== undefined && isCertain(first) ? bestSighting([first], allowed) : null;
+    return {
+      certain: sure === null ? null : rulingOf(sure, allowed),
+      guesses: mergeGuesses(namesFor(sightings), hunch, allowed),
+    };
+  }
+
+  async glimpse(strokes: readonly Stroke[]): Promise<Sighting | null> {
+    if (this.#recognizer === null || !canSight(this.#recognizer)) return null;
+    const sightings = await this.#sight(this.#recognizer, strokes, { partial: true });
+    return bestSighting(sightings, this.#room.allowedNatures);
   }
 
   askWhatItIs(): string {
@@ -60,6 +90,27 @@ export class ScriptedCat implements Cat {
     if (this.#helpOffered) return null;
     this.#helpOffered = true;
     return OFFER_HELP;
+  }
+
+  async #sight(
+    recognizer: LiveRecognizer,
+    strokes: readonly Stroke[],
+    options?: { readonly partial: boolean },
+  ): Promise<readonly Sighting[]> {
+    try {
+      return await recognizer.sight(strokes, options);
+    } catch {
+      return [];
+    }
+  }
+
+  #remember(id: DrawingId, sightings: readonly Sighting[]): void {
+    this.#seen.delete(id);
+    this.#seen.set(id, sightings);
+    for (const stale of this.#seen.keys()) {
+      if (this.#seen.size <= REMEMBERED_SIGHTINGS) break;
+      this.#seen.delete(stale);
+    }
   }
 
   async #recognize(drawing: Drawing): Promise<readonly string[]> {

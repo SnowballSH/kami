@@ -62,21 +62,25 @@ export class Sumikui {
     return speedAfter(this.awakeMs);
   }
 
-  /** Advances one tick; returns the drawing it has finished devouring, if any. */
+  /**
+   * Advances one tick; returns the drawing it has finished devouring, if any. `alices` is Alice
+   * first, then her clones: it shadows her, but ink under any of them counts as used.
+   */
   tick(
     elapsedMs: number,
     now: number,
-    alice: AliceController,
+    alices: readonly [AliceController, ...AliceController[]],
     inks: readonly InkEntity[],
     memory: InkMemory,
   ): InkEntity | null {
+    const [alice] = alices;
     if (!this.woke) {
       this.woke = inks.length >= SUMIKUI_WAKES_AT_DRAWINGS;
       this.drift(this.hoverSpotBehind(alice), elapsedMs);
       return null;
     }
     this.awakeMs += elapsedMs;
-    this.keepOrChoosePrey(now, alice, inks, memory);
+    this.keepOrChoosePrey(now, alices, inks, memory);
     if (this.prey === null) {
       this.drift(this.hoverSpotBehind(alice), elapsedMs);
       return null;
@@ -127,7 +131,7 @@ export class Sumikui {
 
   private keepOrChoosePrey(
     now: number,
-    alice: AliceController,
+    alices: readonly AliceController[],
     inks: readonly InkEntity[],
     memory: InkMemory,
   ): void {
@@ -136,7 +140,7 @@ export class Sumikui {
     this.biteMs = 0;
     let best: Prey | null = null;
     for (const ink of inks) {
-      const worth = this.worthOf(ink, now, alice, memory);
+      const worth = this.worthOf(ink, now, alices, memory);
       if (worth !== null && (best === null || worth > best.worth)) best = { ink, worth };
     }
     this.prey = best?.ink ?? null;
@@ -146,11 +150,11 @@ export class Sumikui {
   private worthOf(
     ink: InkEntity,
     now: number,
-    alice: AliceController,
+    alices: readonly AliceController[],
     memory: InkMemory,
   ): number | null {
     if (NATURES[ink.nature].pinned) return null;
-    const standingOn = alice.standsOn(ink.body);
+    const standingOn = alices.some((alice) => alice.standsOn(ink.body));
     const touchedAt = memory.get(ink.id);
     const age = touchedAt === undefined ? Number.POSITIVE_INFINITY : now - touchedAt;
     if (!standingOn && age > SUMIKUI_MEMORY_MS) return null;
