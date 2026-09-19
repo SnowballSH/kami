@@ -48,10 +48,8 @@ def predict(
 ) -> NDArray[np.float32]:
     """Logits for `indices`, in the order given (which must be ascending)."""
     model.eval()
-    logits = [
-        model(batch.images)[0].float().cpu().numpy()
-        for batch in iterate_batches(dataset, indices, batch_size, device)
-    ]
+    with iterate_batches(dataset, indices, batch_size, device) as batches:
+        logits = [model(batch.images)[0].float().cpu().numpy() for batch in batches]
     return np.concatenate(logits).astype(np.float32)
 
 
@@ -83,22 +81,24 @@ def fit(model: SketchNet, dataset: SketchDataset, config: FitConfig, device: tor
         model.train()
         started = time.perf_counter()
         running_loss = torch.zeros((), device=device)
-        batches = iterate_batches(dataset, train_indices, config.batch_size, device, shuffle_rng)
-        for batch in tqdm(
-            batches, total=steps_per_epoch, desc=f"epoch {epoch}/{config.epochs}", leave=False
-        ):
-            images = random_affine(batch.images)
-            with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=use_amp):
-                logits, _ = model(images)
-                loss = F.cross_entropy(
-                    logits.float(), batch.labels, label_smoothing=LABEL_SMOOTHING
-                )
-            optimizer.zero_grad(set_to_none=True)
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-            scheduler.step()
-            running_loss += loss.detach().float() * len(batch.indices)
+        with iterate_batches(
+            dataset, train_indices, config.batch_size, device, shuffle_rng
+        ) as batches:
+            for batch in tqdm(
+                batches, total=steps_per_epoch, desc=f"epoch {epoch}/{config.epochs}", leave=False
+            ):
+                images = random_affine(batch.images)
+                with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=use_amp):
+                    logits, _ = model(images)
+                    loss = F.cross_entropy(
+                        logits.float(), batch.labels, label_smoothing=LABEL_SMOOTHING
+                    )
+                optimizer.zero_grad(set_to_none=True)
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+                scheduler.step()
+                running_loss += loss.detach().float() * len(batch.indices)
         elapsed = time.perf_counter() - started
         images_seen += len(train_indices)
         seconds_training += elapsed
