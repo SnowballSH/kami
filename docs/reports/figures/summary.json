@@ -1,0 +1,264 @@
+{
+  "epochs": [
+    {
+      "epoch": 1,
+      "loss": 2.995,
+      "valTop1": 56.2,
+      "valTop3": 76.2,
+      "imagesPerSecond": 7085.0
+    },
+    {
+      "epoch": 2,
+      "loss": 2.247,
+      "valTop1": 62.4,
+      "valTop3": 81.0,
+      "imagesPerSecond": 7204.0
+    },
+    {
+      "epoch": 3,
+      "loss": 2.108,
+      "valTop1": 65.2,
+      "valTop3": 82.9,
+      "imagesPerSecond": 7213.0
+    },
+    {
+      "epoch": 4,
+      "loss": 2.017,
+      "valTop1": 66.9,
+      "valTop3": 84.2,
+      "imagesPerSecond": 6723.0
+    },
+    {
+      "epoch": 5,
+      "loss": 1.935,
+      "valTop1": 68.2,
+      "valTop3": 85.0,
+      "imagesPerSecond": 7184.0
+    },
+    {
+      "epoch": 6,
+      "loss": 1.854,
+      "valTop1": 69.2,
+      "valTop3": 85.6,
+      "imagesPerSecond": 6709.0
+    },
+    {
+      "epoch": 7,
+      "loss": 1.781,
+      "valTop1": 69.7,
+      "valTop3": 86.0,
+      "imagesPerSecond": 7201.0
+    },
+    {
+      "epoch": 8,
+      "loss": 1.738,
+      "valTop1": 69.9,
+      "valTop3": 86.1,
+      "imagesPerSecond": 7003.0
+    }
+  ],
+  "test": {
+    "n": 137914,
+    "finished": {
+      "n": 68865,
+      "top1": 81.14136353735569,
+      "top3": 94.22638495607347,
+      "top1CI95": [
+        80.8474611154572,
+        81.43179174190463
+      ]
+    }
+  },
+  "byProgress": [
+    {
+      "sharePercent": 35.0,
+      "n": 9801,
+      "top1": 27.313539434751554,
+      "top3": 48.913376186103456
+    },
+    {
+      "sharePercent": 45.0,
+      "n": 9834,
+      "top1": 39.86170429123449,
+      "top3": 64.79560707748627
+    },
+    {
+      "sharePercent": 55.00000000000001,
+      "n": 9946,
+      "top1": 51.769555600241304,
+      "top3": 75.80937060124673
+    },
+    {
+      "sharePercent": 65.00000000000001,
+      "n": 10015,
+      "top1": 61.97703444832751,
+      "top3": 83.73439840239641
+    },
+    {
+      "sharePercent": 75.00000000000003,
+      "n": 9867,
+      "top1": 71.15637985203203,
+      "top3": 89.07469342251952
+    },
+    {
+      "sharePercent": 85.00000000000001,
+      "n": 9680,
+      "top1": 77.92355371900827,
+      "top3": 92.56198347107438
+    },
+    {
+      "sharePercent": 95.00000000000001,
+      "n": 9906,
+      "top1": 81.30426004441752,
+      "top3": 94.02382394508379
+    }
+  ],
+  "namingWithoutAsking": {
+    "Finished": {
+      "threshold": 0.7973545789718628,
+      "coverage": 65.11871052058375,
+      "precision": 95.000445990545
+    },
+    "Partial, 50-100% shown": {
+      "threshold": 0.9025095701217651,
+      "coverage": 36.38240174849233,
+      "precision": 95.00500611858939
+    }
+  },
+  "perClass": {
+    "mean": 81.19463512680807,
+    "median": 84.50704225352112,
+    "below50": 11,
+    "above90": 97,
+    "worst": [
+      [
+        "marker",
+        35.61643835616438
+      ],
+      [
+        "cup",
+        36.13861386138614
+      ],
+      [
+        "bear",
+        39.784946236559136
+      ],
+      [
+        "oven",
+        43.203883495145625
+      ],
+      [
+        "hurricane",
+        43.43434343434344
+      ],
+      [
+        "pool",
+        44.07582938388626
+      ],
+      [
+        "violin",
+        44.50867052023121
+      ],
+      [
+        "garden hose",
+        46.666666666666664
+      ]
+    ],
+    "best": [
+      [
+        "stop sign",
+        98.0392156862745
+      ],
+      [
+        "angel",
+        97.92746113989638
+      ],
+      [
+        "helicopter",
+        97.70642201834863
+      ],
+      [
+        "The Mona Lisa",
+        97.59036144578313
+      ],
+      [
+        "envelope",
+        97.44897959183673
+      ],
+      [
+        "stove",
+        96.37305699481865
+      ],
+      [
+        "washing machine",
+        96.19565217391305
+      ],
+      [
+        "mermaid",
+        96.03960396039604
+      ]
+    ]
+  },
+  "topConfusions": [
+    [
+      "birthday cake",
+      "cake",
+      84
+    ],
+    [
+      "hurricane",
+      "tornado",
+      73
+    ],
+    [
+      "bus",
+      "school bus",
+      63
+    ],
+    [
+      "school bus",
+      "bus",
+      63
+    ],
+    [
+      "hexagon",
+      "octagon",
+      61
+    ],
+    [
+      "cup",
+      "mug",
+      59
+    ],
+    [
+      "truck",
+      "pickup truck",
+      53
+    ],
+    [
+      "coffee cup",
+      "mug",
+      48
+    ],
+    [
+      "violin",
+      "guitar",
+      48
+    ],
+    [
+      "cake",
+      "birthday cake",
+      45
+    ],
+    [
+      "police car",
+      "car",
+      42
+    ],
+    [
+      "bicycle",
+      "motorbike",
+      40
+    ]
+  ]
+}
