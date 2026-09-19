@@ -11,8 +11,17 @@ export const NATURES = [
   "sticky",
   "grow",
   "shrink",
+  "solid",
+  "goal",
+  "hazard",
+  "spawn",
 ] as const;
 
+/**
+ * What a drawing is. The first ten are spirits (spec §4). The last four are roles, for sketching
+ * a new game: `solid` is ground that stays put wherever it was drawn, `goal` wins the board,
+ * `hazard` sends Alice back to her checkpoint, `spawn` moves that checkpoint.
+ */
 export type Nature = (typeof NATURES)[number];
 
 export type AllowedNatures = readonly Nature[] | "all";
@@ -55,7 +64,10 @@ export interface Cat {
   enterRoom(room: RoomBrief): void;
   /** Maps whatever the player said about `drawing` onto a nature. Never rejects. */
   name(utterance: string, drawing: Drawing): Promise<Ruling>;
-  /** His three best guesses at an unnamed drawing, as short names ("a mushroom"). */
+  /**
+   * His three best guesses at an unnamed drawing, as short names ("a mushroom"). What the
+   * recognizer saw comes first; a geometric hunch fills in when it saw nothing.
+   */
   guess(drawing: Drawing): Promise<readonly [string, string, string]>;
   /** "And what is that supposed to be?" */
   askWhatItIs(): string;

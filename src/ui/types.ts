@@ -1,47 +1,51 @@
 import type { Vec } from "../core/geometry";
 import type { WalkIntent } from "../sim/types";
 
+export type Tool = "draw" | "write" | "erase" | "pan";
+
+export interface BoardListing {
+  readonly id: string;
+  readonly title: string;
+}
+
 export interface HudHandlers {
   onWalkIntent(intent: WalkIntent): void;
-  /** A guess chip was tapped or a name was typed and submitted. */
-  onNameChosen(name: string): void;
-  onNamingDismissed(): void;
-  onAskCat(): void;
-  onEraserToggled(active: boolean): void;
-  onResetRoom(): void;
-}
-
-export interface TitleCard {
-  readonly title: string;
-  readonly subtitle?: string;
-  readonly durationMs: number;
-}
-
-export interface EndingEntry {
-  readonly name: string;
-  readonly thumbnail: HTMLCanvasElement;
+  onToolChanged(tool: Tool): void;
+  /** A zoom button: multiply the zoom by `factor` about the centre of the screen. */
+  onZoom(factor: number): void;
+  /** Bring Alice back to the middle of the screen. */
+  onRecenter(): void;
+  onOpenBoard(boardId: string): void;
+  onNewBoard(): void;
+  /** Wipe everything the player drew, wrote and ruled on this board. */
+  onClearBoard(): void;
 }
 
 export interface Hud {
-  readonly namingOpen: boolean;
-  setRoom(title: string, pageNumber: number, pageCount: number): void;
-  setInk(budget: { readonly total: number; readonly remaining: number }): void;
-  /** Opens the naming panel: three guess chips, a typed box, and a "just ink" way out. */
-  showNaming(guesses: readonly string[]): void;
-  hideNaming(): void;
-  /** The Cat's grin fades in, the line is captioned, and spoken if the device can. */
-  say(line: string): void;
-  setEraserActive(active: boolean): void;
-  /** Covers the page, resolves once the card has faded back out. */
-  showTitleCard(card: TitleCard): Promise<void>;
-  showEnding(entries: readonly EndingEntry[], onRestart: () => void): void;
-  hideEnding(): void;
+  setTool(tool: Tool): void;
+  setBoards(boards: readonly BoardListing[], currentId: string): void;
+  /**
+   * An inline field at `client` (CSS px) to write a note into — typed, or handwritten with
+   * Apple Pencil Scribble. Resolves with the trimmed text, or null if abandoned or empty.
+   */
+  promptText(client: Vec): Promise<string | null>;
 }
 
-export interface PenSink {
-  penDown(point: Vec): void;
-  penMove(point: Vec): void;
+/**
+ * What the canvas reports, in client (CSS px) coordinates. The HUD's current tool decides
+ * what a one-finger drag means; two fingers always pan and pinch; the wheel pans, and
+ * pinch-wheel / ctrl-wheel zooms.
+ */
+export interface CanvasInputSink {
+  penDown(client: Vec): void;
+  penMove(client: Vec): void;
   penUp(): void;
+  /** The stroke turned out not to be one: a second finger landed, or it never moved. */
+  penCancel(): void;
+  /** A press and release without travel, with any tool. Follows `penCancel` when a pen was down. */
+  tap(client: Vec): void;
+  panBy(deltaClient: Vec): void;
+  zoomAt(client: Vec, factor: number): void;
 }
 
 export type Detach = () => void;

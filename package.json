@@ -4,24 +4,34 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host",
+    "dev": "concurrently -k -n web,server -c blue,green \"vite --host\" \"bun run server\"",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "vitest run",
-    "check": "tsc --noEmit && biome check . && vitest run"
+    "check": "tsc --noEmit && biome check . && vitest run",
+    "dev:web": "vite --host",
+    "server": "bun --watch server/index.ts",
+    "quickdraw:ingest": "bun server/quickdraw/ingest.ts",
+    "font:build": "bun scripts/buildStrokeFont.ts"
   },
   "dependencies": {
     "matter-js": "^0.20.0",
+    "mongodb": "^7.6.0",
     "perfect-freehand": "^1.2.3",
-    "roughjs": "^4.6.6"
+    "roughjs": "^4.6.6",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
+    "@types/bun": "^1.4.2",
     "@types/matter-js": "^0.20.2",
+    "concurrently": "^10.0.5",
     "happy-dom": "^20.14.5",
+    "hersheytext": "^2.0.0",
+    "mongodb-memory-server": "^11.2.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"

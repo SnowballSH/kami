@@ -37,10 +37,12 @@ export interface InkSession {
   penDown(point: Vec): void;
   penMove(point: Vec): void;
   penUp(): void;
+  /** Abandons the stroke in progress (a second finger landed: it was a pinch, not a line). */
+  penCancel(): void;
   /** Called every frame. Advances the commit timer and refreshes `activeVerdict`. */
   update(nowMs: number, rules: PlacementRules): void;
   refund(cost: number): void;
-  /** New room or room reset: drops pending strokes and refills the budget. */
+  /** New board or board reset: drops pending strokes and refills the pen. Infinity is a whiteboard marker. */
   reset(totalInk: number): void;
 }
 

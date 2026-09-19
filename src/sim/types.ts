@@ -1,7 +1,8 @@
+import type { BoardDefinition } from "../board/types";
 import type { Nature, Ruling } from "../cat/types";
 import type { Pose, Rect, Vec } from "../core/geometry";
-import type { LevelDefinition } from "../game/types";
 import type { Drawing, DrawingId } from "../ink/types";
+import type { WorldPhysics } from "../rules/types";
 
 export type AliceSize = "small" | "normal" | "big";
 
@@ -44,8 +45,9 @@ export interface WorldSnapshot {
 }
 
 export type SimEvent =
-  | { readonly type: "exit-reached" }
+  | { readonly type: "goal-reached" }
   | { readonly type: "fell" }
+  | { readonly type: "zone-entered"; readonly zoneId: string }
   | { readonly type: "key-taken" }
   | { readonly type: "door-opened" }
   | { readonly type: "bounced"; readonly drawingId: DrawingId }
@@ -53,8 +55,10 @@ export type SimEvent =
   | { readonly type: "grow-blocked"; readonly drawingId: DrawingId };
 
 export interface Simulation {
-  /** Discards the whole world and rebuilds it with Alice standing at `level.spawn`. */
-  loadLevel(level: LevelDefinition): void;
+  /** Discards the whole world and rebuilds it with Alice standing at `board.spawn`. */
+  loadBoard(board: BoardDefinition): void;
+  /** The standing rules of the board. Survives `loadBoard`; applies from the next step. */
+  setPhysics(physics: WorldPhysics): void;
   /** Ink is solid the moment it commits — as plain ink, before anyone has named it. */
   addDrawing(drawing: Drawing): void;
   applyRuling(id: DrawingId, ruling: Ruling): void;
