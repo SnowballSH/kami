@@ -47,6 +47,13 @@ const acceptanceLine = (phrase: Phrase, match: NatureMatch, drawingIsDot: boolea
   return pickLine(ACCEPTANCE[match.nature], phrase.text);
 };
 
+/** Whether the name is one the lexicon has no opinion on, as opposed to one it turned down. */
+export const isUnknownName = (utterance: string): boolean => {
+  const phrase = parsePhrase(utterance);
+  const match = resolveNature(phrase);
+  return phrase.words.length > 0 && match === null && findRefusal(phrase, false) === null;
+};
+
 export const ruleOn = (utterance: string, { allowed, drawingIsDot }: RulingContext): Ruling => {
   const phrase = parsePhrase(utterance);
   const name = tidyName(utterance);

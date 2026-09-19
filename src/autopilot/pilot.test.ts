@@ -6,6 +6,7 @@ import type { DrawingId } from "../ink/types";
 import { EARTH } from "../rules/types";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "../sim/flight";
 import { ALICE_BASE, type AliceSize, type AliceSnapshot } from "../sim/types";
+import { CELL_PX, CellFlag, Chart } from "./chart";
 import { createAutopilot } from "./index";
 import type { Scene, SceneInk } from "./types";
 
@@ -97,6 +98,27 @@ describe("Pilot", () => {
       errand: { kind: "objective", objective: "goal" },
       stuck: false,
     });
+  });
+
+  it("charts a creature pressed against Alice as air, but ink in the same place as a wall", () => {
+    const over = (nature: Nature): SceneInk =>
+      ink(line({ x: 90, y: GROUND_Y - 30 }, { x: 110, y: GROUND_Y - 30 }), nature);
+    const cellThroughHer = {
+      c: Math.floor(100 / CELL_PX),
+      r: Math.floor((GROUND_Y - 30) / CELL_PX),
+    };
+
+    const creature = Chart.of(scene({ inks: [over("walker")] }));
+    const plain = Chart.of(scene({ inks: [over("ink")] }));
+    expect(creature.has(cellThroughHer.c, cellThroughHer.r, CellFlag.solid)).toBe(false);
+    expect(plain.has(cellThroughHer.c, cellThroughHer.r, CellFlag.solid)).toBe(true);
+
+    const beside = Chart.of(
+      scene({
+        inks: [ink(line({ x: 150, y: GROUND_Y - 30 }, { x: 170, y: GROUND_Y - 30 }), "walker")],
+      }),
+    );
+    expect(beside.has(Math.floor(160 / CELL_PX), cellThroughHer.r, CellFlag.solid)).toBe(true);
   });
 
   it("waits short of a gap it cannot cross and reports being stuck", () => {

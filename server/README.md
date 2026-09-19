@@ -24,8 +24,8 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 |---|---|
 | `PORT` | HTTP port, default `8787` (what `vite.config.ts` proxies `/api` to) |
 | `MONGODB_URI` | Use this MongoDB instead of the embedded one, e.g. the Atlas `mongodb+srv://…` string. Database `kami`. |
-| `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
-| `KAMI_LLM_MODEL` | Model name to request. Model compile is **off** unless both URL and model are set. |
+| `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile` and `/api/transcribe`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
+| `KAMI_LLM_MODEL` | Model name to request. Model compile and handwriting reading are **off** unless both URL and model are set; reading also needs the model to take images (`qwen3.8` does). |
 | `KAMI_LLM_API_KEY` | Optional bearer token. |
 | `KAMI_CONTROLLER_UDP_PORT` | UDP port physical controllers send to, default `8788`; `off` disables. See `docs/controllers.md`. |
 | `KAMI_CONTROLLER_SERIAL` | `auto` (default: every `/dev/ttyACM*`, rescanned every 3 s), a device path, or `off`. The user needs the `dialout` group. |
@@ -44,6 +44,7 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `POST /api/controllers/:id/state` `<x> <y> [buttons]` (plain text) | `204`; a joystick's whole state, axes -100 … 100 with y up (`docs/controllers.md`) |
 | `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
 | `GET /api/controllers` | `[{ id, x, y, held, buttons, transport, idleMs }]` |
+| `POST /api/transcribe` `{ strokes: {x,y}[][] }` | `{ text: string \| null }` — the strokes read as handwriting, `null` for a drawing; `501` without a model |
 
 Every body is validated with zod (`schemas.ts`, which mirrors `src/*/types.ts` and is checked
 against them at compile time). A bad payload is a `400` with `{ error, issues }`; nothing throws
@@ -97,8 +98,10 @@ The recogniser (`quickdraw/recognizer.ts`) keeps every feature in one flat `Floa
 drawings first, and does brute-force cosine k-NN: k = 15, each neighbour votes for its category
 with weight similarity⁸, categories are ranked by vote share (the `confidence` the route returns),
 and up to three with a share of at least 0.08 are returned. If the single best neighbour is below
-0.35 similarity the answer is `[]`. `rank(strokes, { partial })` is synchronous;
-`asAsyncRecognizer` wraps it in the promise-returning shape the recogniser chain speaks.
+0.35 similarity the answer is `[]`. `rank(strokes, { partial })` is synchronous; `read(strokes,
+{ partial })` is the same ranking with the vote share above which it may go unasked (`certainAbove`,
+see "Naming without asking"), and `recognition/inProcessRanker.ts` wraps that in the promise-returning
+shape the recogniser chain speaks.
 
 - **Finished** (`partial` absent or false): compared with the whole-drawing rows only. Same answers
   as before prefixes existed, 4.8 ms per sketch.
@@ -172,6 +175,20 @@ routes use, and clamped (`compile/effectRanges.ts`): gravity ±30 g per axis, wi
 "not a rule". It has been tested with an injected fetch and end to end against a fake
 OpenAI-compatible server, not yet against the real GX10.
 
+## Handwriting reading
+
+`transcribe/llmTranscriber.ts` lets the player write with the pen instead of the text prompt. The
+strokes are drawn black-on-white into a small grayscale PNG (`transcribe/strokeImage.ts`, a line of
+writing fitted to 64 px tall, no image library) and shown to the same `KAMI_LLM_MODEL` as a vision
+model through `llm/chatClient.ts`, the OpenAI-compatible client `/api/compile` also uses, with
+`reasoning_effort: "none"` so it answers in one breath (~2 s warm on the GX10; a `400` from a server
+that does not know the field retries without it). The prompt (`transcribe/prompt.ts`) asks for
+`{"text": "…"}` for words and `{"text": null}` for a drawing; the answer is parsed like the
+compiler's, then must read as writing (≤ 80 characters, at least two different letters — a fence
+once came back as `IIIIII`). Anything else, a timeout (20 s), an HTTP error or an abort is `null`:
+the strokes stay ink. `/api/transcribe` forwards the request's abort signal, so a client that
+cancels a read of a prefix costs the model nothing more.
+
 ## Two things that would otherwise bite
 
 - **Bun and `bson`.** `bson` 7 probes `v8.startupSnapshot.isBuildingSnapshot()` while it loads, and
@@ -197,9 +214,10 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 
 | Route | Request | Response |
 |---|---|---|
-| `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[], names: string[], natures: Nature[], strengths: number[], lines: string[] }` — parallel arrays, best first, at most three, all empty when unsure. `guesses` are bare Quick, Draw! words, each with a 0–1 `confidence`; the other four say what each guess is for the game (below) |
+| `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[], names: string[], natures: Nature[], strengths: number[], lines: string[], certain: boolean }` — parallel arrays, best first, at most three, all empty when unsure. `guesses` are bare Quick, Draw! words, each with a 0–1 `confidence`; the other four say what each guess is for the game (below). `certain: true` means `guesses[0]` may be named without offering the player a choice (see "Naming without asking"); a client that ignores it keeps asking, as before |
 | `POST /api/beautify` | `{ strokes: {x,y}[][], name: string }` | whatever the attached model answers, content-type preserved: **`application/json` `{ strokes: {x,y}[][] }`** (preferred — drawn with the pen, scales with zoom, fits the whiteboard) or an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
+| `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no model is attached (`KAMI_LLM_URL`/`KAMI_LLM_MODEL`). Stateless; the client may abort a request (the read of a prefix) freely. |
 | boards, drawings, notes, rules | see the table above | |
 | `POST /api/controllers/:id/state` | `text/plain` `<x> <y> [buttons]`, e.g. `100 0 A`: axes -100 … 100 (y up), then the letters of the buttons held (`A` `B` `X` `Y`). `:id` is `[a-z0-9-]{1,32}` | `204`, or `400` `{ error }` |
 | `GET /api/controllers/:id/events` | — | `text/event-stream`: `retry: 1000`, then `data: {"x":-0.7,"y":0.85,"held":["left","up"],"buttons":["a"]}` on connect and on every change (`x`, `y` -1 … 1; `held` of `left` `right` `up` `down`, with `up` also while `a` is held; everything let go after 1 s without a message), and `: keep-alive` every 5 s |
@@ -217,6 +235,26 @@ prefixes and reads a half-drawn sketch like any other. An empty answer to a part
 say yet" — keep the last guess on screen. The client for all of this is `src/recognition`
 (`LiveRecognizer.sight(strokes, { partial })` → `Sighting[]`).
 Returned strokes from `beautify` are in the same world space as the request, fitted to the sketch's bounds.
+
+**Naming without asking.** When Kami is sure what a drawing is, the game names it instead of offering three
+guesses. The server decides, because only it knows which recogniser answered and how far that one's
+confidence can be trusted: every answer in the chain is a `Reading { ranking, certainAbove }`
+(`recognition/types.ts`), where `certainAbove` is the leader confidence from which the answer may be taken
+without asking, or `null` for never. `certain` is true only when, **after** aliases are folded together,
+there is a leader whose summed, unrounded confidence reaches the `certainAbove` of the recogniser that
+answered; an all-empty answer is never certain. The floors are the points of 95 % precision on held-out
+drawings:
+
+| Recogniser | Finished | Still under the pen | Measured in |
+|---|---|---|---|
+| Kami's Eye (the sidecar), calibrated confidence | ≥ 0.80 — right 95 % of the time, 65 % of drawings | ≥ 0.90 — right 95 % of the time on drawings at least half done, 36 % of them; below half the ink no threshold reaches 95 % | [`docs/reports/kami-eye-results.md`](../docs/reports/kami-eye-results.md), Figure 3, test split |
+| k-NN, leading vote share | ≥ 0.8 — right 95.5 % of the time, 25 % of drawings | never: a share ≥ 0.8 is right only 48.5 % of the time at 20 % of the ink and 66.7 % at 40 %, and the k-NN cannot tell how much of the drawing it sees | [`docs/reports/prefix-knn.md`](../docs/reports/prefix-knn.md) |
+
+The k-NN's pair is `certainAbove` in `DEFAULT_RECOGNIZER_OPTIONS`; the sidecar's is
+`DEFAULT_CERTAINTY_FLOORS` in `recognition/remoteRecognizer.ts`, used until the sidecar states its own: a
+`certainAbove` in its `/recognize` answer (a number in 0–1, or `null`) replaces the default, and anything
+else there is ignored. The browser reads the flag as `Sighting.certain`, true at most on the first
+sighting; an older server without the field reads as `false` everywhere.
 
 **From a noun to physics.** Every guess arrives already ruled on, from the reviewed table
 `server/natures/quickdrawNatures.json` (all 345 Quick, Draw! categories, validated against `NATURES` at

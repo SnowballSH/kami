@@ -25,7 +25,8 @@ export interface InkBudget {
 
 export interface InkSessionListener {
   onCommit(drawing: Drawing): void;
-  onReject(reason: PlacementRejection): void;
+  /** The strokes could not land there; they may still have been words. */
+  onReject(reason: PlacementRejection, strokes: readonly Stroke[]): void;
 }
 
 export interface InkSession {

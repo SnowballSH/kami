@@ -8,7 +8,7 @@ import type { InkView } from "./types";
 const NIGHT_OPACITY = 0.88;
 const NIGHT_COLOR = "rgb(12, 14, 36)";
 const LANTERN_RADIUS = 260;
-/** Alice carries a little light of her own, so she can always be found. */
+/** Alice and each of her twins carry a little light of their own, so they can always be found. */
 const ALICE_GLOW_RADIUS = 70;
 const FULL_LIGHT_UNTIL = 0.35;
 
@@ -17,8 +17,14 @@ export interface Light {
   readonly radius: number;
 }
 
-export const lightsOf = (alice: AliceSnapshot, inks: readonly InkView[]): readonly Light[] => [
-  { center: alice.center, radius: ALICE_GLOW_RADIUS * Math.sqrt(alice.height / 80) },
+export const lightsOf = (
+  alices: readonly AliceSnapshot[],
+  inks: readonly InkView[],
+): readonly Light[] => [
+  ...alices.map((alice) => ({
+    center: alice.center,
+    radius: ALICE_GLOW_RADIUS * Math.sqrt(alice.height / 80),
+  })),
   ...inks
     .filter((ink) => ink.nature === "lantern")
     .map((ink) => ({

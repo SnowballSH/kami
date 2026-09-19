@@ -47,21 +47,28 @@ export const BOARD_COLORS = {
   eraserVeil: "rgba(255, 255, 255, 0.45)",
 } as const;
 
-const NOTE_CSS: Readonly<Record<NoteAuthor | Exclude<NoteTone, "plain">, string>> = {
-  player: rgbCss(MARKER.black),
-  kami: rgbCss(MARKER.blue),
-  understood: rgbCss(MARKER.green),
-  confused: rgbCss(MARKER.red),
+const NOTE_INK: Readonly<Record<NoteAuthor | Exclude<NoteTone, "plain">, Rgb>> = {
+  player: MARKER.black,
+  kami: MARKER.blue,
+  understood: MARKER.green,
+  confused: MARKER.red,
 };
 
-export const noteCss = (author: NoteAuthor, tone: NoteTone): string =>
-  NOTE_CSS[tone === "plain" ? author : tone];
+/** What handwriting fades toward as the board darkens: chalk under moonlight. */
+export const MOONLIT_INK: Rgb = [226, 230, 250];
+const MOONLIT_AT_NIGHT = 0.85;
 
 export const mixRgb = (from: Rgb, to: Rgb, amount: number): Rgb => [
   Math.round(from[0] + (to[0] - from[0]) * amount),
   Math.round(from[1] + (to[1] - from[1]) * amount),
   Math.round(from[2] + (to[2] - from[2]) * amount),
 ];
+
+export const noteCss = (author: NoteAuthor, tone: NoteTone, daylight = 1): string => {
+  const ink = NOTE_INK[tone === "plain" ? author : tone];
+  const dark = 1 - Math.min(1, Math.max(0, daylight));
+  return rgbCss(dark === 0 ? ink : mixRgb(ink, MOONLIT_INK, dark * MOONLIT_AT_NIGHT));
+};
 
 export const mapNatures = <T>(toValue: (nature: Nature) => T): Readonly<Record<Nature, T>> =>
   Object.fromEntries(NATURES.map((nature) => [nature, toValue(nature)])) as Record<Nature, T>;

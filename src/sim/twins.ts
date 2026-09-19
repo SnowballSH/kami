@@ -6,6 +6,8 @@ import { bottomOf } from "./bodyBounds";
 import type { AliceSnapshot, WalkIntent } from "./types";
 
 const SPACING = 1.5;
+/** A twin this far from Alice sideways has stopped being her clone and is recalled to her feet. */
+export const TWIN_STRAY_DISTANCE = 1600;
 
 /** Where the n-th twin appears: alternating sides of Alice, further out each time. */
 const besideAlice = (alice: AliceController, index: number): Vec => {
@@ -56,10 +58,11 @@ export class Twins {
     }
   }
 
-  /** Any twin that has left the board rejoins Alice at her feet. */
+  /** Any twin that has left the board, or strayed far to one side, rejoins Alice at her feet. */
   recallLost(alice: AliceController, killY: number): void {
     for (const twin of this.twins) {
-      if (twin.body.position.y > killY) twin.placeAt(besideAlice(alice, 0));
+      const strayed = Math.abs(twin.body.position.x - alice.body.position.x) > TWIN_STRAY_DISTANCE;
+      if (twin.body.position.y > killY || strayed) twin.placeAt(besideAlice(alice, 0));
     }
   }
 

@@ -1,5 +1,5 @@
 import type { Nature } from "../cat/types";
-import { boundsOf, poseToWorld, type Rect, type Vec } from "../core/geometry";
+import { boundsOf, poseToWorld, type Rect, rectsOverlap, type Vec } from "../core/geometry";
 import { INK_THICKNESS } from "../core/world";
 import type { DrawingId } from "../ink/types";
 import type { Scene, SceneInk } from "./types";
@@ -85,6 +85,22 @@ const aliceRect = (scene: Scene): Rect => ({
   height: scene.alice.height,
 });
 
+const CREATURES: ReadonlySet<Nature> = new Set<Nature>(["walker", "hopper", "flier"]);
+const CRAMP_INSET = 2;
+
+/**
+ * A creature pressed against Alice (on her head, or half through her) would wall off the very
+ * cell she stands in; she plans as if it were not there and lets the next replan catch up.
+ */
+const cramps = (ink: SceneInk, alice: Rect): boolean =>
+  CREATURES.has(ink.nature) &&
+  rectsOverlap(boundsOf(worldPoints(ink)), {
+    x: alice.x + CRAMP_INSET,
+    y: alice.y + CRAMP_INSET,
+    width: alice.width - 2 * CRAMP_INSET,
+    height: alice.height - 2 * CRAMP_INSET,
+  });
+
 const extentOf = (scene: Scene): CellRange => {
   const { board } = scene;
   const rects: Rect[] = [
@@ -130,7 +146,10 @@ export class Chart {
       chart.stampRect(scene.board.door, CellFlag.solid | CellFlag.fixture | CellFlag.door);
     }
     if (scene.board.goal !== undefined) chart.stampRect(scene.board.goal, CellFlag.goal);
-    for (const ink of scene.inks) chart.stampInk(ink, flagsFor(ink.nature));
+    const alice = aliceRect(scene);
+    for (const ink of scene.inks) {
+      if (!cramps(ink, alice)) chart.stampInk(ink, flagsFor(ink.nature));
+    }
     return chart;
   }
 

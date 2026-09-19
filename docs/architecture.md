@@ -12,7 +12,8 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
 
 ```
  pointers/wheel ─► ui/attachCanvasInput ─► game ─┬─ draw ─► ink/InkSession ─ commit ─► sim (solid NOW)
- autopilot.drive(scene) ─► sim.setWalkIntent ──►│                               └─► recognition ─► cat.guess ─► Kami writes 3 tappable guesses
+ autopilot.drive(scene) ─► sim.setWalkIntent ──►│              │ every pen-lift  ├─► recognition ─► cat.guess ─► Kami writes 3 tappable guesses
+                                                 │              └─► reading/PenReader ─► server /api/transcribe ─► words? ─► the funnel below (the ink lifts off)
  arrow keys (override) ─► ui/Hud ──────────────►│
  write tool ────► hud.promptText ─► text ────────┤
                                                  ├─ rules.compile(text) ─► Rule ─► resolvePhysics ─► sim.setPhysics
@@ -36,11 +37,12 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
 | `handwriting/` | Text → timed pen strokes in a single-stroke font | `createHandwriting` |
 | `notes/` | The `Note` type | — |
 | `recognition/` | Client for Quick, Draw! recognition | `createRecognizer` |
-| `persistence/` | Client for the board store and the remote rule compiler | `createBoardStore`, `createRemoteRuleCompiler` |
+| `persistence/` | Client for the board store, the remote rule compiler and the handwriting reader | `createBoardStore`, `createRemoteRuleCompiler`, `createHandwritingReader` |
+| `reading/` | Pen strokes → words while the player is still writing: a read per pen-lift, newest strokes win | `createPenReader`, `couldBeWriting` |
 | `render/` | Canvas 2D: camera, board, ink, notes, Alice, props | `createRenderer` |
 | `ui/` | Toolbar, zoom, board menu, text prompt; pointers → pen/tap/pan/zoom | `createHud`, `attachCanvasInput` |
 | `game/` | The frame loop, the funnel, the camera, all wiring | `startGame` |
-| `server/` | Bun HTTP API, MongoDB, Quick, Draw! k-NN, model-backed compile | `bun run server` |
+| `server/` | Bun HTTP API, MongoDB, Quick, Draw! k-NN, model-backed compile and handwriting reading | `bun run server` |
 
 ## Conventions
 
@@ -140,16 +142,23 @@ Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_U
 | `DELETE /api/boards/:board` | clear the board |
 | `POST /api/recognize` `{ strokes }` | `{ guesses: string[] }` |
 | `POST /api/compile` `{ text }` | `{ rule: CompiledRule \| null }` |
+| `POST /api/transcribe` `{ strokes }` | `{ text: string \| null }` |
 
 **Quick, Draw!** `bun run quickdraw:ingest` range-fetches the first few hundred drawings of ~40 curated categories (mushroom, ladder, cloud, cake, stairs, key, door, …) from the public simplified ndjson into the `quickdraw` collection, each with a precomputed feature: strokes normalised to their bounds, rasterised to a small grid, blurred, L2-normalised. `/api/recognize` builds the same feature from the player's strokes and answers by cosine k-NN over the in-memory set, voting by category. No ingest yet → `[]`, and the Cat falls back to geometry. The ASUS Ascent GX10 can replace k-NN with a trained classifier behind the same route.
 
 **Model-backed compile.** If `KAMI_LLM_URL` (any OpenAI-compatible `/v1/chat/completions`, e.g. vLLM or Ollama on the GX10) and `KAMI_LLM_MODEL` are set, `/api/compile` asks the model for a `RuleEffect` as JSON, validates it with zod, clamps it, and returns it; otherwise `{ rule: null }`. Compile once: the result is stored as a `Rule` and never asks the model again.
 
+**Handwriting reading.** With the same model, `/api/transcribe` draws the strokes into a small PNG and asks it, as a vision model, whether they are words or a drawing (`server/README.md` → "Handwriting reading"). `null` means a drawing.
+
+## reading/
+
+The player writes with the pen like they draw with it; nothing is selected first. `PenReader` sits between the ink session and the funnel: at every pen-lift `game.penUp` shows it the strokes so far, and if they `couldBeWriting` (not a lone straight line, not taller than a line of writing, not dozens of strokes) it asks the `HandwritingReader` and aborts the read of the strokes before — only the newest strokes can turn out to be the whole word, and a prefix of a word is a different word, so an answer is only ever trusted for exactly the strokes it was asked about (keyed by stroke and point counts, which only grow within one drawing). By the time the ink commits ~900 ms after the last lift the answer is usually in (`recall`) or about to be (`settle` hands back the in-flight promise). Nothing waits: the drawing lands as ink at once and, if the words arrive later, `game.liftWords` takes it back off the board (unless it has been named meanwhile), refunds the ink and puts the text through the funnel at the strokes' top-left. Strokes the placement rules rejected still get read (`onReject` carries them), so writing over glass or a no-ink zone works. Without a reader (`GameModules.penReader` unset, or the server has no model) ink is only ink and the text prompt is the only way to write.
+
 ## game/
 
 - **Funnel** for written text at a world point: `rules.compile` → a `Rule` (note turns green, Kami writes the gloss beneath, `sim.setPhysics(resolvePhysics(rules))`); else the nearest drawing within ~160 px → `cat.name` → `applyRuling` (Kami writes his line); else Kami writes a shrug and the note stays as plain writing.
-- **Guesses.** On commit, Kami writes three tappable guesses beside the drawing; tapping one names it; they vanish when it is named, erased, or after ~20 s. Nothing blocks and nothing holds time still.
-- **Eraser** removes drawings (and their guesses) and notes; erasing a rule's note repeals the rule.
+- **Guesses.** While the pen is down, each stroke asks `cat.glimpse` (`sight(strokes, { partial: true })`, calls coalesced so at most one is in flight) and Kami pencils his current best guess beside the ink; an empty answer keeps the last one. On commit, `cat.look` asks once more without `partial`: a `certain` first sighting names the drawing at once and Kami writes the label himself (writing another name still renames it); otherwise Kami writes three tappable guesses beside the drawing; tapping one names it; they vanish when it is named, erased, or after ~20 s. Where the local lexicon only sees "ink", the sighting's `name`, `nature`, `strength` and `line` rule the drawing. Nothing blocks and nothing holds time still.
+- **Eraser** removes drawings (and their guesses) and notes; erasing a rule's note repeals the rule. The standing laws are also listed top-right (`ui/lawsPanel`) long after their notes fade; tapping a law twice repeals it through the same path.
 - **Layout.** No note is written on top of another. `NoteBook.write` measures the script where it was asked for and, if that overlaps existing writing, slides it whole line-heights clear (`noteLayout.settle`): Kami's remarks above Alice drift up, replies beneath a note and guess chips drift down, and the player's own notes drift down off Kami's glosses. The placed position is what gets persisted.
 - **Camera** follows Alice loosely when she walks outside a central dead-zone; any manual pan or zoom suspends following until she walks again or ⌖ is pressed. Zoom 0.25–4.
 - **Walking.** Before every sim step: a held arrow key wins, else `autopilot.drive(scene)`. The pilot is reset on board open and invalidated on every ink or rule change (see `autopilot/`).
