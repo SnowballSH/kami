@@ -38,18 +38,14 @@ const seeing = (...words: readonly string[]): Recognizer => ({
   recognize: () => Promise.resolve(words),
 });
 
-const sighting = (
-  word: string,
-  nature: Sighting["nature"] = "ink",
-  certain?: boolean,
-): Sighting => ({
+const sighting = (word: string, nature: Sighting["nature"] = "ink", certain = false): Sighting => ({
   word,
   confidence: 0.9,
   name: `${/^[aeiou]/.test(word) ? "an" : "a"} ${word}`,
   nature,
   strength: 1,
   line: `Ah. ${/^[aeiou]/.test(word) ? "An" : "A"} ${word}.`,
-  ...(certain === undefined ? {} : { certain }),
+  certain,
 });
 
 const sightingsOf = (

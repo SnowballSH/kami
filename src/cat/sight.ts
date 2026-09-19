@@ -4,9 +4,8 @@ import { parsePhrase } from "./phrase";
 import { namesForRecognized } from "./recognizedNames";
 import type { AllowedNatures, Ruling } from "./types";
 
-/** The server marks a sighting it would stake a label on; older servers say nothing either way. */
-export const isCertain = (sighting: Sighting): boolean =>
-  "certain" in sighting && sighting.certain === true;
+/** The server marks the one sighting it would stake a label on. */
+export const isCertain = (sighting: Sighting): boolean => sighting.certain;
 
 const honoured = (sighting: Sighting, allowed: AllowedNatures): boolean =>
   sighting.nature === "ink" || isAllowed(sighting.nature, allowed);

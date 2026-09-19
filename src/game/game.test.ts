@@ -60,7 +60,7 @@ const seen = (word: string, nature: Sighting["nature"], certain = false): Sighti
   nature,
   strength: 1,
   line: `That is ${word}, plainly.`,
-  ...(certain ? { certain } : {}),
+  certain,
 });
 
 /** Eyes that glimpse one thing while the pen is up and settle on another when the drawing is done. */
