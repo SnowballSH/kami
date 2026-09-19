@@ -15,6 +15,8 @@ export interface HudHandlers {
   onZoom(factor: number): void;
   /** Bring Alice back to the middle of the screen. */
   onRecenter(): void;
+  /** Alice walks herself, or waits for the thumbstick and the arrow keys. */
+  onAutopilotToggled(enabled: boolean): void;
   onOpenBoard(boardId: string): void;
   onNewBoard(): void;
   /** Wipe everything the player drew, wrote and ruled on this board. */
@@ -23,6 +25,7 @@ export interface HudHandlers {
 
 export interface Hud {
   setTool(tool: Tool): void;
+  setAutopilot(enabled: boolean): void;
   setBoards(boards: readonly BoardListing[], currentId: string): void;
   /**
    * An inline field at `client` (CSS px) to write a note into — typed, or handwritten with

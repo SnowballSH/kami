@@ -14,7 +14,14 @@ import type { Autopilot, Errand, Objective, PilotStatus, Scene, SceneInk } from 
 
 const IDLE: WalkIntent = { x: 0, y: 0 };
 /** She re-reads the board this often even when nothing told her it changed. */
-const REPLAN_TICKS = 15;
+/**
+ * A re-plan reads the whole board (tens of ms on a tablet). On her way it is worth doing twice a
+ * second, because ink moves under her. While she waits, nothing she does can change the answer —
+ * `invalidate()` already reports every new stroke, name and rule — so she only glances again every
+ * two seconds, for ink that is still settling.
+ */
+const REPLAN_TICKS = 30;
+const WAITING_REPLAN_TICKS = 120;
 /** Ticks on the ground without the way ahead getting any shorter before she gives up and waits. */
 const STALL_TICKS = 240;
 /** Ticks she sulks after a stall before trying the board again on her own. */
@@ -144,7 +151,7 @@ export class Pilot implements Autopilot {
     }
     this.ticksSincePlan++;
     const airborne = this.inFlight(scene);
-    const due = !airborne && this.ticksSincePlan >= REPLAN_TICKS;
+    const due = !airborne && this.ticksSincePlan >= this.replanInterval();
     if (this.stale || due || this.sceneChanged(scene)) this.replan(scene);
     return this.steer(scene, airborne);
   }
@@ -165,6 +172,11 @@ export class Pilot implements Autopilot {
       plan.keyTaken !== scene.keyTaken ||
       plan.doorOpen !== scene.doorOpen
     );
+  }
+
+  private replanInterval(): number {
+    const errand = this.plan?.errand.kind;
+    return errand === "wait" || errand === "idle" ? WAITING_REPLAN_TICKS : REPLAN_TICKS;
   }
 
   private replan(scene: Scene): void {

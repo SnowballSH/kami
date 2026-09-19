@@ -305,6 +305,19 @@ describe("Alice on her own", () => {
     );
   });
 
+  it("stays put when the player switches her self-walking off, and sets off again when it is back on", async () => {
+    const player = new Player("wonderland");
+    await player.arrive();
+    player.game.onAutopilotToggled(false);
+    expect(player.hud.autopilot).toBe(false);
+    const parked = player.alice.center.x;
+    await player.wait(1_500);
+    expect(player.alice.center.x).toBeCloseTo(parked, 0);
+
+    player.game.onAutopilotToggled(true);
+    expect(await player.until(() => player.alice.center.x > parked + 60, 6_000)).toBe(true);
+  });
+
   it("yields to the keyboard while a key is held", async () => {
     player.walk(-1);
     await player.wait(1_000);

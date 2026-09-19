@@ -16,6 +16,13 @@ const ICON_PATHS = {
   plus: ["M5 12h14", "M12 5v14"],
   recenter: ["M12 7a5 5 0 1 0 0 10a5 5 0 0 0 0-10Z", "M12 2v5", "M12 17v5", "M2 12h5", "M17 12h5"],
   chevron: ["M7 10l5 5 5-5"],
+  walker: [
+    "M12 3.5a1.75 1.75 0 1 0 0 3.5a1.75 1.75 0 0 0 0-3.5Z",
+    "M12 7v6.5",
+    "M8 11l4-2 4 2.5",
+    "M12 13.5l-3.5 7",
+    "M12 13.5l3.5 7",
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 export type IconName = keyof typeof ICON_PATHS;

@@ -15,6 +15,7 @@ const createHandlers = () =>
     onToolChanged: vi.fn<(tool: Tool) => void>(),
     onZoom: vi.fn<(factor: number) => void>(),
     onRecenter: vi.fn(),
+    onAutopilotToggled: vi.fn<(enabled: boolean) => void>(),
     onOpenBoard: vi.fn<(boardId: string) => void>(),
     onNewBoard: vi.fn(),
     onClearBoard: vi.fn(),
@@ -292,6 +293,21 @@ describe("DomHud", () => {
 
       expect(handlers.onZoom.mock.calls).toEqual([[1 / ZOOM_STEP], [ZOOM_STEP]]);
       expect(handlers.onRecenter).toHaveBeenCalledOnce();
+    });
+
+    it("asks to switch Alice's self-walking to the opposite of what it shows", () => {
+      const { root, hud, handlers } = setup();
+      const toggle = find<HTMLButtonElement>(root, ".kami-autopilot");
+
+      hud.setAutopilot(true);
+      expect(toggle.getAttribute("aria-pressed")).toBe("true");
+      toggle.click();
+      expect(handlers.onAutopilotToggled).toHaveBeenLastCalledWith(false);
+
+      hud.setAutopilot(false);
+      expect(toggle.getAttribute("aria-pressed")).toBe("false");
+      toggle.click();
+      expect(handlers.onAutopilotToggled).toHaveBeenLastCalledWith(true);
     });
   });
 

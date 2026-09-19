@@ -78,6 +78,9 @@ export interface GameModules {
     tolerance: number,
   ) => DrawingId | null;
   readonly onBoardOpened?: (boardId: string) => void;
+  /** Whether Alice starts out walking herself; the player can switch it from the HUD. */
+  readonly selfDriving?: boolean;
+  readonly onSelfDrivingChanged?: (enabled: boolean) => void;
 }
 
 export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
@@ -99,6 +102,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
   private tool: Tool = "draw";
   private manualIntent: WalkIntent = IDLE_INTENT;
   private wasStuck = false;
+  private selfDriving: boolean;
   private hasAskedWhatItIs = false;
   private shrugs = 0;
 
@@ -107,6 +111,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     initialBoardId: string,
   ) {
     this.board = modules.boardFor(initialBoardId);
+    this.selfDriving = modules.selfDriving ?? true;
     this.notes = new NoteBook(modules.handwriting);
     this.rules = new RuleBook(modules.resolvePhysics);
     this.ink = modules.createInkSession(this);
@@ -121,6 +126,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     this.nowMs = nowMs;
     this.lastFrameMs = nowMs;
     this.hud.setTool(this.tool);
+    this.hud.setAutopilot(this.selfDriving);
     return this.open(this.board.id);
   }
 
@@ -216,6 +222,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     this.zoomAt({ x: width / 2, y: height / 2 }, factor);
   }
 
+  onAutopilotToggled(enabled: boolean): void {
+    this.selfDriving = enabled;
+    this.wasStuck = false;
+    this.modules.autopilot.reset();
+    this.hud.setAutopilot(enabled);
+    this.modules.onSelfDrivingChanged?.(enabled);
+  }
+
   onRecenter(): void {
     this.camera.frame(this.aliceFeet(), this.modules.renderer.viewport());
   }
@@ -280,10 +294,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     this.modules.autopilot.invalidate();
   }
 
-  /** Held keys drive her; otherwise she drives herself. */
+  /** Held keys drive her; otherwise she drives herself, unless the player switched that off. */
   private chooseIntent(): WalkIntent {
     const { autopilot } = this.modules;
-    if (this.manualIntent.x !== 0 || this.manualIntent.y !== 0) return this.manualIntent;
+    const steered = this.manualIntent.x !== 0 || this.manualIntent.y !== 0;
+    if (steered || !this.selfDriving) return this.manualIntent;
     const intent = autopilot.drive(this.scene());
     const { stuck } = autopilot.status;
     if (stuck && !this.wasStuck) this.remark(STUCK_LINE);

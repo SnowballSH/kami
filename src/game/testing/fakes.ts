@@ -24,6 +24,12 @@ export class FakeHud implements Hud {
     this.answers.push(text);
   }
 
+  autopilot: boolean | null = null;
+
+  setAutopilot(enabled: boolean): void {
+    this.autopilot = enabled;
+  }
+
   setTool(tool: Tool): void {
     this.tool = tool;
   }

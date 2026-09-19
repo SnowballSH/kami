@@ -12,6 +12,27 @@ import { attachCanvasInput, createHud } from "../ui";
 import { Game } from "./game";
 
 const BOARD_PARAM = "board";
+const AUTOPILOT_PARAM = "autopilot";
+const AUTOPILOT_MEMORY = "kami.autopilot";
+const OFF = "off";
+
+const remembered = (): string | null => {
+  try {
+    return window.localStorage.getItem(AUTOPILOT_MEMORY);
+  } catch {
+    return null;
+  }
+};
+
+/** `?autopilot=off` (or `on`) wins; otherwise whatever the player last chose on this device. */
+const startsSelfDriving = (): boolean =>
+  (new URLSearchParams(window.location.search).get(AUTOPILOT_PARAM) ?? remembered()) !== OFF;
+
+const rememberSelfDriving = (enabled: boolean): void => {
+  try {
+    window.localStorage.setItem(AUTOPILOT_MEMORY, enabled ? "on" : OFF);
+  } catch {}
+};
 
 const boardInUrl = (): string =>
   new URLSearchParams(window.location.search).get(BOARD_PARAM) ?? DEMO_BOARD_ID;
@@ -43,6 +64,8 @@ export function startGame(root: HTMLElement): void {
       createHud: (handlers) => createHud(root, handlers),
       findDrawingAt,
       onBoardOpened: rememberBoardInUrl,
+      selfDriving: startsSelfDriving(),
+      onSelfDrivingChanged: rememberSelfDriving,
     },
     boardInUrl(),
   );

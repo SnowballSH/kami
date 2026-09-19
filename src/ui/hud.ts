@@ -13,6 +13,7 @@ import { WalkIntentMerger } from "./walkIntent";
 import { ZoomControls } from "./zoomControls";
 
 export class DomHud implements Hud {
+  private readonly zoom: ZoomControls;
   private readonly overlay = el("div", { className: "kami-hud" });
   private readonly tools: ToolSelection;
   private readonly toolbar: Toolbar;
@@ -22,6 +23,7 @@ export class DomHud implements Hud {
   private readonly detachers: readonly Detach[];
 
   constructor(root: HTMLElement, handlers: HudHandlers) {
+    this.zoom = new ZoomControls(handlers);
     const owner = root.ownerDocument;
     const host = owner.defaultView ?? window;
     const walk = new WalkIntentMerger((intent) => handlers.onWalkIntent(intent));
@@ -38,7 +40,7 @@ export class DomHud implements Hud {
       this.boards.element,
       this.toolbar.element,
       this.stick.element,
-      new ZoomControls(handlers).element,
+      this.zoom.element,
       this.prompt.element,
     );
     root.append(this.overlay);
@@ -50,6 +52,10 @@ export class DomHud implements Hud {
       this.prompt.attach(),
       installTouchGuards(owner),
     ];
+  }
+
+  setAutopilot(enabled: boolean): void {
+    this.zoom.setAutopilot(enabled);
   }
 
   setTool(tool: Tool): void {
