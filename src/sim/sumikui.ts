@@ -131,7 +131,7 @@ export class Sumikui {
     inks: readonly InkEntity[],
     memory: InkMemory,
   ): void {
-    if (this.prey !== null && inks.includes(this.prey)) return;
+    if (this.prey !== null && inks.includes(this.prey) && !NATURES[this.prey.nature].pinned) return;
     this.prey = null;
     this.biteMs = 0;
     let best: Prey | null = null;
