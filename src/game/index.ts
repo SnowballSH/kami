@@ -5,7 +5,7 @@ import { createInkSession, findDrawingAt } from "../ink";
 import { createBoardStore, createRemoteRuleCompiler } from "../persistence";
 import { createRecognizer } from "../recognition";
 import { createRenderer } from "../render";
-import { chainCompilers, createRuleCompiler, resolvePhysics } from "../rules";
+import { createRuleCompiler, resolvePhysics } from "../rules";
 import { createSimulation } from "../sim";
 import { attachCanvasInput, createHud } from "../ui";
 import { Game } from "./game";
@@ -32,7 +32,8 @@ export function startGame(root: HTMLElement): void {
       cat: createCat(createRecognizer()),
       renderer,
       handwriting,
-      compiler: chainCompilers([createRuleCompiler(), createRemoteRuleCompiler()]),
+      compiler: createRuleCompiler(),
+      thinker: createRemoteRuleCompiler(),
       store: createBoardStore(),
       resolvePhysics,
       boardFor,

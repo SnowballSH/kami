@@ -16,7 +16,8 @@ const recognizer = new QuickdrawRecognizer(
   await new QuickdrawSampleRepository(connection.db).loadFeatures(),
 );
 
-const api = createApi({ boards, recognizer, compiler: createLlmCompiler(config.llm) });
+const compiler = createLlmCompiler(config.llm);
+const api = createApi({ boards, recognizer, compiler });
 const server = Bun.serve({ port: config.port, hostname: "0.0.0.0", fetch: api.handle });
 
 console.log(`Kami server on http://localhost:${server.port}`);
@@ -27,6 +28,13 @@ console.log(
     : "  recognition: empty (run `bun run quickdraw:ingest`)",
 );
 console.log(`  model compile: ${config.llm === null ? "off" : config.llm.model}`);
+if (config.llm !== null) {
+  void compiler
+    .warmUp()
+    .then((awake) =>
+      console.log(`  model ${awake ? "is awake" : "did not answer (is the GX10 tunnel up?)"}`),
+    );
+}
 
 const once = (task: () => Promise<void>): (() => Promise<void>) => {
   let started: Promise<void> | undefined;

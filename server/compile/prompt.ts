@@ -3,7 +3,7 @@ import { EFFECT_RANGES } from "./effectRanges";
 const { gravity, wind, timeScale, airDrag, friction, bounciness } = EFFECT_RANGES;
 
 export const COMPILER_SYSTEM_PROMPT = `You compile one line written on a whiteboard into one physics setting for a 2D sketch game.
-Reply with a single JSON object and nothing else: no prose, no code fences.
+Reply with a single JSON object and nothing else: no prose, no code fences, no reasoning. /no_think
 
 If the line asks to change how the world behaves, reply {"effect": <effect>, "explanation": "<gloss>"}.
 If it is anything else (a name for a drawing, a remark, a question) reply {"effect": null}.

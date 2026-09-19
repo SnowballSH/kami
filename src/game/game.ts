@@ -1,5 +1,5 @@
 import type { BoardDefinition, Zone } from "../board/types";
-import type { Cat } from "../cat/types";
+import type { Cat, Ruling } from "../cat/types";
 import { boundsOf, type Rect, rectGap, translateRect, type Vec } from "../core/geometry";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
 import type { Handwriting } from "../handwriting/types";
@@ -14,7 +14,7 @@ import type {
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore } from "../persistence/types";
 import type { Renderer } from "../render/types";
-import type { Rule, RuleCompiler, RuleId, WorldPhysics } from "../rules/types";
+import type { CompiledRule, Rule, RuleCompiler, RuleId, WorldPhysics } from "../rules/types";
 import type { DrawingPose, SimEvent, Simulation, WalkIntent } from "../sim/types";
 import type { CanvasInputSink, Hud, HudHandlers, Tool } from "../ui/types";
 import { CameraRig } from "./cameraRig";
@@ -30,6 +30,7 @@ import {
   isHelpRequest,
   KEY_TAKEN_LINE,
   OFFER_HELP_HINT,
+  PONDERING_LINE,
   REJECTION_LINES,
   RULE_REPEALED_LINE,
   SHRUGS,
@@ -57,7 +58,10 @@ export interface GameModules {
   readonly cat: Cat;
   readonly renderer: Renderer;
   readonly handwriting: Handwriting;
+  /** The offline grammar: instant. */
   readonly compiler: RuleCompiler;
+  /** A model behind the server (the GX10): may take seconds, so it is asked last and only if needed. */
+  readonly thinker: RuleCompiler;
   readonly store: BoardStore;
   readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
   readonly boardFor: (id: string) => BoardDefinition;
@@ -375,31 +379,64 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     if (text !== null && epoch === this.epoch) await this.interpret(text, world);
   }
 
-  /** The one funnel: a request for help, a law of physics, a name for a drawing, or a remark. */
+  /**
+   * The one funnel: a request for help, a law of physics, a name for a drawing, or a remark.
+   * Whatever is instant is tried first; the model is only asked about what nothing else understood.
+   */
   private async interpret(text: string, position: Vec): Promise<void> {
     if (isHelpRequest(text)) {
       this.kamiWrites(this.modules.cat.hint().line, position, { lifetimeMs: HINT_LIFETIME_MS });
       return;
     }
-    const epoch = this.epoch;
     const note = this.playerWrites(text, position);
-    const compiled = await this.modules.compiler.compile(text);
-    if (epoch !== this.epoch || this.notes.get(note.id) === null) return;
+    const stillHere = this.witness(note.id);
 
-    if (compiled !== null) {
-      this.enact({
-        ...compiled,
-        id: this.ids.next<RuleId>("rule"),
-        sourceText: text,
-        noteId: note.id,
-        position,
-        createdAt: Date.now(),
-      });
+    const law = await this.modules.compiler.compile(text);
+    if (!stillHere()) return;
+    if (law !== null) {
+      this.enact(this.ruleFrom(law, note));
       return;
     }
+
     const subject = this.drawingNear(note.id);
-    if (subject !== null) await this.nameDrawing(subject.drawing.id, text, note);
+    const ruling = subject === null ? null : await this.modules.cat.name(text, subject.drawing);
+    if (!stillHere()) return;
+    if (subject !== null && ruling !== null && ruling.nature !== "ink") {
+      this.name(subject.drawing.id, ruling, note);
+      return;
+    }
+
+    const thought = await this.ponder(text, note.id);
+    if (!stillHere()) return;
+    if (thought !== null) this.enact(this.ruleFrom(thought, note));
+    else if (subject !== null && ruling !== null) this.name(subject.drawing.id, ruling, note);
     else this.shrug(note.id);
+  }
+
+  /** True until the board changes or the note is erased — checked after every await. */
+  private witness(noteId: NoteId): () => boolean {
+    const epoch = this.epoch;
+    return () => epoch === this.epoch && this.notes.get(noteId) !== null;
+  }
+
+  private async ponder(text: string, noteId: NoteId): Promise<CompiledRule | null> {
+    const under = this.notes.below(noteId);
+    const pondering: NoteAnchor = { type: "note", id: noteId };
+    if (under !== null) this.kamiWrites(PONDERING_LINE, under, { anchor: pondering });
+    const thought = await this.modules.thinker.compile(text);
+    this.notes.removeAnchoredTo(pondering);
+    return thought;
+  }
+
+  private ruleFrom(compiled: CompiledRule, note: Note): Rule {
+    return {
+      ...compiled,
+      id: this.ids.next<RuleId>("rule"),
+      sourceText: note.text,
+      noteId: note.id,
+      position: note.position,
+      createdAt: Date.now(),
+    };
   }
 
   private enact(rule: Rule): void {
@@ -416,7 +453,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     const record = this.ledger.get(id);
     if (record === null) return;
     const ruling = await this.modules.cat.name(name, record.drawing);
-    if (epoch !== this.epoch) return;
+    if (epoch === this.epoch) this.name(id, ruling, label);
+  }
+
+  private name(id: DrawingId, ruling: Ruling, label: Note): void {
     const awake = this.ledger.awaken(id, ruling, this.nowMs);
     if (awake === null) return;
 

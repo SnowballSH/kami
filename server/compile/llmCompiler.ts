@@ -14,8 +14,10 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
 const CHAT_COMPLETIONS_PATH = "/chat/completions";
 const API_VERSION_PATH = "/v1";
-const REQUEST_TIMEOUT_MS = 8000;
-const MAX_REPLY_TOKENS = 200;
+const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_REPLY_TOKENS = 1500;
+const WARM_UP_LINE = "hello";
+const REASONING_BLOCK = /<think>[\s\S]*?(<\/think>|$)/gi;
 const MAX_EXPLANATION_LENGTH = 80;
 
 const chatResponseSchema = z.object({
@@ -35,24 +37,44 @@ export const chatCompletionsUrl = (configured: string): string => {
     : `${base}${API_VERSION_PATH}${CHAT_COMPLETIONS_PATH}`;
 };
 
-const outermostJsonObject = (content: string): string | null => {
-  const start = content.indexOf("{");
-  const end = content.lastIndexOf("}");
-  return start === -1 || end <= start ? null : content.slice(start, end + 1);
+/** Top-level `{…}` spans, ignoring braces inside strings. Models wrap JSON in prose, fences and reasoning. */
+const topLevelObjects = (content: string): readonly string[] => {
+  const spans: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    if (inString) {
+      if (char === "\\") i += 1;
+      else if (char === '"') inString = false;
+    } else if (char === '"' && depth > 0) inString = true;
+    else if (char === "{") {
+      if (depth === 0) start = i;
+      depth += 1;
+    } else if (char === "}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0) spans.push(content.slice(start, i + 1));
+    }
+  }
+  return spans;
+};
+
+const lastJsonObject = (content: string): unknown => {
+  for (const candidate of topLevelObjects(content.replace(REASONING_BLOCK, "")).toReversed()) {
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+  return null;
 };
 
 const parseModelReply = (content: string): CompiledRule | null => {
-  const jsonText = outermostJsonObject(content);
-  if (jsonText === null) return null;
-  try {
-    const reply = replySchema.safeParse(JSON.parse(jsonText));
-    if (!reply.success || reply.data.effect === null) return null;
-    const effect = clampEffect(reply.data.effect);
-    const explanation = reply.data.explanation?.trim().slice(0, MAX_EXPLANATION_LENGTH);
-    return { effect, explanation: explanation || describeEffect(effect) };
-  } catch {
-    return null;
-  }
+  const reply = replySchema.safeParse(lastJsonObject(content));
+  if (!reply.success || reply.data.effect === null) return null;
+  const effect = clampEffect(reply.data.effect);
+  const explanation = reply.data.explanation?.trim().slice(0, MAX_EXPLANATION_LENGTH);
+  return { effect, explanation: explanation || describeEffect(effect) };
 };
 
 export class LlmRuleCompiler implements RuleCompiler {
@@ -64,7 +86,17 @@ export class LlmRuleCompiler implements RuleCompiler {
     this.#fetch = fetchFn;
   }
 
+  /** Loading tens of GB into memory is slow; pay for it at start-up, not on the first player's note. */
+  async warmUp(): Promise<boolean> {
+    return (await this.#ask(WARM_UP_LINE)) !== null;
+  }
+
   async compile(text: string): Promise<CompiledRule | null> {
+    const content = await this.#ask(text);
+    return content === null ? null : parseModelReply(content);
+  }
+
+  async #ask(text: string): Promise<string | null> {
     try {
       const response = await this.#fetch(chatCompletionsUrl(this.#config.url), {
         method: "POST",
@@ -82,8 +114,7 @@ export class LlmRuleCompiler implements RuleCompiler {
       });
       if (!response.ok) return null;
       const chat = chatResponseSchema.safeParse(await response.json());
-      const content = chat.success ? chat.data.choices[0]?.message.content : undefined;
-      return content === undefined ? null : parseModelReply(content);
+      return chat.success ? (chat.data.choices[0]?.message.content ?? null) : null;
     } catch {
       return null;
     }
@@ -98,7 +129,16 @@ export class LlmRuleCompiler implements RuleCompiler {
   }
 }
 
-const DISABLED_COMPILER: RuleCompiler = { compile: async () => null };
+export interface WarmableCompiler extends RuleCompiler {
+  warmUp(): Promise<boolean>;
+}
 
-export const createLlmCompiler = (config: LlmConfig | null, fetchFn?: FetchLike): RuleCompiler =>
-  config === null ? DISABLED_COMPILER : new LlmRuleCompiler(config, fetchFn);
+const DISABLED_COMPILER: WarmableCompiler = {
+  compile: async () => null,
+  warmUp: async () => false,
+};
+
+export const createLlmCompiler = (
+  config: LlmConfig | null,
+  fetchFn?: FetchLike,
+): WarmableCompiler => (config === null ? DISABLED_COMPILER : new LlmRuleCompiler(config, fetchFn));

@@ -126,3 +126,22 @@ OpenAI-compatible server, not yet against the real GX10.
 `bunx vitest run server` — every file is `// @vitest-environment node` and the ones that need
 MongoDB start their own throwaway in-memory `mongod` (`testing/memoryDatabase.ts`), never
 `.kami-data/`.
+
+## Using the ASUS Ascent GX10
+
+The team's box (`gx10-d8fb`, GB10, 121 GB, Ubuntu 24.04) already has Ollama with `qwen3.8` and
+`nemotron-3.5-lightning` pulled. It serves its own Wi-Fi (`gx10-4d82`, gateway `10.13.37.1`), has no
+internet, and Ollama listens on the box's localhost only — so it is reached through an SSH tunnel and
+nothing on the box is changed.
+
+```bash
+bun run gx10:bootstrap   # once, on its Wi-Fi: installs an SSH key (you type the password), saves .gx10/probe.txt
+bun run gx10:tunnel      # each session: localhost:11434 → Ollama, localhost:11000 → DGX Dashboard
+```
+
+`.env.local` (gitignored) sets `KAMI_LLM_URL=http://localhost:11434` and `KAMI_LLM_MODEL=qwen3.8:latest`.
+The server warms the model up at start and says whether it answered. The game asks it **last**: the
+offline grammar and known names are instant; only a note nothing else understood goes to the model,
+while Kami writes "hmm…". With no tunnel it answers "no rule" at once and nothing breaks.
+
+The Mac has one Wi-Fi radio: to keep internet while on the box's network, tether an iPhone over USB.

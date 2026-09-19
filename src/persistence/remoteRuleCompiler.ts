@@ -1,7 +1,7 @@
 import type { CompiledRule, RuleCompiler, RuleEffect } from "../rules/types";
 import { browserFetch, compilePath, type FetchLike, JSON_HEADERS } from "./api";
 
-const COMPILE_TIMEOUT_MS = 10_000;
+const COMPILE_TIMEOUT_MS = 35_000;
 
 const VECTOR_SETTINGS: readonly string[] = ["gravity", "wind"];
 const SCALAR_SETTINGS: readonly string[] = ["timeScale", "airDrag", "friction", "bounciness"];

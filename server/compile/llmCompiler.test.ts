@@ -7,7 +7,11 @@ const CONFIG = { url: "http://gx10.local:8000", model: "kami-rules", apiKey: "se
 interface SeenRequest {
   readonly url: string;
   readonly headers: Headers;
-  readonly body: { model: string; messages: { role: string; content: string }[] };
+  readonly body: {
+    model: string;
+    max_tokens: number;
+    messages: { role: string; content: string }[];
+  };
 }
 
 const modelSaying = (content: string, seen: SeenRequest[] = []): FetchLike => {
@@ -114,5 +118,51 @@ describe("chatCompletionsUrl", () => {
     expect(chatCompletionsUrl("http://gx10.local:8000")).toBe(endpoint);
     expect(chatCompletionsUrl("http://gx10.local:8000/v1/")).toBe(endpoint);
     expect(chatCompletionsUrl(endpoint)).toBe(endpoint);
+  });
+});
+
+describe("replies shaped like a real thinking model's", () => {
+  const MARS = {
+    effect: { governs: "gravity", x: 0, y: 0.38 },
+    explanation: "gravity = 0.38 g (Mars)",
+  };
+  const MARS_JSON = JSON.stringify(MARS);
+
+  it("ignores a reasoning block, even one with braces in it", async () => {
+    const reply = `<think>The user wants {"governs":"gravity"} maybe? Mars is 0.38 g.</think>\n${MARS_JSON}`;
+    expect(await createLlmCompiler(CONFIG, modelSaying(reply)).compile("red planet")).toEqual(MARS);
+  });
+
+  it("reads JSON out of a code fence with chatter around it", async () => {
+    const reply = `Sure! Here you go:\n\`\`\`json\n${MARS_JSON}\n\`\`\`\nHope that helps {smile}.`;
+    expect(await createLlmCompiler(CONFIG, modelSaying(reply)).compile("red planet")).toEqual(MARS);
+  });
+
+  it("is not fooled by braces inside the gloss", async () => {
+    const reply = '{"effect":{"governs":"timeScale","value":0.5},"explanation":"time {slow} 0.5x"}';
+    const rule = await createLlmCompiler(CONFIG, modelSaying(reply)).compile("bullet time");
+    expect(rule?.effect).toEqual({ governs: "timeScale", value: 0.5 });
+  });
+
+  it("gives up quietly on reasoning that never finished", async () => {
+    const reply = "<think>Let me consider what gravity on Mars is, it is about";
+    expect(await createLlmCompiler(CONFIG, modelSaying(reply)).compile("red planet")).toBeNull();
+  });
+
+  it("leaves room for reasoning in the token budget", async () => {
+    const seen: SeenRequest[] = [];
+    await createLlmCompiler(CONFIG, modelSaying(MARS_JSON, seen)).compile("red planet");
+    expect(seen[0]?.body.max_tokens).toBeGreaterThanOrEqual(1000);
+  });
+});
+
+describe("warmUp", () => {
+  it("reports whether the model answered at all", async () => {
+    expect(await createLlmCompiler(CONFIG, modelSaying("hi")).warmUp()).toBe(true);
+    const unreachable: FetchLike = async () => {
+      throw new TypeError("connection refused");
+    };
+    expect(await createLlmCompiler(CONFIG, unreachable).warmUp()).toBe(false);
+    expect(await createLlmCompiler(null).warmUp()).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import type { Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
 import { createRuleCompiler, resolvePhysics } from "../rules";
+import type { CompiledRule } from "../rules/types";
 import { createSimulation } from "../sim";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
@@ -27,6 +28,8 @@ const blob = (center: Vec, rx: number, ry: number): Vec[] =>
     y: center.y + ry * Math.sin((i / 24) * Math.PI * 2),
   }));
 
+type Thoughts = Readonly<Record<string, CompiledRule>>;
+
 class Player {
   readonly renderer = new FakeRenderer();
   readonly store: MemoryBoardStore;
@@ -34,7 +37,9 @@ class Player {
   private hudRef: FakeHud | null = null;
   private nowMs = 0;
 
-  constructor(boardId: string, store = new MemoryBoardStore()) {
+  readonly pondered: string[] = [];
+
+  constructor(boardId: string, store = new MemoryBoardStore(), thoughts: Thoughts = {}) {
     this.store = store;
     this.game = new Game(
       {
@@ -43,6 +48,12 @@ class Player {
         renderer: this.renderer,
         handwriting: new FakeHandwriting(),
         compiler: createRuleCompiler(),
+        thinker: {
+          compile: (text) => {
+            this.pondered.push(text);
+            return Promise.resolve(thoughts[text] ?? null);
+          },
+        },
         store,
         resolvePhysics,
         boardFor,
@@ -221,6 +232,43 @@ describe("Game on the Wonderland board", () => {
       undefined,
       "a bouncy mushroom",
     ]);
+  });
+});
+
+describe("Game with a model to think with", () => {
+  const RED_PLANET = "make it feel like the red planet";
+  const MARS: CompiledRule = {
+    effect: { governs: "gravity", x: 0, y: 0.38 },
+    explanation: "gravity = 0.38 g (Mars)",
+  };
+
+  it("asks the model only about what nothing else understood", async () => {
+    const player = new Player("wonderland", new MemoryBoardStore(), { [RED_PLANET]: MARS });
+    await player.arrive();
+
+    await player.write("no friction", { x: 200, y: 100 });
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("a bouncy mushroom", { x: 250, y: 450 });
+    expect(player.pondered).toEqual([]);
+
+    await player.write(RED_PLANET, { x: 200, y: 200 });
+    expect(player.pondered).toEqual([RED_PLANET]);
+    expect(player.written).toContain("kami: gravity = 0.38 g (Mars)");
+    expect(player.written).not.toContain("hmm...");
+    expect((await player.store.load("wonderland")).rules.map((rule) => rule.sourceText)).toEqual([
+      "no friction",
+      RED_PLANET,
+    ]);
+  });
+
+  it("still labels a drawing when the model has no idea either", async () => {
+    const player = new Player("wonderland");
+    await player.arrive();
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("my friend gerald", { x: 250, y: 450 });
+    expect(player.pondered).toEqual(["my friend gerald"]);
+    const [stored] = (await player.store.load("wonderland")).drawings;
+    expect(stored?.ruling).toMatchObject({ nature: "ink" });
   });
 });
 
