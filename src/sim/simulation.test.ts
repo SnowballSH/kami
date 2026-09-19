@@ -18,6 +18,7 @@ import {
   runUntil,
   STAY,
   saw,
+  UP,
 } from "./testSupport";
 import { ALICE_BASE } from "./types";
 
@@ -74,6 +75,70 @@ describe("a freshly loaded board", () => {
       return feetOf(sim).x - wonderland.spawn.x;
     };
     expect(distanceWalked(0.15) / distanceWalked(1)).toBeCloseTo(0.15, 1);
+  });
+});
+
+describe("jumping", () => {
+  const apexOf = (sim: ReturnType<typeof enter>, steps: number): number => {
+    let apex = feetOf(sim).y;
+    for (let step = 0; step < steps; step++) {
+      sim.step();
+      apex = Math.min(apex, feetOf(sim).y);
+    }
+    return apex;
+  };
+
+  it("springs off the ground on up and comes back down on her feet", () => {
+    const sim = enter(wonderland);
+    runSteps(sim, RESTING);
+    sim.setWalkIntent(UP);
+    sim.step();
+    expect(sim.snapshot().alice.grounded).toBe(false);
+
+    const apex = apexOf(sim, 60);
+    expect(GROUND_TOP - apex).toBeGreaterThan(ALICE_BASE.height);
+    expect(GROUND_TOP - apex).toBeLessThan(2 * ALICE_BASE.height);
+    expect(feetOf(sim).y).toBeCloseTo(GROUND_TOP, 0);
+    expect(sim.snapshot().alice.grounded).toBe(true);
+  });
+
+  it("hops once per press, however long up is held", () => {
+    const sim = enter(wonderland);
+    runSteps(sim, RESTING);
+    sim.setWalkIntent(UP);
+    const held = apexOf(sim, 120);
+
+    const tapped = enter(wonderland);
+    runSteps(tapped, RESTING);
+    tapped.setWalkIntent(UP);
+    tapped.step();
+    tapped.setWalkIntent(STAY);
+    expect(apexOf(tapped, 120)).toBeCloseTo(held, 0);
+  });
+
+  it("carries her walking speed across the jump", () => {
+    const sim = enter(wonderland);
+    runSteps(sim, RESTING);
+    sim.setWalkIntent({ x: 1, y: -1 });
+    sim.step();
+    const takeOffX = feetOf(sim).x;
+    runUntil(sim, (_, s) => s.snapshot().alice.grounded, 120);
+    expect(feetOf(sim).x - takeOffX).toBeGreaterThan(ALICE_BASE.width * 2);
+    expect(feetOf(sim).y).toBeCloseTo(GROUND_TOP, 0);
+  });
+
+  it("climbs rather than jumps when up is pressed on a ladder", () => {
+    const sim = enter(wonderland);
+    const ladderX = wonderland.spawn.x;
+    sim.addDrawing(
+      drawingOf("ladder", line({ x: ladderX, y: GROUND_TOP }, { x: ladderX, y: GROUND_TOP - 200 })),
+    );
+    sim.applyRuling(idOf("ladder"), rulingOf("climbable"));
+    runSteps(sim, RESTING);
+    sim.setWalkIntent(UP);
+    runSteps(sim, 40);
+    expect(sim.snapshot().alice.climbing).toBe(true);
+    expect(feetOf(sim).y).toBeLessThan(GROUND_TOP - 40);
   });
 });
 

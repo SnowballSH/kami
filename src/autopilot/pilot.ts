@@ -280,6 +280,7 @@ export class Pilot implements Autopilot {
       return this.nudge(scene, plan.errand);
     }
 
+    if (next.via === "jump" && !airborne) return this.takeOff(here, next, footprint, feet);
     const aim = airborne ? next : (path[this.lookahead(path)] ?? next);
     const dx = feetOf(aim.node, footprint).x - feet.x;
     const stepping = aim.via === "walk" && (airborne || aim.node.r0 < here.node.r0);
@@ -287,6 +288,13 @@ export class Pilot implements Autopilot {
       x: Math.abs(dx) > DEADBAND_PX ? sign(dx) : stepping ? sign(aim.node.c0 - here.node.c0) : 0,
       y: next.via === "climb" && !airborne ? sign(next.node.r0 - here.node.r0) : 0,
     };
+  }
+
+  /** Line up under the jump first, then press up while already leaning towards the landing. */
+  private takeOff(here: Waypoint, next: Waypoint, footprint: Footprint, feet: Vec): WalkIntent {
+    const dxHere = feetOf(here.node, footprint).x - feet.x;
+    if (Math.abs(dxHere) > REACHED_PX) return { x: sign(dxHere), y: 0 };
+    return { x: sign(feetOf(next.node, footprint).x - feet.x), y: -1 };
   }
 
   /** On the ground she may skip ahead or drift back a little; far off the path she rethinks it. */

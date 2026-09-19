@@ -86,4 +86,6 @@ export interface Simulation {
   walkSpeed(): number;
   /** Where a spring of `strength` would throw her under the standing physics. */
   bounceArc(strength: number): BounceArc;
+  /** The flight a jump from standing throws her on, at her current size. */
+  jumpArc(): BounceArc;
 }

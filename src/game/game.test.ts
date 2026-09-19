@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
-import type { Vec } from "../core/geometry";
+import { rectsOverlap, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
 import { createRuleCompiler, resolvePhysics } from "../rules";
@@ -150,7 +150,7 @@ describe("Game on the Wonderland board", () => {
 
   it("opens with Kami's wordmark and the first zone's line written on the board", () => {
     expect(player.written).toContain("kami");
-    expect(player.written).toContain("She can't jump. You can draw.");
+    expect(player.written).toContain("She can hop, not fly. You can draw.");
     expect(player.hud.boards.map((board) => board.id)).toContain("wonderland");
   });
 
@@ -188,6 +188,20 @@ describe("Game on the Wonderland board", () => {
     expect((await player.store.load("wonderland")).rules).toHaveLength(0);
     expect(player.written).toContain("hello there");
     expect(player.written.length).toBeGreaterThan(3);
+  });
+
+  it("never writes one note on top of another", async () => {
+    await player.write("set g equal to the moon's gravity", { x: 200, y: 200 });
+    await player.write("slow motion", { x: 200, y: 240 });
+    await player.write("hello there", { x: 200, y: 280 });
+    await player.write("hello again", { x: 200, y: 320 });
+
+    const notes = player.renderer.lastFrame?.notes ?? [];
+    expect(notes.length).toBeGreaterThan(6);
+    const bounds = notes.map((note) => note.script.bounds);
+    for (const [i, a] of bounds.entries()) {
+      for (const b of bounds.slice(i + 1)) expect(rectsOverlap(a, b)).toBe(false);
+    }
   });
 
   it("brings a board back from memory", async () => {
@@ -276,6 +290,19 @@ describe("Alice on her own", () => {
     expect(
       await player.until(() => player.written.some((text) => text.includes("rabbit hole"))),
     ).toBe(true);
+  });
+
+  it("hops over a fire drawn across her path", async () => {
+    await player.draw(blob({ x: 260, y: 550 }, 10, 10));
+    await player.write("fire", { x: 230, y: 480 });
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toContain("hazard");
+
+    expect(await player.until(() => !player.alice.grounded && player.alice.center.x > 200)).toBe(
+      true,
+    );
+    expect(await player.until(() => player.alice.center.x > 300 && player.alice.grounded)).toBe(
+      true,
+    );
   });
 
   it("yields to the keyboard while a key is held", async () => {

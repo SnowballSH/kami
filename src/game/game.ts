@@ -40,6 +40,7 @@ import {
   WORDMARK,
 } from "./lines";
 import { type NoteAnchor, NoteBook } from "./noteBook";
+import type { Drift } from "./noteLayout";
 import { RuleBook } from "./ruleBook";
 import { StuckDetector } from "./stuckDetector";
 
@@ -301,6 +302,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
       doorOpen: world.doorOpen,
       walkSpeed: sim.walkSpeed(),
       bounceArc: (strength) => sim.bounceArc(strength),
+      jumpArc: sim.jumpArc(),
     };
   }
 
@@ -386,7 +388,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
       this.kamiWrites(
         this.modules.cat.askWhatItIs(),
         { x: corner.x, y: corner.y - GUESS_OFFSET.line },
-        { lifetimeMs: GUESS_LIFETIME_MS, anchor },
+        { lifetimeMs: GUESS_LIFETIME_MS, anchor, drift: "down" },
       );
     }
     guesses.forEach((name, index) => {
@@ -397,6 +399,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
           lifetimeMs: GUESS_LIFETIME_MS,
           anchor,
           action: { type: "name-drawing", drawingId: drawing.id, name },
+          drift: "down",
         },
       );
     });
@@ -456,7 +459,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
   private async ponder(text: string, noteId: NoteId): Promise<CompiledRule | null> {
     const under = this.notes.below(noteId);
     const pondering: NoteAnchor = { type: "note", id: noteId };
-    if (under !== null) this.kamiWrites(PONDERING_LINE, under, { anchor: pondering });
+    if (under !== null)
+      this.kamiWrites(PONDERING_LINE, under, { anchor: pondering, drift: "down" });
     const thought = await this.modules.thinker.compile(text);
     this.notes.removeAnchoredTo(pondering);
     return thought;
@@ -502,7 +506,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     this.notes.attach(label.id, { type: "drawing", id });
     if (ruling.nature !== "ink") this.understood(label.id);
     const under = this.notes.below(label.id);
-    if (under !== null) this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS });
+    if (under !== null) {
+      this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
+    }
     this.stuck.progress(this.nowMs);
   }
 
@@ -511,7 +517,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     const line = SHRUGS[this.shrugs % SHRUGS.length];
     this.shrugs += 1;
     if (under !== null && line !== undefined) {
-      this.kamiWrites(line, under, { lifetimeMs: REMARK_LIFETIME_MS });
+      this.kamiWrites(line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
     }
   }
 
@@ -526,6 +532,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     this.kamiWrites(glossOf(rule.explanation), under, {
       anchor: { type: "note", id: rule.noteId },
       tone: "understood",
+      drift: "down",
     });
   }
 
@@ -539,16 +546,19 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
   }
 
   private playerWrites(text: string, position: Vec): Note {
-    const note: Note = {
-      id: this.ids.next<NoteId>("note"),
-      author: "player",
-      text,
-      position,
-      tone: "plain",
-      createdAt: Date.now(),
-      fleeting: false,
-    };
-    this.notes.write({ note, nowMs: this.nowMs });
+    const note = this.notes.write({
+      note: {
+        id: this.ids.next<NoteId>("note"),
+        author: "player",
+        text,
+        position,
+        tone: "plain",
+        createdAt: Date.now(),
+        fleeting: false,
+      },
+      nowMs: this.nowMs,
+      drift: "down",
+    });
     this.modules.store.saveNote(this.board.id, note);
     return note;
   }
@@ -561,9 +571,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
       readonly anchor?: NoteAnchor;
       readonly action?: NoteAction;
       readonly tone?: Note["tone"];
+      readonly drift?: Drift;
     } = {},
   ): void {
-    const { lifetimeMs, anchor, action, tone = "plain" } = options;
+    const { lifetimeMs, anchor, action, tone = "plain", drift = "up" } = options;
     const note: Note = {
       id: this.ids.next<NoteId>("kami"),
       author: "kami",
@@ -577,6 +588,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
     this.notes.write({
       note,
       nowMs: this.nowMs,
+      drift,
       ...(lifetimeMs === undefined ? {} : { lifetimeMs }),
       ...(anchor === undefined ? {} : { anchor }),
     });

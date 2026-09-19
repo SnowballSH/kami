@@ -22,6 +22,7 @@ export interface Scene {
   readonly walkSpeed: number;
   /** The arc a bounce of the given strength throws her on under the standing physics. */
   readonly bounceArc: (strength: number) => BounceArc;
+  readonly jumpArc: BounceArc;
 }
 
 export type Objective = "key" | "door" | "goal";

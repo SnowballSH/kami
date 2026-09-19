@@ -15,7 +15,7 @@ export interface Footprint {
   readonly rows: number;
 }
 
-export type Move = "walk" | "fall" | "climb" | "bounce";
+export type Move = "walk" | "fall" | "climb" | "bounce" | "jump";
 
 export interface Waypoint {
   readonly node: Node;
@@ -35,6 +35,13 @@ const FALL_COST = 0.5;
 const CLIMB_COST = 1.5;
 const BOUNCE_COST = 4;
 const BOUNCE_TOUCH_ROWS = 1;
+/** Charged on top of a dearer-than-walking rate per cell, so she walks to the very edge and only jumps where walking fails. */
+const JUMP_COST = 3;
+const JUMP_CELL_COST = 1.2;
+/** How far below the take-off she may land a jump; further drops are walk-and-fall edges. */
+const JUMP_DROP_ROWS = 2;
+/** A same-level jump shorter than this is just a walk. */
+const JUMP_MIN_COLS = 2;
 /** Share of the flight she is trusted to steer through when drifting sideways off a bounce. */
 const DRIFT_MARGIN = 0.8;
 /** Nodes a single search may open before it gives up: the board is endless, her patience is not. */
@@ -293,7 +300,10 @@ export class Pathfinder {
       const down = { c0: node.c0, r0: node.r0 + 1 };
       if (this.isStance(down)) yield { to: down, via: "climb", cost: CLIMB_COST };
     }
-    if (supported) yield* this.bounces(node);
+    if (supported) {
+      yield* this.bounces(node);
+      yield* this.jumps(node);
+    }
   }
 
   /** Beyond the charted board there is only blank paper: nothing to stand on, nowhere to go. */
@@ -364,16 +374,57 @@ export class Pathfinder {
     const strength = this.chart.bounceStrengthUnder(node.c0, node.c0 + cols, node.r0);
     if (strength <= 0) return;
     const arc = this.arcFor(strength);
+    yield* this.landings(node, arc, node.r0 - BOUNCE_TOUCH_ROWS, (to) => ({
+      to,
+      via: "bounce",
+      cost: BOUNCE_COST + RISE_COST * (node.r0 - to.r0) * 0.25,
+    }));
+  }
+
+  /** Landings a standing jump reaches: up onto a ledge, or level across a gap too wide to step. */
+  private *jumps(node: Node): Generator<Edge> {
+    const arc = this.scene.jumpArc;
+    const apexRows = Math.min(node.r0 - this.chart.range.r0, Math.floor(arc.apexPx / CELL_PX));
+    if (!this.isFree({ c0: node.c0, r0: node.r0 - apexRows })) return;
+    yield* this.landings(node, arc, node.r0 + JUMP_DROP_ROWS + 1, (to) => {
+      if (to.r0 >= node.r0 && Math.abs(to.c0 - node.c0) < JUMP_MIN_COLS) return null;
+      if (!this.clears(node, to, apexRows)) return null;
+      const across = JUMP_CELL_COST * Math.abs(to.c0 - node.c0);
+      return { to, via: "jump", cost: JUMP_COST + across + RISE_COST * (node.r0 - to.r0) };
+    });
+  }
+
+  /** Whether her body is free of solids along a parabola from `from` up through the apex and down onto `to`. */
+  private clears(from: Node, to: Node, apexRows: number): boolean {
+    const span = to.c0 - from.c0;
+    const steps = Math.abs(span);
+    for (let step = 1; step < steps; step++) {
+      const t = step / steps;
+      const lift = 4 * apexRows * t * (1 - t) + (from.r0 - to.r0) * t;
+      const c0 = from.c0 + Math.sign(span) * step;
+      if (!this.isFree({ c0, r0: from.r0 - Math.round(lift) })) return false;
+    }
+    return true;
+  }
+
+  /** Every landable node the arc can put her on, from its apex row down to (excluding) `belowRow`. */
+  private *landings(
+    node: Node,
+    arc: BounceArc,
+    belowRow: number,
+    edge: (to: Node) => Edge | null,
+  ): Generator<Edge> {
     if (!Number.isFinite(arc.apexPx)) return;
     const riseRows = Math.min(node.r0 - this.chart.range.r0, Math.floor(arc.apexPx / CELL_PX));
-    for (let r0 = node.r0 - riseRows; r0 < node.r0 - BOUNCE_TOUCH_ROWS; r0++) {
+    for (let r0 = node.r0 - riseRows; r0 < belowRow; r0++) {
       const flightTicks = arc.ticksAloftAbove((node.r0 - r0) * CELL_PX);
       if (flightTicks === null) continue;
       const driftCols = Math.floor((this.scene.walkSpeed * flightTicks * DRIFT_MARGIN) / CELL_PX);
       for (let c0 = node.c0 - driftCols; c0 <= node.c0 + driftCols; c0++) {
         const to = { c0, r0 };
         if (!this.charted(to) || !this.isLandable(to) || !this.isFree(to)) continue;
-        yield { to, via: "bounce", cost: BOUNCE_COST + RISE_COST * (node.r0 - r0) * 0.25 };
+        const found = edge(to);
+        if (found !== null) yield found;
       }
     }
   }

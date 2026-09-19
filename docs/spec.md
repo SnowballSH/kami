@@ -2,7 +2,7 @@
 
 **HackMIT 2026 · theme: Alice in Wonderland · Entertainment track**
 
-> **Alice can't jump. You can draw.**
+> **Alice can hop, not fly. You can draw.**
 > Draw it. Name it. It wakes up.
 
 *Kami* (紙) is paper. *Kami* (神) is also the spirit that lives in a thing. The game is both: a world made of paper, where anything you draw gets a spirit the moment you say what it is.
@@ -145,7 +145,7 @@ One book, six pages, each a page deeper. The Rabbit runs the room first — his 
 
 Two minutes. The judge holds the mouse — or stands at the cabinet.
 
-1. Riverbank. Rabbit hops the ditch and vanishes down the hole. Alice stops at the edge. **"She can't jump. Draw."** A scribbled line; she crosses; she falls — slowly — through the torn page. Title: **Kami**.
+1. Riverbank. Rabbit hops the ditch and vanishes down the hole. Alice stops at the edge: too wide to hop. **"She can't fly. Draw."** A scribbled line; she crosses; she falls — slowly — through the torn page. Title: **Kami**.
 2. A ledge too high, too little ink. The judge draws a blob. The Cat: *"And what is that supposed to be?"* Judge: *"A bouncy mushroom."* — *"If you say so."* It shivers pink. She bounces up.
 3. The Hall of Doors. The judge gets stuck and asks the Cat out loud. He answers in a riddle. Cake, key, bottle, door.
 4. **"That drawing was terrible and it didn't matter. It saw it, it heard you, and it made it true — in physics."**
@@ -227,4 +227,4 @@ Everyone sleeps at least three hours, staggered through hours 12–19.
 
 ---
 
-*Keep re-reading: Alice can't jump. You can draw. It is what you say it is.*
+*Keep re-reading: Alice can hop, not fly. You can draw. It is what you say it is.*
