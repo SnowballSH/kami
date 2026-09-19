@@ -4,9 +4,9 @@
 #   bootstrap.sh                          find the box on its hotspot
 #   bootstrap.sh 10.189.4.20              the box is at this address
 #   bootstrap.sh 10.189.4.20 --new-identity [user]
-#       the box was set up again, reset or swapped, so its SSH identity changed: forget the old one.
-#       ONLY after checking the fingerprint against the box's own screen:
-#         ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+#       the box was set up again, reset or swapped, so its SSH identity changed: forget the old one —
+#       but only if you read the address off the box's own screen, or checked the fingerprint there
+#       (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -44,8 +44,11 @@ echo "✓ Something answers SSH at $TARGET"
 
 if [ "$NEW_IDENTITY" = "--new-identity" ]; then
   echo "  It presents:  $(ssh-keyscan -T 5 -t ed25519 "$TARGET" 2>/dev/null | ssh-keygen -lf - | awk '{print $2}')"
-  echo "  On the box's screen, 'ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub' must print the same."
-  read -r -p "  Do they match? Type yes to trust this machine as the box: " answer
+  echo "  Trust it only if ONE of these is true:"
+  echo "    a) you read the address $TARGET off the box's OWN screen, or"
+  echo "    b) on the box, 'ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub' prints that same fingerprint."
+  echo "  (No keyboard? GNOME has one for the mouse: Settings → Accessibility → Typing → Screen Keyboard.)"
+  read -r -p "  Type yes to trust this machine as the box: " answer
   [ "$answer" = "yes" ] || { echo "✗ Not trusted. Nothing changed."; exit 1; }
   ssh-keygen -R "$IDENTITY_PIN" >/dev/null 2>&1 || true
 fi
