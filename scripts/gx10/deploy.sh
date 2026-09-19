@@ -15,7 +15,7 @@ CACHE=.gx10/cache
 LOG=.gx10/deploy.log
 AUTOSTART=${1:-}
 
-for needed in dist/index.html "$BUILD/server.js" "$BUILD/snapshot.js" "$BUILD/quickdraw.ndjson.gz"; do
+for needed in dist/index.html "$BUILD/server.js" "$BUILD/snapshot.js" "$BUILD/quickdraw.ndjson.gz" "$BUILD/runtime.json"; do
   [ -s "$needed" ] || { echo "✗ $needed is missing — run 'bun run gx10:prepare' first (with internet)."; exit 1; }
 done
 if ! ssh -o BatchMode=yes "$HOST_ALIAS" true 2>/dev/null; then
@@ -28,12 +28,18 @@ exec > >(tee "$LOG") 2>&1
 date
 
 ship_missing() {
-  local source=$1 destination=$2 file name
+  local source=$1 destination=$2 file name checksum
   for file in "$source"/*; do
     [ -f "$file" ] || continue
     name=$(basename "$file")
-    if ssh "$HOST_ALIAS" "test -s ~/kami/$destination/$name"; then echo "  ✓ $name (already there)"
-    else echo "  ↑ $name"; scp -q "$file" "$HOST_ALIAS:kami/$destination/$name"; fi
+    checksum=$(python3 scripts/gx10/box/runtime.py hash "$file")
+    if ssh "$HOST_ALIAS" "cd ~/kami/$destination && echo '$checksum  $name' | sha256sum --check --status" 2>/dev/null; then
+      echo "  ✓ $name (verified)"
+    else
+      echo "  ↑ $name"
+      scp -q "$file" "$HOST_ALIAS:kami/$destination/$name.part"
+      ssh "$HOST_ALIAS" "cd ~/kami/$destination && echo '$checksum  $name.part' | sha256sum --check --status && mv '$name.part' '$name'"
+    fi
   done
 }
 
