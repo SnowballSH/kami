@@ -5,6 +5,8 @@ import { createCat } from "../cat";
 import { rectsOverlap, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
+import { EMBODIED_MODE } from "../modes";
+import type { GameMode } from "../modes/types";
 import type { HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
 import type { LiveRecognizer, Sighting } from "../recognition/types";
@@ -14,6 +16,7 @@ import { createSimulation } from "../sim";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
 import {
+  LAW_OUTSIDE_MODE_LINE,
   RULE_REPEALED_LINE,
   SUMIKUI_LORE_LINE_DELAY_MS,
   SUMIKUI_SEALED_LINE,
@@ -48,6 +51,7 @@ type Thoughts = Readonly<Record<string, CompiledRule>>;
 
 interface PlayerOptions {
   readonly store?: MemoryBoardStore;
+  readonly mode?: GameMode;
   readonly thoughts?: Thoughts;
   readonly eyes?: LiveRecognizer;
   readonly reader?: HandwritingReader;
@@ -129,7 +133,7 @@ class Player {
 
   constructor(
     boardId: string,
-    { store = new MemoryBoardStore(), thoughts = {}, eyes, reader }: PlayerOptions = {},
+    { store = new MemoryBoardStore(), thoughts = {}, eyes, reader, mode }: PlayerOptions = {},
   ) {
     this.store = store;
     this.game = new Game(
@@ -148,6 +152,7 @@ class Player {
         },
         store,
         ...(reader === undefined ? {} : { penReader: createPenReader(reader) }),
+        ...(mode === undefined ? {} : { mode }),
         resolvePhysics,
         boardFor,
         createInkSession,
@@ -674,6 +679,30 @@ describe("Game with a pen that reads", () => {
     expect(reader.asked).toEqual([1]);
     expect((await player.store.load("wonderland")).drawings).toHaveLength(2);
     expect(player.written).not.toContain("never");
+  });
+});
+
+describe("Game under a mode", () => {
+  it("refuses a law the mode forbids, in Kami's hand, and the note stays plain writing", async () => {
+    const mode: GameMode = { ...EMBODIED_MODE, laws: { kind: "except", dials: ["gravity"] } };
+    const player = new Player("wonderland", { mode });
+    await player.arrive();
+    await player.write("set g equal to the moon's gravity", { x: 200, y: 200 });
+    expect((await player.store.load("wonderland")).rules).toHaveLength(0);
+    expect(player.written).toContain(LAW_OUTSIDE_MODE_LINE);
+
+    await player.write("it is night", { x: 200, y: 300 });
+    expect((await player.store.load("wonderland")).rules).toHaveLength(1);
+  });
+
+  it("keeps Alice from walking herself when the mode forbids it", async () => {
+    const player = new Player("wonderland", { mode: { ...EMBODIED_MODE, autopilot: "forbidden" } });
+    await player.arrive();
+    const parked = player.alice.center.x;
+    player.game.onAutopilotToggled(true);
+    expect(player.hud.autopilot).toBe(false);
+    await player.wait(1_500);
+    expect(player.alice.center.x).toBeCloseTo(parked, 0);
   });
 });
 
