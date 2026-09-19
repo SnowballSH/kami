@@ -1,6 +1,7 @@
 import type { Vec } from "../core/geometry";
 import { BoardMenu } from "./boardMenu";
 import { el } from "./dom";
+import { Joystick } from "./joystick";
 import { KeyboardWalk } from "./keyboard";
 import { TextPrompt } from "./textPrompt";
 import { Toolbar } from "./toolbar";
@@ -17,6 +18,7 @@ export class DomHud implements Hud {
   private readonly toolbar: Toolbar;
   private readonly boards: BoardMenu;
   private readonly prompt: TextPrompt;
+  private readonly stick: Joystick;
   private readonly detachers: readonly Detach[];
 
   constructor(root: HTMLElement, handlers: HudHandlers) {
@@ -31,15 +33,18 @@ export class DomHud implements Hud {
     this.toolbar.show(this.tools.inForce);
     this.boards = new BoardMenu(handlers);
     this.prompt = new TextPrompt(host);
+    this.stick = new Joystick(walk.source());
     this.overlay.append(
       this.boards.element,
       this.toolbar.element,
+      this.stick.element,
       new ZoomControls(handlers).element,
       this.prompt.element,
     );
     root.append(this.overlay);
     this.detachers = [
       new KeyboardWalk(walk.source()).attach(host),
+      this.stick.attach(host),
       new ToolHotkeys(this.tools).attach(host),
       this.boards.attach(owner),
       this.prompt.attach(),

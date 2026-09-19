@@ -126,10 +126,38 @@ describe("DomHud", () => {
     const intents = (handlers: ReturnType<typeof createHandlers>): readonly WalkIntent[] =>
       handlers.onWalkIntent.mock.calls.map(([intent]) => intent);
 
-    it("has no on-screen d-pad: Alice walks herself", () => {
-      const { root } = setup();
+    it("walks her with the thumbstick while it is held, and lets go on lift", () => {
+      const { root, handlers } = setup();
+      const stick = find<HTMLElement>(root, ".kami-stick");
 
-      expect(root.querySelector(".kami-dpad")).toBeNull();
+      stick.dispatchEvent(pointer("pointerdown", 3, { pointerType: "pen", clientX: 60 }));
+      stick.dispatchEvent(
+        pointer("pointermove", 3, { pointerType: "pen", clientX: 45, clientY: -45 }),
+      );
+      stick.dispatchEvent(pointer("pointermove", 9, { pointerType: "touch", clientX: -60 }));
+      stick.dispatchEvent(
+        pointer("pointerup", 3, { pointerType: "pen", clientX: 45, clientY: -45 }),
+      );
+
+      expect(intents(handlers)).toEqual([
+        { x: 1, y: 0 },
+        { x: 1, y: -1 },
+        { x: 0, y: 0 },
+      ]);
+      expect(stick.classList.contains("is-held")).toBe(false);
+    });
+
+    it("drops the thumbstick when the window blurs mid-hold", () => {
+      const { root, handlers } = setup();
+      const stick = find<HTMLElement>(root, ".kami-stick");
+
+      stick.dispatchEvent(pointer("pointerdown", 3, { pointerType: "touch", clientX: -60 }));
+      window.dispatchEvent(new Event("blur"));
+
+      expect(intents(handlers)).toEqual([
+        { x: -1, y: 0 },
+        { x: 0, y: 0 },
+      ]);
     });
 
     it("walks with the arrow keys, cancelling opposites, and lets go on blur", () => {

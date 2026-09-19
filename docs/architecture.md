@@ -92,7 +92,7 @@ Alice walks herself; the player only draws. `game/` hands the pilot a `Scene` ev
 - **Pathfinder.** A* over foot positions for her current footprint (`small` / `normal` / `big`): walk with small steps up, fall onto anything landable, climb through climbable ink, bounce off bouncy ink to wherever the arc's apex and drift reach. Hazards are never entered. Bounded by a node budget.
 - **Errands.** Key → door → goal. If the objective is unreachable but a grow/shrink drawing would make it reachable, the errand is to eat it. Otherwise she `wait`s at the nearest reachable stance short of the obstacle (a few body widths back) and `status.stuck` is set; `game/` has Kami write *"She can't see a way on. Draw her one."* once.
 - **Replanning.** Every ¼ s, plus immediately on `invalidate()` — `game/` calls it whenever a drawing commits, is named, ruled, erased or eaten, a rule is enacted or repealed, or a board opens — and whenever her size or key/door progress changes. A route that stops making progress for four seconds is dropped and she sulks briefly before trying again.
-- **Override.** Arrow keys still walk her; while a key is held the pilot is bypassed, and she resumes on release.
+- **Override.** The thumbstick bottom-left and the arrow keys still walk her; while either is held the pilot is bypassed, and she resumes on release.
 
 ## cat/
 
@@ -112,7 +112,7 @@ Canvas 2D at device pixel ratio (cap 2). `toWorld(client, camera)` and `viewport
 
 ## ui/
 
-`touch-action: none` and every iPad guard from before. Floating **toolbar** top-centre: draw ✎ · write T · erase ⌫ · pan ✋ (`aria-pressed`, keys `D` `T` `E` `H`; holding Space pans temporarily). No d-pad: Alice walks herself, and the arrow keys are a manual override. **Zoom** − / + / ⌖ recentre bottom-right. **Board menu** top-left: the wordmark "kami", current board, a list of boards, "new board", "clear board". No bubbles, meters, title cards or modals.
+`touch-action: none` and every iPad guard from before. Floating **toolbar** top-centre: draw ✎ · write T · erase ⌫ · pan ✋ (`aria-pressed`, keys `D` `T` `E` `H`; holding Space pans temporarily). Alice walks herself; a translucent **thumbstick** bottom-left (`Joystick`: one pointer, pen, finger or mouse, dead zone then the pushed axis, a real diagonal takes both, springs back on lift or window blur) and the arrow keys are the manual override. **Zoom** − / + / ⌖ recentre bottom-right. **Board menu** top-left: the wordmark "kami", current board, a list of boards, "new board", "clear board". No bubbles, meters, title cards or modals.
 
 Every control activates on `pointerup` (`activateOnTap`), so Apple Pencil, finger and mouse taps all work; the click a browser then synthesises is swallowed, while clicks with no pointer behind them (Enter, Space, `.click()`) still activate. A press that is cancelled or lifts off the control does nothing.
 
