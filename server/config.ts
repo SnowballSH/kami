@@ -1,0 +1,36 @@
+import { fileURLToPath } from "node:url";
+import type { LlmConfig } from "./compile/llmCompiler";
+import type { DatabaseOptions } from "./db/connect";
+
+const DEFAULT_PORT = 8787;
+const EMBEDDED_DATA_DIRECTORY = fileURLToPath(new URL("../.kami-data", import.meta.url));
+
+export interface ServerConfig {
+  readonly port: number;
+  readonly database: DatabaseOptions;
+  readonly llm: LlmConfig | null;
+}
+
+type Env = Readonly<Record<string, string | undefined>>;
+
+const nonEmpty = (value: string | undefined): string | undefined =>
+  value === undefined || value.trim() === "" ? undefined : value.trim();
+
+const portFrom = (value: string | undefined): number => {
+  const port = Number(nonEmpty(value));
+  return Number.isInteger(port) && port > 0 ? port : DEFAULT_PORT;
+};
+
+const llmFrom = (env: Env): LlmConfig | null => {
+  const url = nonEmpty(env.KAMI_LLM_URL);
+  const model = nonEmpty(env.KAMI_LLM_MODEL);
+  const apiKey = nonEmpty(env.KAMI_LLM_API_KEY);
+  if (url === undefined || model === undefined) return null;
+  return apiKey === undefined ? { url, model } : { url, model, apiKey };
+};
+
+export const readConfig = (env: Env = process.env): ServerConfig => ({
+  port: portFrom(env.PORT),
+  database: { uri: nonEmpty(env.MONGODB_URI), embeddedDataDirectory: EMBEDDED_DATA_DIRECTORY },
+  llm: llmFrom(env),
+});

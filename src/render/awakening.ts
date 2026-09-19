@@ -1,6 +1,6 @@
 import type { Nature } from "../cat/types";
 import { clamp, type Vec } from "../core/geometry";
-import { FOUNTAIN_BLUE, mixRgb, NATURE_TINTS, type Rgb } from "./palette";
+import { MARKER, mixRgb, NATURE_TINTS, type Rgb } from "./palette";
 
 export const SHIVER_MS = 500;
 
@@ -23,4 +23,4 @@ export const shiverOffset = (nowMs: number, progress: number): Vec => {
 };
 
 export const inkTint = (nature: Nature, progress: number): Rgb =>
-  mixRgb(FOUNTAIN_BLUE, NATURE_TINTS[nature], progress);
+  mixRgb(MARKER.black, NATURE_TINTS[nature], progress);

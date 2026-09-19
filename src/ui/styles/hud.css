@@ -3,17 +3,21 @@
   --kami-safe-right: max(16px, env(safe-area-inset-right));
   --kami-safe-bottom: max(16px, env(safe-area-inset-bottom));
   --kami-safe-left: max(16px, env(safe-area-inset-left));
-  --kami-control: 48px;
+  --kami-control: 44px;
+  --kami-island-padding: 3px;
+  --kami-radius: 8px;
+  --kami-radius-inner: 6px;
+  --kami-line: 1px solid var(--kami-ink);
+  --kami-hairline: 0 1px 0 rgb(17 17 17 / 0.08);
   --kami-dpad-row: 100px;
-  --kami-sketch-radius: 255px 18px 225px 18px / 18px 225px 18px 255px;
-  --kami-sketch-radius-alt: 18px 225px 18px 255px / 255px 18px 225px 18px;
 
   position: absolute;
   inset: 0;
   z-index: 10;
   overflow: hidden;
   pointer-events: none;
-  font-family: var(--kami-hand);
+  font-family: var(--kami-ui);
+  font-size: 15px;
   color: var(--kami-ink);
 }
 
@@ -21,213 +25,194 @@
   display: none;
 }
 
-.kami-fade {
-  opacity: 0;
-  visibility: hidden;
-  transition:
-    opacity var(--kami-fade-ms, 250ms) ease,
-    visibility 0s linear var(--kami-fade-ms, 250ms);
+.kami-island,
+.kami-dpad-button {
+  border: var(--kami-line);
+  border-radius: var(--kami-radius);
+  background: var(--kami-board);
+  box-shadow: var(--kami-hairline);
+  pointer-events: auto;
 }
 
-.kami-fade.is-shown {
-  opacity: 1;
-  visibility: visible;
-  transition-delay: 0s;
+.kami-island {
+  display: flex;
+  gap: 2px;
+  padding: var(--kami-island-padding);
 }
 
-.kami-plate,
-.kami-button,
-.kami-dpad-button,
-.kami-ink-track,
-.kami-cat,
-.kami-naming,
-.kami-naming-input,
-.kami-ending-frame {
-  border: 2.5px solid var(--kami-ink);
-  border-radius: var(--kami-sketch-radius);
-  background: var(--kami-paper-light);
-}
-
-.kami-button,
+.kami-control,
+.kami-menu-item,
 .kami-dpad-button {
   min-width: var(--kami-control);
   min-height: var(--kami-control);
   margin: 0;
-  padding: 0 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   pointer-events: auto;
   cursor: pointer;
   font: inherit;
-  font-size: 20px;
   line-height: 1;
   color: var(--kami-ink);
-  box-shadow: 2px 3px 0 var(--kami-ink);
-  transition:
-    transform 60ms ease,
-    box-shadow 60ms ease;
 }
 
-.kami-button:nth-child(even) {
-  border-radius: var(--kami-sketch-radius-alt);
-}
-
-.kami-button:active,
-.kami-dpad-button.is-held {
-  transform: translate(2px, 3px);
-  box-shadow: 0 0 0 var(--kami-ink);
-  background: var(--kami-paper-shade);
-}
-
-.kami-button:focus-visible,
-.kami-naming-input:focus-visible {
-  outline: 2.5px dashed var(--kami-pen);
-  outline-offset: 3px;
-}
-
-.kami-button[aria-pressed="true"] {
-  background: var(--kami-ink);
-  color: var(--kami-paper-light);
-}
-
-.kami-icon-button {
+.kami-control,
+.kami-menu-item {
   padding: 0;
-  width: var(--kami-control);
+  border: 0;
+  border-radius: var(--kami-radius-inner);
+  background: transparent;
+}
+
+.kami-control:focus-visible,
+.kami-menu-item:focus-visible,
+.kami-dpad-button:focus-visible {
+  outline: 2px solid var(--kami-ink);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) {
+  .kami-control:hover,
+  .kami-menu-item:hover {
+    background: var(--kami-hover);
+  }
+}
+
+.kami-control:active,
+.kami-control[aria-pressed="true"],
+.kami-control[aria-expanded="true"],
+.kami-menu-item:active,
+.kami-menu-item[aria-checked="true"],
+.kami-dpad-button.is-held {
+  background: var(--kami-pressed);
 }
 
 .kami-icon {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   fill: none;
   stroke: currentcolor;
-  stroke-width: 2;
+  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
   pointer-events: none;
 }
 
-.kami-top {
+.kami-toolbar {
+  position: absolute;
+  top: var(--kami-safe-top);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.kami-tool {
+  position: relative;
+}
+
+.kami-tool-hotkey {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  font-size: 9px;
+  color: var(--kami-ink-soft);
+  pointer-events: none;
+}
+
+.kami-zoom {
+  position: absolute;
+  right: var(--kami-safe-right);
+  bottom: var(--kami-safe-bottom);
+}
+
+.kami-board-menu {
   position: absolute;
   top: var(--kami-safe-top);
   left: var(--kami-safe-left);
-  right: var(--kami-safe-right);
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: start;
-  gap: 12px;
 }
 
-.kami-room {
-  justify-self: start;
-  max-width: 100%;
-  padding: 6px 18px 8px;
-  background: rgb(250 243 221 / 0.88);
+.kami-board-toggle {
+  min-height: calc(var(--kami-control) + 2 * var(--kami-island-padding) + 2px);
+  gap: 8px;
+  padding: 0 8px 0 12px;
+  border: var(--kami-line);
+  border-radius: var(--kami-radius);
+  background: var(--kami-board);
+  box-shadow: var(--kami-hairline);
 }
 
-.kami-room-title {
-  margin: 0;
-  font-size: 22px;
-  line-height: 1.15;
+.kami-wordmark {
+  font-family: var(--kami-hand);
+  font-size: 24px;
   font-weight: 700;
+}
+
+.kami-board-title {
+  max-width: 180px;
+  padding-left: 8px;
+  border-left: 1px solid var(--kami-rule);
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--kami-ink-soft);
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.kami-board-title:empty {
+  display: none;
+}
+
+.kami-board-toggle .kami-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.kami-board-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: max-content;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 32px));
+  flex-direction: column;
+}
+
+.kami-board-list {
+  max-height: 40dvh;
+  margin-bottom: 2px;
+  padding-bottom: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-bottom: 1px solid var(--kami-rule);
+}
+
+.kami-board-list:empty {
+  display: none;
+}
+
+.kami-scrollable,
+.kami-scrollable * {
+  touch-action: pan-y;
+}
+
+.kami-menu-item {
+  flex: none;
+  justify-content: flex-start;
+  padding: 0 12px;
+  text-align: left;
+}
+
+.kami-board-item {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.kami-room-page {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.2;
-  color: var(--kami-ink-soft);
-}
-
-.kami-ink {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: var(--kami-control);
-}
-
-.kami-ink-label {
-  font-size: 20px;
-  color: var(--kami-pen);
-}
-
-.kami-ink-track {
-  width: clamp(140px, 24vw, 280px);
-  height: 20px;
-  padding: 2px;
-  overflow: hidden;
-}
-
-.kami-ink-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--kami-pen);
-  transition:
-    width 120ms linear,
-    background-color 200ms ease;
-}
-
-.kami-ink.is-low .kami-ink-fill {
-  background: var(--kami-red);
-}
-
-.kami-ink.is-low .kami-ink-label {
-  color: var(--kami-red);
-}
-
-.kami-tools {
-  justify-self: end;
-  display: flex;
-  gap: 10px;
-}
-
-.kami-cat {
-  position: absolute;
-  top: calc(var(--kami-safe-top) + var(--kami-control) + 16px);
-  right: var(--kami-safe-right);
-  max-width: min(380px, 62vw);
-  padding: 10px 18px 12px 12px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 3px 4px 0 var(--kami-ink);
-}
-
-.kami-cat-face {
-  flex: none;
-  width: 64px;
-  height: 48px;
-  fill: none;
-  stroke: var(--kami-ink);
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.kami-cat-caption {
-  margin: 0;
-  font-size: 21px;
-  line-height: 1.25;
-}
-
-.kami-cat-grin,
-.kami-cat-eyes,
-.kami-cat-caption {
-  opacity: 0;
-  transition: opacity 320ms ease;
-}
-
-.kami-cat.is-shown .kami-cat-grin {
-  opacity: 1;
-}
-
-.kami-cat.is-shown .kami-cat-eyes,
-.kami-cat.is-shown .kami-cat-caption {
-  opacity: 1;
-  transition-delay: 380ms;
+.kami-board-clear.is-confirming {
+  background: var(--kami-danger);
 }
 
 .kami-dpad {
@@ -236,24 +221,18 @@
   bottom: var(--kami-safe-bottom);
   height: var(--kami-dpad-row);
   display: grid;
-  grid-template-columns: 76px 76px 60px;
+  grid-template-columns: 72px 72px 56px;
   grid-template-rows: 1fr 1fr;
   gap: 8px;
-  opacity: 0.9;
 }
 
 .kami-dpad-button {
-  min-height: 44px;
   padding: 0;
-  border-radius: var(--kami-sketch-radius-alt);
-  background: rgb(250 243 221 / 0.85);
 }
 
 .kami-dpad-button .kami-icon {
-  width: 34px;
-  height: 34px;
-  fill: currentcolor;
-  stroke-width: 1.5;
+  width: 26px;
+  height: 26px;
 }
 
 .kami-dpad-left {
@@ -274,182 +253,42 @@
 
 .kami-dpad-up .kami-icon,
 .kami-dpad-down .kami-icon {
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
 }
 
-.kami-naming {
+.kami-prompt {
   position: absolute;
-  left: 50%;
-  bottom: calc(var(--kami-safe-bottom) + var(--kami-keyboard-inset, 0px));
-  width: min(520px, calc(100% - 32px));
-  padding: 10px 16px 14px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  pointer-events: auto;
-  box-shadow: 3px 4px 0 var(--kami-ink);
-  transform: translate(-50%, 14px);
-  transition:
-    opacity 200ms ease,
-    transform 200ms ease,
-    visibility 0s linear 200ms;
-}
-
-.kami-naming.is-shown {
-  transform: translate(-50%, 0);
-}
-
-.kami-naming-prompt {
-  grid-column: 1 / -1;
+  width: min(340px, calc(100vw - 24px));
+  height: 44px;
   margin: 0;
-  font-size: 20px;
-  line-height: 1.2;
-}
-
-.kami-naming-chips {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.kami-chip {
-  flex: 1 1 auto;
-  padding: 0 12px;
-  white-space: nowrap;
-  color: var(--kami-pen);
-}
-
-.kami-naming-form {
-  display: flex;
-  gap: 10px;
-  min-width: 0;
-}
-
-.kami-naming-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: var(--kami-control);
-  padding: 0 14px;
+  padding: 0 2px;
   appearance: none;
-  font: inherit;
-  font-size: 20px;
-  color: var(--kami-pen);
+  border: 0;
+  border-bottom: 2px solid var(--kami-ink);
+  border-radius: 0;
+  outline: none;
+  background: transparent;
   pointer-events: auto;
-}
-
-.kami-naming-input::placeholder {
-  color: var(--kami-ink-soft);
-}
-
-.kami-naming-dismiss {
-  color: var(--kami-ink-soft);
-}
-
-.kami-cover {
-  position: absolute;
-  inset: 0;
-  padding: var(--kami-safe-top) var(--kami-safe-right) var(--kami-safe-bottom) var(--kami-safe-left);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  text-align: center;
-  pointer-events: auto;
-  background:
-    radial-gradient(ellipse at center, transparent 55%, rgb(120 90 30 / 0.22) 100%),
-    var(--kami-paper);
-}
-
-.kami-title-heading,
-.kami-ending-heading {
-  margin: 0;
-  font-size: clamp(64px, 13vw, 150px);
-  line-height: 1;
-  font-weight: 700;
-}
-
-.kami-title-subtitle {
-  margin: 0;
-  font-size: clamp(22px, 3.4vw, 36px);
-  color: var(--kami-ink-soft);
-}
-
-.kami-title-subtitle:empty {
-  display: none;
-}
-
-.kami-ending {
-  cursor: pointer;
-}
-
-.kami-ending-frame {
-  width: min(58dvh, 72vw);
-  aspect-ratio: 1;
-  padding: 10px;
-  box-shadow: 5px 7px 0 var(--kami-ink);
-  transform: rotate(-1.5deg);
-}
-
-.kami-ending-frame > canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-  animation: kami-page-turn 320ms ease-out;
-}
-
-.kami-ending-caption {
-  margin: 0;
-  font-size: clamp(28px, 4.6vw, 48px);
-  line-height: 1.15;
-  color: var(--kami-pen);
-}
-
-.kami-ending-counter {
-  margin: 0;
-  font-size: 18px;
-  color: var(--kami-ink-soft);
-}
-
-.kami-ending-restart {
-  min-height: 60px;
-  padding: 0 32px;
+  font-family: var(--kami-hand);
   font-size: 26px;
+  line-height: 44px;
+  color: var(--kami-ink);
+  caret-color: var(--kami-ink);
 }
 
-@keyframes kami-page-turn {
-  from {
-    opacity: 0;
-    transform: translateY(14px) rotate(3deg);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.kami-prompt::placeholder {
+  color: var(--kami-ink-soft);
 }
 
-@media (max-width: 900px) {
-  .kami-naming {
-    bottom: calc(
-      var(--kami-safe-bottom) +
-      max(var(--kami-dpad-row) + 12px, var(--kami-keyboard-inset, 0px))
-    );
-  }
-
-  .kami-room-title {
-    font-size: 18px;
-  }
-
-  .kami-tools {
-    gap: 6px;
+@media (max-width: 640px) {
+  .kami-board-title {
+    display: none;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .kami-ending-frame > canvas {
-    animation: none;
+@media (hover: none) {
+  .kami-tool-hotkey {
+    display: none;
   }
 }

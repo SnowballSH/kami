@@ -1,121 +1,110 @@
-import type { Vec } from "../core/geometry";
-import { WORLD } from "../core/world";
-import type { LevelDefinition } from "../game/types";
-import type { Drawing } from "../ink/types";
+import type { BoardDefinition } from "../board/types";
+import { distanceToRect, type Rect, type Vec } from "../core/geometry";
+import type { Handwriting } from "../handwriting/types";
+import type { AliceSnapshot } from "../sim/types";
 import { paintAlice } from "./alicePainter";
-import { context2d } from "./canvas2d";
-import { Effects } from "./effects";
-import { InkPainter } from "./inkPainter";
-import { Page } from "./page";
-import { PAGE_COLORS } from "./palette";
-import { PropsPainter } from "./propsPainter";
-import { paintThumbnail } from "./thumbnail";
-import type { Renderer, RenderFrame } from "./types";
+import { BoardPainter } from "./boardPainter";
 import {
   backingStoreSize,
   cappedPixelRatio,
-  type DeviceTransform,
   deviceTransform,
-  fitViewport,
   type Size,
   toWorld,
-  type Viewport,
-} from "./viewport";
+  visibleWorld,
+  zoomOf,
+} from "./camera";
+import { context2d } from "./canvas2d";
+import { paintDotGrid } from "./dotGrid";
+import { paintEraserRing } from "./eraserRing";
+import { InkPainter } from "./inkPainter";
+import { NotePainter } from "./notePainter";
+import { BOARD_COLORS } from "./palette";
+import { PointerTracker } from "./pointerTracker";
+import type { Camera, Renderer, RenderFrame } from "./types";
 
-const UNDER_PAGE_STEP_PX = 4;
-const UNDER_PAGE_COUNT = 2;
+const aliceInView = (alice: AliceSnapshot, view: Rect): boolean =>
+  distanceToRect(alice.center, view) <= Math.max(alice.width, alice.height);
 
 export class CanvasRenderer implements Renderer {
   private readonly ctx: CanvasRenderingContext2D;
+  private readonly boardPainter = new BoardPainter();
   private readonly inkPainter = new InkPainter();
-  private readonly propsPainter: PropsPainter;
-  private readonly effects: Effects;
-  private level: LevelDefinition | null = null;
-  private page: Page | null = null;
+  private readonly notePainter: NotePainter;
+  private readonly pointer: PointerTracker;
   private box: Size = { width: 0, height: 0 };
-  private viewport: Viewport = fitViewport(WORLD);
-  private transform: DeviceTransform = deviceTransform(this.viewport, 1);
+  private pixelRatio = 1;
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    handwriting: Handwriting,
+  ) {
     this.ctx = context2d(canvas);
-    this.propsPainter = new PropsPainter(this.ctx);
-    this.effects = new Effects(this.ctx);
+    this.notePainter = new NotePainter(handwriting);
+    this.pointer = new PointerTracker(canvas);
     this.resize();
   }
 
-  setLevel(level: LevelDefinition): void {
-    this.level = level;
-    this.page = new Page(level);
-    this.page.rasterize(this.transform.scale);
-    this.propsPainter.setLevel(level);
+  setBoard(board: BoardDefinition): void {
+    this.boardPainter.setBoard(board);
     this.inkPainter.forget();
+    this.notePainter.forget();
   }
 
   resize(): void {
-    const pixelRatio = cappedPixelRatio(globalThis.devicePixelRatio);
+    this.pixelRatio = cappedPixelRatio(globalThis.devicePixelRatio);
     this.box = { width: this.canvas.clientWidth, height: this.canvas.clientHeight };
-    this.viewport = fitViewport(this.box);
-    this.transform = deviceTransform(this.viewport, pixelRatio);
-    const store = backingStoreSize(this.box, pixelRatio);
+    const store = backingStoreSize(this.box, this.pixelRatio);
     if (this.canvas.width !== store.width) this.canvas.width = store.width;
     if (this.canvas.height !== store.height) this.canvas.height = store.height;
-    this.page?.rasterize(this.transform.scale);
   }
 
-  toWorld(clientX: number, clientY: number): Vec {
+  toWorld(client: Vec, camera: Camera): Vec {
     this.refitIfBoxChanged();
-    const bounds = this.canvas.getBoundingClientRect();
-    return toWorld(this.viewport, {
-      x: clientX - bounds.left - this.canvas.clientLeft,
-      y: clientY - bounds.top - this.canvas.clientTop,
-    });
+    return toWorld(this.toCanvas(client), camera, this.box);
+  }
+
+  viewport(): Size {
+    this.refitIfBoxChanged();
+    return this.box;
   }
 
   render(frame: RenderFrame): void {
     this.refitIfBoxChanged();
     const { ctx } = this;
-    const { scale, dx, dy } = this.transform;
+    const { camera, world, nowMs } = frame;
+    const view = visibleWorld(camera, this.box);
+    const { scale, dx, dy } = deviceTransform(camera, this.box, this.pixelRatio);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = PAGE_COLORS.desk;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = BOARD_COLORS.board;
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.setTransform(scale, 0, 0, scale, dx, dy);
-    this.paintUnderPages();
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, WORLD.width, WORLD.height);
-    ctx.clip();
-    this.paintPage();
-    if (this.level !== null) this.propsPainter.paint(this.level, frame.world, frame.nowMs);
-    this.inkPainter.paintInks(ctx, frame.inks, frame.nowMs);
-    paintAlice(ctx, frame.world.alice, frame.nowMs);
+    paintDotGrid(ctx, view, zoomOf(camera));
+    this.boardPainter.paint(ctx, view, world);
+    this.inkPainter.paintInks(ctx, frame.inks, view, nowMs);
+    this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
+    if (aliceInView(world.alice, view)) paintAlice(ctx, world.alice, nowMs);
     this.inkPainter.paintActive(ctx, frame.activeStrokes, frame.activeVerdict);
-    this.effects.paint(frame.nowMs, frame.bulletTime, frame.eraserActive);
-    ctx.restore();
+    if (frame.eraserActive) this.paintEraserCursor();
   }
 
-  thumbnail(drawing: Drawing, sizePx: number): HTMLCanvasElement {
-    return paintThumbnail(drawing, sizePx);
+  private paintEraserCursor(): void {
+    const client = this.pointer.client;
+    if (client === null) return;
+    this.ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+    paintEraserRing(this.ctx, this.toCanvas(client));
+  }
+
+  private toCanvas(client: Vec): Vec {
+    const bounds = this.canvas.getBoundingClientRect();
+    return {
+      x: client.x - bounds.left - this.canvas.clientLeft,
+      y: client.y - bounds.top - this.canvas.clientTop,
+    };
   }
 
   private refitIfBoxChanged(): void {
     const { clientWidth, clientHeight } = this.canvas;
     if (clientWidth !== this.box.width || clientHeight !== this.box.height) this.resize();
-  }
-
-  private paintUnderPages(): void {
-    this.ctx.fillStyle = PAGE_COLORS.underPage;
-    for (let depth = UNDER_PAGE_COUNT; depth > 0; depth--) {
-      const shift = depth * UNDER_PAGE_STEP_PX;
-      this.ctx.fillRect(shift, shift, WORLD.width, WORLD.height);
-    }
-  }
-
-  private paintPage(): void {
-    if (this.page === null) {
-      this.ctx.fillStyle = PAGE_COLORS.paper;
-      this.ctx.fillRect(0, 0, WORLD.width, WORLD.height);
-      return;
-    }
-    this.ctx.drawImage(this.page.image, 0, 0, WORLD.width, WORLD.height);
   }
 }

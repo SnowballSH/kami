@@ -28,7 +28,7 @@ export const NATURE_THINGS: WordTable = {
     broomstick, dragon, pegasus, float
   `),
   heavy: list(`
-    rock, anvil, safe, boulder, stone, brick, weight, dumbbell, barbell, kettlebell, iron, lead,
+    rock, anvil, safe, boulder, stone, weight, dumbbell, barbell, kettlebell, iron, lead,
     elephant, hippo, whale, piano, cannonball, bowling ball, anchor, mountain, meteor, asteroid,
     statue, truck, tractor, bulldozer, bus, train, car, gold, gold bar, ingot, steel, metal,
     concrete, cement, hammer, fridge, paperweight, log, vault, pebble, planet, ton, tonne,
@@ -43,7 +43,7 @@ export const NATURE_THINGS: WordTable = {
   slippery: list(`
     ice, ice cube, ice rink, icicle, glacier, soap, bar of soap, butter, oil, olive oil, grease,
     banana, banana peel, banana skin, slide, water slide, slime, eel, fish, wax, margarine, lard,
-    puddle, frozen lake, sled, sledge, sleigh, ski, skate, teflon, slip
+    puddle, frozen lake, sled, sledge, sleigh, ski, skate, teflon, slip, block of ice
   `),
   sticky: list(`
     glue, superglue, super glue, nail, tape, duct tape, sellotape, scotch tape, honey, gum,
@@ -65,6 +65,21 @@ export const NATURE_THINGS: WordTable = {
     wine, beer, coffee, medicine, tonic, brew, soup, jug, pitcher, kettle, smoothie, milkshake,
     cocktail, pill, fan, soda can, tin can
   `),
+  solid: list(`
+    ground, floor, wall, platform, block, brick, shelf, ledge, pavement, road, terrain, island,
+    cliff, hill
+  `),
+  goal: list(`
+    goal, finish, finish line, flag, exit, rabbit hole, home, win, trophy, portal, destination
+  `),
+  hazard: list(`
+    lava, magma, spike, fire, campfire, bonfire, flame, danger, acid, trap, poison, thorn, skull,
+    floor is lava, lava floor
+  `),
+  spawn: list(`
+    start, spawn, alice starts here, start here, start point, starting point, spawn point,
+    respawn, checkpoint, beginning
+  `),
 };
 
 export const NATURE_DESCRIPTIONS: WordTable = {
@@ -80,6 +95,10 @@ export const NATURE_DESCRIPTIONS: WordTable = {
   sticky: list("sticky, gluey, gooey, tacky, stuck, glued, nailed, pinned, taped, gummy"),
   grow: list("eat me, eat, edible, yummy, tasty, delicious, grow, growing, growth"),
   shrink: list("drink me, drinkable, shrink, shrinking, shrinky, sip"),
+  solid: list("solid, static, fixed, immovable, unmovable, rigid"),
+  goal: [],
+  hazard: list("deadly, dangerous, lethal, poisonous, spiky, burning"),
+  spawn: [],
 };
 
 export const NEAR_ENOUGH_THINGS: Readonly<Partial<WordTable>> = {
@@ -143,5 +162,8 @@ export const MASS_NOUNS = list(`
   gum, mud, slime, tar, medicine, food, toast, cheese, chocolate, milk, juice, coffee, wine, beer,
   soup, smoke, steam, fluff, dust, foam, cotton, confetti, ink, velcro, wax, gold, lead, iron,
   steel, metal, concrete, cement, helium, sap, resin, toffee, caramel, treacle, clay, putty, sand,
-  snow, candy, pasta, hay, lint, pollen, silk, lard, margarine, marmalade, nutella
+  snow, candy, pasta, hay, lint, pollen, silk, lard, margarine, marmalade, nutella, lava, magma,
+  fire, acid, poison, danger, ground, terrain, pavement
 `);
+
+export const SELF_STANDING_ENDINGS = list("me, here");

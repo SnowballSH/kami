@@ -7,6 +7,7 @@ export class InkLedger {
   #pending = 0;
 
   get remaining(): number {
+    if (this.#total === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
     const left = this.#total - this.#spent - this.#pending;
     return left < DRY_INK_EPSILON ? 0 : left;
   }
@@ -21,6 +22,10 @@ export class InkLedger {
 
   draw(length: number): void {
     this.#pending += length;
+  }
+
+  undraw(length: number): void {
+    this.#pending = Math.max(0, this.#pending - length);
   }
 
   dropPending(): void {

@@ -1,13 +1,13 @@
 :root {
-  --kami-paper: #f3e7c9;
-  --kami-paper-light: #faf3dd;
-  --kami-paper-shade: #e4d3a6;
-  --kami-ink: #1d1a16;
-  --kami-ink-soft: rgb(29 26 22 / 0.62);
-  --kami-pen: #1f3f9e;
-  --kami-red: #b3261e;
-  --kami-hand:
-    "Bradley Hand", "Chalkboard SE", "Noteworthy", "Marker Felt", "Comic Sans MS", cursive, serif;
+  --kami-board: #ffffff;
+  --kami-ink: #111111;
+  --kami-ink-soft: rgb(17 17 17 / 0.55);
+  --kami-rule: rgb(17 17 17 / 0.14);
+  --kami-hover: #f3f3f3;
+  --kami-pressed: #dfe8ff;
+  --kami-danger: #ffe1dc;
+  --kami-hand: "Bradley Hand", "Noteworthy", "Chalkboard SE", "Marker Felt", cursive;
+  --kami-ui: ui-rounded, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   color-scheme: light;
 }
 
@@ -31,7 +31,7 @@ body,
   padding: 0;
   overflow: hidden;
   overscroll-behavior: none;
-  background: var(--kami-paper);
+  background: var(--kami-board);
 }
 
 html {
@@ -59,6 +59,7 @@ body {
 
 input,
 textarea {
+  touch-action: manipulation;
   -webkit-user-select: text;
   user-select: text;
 }

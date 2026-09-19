@@ -2,7 +2,7 @@ import Matter from "matter-js";
 import type { Nature } from "../cat/types";
 import type { Vec } from "../core/geometry";
 import type { AliceController } from "./alice";
-import { bottomOf, cancelGravity, exactBounds } from "./bodyBounds";
+import { bottomOf } from "./bodyBounds";
 import {
   BOUNCE_MAX_RISING_SPEED,
   BOUNCE_SPEED,
@@ -17,15 +17,17 @@ import {
   LIGHT_DENSITY_FACTOR,
 } from "./constants";
 import { type Contact, supports } from "./contacts";
-import type { InkMaterial } from "./inkBody";
 import type { InkEntity } from "./inkEntity";
 import type { AliceSize, SimEvent } from "./types";
+import { type BodyMaterial, cancelGravity } from "./worldPhysics";
 
-/** What a nature is allowed to do to the room it lives in. */
+/** What a nature is allowed to do to the board it lives on. */
 export interface NatureWorld {
   readonly alice: AliceController;
-  readonly gravityPerMass: Vec;
+  readonly gravity: Vec;
   emit(event: SimEvent): void;
+  reachGoal(): void;
+  loseAlice(): void;
   consume(ink: InkEntity): void;
   freeze(ink: InkEntity): void;
   refuseGrowth(ink: InkEntity): void;
@@ -38,26 +40,34 @@ type AliceTouchHook = (ink: InkEntity, contact: Contact, world: NatureWorld) => 
 export interface NatureStrategy {
   /** Anchor clusters needed for the ink to hold still; `null` never holds. */
   readonly anchorsToHold: number | null;
+  /** Roles stay exactly where they were drawn, whatever the ink has done since. */
+  readonly pinned: boolean;
   readonly solidToAlice: boolean;
+  readonly climbable: boolean;
   readonly slippery: boolean;
-  readonly material: (strength: number) => InkMaterial;
+  readonly material: (strength: number) => BodyMaterial;
   readonly beforeStep?: InkHook;
   readonly onAliceTouch?: AliceTouchHook;
   readonly onSurfaceTouch?: InkHook;
 }
 
-const PLAIN_MATERIAL: InkMaterial = {
+const PLAIN_MATERIAL: BodyMaterial = {
   density: INK_DENSITY,
   friction: INK_FRICTION,
   frictionAir: INK_AIR_FRICTION,
+  restitution: 0,
 };
 
 const PLAIN: NatureStrategy = {
   anchorsToHold: 2,
+  pinned: false,
   solidToAlice: true,
+  climbable: false,
   slippery: false,
   material: () => PLAIN_MATERIAL,
 };
+
+const ROLE: NatureStrategy = { ...PLAIN, anchorsToHold: 0, pinned: true };
 
 const bounce: AliceTouchHook = (ink, contact, world) => {
   const { alice } = world;
@@ -70,12 +80,11 @@ const bounce: AliceTouchHook = (ink, contact, world) => {
 
 const rise: InkHook = (ink, world) => {
   const { body } = ink;
-  const atPageTop = exactBounds(body).y <= 0;
   const velocity = {
-    x: body.velocity.x * FLOAT_DRIFT_DAMPING,
-    y: atPageTop ? 0 : -FLOAT_SPEED * ink.strength,
+    x: Matter.Body.getVelocity(body).x * FLOAT_DRIFT_DAMPING,
+    y: -FLOAT_SPEED * ink.strength,
   };
-  cancelGravity(body, world.gravityPerMass);
+  cancelGravity(body, world.gravity);
   Matter.Body.setVelocity(body, velocity);
   Matter.Body.setAngularVelocity(body, body.angularVelocity * FLOAT_SPIN_DAMPING);
   if (world.alice.standsOn(body)) world.alice.ride(velocity);
@@ -96,7 +105,7 @@ const resizeTo =
 export const NATURES: Readonly<Record<Nature, NatureStrategy>> = {
   ink: PLAIN,
   bouncy: { ...PLAIN, onAliceTouch: bounce },
-  climbable: { ...PLAIN, anchorsToHold: 1, solidToAlice: false },
+  climbable: { ...PLAIN, anchorsToHold: 1, solidToAlice: false, climbable: true },
   floaty: { ...PLAIN, anchorsToHold: null, beforeStep: rise },
   heavy: {
     ...PLAIN,
@@ -117,6 +126,14 @@ export const NATURES: Readonly<Record<Nature, NatureStrategy>> = {
   sticky: { ...PLAIN, anchorsToHold: 1, onSurfaceTouch: (ink, world) => world.freeze(ink) },
   grow: { ...PLAIN, onAliceTouch: resizeTo("big") },
   shrink: { ...PLAIN, onAliceTouch: resizeTo("small") },
+  solid: ROLE,
+  goal: {
+    ...ROLE,
+    solidToAlice: false,
+    onAliceTouch: (_ink, _contact, world) => world.reachGoal(),
+  },
+  hazard: { ...ROLE, onAliceTouch: (_ink, _contact, world) => world.loseAlice() },
+  spawn: { ...ROLE, solidToAlice: false },
 };
 
 export const holdsStill = (strategy: NatureStrategy, anchorClusters: number): boolean =>

@@ -33,6 +33,10 @@ describe("drawing ids", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("do not start over when the page reloads onto a remembered board", () => {
+    expect(new DrawingIdSequence().next()).not.toBe(new DrawingIdSequence().next());
+  });
+
   it("stay distinct across separate sessions on the same page", () => {
     const first = commitOneLine();
     const second = commitOneLine();

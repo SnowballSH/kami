@@ -1,11 +1,10 @@
 import { INK_THICKNESS } from "../core/world";
 
-export const GRAVITY_Y = 1;
 export const GRAVITY_SCALE = 0.001;
+export const MIN_TIME_SCALE = 0.01;
+export const MAX_AIR_FRICTION = 0.5;
 
 export const SOLID_FRICTION = 0.8;
-export const BOUNDS_WALL_THICKNESS = 60;
-export const BOUNDS_WALL_HEIGHT = 4000;
 
 export const INK_DENSITY = 0.004;
 export const INK_FRICTION = 0.8;

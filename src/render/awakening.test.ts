@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { awakening, inkTint, isSettled, SHIVER_MS, shiverOffset } from "./awakening";
-import { FOUNTAIN_BLUE, NATURE_TINTS } from "./palette";
+import { MARKER, NATURE_TINTS } from "./palette";
 
 describe("awakening", () => {
   it("runs from 0 to 1 over the shiver and then stays settled", () => {
@@ -27,9 +27,10 @@ describe("awakening", () => {
     expect(reach(1)).toBe(0);
   });
 
-  it("starts blue and ends on the nature's tint", () => {
-    expect(inkTint("bouncy", 0)).toEqual(FOUNTAIN_BLUE);
+  it("starts as black marker and ends on the nature's tint", () => {
+    expect(inkTint("bouncy", 0)).toEqual(MARKER.black);
     expect(inkTint("bouncy", 1)).toEqual(NATURE_TINTS.bouncy);
-    expect(inkTint("ink", 0.5)).toEqual(FOUNTAIN_BLUE);
+    expect(inkTint("hazard", 1)).toEqual(MARKER.red);
+    expect(inkTint("ink", 0.5)).toEqual(MARKER.black);
   });
 });

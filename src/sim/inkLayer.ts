@@ -2,18 +2,21 @@ import Matter from "matter-js";
 import type { Ruling } from "../cat/types";
 import type { Rect, Stroke } from "../core/geometry";
 import type { Drawing, DrawingId } from "../ink/types";
+import type { WorldPhysics } from "../rules/types";
 import { countAnchorClusters } from "./anchoring";
+import { boundsRect } from "./bodyBounds";
 import { GHOST_TO_ALICE, SOLID_TO_ALL } from "./contacts";
 import { buildInkBody } from "./inkBody";
 import { InkEntity } from "./inkEntity";
 import { holdsStill, NATURES } from "./natures";
 import type { DrawingPose } from "./types";
+import { type BodyMaterial, materialUnder, retune } from "./worldPhysics";
 
 type InkState = Pick<InkEntity, "nature" | "strength" | "frozen">;
 
 const PLAIN_INK: InkState = { nature: "ink", strength: 1, frozen: false };
 
-/** Every live drawing in the room, and the matter-js bodies that stand for them. */
+/** Every live drawing on the board, and the matter-js bodies that stand for them. */
 export class InkLayer {
   private readonly inks = new Map<DrawingId, InkEntity>();
   private readonly byBodyId = new Map<number, InkEntity>();
@@ -21,6 +24,7 @@ export class InkLayer {
   constructor(
     private readonly world: Matter.World,
     private readonly anchorRects: readonly Rect[],
+    private physics: WorldPhysics,
   ) {}
 
   get all(): readonly InkEntity[] {
@@ -29,6 +33,23 @@ export class InkLayer {
 
   get poses(): readonly DrawingPose[] {
     return this.all.map((ink) => ({ id: ink.id, pose: ink.pose }));
+  }
+
+  get dynamicBodies(): readonly Matter.Body[] {
+    return this.all.map((ink) => ink.body).filter((body) => !body.isStatic);
+  }
+
+  get heldBounds(): readonly Rect[] {
+    return this.all.filter((ink) => ink.body.isStatic).map((ink) => boundsRect(ink.body.bounds));
+  }
+
+  get spawnMarker(): InkEntity | undefined {
+    return this.all.findLast((ink) => ink.nature === "spawn");
+  }
+
+  setPhysics(physics: WorldPhysics): void {
+    this.physics = physics;
+    for (const ink of this.inks.values()) retune(ink.body, this.materialOf(ink));
   }
 
   find(body: Matter.Body): InkEntity | undefined {
@@ -69,10 +90,14 @@ export class InkLayer {
 
   private rebuild(ink: InkEntity): void {
     const previous = ink.body;
-    const body = this.build(ink.drawing.strokes, ink.worldStrokes, ink);
+    const { pinned } = NATURES[ink.nature];
+    const worldStrokes = pinned ? ink.drawing.strokes : ink.worldStrokes;
+    const body = this.build(ink.drawing.strokes, worldStrokes, ink);
     if (body === null) return;
-    Matter.Body.setPosition(body, previous.position);
-    Matter.Body.setAngle(body, previous.angle);
+    if (!pinned) {
+      Matter.Body.setPosition(body, previous.position);
+      Matter.Body.setAngle(body, previous.angle);
+    }
     if (!body.isStatic) {
       Matter.Body.setVelocity(body, Matter.Body.getVelocity(previous));
       Matter.Body.setAngularVelocity(body, Matter.Body.getAngularVelocity(previous));
@@ -91,9 +116,13 @@ export class InkLayer {
     const anchorClusters = countAnchorClusters(worldStrokes, this.anchorRects);
     return buildInkBody(drawnStrokes, {
       isStatic: state.frozen || holdsStill(strategy, anchorClusters),
-      material: strategy.material(state.strength),
+      material: this.materialOf(state),
       collisionFilter: strategy.solidToAlice ? SOLID_TO_ALL : GHOST_TO_ALICE,
     });
+  }
+
+  private materialOf(state: InkState): BodyMaterial {
+    return materialUnder(this.physics, NATURES[state.nature].material(state.strength));
   }
 
   private attach(ink: InkEntity): void {

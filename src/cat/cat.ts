@@ -1,6 +1,9 @@
 import type { Drawing } from "../ink/types";
+import type { Recognizer } from "../recognition/types";
+import { mergeGuesses } from "./guesses";
 import { HintLadder } from "./hintLadder";
 import { ASK_WHAT_IT_IS, OFFER_HELP } from "./lines";
+import { namesForRecognized } from "./recognizedNames";
 import { ruleOn } from "./ruling";
 import { isDot } from "./shape";
 import { type Guesses, guessNames } from "./shapeGuesser";
@@ -17,9 +20,14 @@ const NOWHERE: RoomBrief = {
 };
 
 export class ScriptedCat implements Cat {
+  readonly #recognizer: Recognizer | null;
   #room = NOWHERE;
   #ladder = new HintLadder(NOWHERE.hints);
   #helpOffered = false;
+
+  constructor(recognizer: Recognizer | null = null) {
+    this.#recognizer = recognizer;
+  }
 
   enterRoom(room: RoomBrief): void {
     this.#room = room;
@@ -33,8 +41,11 @@ export class ScriptedCat implements Cat {
     );
   }
 
-  guess(drawing: Drawing): Promise<Guesses> {
-    return Promise.resolve(guessNames(drawing, this.#room.allowedNatures));
+  async guess(drawing: Drawing): Promise<Guesses> {
+    const allowed = this.#room.allowedNatures;
+    const hunch = guessNames(drawing, allowed);
+    const seen = await this.#recognize(drawing);
+    return mergeGuesses(namesForRecognized(seen), hunch, allowed);
   }
 
   askWhatItIs(): string {
@@ -49,5 +60,14 @@ export class ScriptedCat implements Cat {
     if (this.#helpOffered) return null;
     this.#helpOffered = true;
     return OFFER_HELP;
+  }
+
+  async #recognize(drawing: Drawing): Promise<readonly string[]> {
+    if (this.#recognizer === null) return [];
+    try {
+      return await this.#recognizer.recognize(drawing);
+    } catch {
+      return [];
+    }
   }
 }

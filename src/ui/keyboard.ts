@@ -7,10 +7,6 @@ const DIRECTION_BY_CODE: Readonly<Record<string, Direction>> = {
   ArrowRight: "right",
   ArrowUp: "up",
   ArrowDown: "down",
-  KeyA: "left",
-  KeyD: "right",
-  KeyW: "up",
-  KeyS: "down",
 };
 
 export class KeyboardWalk {

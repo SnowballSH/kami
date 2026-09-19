@@ -1,4 +1,10 @@
-import { DETERMINERS, MASS_NOUNS, NATURE_DESCRIPTIONS, PREPOSITIONS } from "./lexicon";
+import {
+  DETERMINERS,
+  MASS_NOUNS,
+  NATURE_DESCRIPTIONS,
+  PREPOSITIONS,
+  SELF_STANDING_ENDINGS,
+} from "./lexicon";
 import { ACTIVE_NATURES } from "./natures";
 
 export const UNNAMED = "a scribble";
@@ -14,6 +20,7 @@ const MIN_PLURAL_LENGTH = 4;
 const DETERMINER_SET = new Set(DETERMINERS);
 const MASS_NOUN_SET = new Set(MASS_NOUNS);
 const PREPOSITION_SET = new Set(PREPOSITIONS);
+const SELF_STANDING_ENDING_SET = new Set(SELF_STANDING_ENDINGS);
 const DESCRIPTION_SET = new Set(ACTIVE_NATURES.flatMap((nature) => NATURE_DESCRIPTIONS[nature]));
 
 const clean = (utterance: string): string =>
@@ -41,7 +48,7 @@ const standsWithoutArticle = (words: readonly string[]): boolean => {
     words.some((word) => DETERMINER_SET.has(word)) ||
     first.endsWith("'s") ||
     /^\d/.test(first) ||
-    words.at(-1) === "me" ||
+    SELF_STANDING_ENDING_SET.has(words.at(-1) ?? "") ||
     MASS_NOUN_SET.has(head) ||
     (head.length >= MIN_PLURAL_LENGTH && PLURAL.test(head))
   );

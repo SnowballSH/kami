@@ -183,4 +183,110 @@ describe("PenInkSession", () => {
     session.penMove({ x: 50, y: 0 });
     expect(session.activeStrokes).toHaveLength(1);
   });
+
+  describe("penCancel", () => {
+    it("drops only the stroke in progress, refunds it and lets the commit timer carry on", () => {
+      drawLine(session, { x: 0, y: 0 }, { x: 100, y: 0 });
+      session.update(1000, OPEN_PAGE);
+      session.penDown({ x: 0, y: 50 });
+      session.penMove({ x: 80, y: 50 });
+      session.update(1500, OPEN_PAGE);
+      expect(session.budget.remaining).toBe(420);
+
+      session.penCancel();
+      expect(session.budget.remaining).toBe(500);
+      expect(session.activeStrokes).toHaveLength(1);
+      expect(session.isDrawing).toBe(true);
+
+      session.update(1899, OPEN_PAGE);
+      expect(listener.commits).toHaveLength(0);
+      session.update(1900, OPEN_PAGE);
+      expect(listener.commits).toHaveLength(1);
+      expect(listener.commits[0]?.strokes).toHaveLength(1);
+      expect(listener.commits[0]?.cost).toBeCloseTo(100);
+      expect(session.budget.remaining).toBe(500);
+    });
+
+    it("leaves nothing behind when the cancelled stroke was the whole drawing", () => {
+      session.penDown({ x: 0, y: 0 });
+      session.penMove({ x: 200, y: 0 });
+      session.penCancel();
+      expect(session.isDrawing).toBe(false);
+      expect(session.activeStrokes).toHaveLength(0);
+      expect(session.budget.remaining).toBe(600);
+
+      session.update(0, OPEN_PAGE);
+      session.update(900, OPEN_PAGE);
+      expect(listener.commits).toHaveLength(0);
+      expect(listener.rejections).toHaveLength(0);
+    });
+
+    it("does nothing once the pen is already up", () => {
+      drawLine(session, { x: 0, y: 0 }, { x: 100, y: 0 });
+      session.penCancel();
+      expect(session.activeStrokes).toHaveLength(1);
+      expect(session.budget.remaining).toBe(500);
+    });
+
+    it("lets the pen come straight back down", () => {
+      session.penDown({ x: 0, y: 0 });
+      session.penCancel();
+      session.penDown({ x: 10, y: 10 });
+      session.penMove({ x: 60, y: 10 });
+      expect(session.activeStrokes).toEqual([
+        [
+          { x: 10, y: 10 },
+          { x: 60, y: 10 },
+        ],
+      ]);
+    });
+  });
+
+  describe("an endless marker", () => {
+    const ENDLESS = Number.POSITIVE_INFINITY;
+    const FAR = 1_000_000;
+
+    beforeEach(() => {
+      session.reset(ENDLESS);
+    });
+
+    it("never runs dry, however far it is dragged", () => {
+      session.penDown({ x: 0, y: 0 });
+      session.penMove({ x: FAR, y: 0 });
+      expect(session.budget).toEqual({ total: ENDLESS, remaining: ENDLESS });
+      expect(session.activeStrokes[0]?.at(-1)).toEqual({ x: FAR, y: 0 });
+
+      session.penUp();
+      session.update(0, OPEN_PAGE);
+      session.update(900, OPEN_PAGE);
+      expect(listener.commits[0]?.cost).toBe(FAR);
+      expect(session.budget).toEqual({ total: ENDLESS, remaining: ENDLESS });
+    });
+
+    it("stays endless and free of NaN through refunds, cancels and rejections", () => {
+      drawLine(session, { x: 0, y: 0 }, { x: FAR, y: 0 });
+      session.update(0, OPEN_PAGE);
+      session.update(900, OPEN_PAGE);
+      session.refund(FAR);
+      session.refund(ENDLESS);
+      session.penDown({ x: 0, y: 10 });
+      session.penMove({ x: 50, y: 10 });
+      session.penCancel();
+      drawLine(session, { x: 50, y: 530 }, { x: 200, y: 530 });
+      session.update(2000, { noInkZones: [], aliceBounds: ALICE });
+      session.update(2900, { noInkZones: [], aliceBounds: ALICE });
+
+      expect(listener.rejections).toEqual(["overlaps-alice"]);
+      expect(session.budget).toEqual({ total: ENDLESS, remaining: ENDLESS });
+
+      drawLine(session, { x: 0, y: 40 }, { x: 30, y: 40 });
+      const drawn = session.activeStrokes.flat().flatMap(({ x, y }) => [x, y]);
+      expect(drawn.every(Number.isFinite)).toBe(true);
+    });
+
+    it("goes back to a measured pen when a finite board loads", () => {
+      session.reset(100);
+      expect(session.budget).toEqual({ total: 100, remaining: 100 });
+    });
+  });
 });

@@ -197,7 +197,7 @@ describe("Game on the Wonderland board", () => {
     expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toContain("bouncy");
 
     player.walk(1);
-    expect(await player.until(() => player.alice.center.x > 1560 && player.alice.grounded)).toBe(
+    expect(await player.until(() => player.alice.center.x > 1740 && player.alice.grounded)).toBe(
       true,
     );
     expect(player.written).toContain("Curiouser and curiouser.");

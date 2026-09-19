@@ -7,7 +7,7 @@ import { line } from "./testSupport";
 
 const OPTIONS: InkBodyOptions = {
   isStatic: false,
-  material: { density: 0.004, friction: 0.8, frictionAir: 0.01 },
+  material: { density: 0.004, friction: 0.8, frictionAir: 0.01, restitution: 0 },
   collisionFilter: SOLID_TO_ALL,
 };
 

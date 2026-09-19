@@ -3,24 +3,37 @@ import type { Stroke } from "../core/geometry";
 import { INK_THICKNESS } from "../core/world";
 import { TAU } from "./canvas2d";
 
-const PEN: StrokeOptions = {
+export type Pen = StrokeOptions & { readonly size: number };
+
+export const NOTE_THICKNESS = 2.2;
+
+export const INK_PEN: Pen = {
   size: INK_THICKNESS,
-  thinning: 0.35,
+  thinning: 0.3,
   smoothing: 0.5,
   streamline: 0.35,
   simulatePressure: true,
   last: true,
 };
 
-const appendDot = (path: Path2D, stroke: Stroke): void => {
-  const [dot] = stroke;
-  if (dot === undefined) return;
-  path.moveTo(dot.x + INK_THICKNESS / 2, dot.y);
-  path.arc(dot.x, dot.y, INK_THICKNESS / 2, 0, TAU);
+export const NOTE_PEN: Pen = {
+  size: NOTE_THICKNESS,
+  thinning: 0.1,
+  smoothing: 0.5,
+  streamline: 0,
+  simulatePressure: true,
+  last: true,
 };
 
-const appendOutline = (path: Path2D, stroke: Stroke): void => {
-  const outline = getStroke([...stroke], PEN);
+const appendDot = (path: Path2D, stroke: Stroke, pen: Pen): void => {
+  const [dot] = stroke;
+  if (dot === undefined) return;
+  path.moveTo(dot.x + pen.size / 2, dot.y);
+  path.arc(dot.x, dot.y, pen.size / 2, 0, TAU);
+};
+
+const appendOutline = (path: Path2D, stroke: Stroke, pen: Pen): void => {
+  const outline = getStroke([...stroke], pen);
   const [start] = outline;
   if (start === undefined) return;
   path.moveTo(start[0], start[1]);
@@ -31,11 +44,11 @@ const appendOutline = (path: Path2D, stroke: Stroke): void => {
   path.closePath();
 };
 
-export const appendStroke = (path: Path2D, stroke: Stroke): void =>
-  stroke.length === 1 ? appendDot(path, stroke) : appendOutline(path, stroke);
+export const appendStroke = (path: Path2D, stroke: Stroke, pen: Pen): void =>
+  stroke.length === 1 ? appendDot(path, stroke, pen) : appendOutline(path, stroke, pen);
 
-export const inkPath = (strokes: readonly Stroke[]): Path2D => {
+export const strokesPath = (strokes: readonly Stroke[], pen: Pen): Path2D => {
   const path = new Path2D();
-  for (const stroke of strokes) appendStroke(path, stroke);
+  for (const stroke of strokes) appendStroke(path, stroke, pen);
   return path;
 };

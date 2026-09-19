@@ -1,19 +1,38 @@
 import { describe, expect, it } from "vitest";
 import { NATURES } from "../cat/types";
-import { FOUNTAIN_BLUE, mapNatures, mixRgb, NATURE_TINTS, rgbCss } from "./palette";
+import { MARKER, mapNatures, mixRgb, NATURE_TINTS, noteCss, rgbCss } from "./palette";
 
 describe("palette", () => {
-  it("has a tint for every nature", () => {
-    for (const nature of NATURES) {
-      expect(NATURE_TINTS[nature]).toHaveLength(3);
-    }
+  it("has a marker tint for every nature", () => {
     expect(Object.keys(NATURE_TINTS).sort()).toEqual([...NATURES].sort());
+    for (const nature of NATURES) {
+      const tint = NATURE_TINTS[nature];
+      expect(tint).toHaveLength(3);
+      expect(tint.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)).toBe(true);
+    }
   });
 
-  it("keeps plain ink fountain-pen blue and every other nature its own colour", () => {
-    expect(NATURE_TINTS.ink).toEqual(FOUNTAIN_BLUE);
-    const tints = new Set(NATURES.map((nature) => rgbCss(NATURE_TINTS[nature])));
-    expect(tints.size).toBe(NATURES.length);
+  it("gives the roles the colours a whiteboard tray would", () => {
+    expect(NATURE_TINTS.ink).toEqual(MARKER.black);
+    expect(NATURE_TINTS.solid).toEqual(MARKER.black);
+    expect(NATURE_TINTS.goal).toEqual(MARKER.green);
+    expect(NATURE_TINTS.hazard).toEqual(MARKER.red);
+    expect(NATURE_TINTS.spawn).toEqual(MARKER.blue);
+  });
+
+  it("keeps every spirit its own colour", () => {
+    const spirits = NATURES.filter((nature) => !["ink", "solid"].includes(nature));
+    expect(new Set(spirits.map((nature) => rgbCss(NATURE_TINTS[nature]))).size).toBe(
+      spirits.length,
+    );
+  });
+
+  it("writes Kami in blue, the player in black, and lets the tone win", () => {
+    expect(noteCss("kami", "plain")).toBe(rgbCss(MARKER.blue));
+    expect(noteCss("player", "plain")).toBe(rgbCss(MARKER.black));
+    expect(noteCss("player", "understood")).toBe(rgbCss(MARKER.green));
+    expect(noteCss("kami", "understood")).toBe(rgbCss(MARKER.green));
+    expect(noteCss("player", "confused")).toBe(rgbCss(MARKER.red));
   });
 
   it("mixes from one colour to another", () => {

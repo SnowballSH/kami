@@ -1,6 +1,7 @@
 import Matter from "matter-js";
 import { clamp, type Rect, type Vec } from "../core/geometry";
-import { bottomOf, cancelGravity, exactBounds } from "./bodyBounds";
+import type { WorldPhysics } from "../rules/types";
+import { bottomOf, exactBounds } from "./bodyBounds";
 import {
   ALICE_AIR_FRICTION,
   ALICE_CHAMFER_RADIUS,
@@ -33,13 +34,16 @@ import {
   type Axis,
   type WalkIntent,
 } from "./types";
+import { accelerationOf, airFrictionUnder, cancelGravity } from "./worldPhysics";
 
 /** Everything around Alice that her controller needs to feel its way. */
 export interface AliceSurroundings {
   readonly obstacles: readonly Matter.Body[];
-  readonly climbables: readonly Matter.Body[];
+  /** Ink she walks through: ladders, goals, spawn marks. */
+  readonly passables: readonly Matter.Body[];
   isInk(body: Matter.Body): boolean;
   isSlippery(body: Matter.Body): boolean;
+  isClimbable(body: Matter.Body): boolean;
 }
 
 interface ResizeTween {
@@ -67,12 +71,13 @@ export class AliceController {
   private onClimbable = false;
   private footing: readonly Contact[] = [];
   private ahead: readonly Contact[] = [];
+  private passing: readonly Contact[] = [];
   private blockedTicks = 0;
   private lastFootingY: number;
 
   constructor(
     feet: Vec,
-    private readonly gravity: Vec,
+    private physics: WorldPhysics,
   ) {
     this.body = Matter.Bodies.rectangle(
       feet.x,
@@ -83,12 +88,12 @@ export class AliceController {
         chamfer: { radius: ALICE_CHAMFER_RADIUS },
         friction: 0,
         frictionStatic: 0,
-        frictionAir: ALICE_AIR_FRICTION,
         collisionFilter: { category: CATEGORY.alice },
       },
     );
     Matter.Body.setInertia(this.body, Number.POSITIVE_INFINITY);
     this.lastFootingY = feet.y;
+    this.applyPhysics(physics);
   }
 
   get size(): AliceSize {
@@ -104,7 +109,13 @@ export class AliceController {
   }
 
   get contacts(): readonly Contact[] {
-    return [...this.footing, ...this.ahead];
+    return [...this.footing, ...this.ahead, ...this.passing];
+  }
+
+  applyPhysics(physics: WorldPhysics): void {
+    this.physics = physics;
+    this.body.frictionAir = airFrictionUnder(physics, ALICE_AIR_FRICTION);
+    this.body.restitution = physics.bounciness;
   }
 
   bounds(): Rect {
@@ -116,11 +127,12 @@ export class AliceController {
   }
 
   sense(surroundings: AliceSurroundings, intent: WalkIntent): void {
-    const { obstacles, climbables } = surroundings;
+    const { obstacles, passables } = surroundings;
     this.footing = contactsAt(this.body, { x: 0, y: PROBE_BELOW }, obstacles).filter(supports);
     this.ahead =
       intent.x === 0 ? [] : contactsAt(this.body, { x: intent.x * PROBE_AHEAD, y: 0 }, obstacles);
-    this.onClimbable = contactsWith(this.body, climbables).length > 0;
+    this.passing = contactsWith(this.body, passables);
+    this.onClimbable = this.passing.some((contact) => surroundings.isClimbable(contact.body));
     if (this.grounded) this.lastFootingY = bottomOf(this.bounds());
   }
 
@@ -136,7 +148,7 @@ export class AliceController {
       ? holdBack(velocity.x, intent.x)
       : this.walkVelocity(velocity.x, intent.x, surroundings);
 
-    if (this.climbing) cancelGravity(this.body, this.gravity);
+    if (this.climbing) cancelGravity(this.body, accelerationOf(this.physics.gravity));
     const velocityY = this.climbing ? intent.y * CLIMB_SPEED : stepped ? 0 : velocity.y;
     Matter.Body.setVelocity(this.body, { x: velocityX, y: velocityY });
   }
@@ -159,6 +171,8 @@ export class AliceController {
     Matter.Body.setVelocity(this.body, { x: 0, y: 0 });
     this.footing = [];
     this.ahead = [];
+    this.passing = [];
+    this.onClimbable = false;
     this.blockedTicks = 0;
     this.lastFootingY = feet.y;
   }
@@ -194,9 +208,11 @@ export class AliceController {
   }
 
   private walkVelocity(current: number, direction: Axis, surroundings: AliceSurroundings): number {
+    if (direction === 0 && !this.grounded && !this.climbing) return current;
     const target = direction * WALK_SPEED * Math.sqrt(this.scale);
-    const sliding = this.footing.some((contact) => surroundings.isSlippery(contact.body));
-    return sliding ? approach(current, target, SLIDE_ACCELERATION) : target;
+    const onSlipperyInk = this.footing.some((contact) => surroundings.isSlippery(contact.body));
+    const traction = onSlipperyInk ? 0 : Math.max(this.physics.friction, 0);
+    return traction >= 1 ? target : approach(current, target, SLIDE_ACCELERATION / (1 - traction));
   }
 
   private updateBlocking(

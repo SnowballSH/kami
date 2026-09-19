@@ -72,6 +72,26 @@ export const ACCEPTANCE: Readonly<Record<Nature, LineSet>> = {
     "One sip, and the world gets roomier.",
     "Small is only a matter of where you stand.",
   ],
+  solid: [
+    "Solid as a fact. It shan't budge for anyone.",
+    "It will stay exactly there. How unlike me.",
+    "Something to stand on. Opinions rarely manage that.",
+  ],
+  goal: [
+    "So that's where she's going. I did wonder.",
+    "An ending! Now all she needs is a middle.",
+    "Any road gets her there, if that's where it ends.",
+  ],
+  hazard: [
+    "Nasty. One touch and she begins again.",
+    "Do mind it. It certainly won't mind her.",
+    "A little danger keeps the walking interesting.",
+  ],
+  spawn: [
+    "Begin at the beginning, then. This is it.",
+    "So this is where she begins. Again and again, I expect.",
+    "A place to come back to. Everyone should have one.",
+  ],
 };
 
 export const TAG_LINES: Readonly<Record<Tag, string>> = {

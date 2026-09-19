@@ -1,18 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WalkIntent } from "../sim/types";
 import { DomHud } from "./hud";
-import type { HudHandlers } from "./types";
+import type { BoardListing, HudHandlers, Tool } from "./types";
+import { ZOOM_STEP } from "./zoomControls";
 
-const GUESSES = ["a mushroom", "a rock", "a cloud"] as const;
+const BOARDS: readonly BoardListing[] = [
+  { id: "wonderland", title: "Wonderland" },
+  { id: "moon-golf", title: "Moon golf" },
+];
 
 const createHandlers = () =>
   ({
     onWalkIntent: vi.fn<(intent: WalkIntent) => void>(),
-    onNameChosen: vi.fn(),
-    onNamingDismissed: vi.fn(),
-    onAskCat: vi.fn(),
-    onEraserToggled: vi.fn(),
-    onResetRoom: vi.fn(),
+    onToolChanged: vi.fn<(tool: Tool) => void>(),
+    onZoom: vi.fn<(factor: number) => void>(),
+    onRecenter: vi.fn(),
+    onOpenBoard: vi.fn<(boardId: string) => void>(),
+    onNewBoard: vi.fn(),
+    onClearBoard: vi.fn(),
   }) satisfies HudHandlers;
 
 const find = <T extends Element>(root: Element, selector: string): T => {
@@ -24,11 +29,13 @@ const find = <T extends Element>(root: Element, selector: string): T => {
 const pointer = (type: string, pointerId: number): PointerEvent =>
   new PointerEvent(type, { pointerId, bubbles: true, cancelable: true });
 
-const key = (type: "keydown" | "keyup", code: string): KeyboardEvent =>
-  new KeyboardEvent(type, { code, bubbles: true, cancelable: true });
+const key = (type: "keydown" | "keyup", init: KeyboardEventInit): KeyboardEvent =>
+  new KeyboardEvent(type, { bubbles: true, cancelable: true, ...init });
 
-const intents = (handlers: ReturnType<typeof createHandlers>): readonly WalkIntent[] =>
-  handlers.onWalkIntent.mock.calls.map(([intent]) => intent);
+const press = (target: EventTarget, init: KeyboardEventInit): void => {
+  target.dispatchEvent(key("keydown", init));
+  target.dispatchEvent(key("keyup", init));
+};
 
 describe("DomHud", () => {
   const huds: DomHud[] = [];
@@ -39,7 +46,12 @@ describe("DomHud", () => {
     const handlers = createHandlers();
     const hud = new DomHud(root, handlers);
     huds.push(hud);
-    return { root, handlers, hud };
+    const pressedTools = (): readonly string[] =>
+      [...root.querySelectorAll(".kami-tool[aria-pressed='true']")].map(
+        (button) => button.className,
+      );
+    const prompt = find<HTMLInputElement>(root, ".kami-prompt");
+    return { root, handlers, hud, pressedTools, prompt };
   };
 
   afterEach(() => {
@@ -47,65 +59,66 @@ describe("DomHud", () => {
     document.body.replaceChildren();
   });
 
-  describe("naming panel", () => {
-    it("opens with one chip per guess and reports the tapped one", () => {
-      const { root, handlers, hud } = setup();
-      expect(hud.namingOpen).toBe(false);
+  describe("toolbar", () => {
+    it("starts on draw and reports the tool a button picks", () => {
+      const { root, handlers, pressedTools } = setup();
+      expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-draw")]);
 
-      hud.showNaming(GUESSES);
-      const chips = [...root.querySelectorAll<HTMLButtonElement>(".kami-chip")];
+      find<HTMLButtonElement>(root, ".kami-tool-erase").click();
+      find<HTMLButtonElement>(root, ".kami-tool-erase").click();
 
-      expect(hud.namingOpen).toBe(true);
-      expect(chips.map((chip) => chip.textContent)).toEqual([...GUESSES]);
-
-      chips[1]?.click();
-
-      expect(handlers.onNameChosen).toHaveBeenCalledExactlyOnceWith("a rock");
-      expect(hud.namingOpen).toBe(false);
+      expect(handlers.onToolChanged.mock.calls).toEqual([["erase"]]);
+      expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-erase")]);
     });
 
-    it("submits the typed name trimmed and ignores blank ones", () => {
-      const { root, handlers, hud } = setup();
-      hud.showNaming(GUESSES);
-      const form = find<HTMLFormElement>(root, ".kami-naming-form");
-      const input = find<HTMLInputElement>(root, ".kami-naming-input");
+    it("switches tools with D, T, E and H", () => {
+      const { handlers, pressedTools } = setup();
 
-      input.value = "   ";
-      form.dispatchEvent(new Event("submit", { cancelable: true }));
-      expect(handlers.onNameChosen).not.toHaveBeenCalled();
-      expect(hud.namingOpen).toBe(true);
+      for (const letter of ["t", "E", "h", "d"]) press(window, { key: letter });
+      press(window, { key: "e", metaKey: true });
 
-      input.value = "  a very bouncy mushroom ";
-      form.dispatchEvent(new Event("submit", { cancelable: true }));
-      expect(handlers.onNameChosen).toHaveBeenCalledExactlyOnceWith("a very bouncy mushroom");
-      expect(hud.namingOpen).toBe(false);
+      expect(handlers.onToolChanged.mock.calls).toEqual([["write"], ["erase"], ["pan"], ["draw"]]);
+      expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-draw")]);
     });
 
-    it("is hardened against Safari's zoom and autocorrect", () => {
-      const { root } = setup();
-      const input = find<HTMLInputElement>(root, ".kami-naming-input");
+    it("reflects setTool without echoing it back", () => {
+      const { handlers, hud, pressedTools } = setup();
 
-      expect(input.getAttribute("enterkeyhint")).toBe("done");
-      expect(input.getAttribute("autocapitalize")).toBe("off");
-      expect(input.getAttribute("autocomplete")).toBe("off");
+      hud.setTool("write");
+
+      expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-write")]);
+      expect(handlers.onToolChanged).not.toHaveBeenCalled();
     });
 
-    it("dismisses with 'just ink' and closes on request", () => {
-      const { root, handlers, hud } = setup();
+    it("pans while Space is held and restores the tool on release", () => {
+      const { handlers, hud, pressedTools } = setup();
+      hud.setTool("erase");
 
-      hud.showNaming(GUESSES);
-      find<HTMLButtonElement>(root, ".kami-naming-dismiss").click();
-      expect(handlers.onNamingDismissed).toHaveBeenCalledOnce();
-      expect(hud.namingOpen).toBe(false);
+      window.dispatchEvent(key("keydown", { key: " " }));
+      window.dispatchEvent(key("keydown", { key: " ", repeat: true }));
+      hud.setTool("pan");
+      expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-pan")]);
 
-      hud.showNaming(GUESSES);
-      hud.hideNaming();
-      expect(hud.namingOpen).toBe(false);
-      expect(handlers.onNamingDismissed).toHaveBeenCalledOnce();
+      window.dispatchEvent(key("keyup", { key: " " }));
+
+      expect(handlers.onToolChanged.mock.calls).toEqual([["pan"], ["erase"]]);
+      expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-erase")]);
+    });
+
+    it("lets go of a held Space when the window loses focus", () => {
+      const { handlers } = setup();
+
+      window.dispatchEvent(key("keydown", { key: " " }));
+      window.dispatchEvent(new Event("blur"));
+
+      expect(handlers.onToolChanged.mock.calls).toEqual([["pan"], ["draw"]]);
     });
   });
 
   describe("walking", () => {
+    const intents = (handlers: ReturnType<typeof createHandlers>): readonly WalkIntent[] =>
+      handlers.onWalkIntent.mock.calls.map(([intent]) => intent);
+
     it("holds and releases a d-pad direction per pointer", () => {
       const { root, handlers } = setup();
       const right = find<HTMLButtonElement>(root, ".kami-dpad-right");
@@ -125,16 +138,16 @@ describe("DomHud", () => {
       ]);
     });
 
-    it("walks with arrows and WASD, cancelling opposites across inputs", () => {
+    it("walks with the arrow keys, cancelling opposites across inputs", () => {
       const { root, handlers } = setup();
       const left = find<HTMLButtonElement>(root, ".kami-dpad-left");
 
-      window.dispatchEvent(key("keydown", "ArrowRight"));
-      window.dispatchEvent(key("keydown", "ArrowRight"));
+      window.dispatchEvent(key("keydown", { code: "ArrowRight" }));
+      window.dispatchEvent(key("keydown", { code: "ArrowRight" }));
       left.dispatchEvent(pointer("pointerdown", 1));
       left.dispatchEvent(pointer("lostpointercapture", 1));
-      window.dispatchEvent(key("keyup", "ArrowRight"));
-      window.dispatchEvent(key("keydown", "KeyS"));
+      window.dispatchEvent(key("keyup", { code: "ArrowRight" }));
+      window.dispatchEvent(key("keydown", { code: "ArrowDown" }));
       window.dispatchEvent(new Event("blur"));
 
       expect(intents(handlers)).toEqual([
@@ -147,103 +160,195 @@ describe("DomHud", () => {
       ]);
     });
 
-    it("does not walk while keys are typed into the naming input", () => {
-      const { root, handlers, hud } = setup();
-      hud.showNaming(GUESSES);
-      const input = find<HTMLInputElement>(root, ".kami-naming-input");
+    it("leaves the letter keys to the tools", () => {
+      const { handlers } = setup();
 
-      input.dispatchEvent(key("keydown", "KeyD"));
-      input.dispatchEvent(key("keyup", "KeyD"));
-      input.dispatchEvent(key("keydown", "ArrowLeft"));
+      press(window, { key: "d", code: "KeyD" });
 
+      expect(handlers.onWalkIntent).not.toHaveBeenCalled();
+      expect(handlers.onToolChanged).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("text prompt", () => {
+    it("opens a Scribble-friendly field at the tap and resolves with the trimmed text on Enter", async () => {
+      const { hud, prompt } = setup();
+      expect(prompt.hidden).toBe(true);
+
+      const answer = hud.promptText({ x: 200, y: 150 });
+
+      expect(prompt.hidden).toBe(false);
+      expect(document.activeElement).toBe(prompt);
+      expect(prompt.style.left).toBe("200px");
+      expect(prompt.getAttribute("enterkeyhint")).toBe("done");
+      for (const guard of ["autocapitalize", "autocomplete", "autocorrect"]) {
+        expect(prompt.getAttribute(guard)).toBe("off");
+      }
+      expect(prompt.getAttribute("spellcheck")).toBe("false");
+
+      prompt.value = "  g = the moon's gravity ";
+      prompt.dispatchEvent(key("keydown", { key: "Enter" }));
+
+      await expect(answer).resolves.toBe("g = the moon's gravity");
+      expect(prompt.hidden).toBe(true);
+      expect(document.activeElement).not.toBe(prompt);
+    });
+
+    it("keeps the field on screen", () => {
+      const { hud, prompt } = setup();
+
+      void hud.promptText({ x: -500, y: -500 });
+
+      expect(prompt.style.left).toBe("12px");
+      expect(prompt.style.top).toBe("12px");
+    });
+
+    it("resolves null for Enter on nothing, Escape, and blur while empty", async () => {
+      const { hud, prompt } = setup();
+
+      const blank = hud.promptText({ x: 0, y: 0 });
+      prompt.value = "   ";
+      prompt.dispatchEvent(key("keydown", { key: "Enter" }));
+      await expect(blank).resolves.toBeNull();
+
+      const escaped = hud.promptText({ x: 0, y: 0 });
+      prompt.value = "a mushroom";
+      prompt.dispatchEvent(key("keydown", { key: "Escape" }));
+      await expect(escaped).resolves.toBeNull();
+
+      const blurred = hud.promptText({ x: 0, y: 0 });
+      prompt.blur();
+      await expect(blurred).resolves.toBeNull();
+    });
+
+    it("commits the text when focus leaves", async () => {
+      const { hud, prompt } = setup();
+
+      const answer = hud.promptText({ x: 0, y: 0 });
+      prompt.value = "a ladder";
+      prompt.blur();
+
+      await expect(answer).resolves.toBe("a ladder");
+    });
+
+    it("abandons the first prompt when a second opens", async () => {
+      const { hud, prompt } = setup();
+
+      const first = hud.promptText({ x: 10, y: 10 });
+      prompt.value = "half-written";
+      const second = hud.promptText({ x: 300, y: 300 });
+
+      await expect(first).resolves.toBeNull();
+      expect(prompt.value).toBe("");
+      expect(prompt.hidden).toBe(false);
+      expect(document.activeElement).toBe(prompt);
+
+      prompt.value = "slow motion";
+      prompt.dispatchEvent(key("keydown", { key: "Enter" }));
+      await expect(second).resolves.toBe("slow motion");
+    });
+
+    it("keeps typed keys from walking Alice or switching tools", () => {
+      const { hud, handlers, prompt } = setup();
+      void hud.promptText({ x: 0, y: 0 });
+
+      press(prompt, { key: "e", code: "KeyE" });
+      press(prompt, { key: " ", code: "Space" });
+      press(prompt, { key: "ArrowRight", code: "ArrowRight" });
+
+      expect(handlers.onToolChanged).not.toHaveBeenCalled();
       expect(handlers.onWalkIntent).not.toHaveBeenCalled();
     });
   });
 
-  describe("top bar", () => {
-    it("drains the ink bar and flags it under fifteen percent", () => {
-      const { root, hud } = setup();
-      const meter = find<HTMLElement>(root, ".kami-ink");
-      const fill = find<HTMLElement>(root, ".kami-ink-fill");
+  describe("zoom", () => {
+    it("zooms out, in, and recentres on Alice", () => {
+      const { root, handlers } = setup();
 
-      hud.setInk({ total: 600, remaining: 300 });
-      expect(fill.style.width).toBe("50.0%");
-      expect(meter.classList.contains("is-low")).toBe(false);
+      find<HTMLButtonElement>(root, ".kami-zoom-out").click();
+      find<HTMLButtonElement>(root, ".kami-zoom-in").click();
+      find<HTMLButtonElement>(root, ".kami-recenter").click();
 
-      hud.setInk({ total: 600, remaining: 60 });
-      expect(fill.style.width).toBe("10.0%");
-      expect(meter.classList.contains("is-low")).toBe(true);
-
-      hud.setInk({ total: 0, remaining: 0 });
-      expect(fill.style.width).toBe("0.0%");
-    });
-
-    it("reports eraser toggles and reflects the state it is given", () => {
-      const { root, handlers, hud } = setup();
-      const eraser = find<HTMLButtonElement>(root, ".kami-eraser");
-
-      eraser.click();
-      expect(handlers.onEraserToggled).toHaveBeenLastCalledWith(true);
-      expect(eraser.getAttribute("aria-pressed")).toBe("true");
-
-      hud.setEraserActive(false);
-      expect(eraser.getAttribute("aria-pressed")).toBe("false");
-      expect(handlers.onEraserToggled).toHaveBeenCalledOnce();
-
-      eraser.click();
-      eraser.click();
-      expect(handlers.onEraserToggled.mock.calls).toEqual([[true], [true], [false]]);
-    });
-
-    it("shows the room as a page of the book and forwards reset and ask", () => {
-      const { root, handlers, hud } = setup();
-
-      hud.setRoom("The Shelves", 2, 3);
-      find<HTMLButtonElement>(root, ".kami-reset").click();
-      find<HTMLButtonElement>(root, ".kami-ask").click();
-
-      expect(find(root, ".kami-room-title").textContent).toBe("The Shelves");
-      expect(find(root, ".kami-room-page").textContent).toBe("page 2 of 3");
-      expect(handlers.onResetRoom).toHaveBeenCalledOnce();
-      expect(handlers.onAskCat).toHaveBeenCalledOnce();
+      expect(handlers.onZoom.mock.calls).toEqual([[1 / ZOOM_STEP], [ZOOM_STEP]]);
+      expect(handlers.onRecenter).toHaveBeenCalledOnce();
     });
   });
 
-  describe("the Cat", () => {
-    it("captions a line and fades it out later, longer for longer lines", () => {
-      vi.useFakeTimers();
+  describe("board menu", () => {
+    const open = (root: Element): HTMLElement => {
+      find<HTMLButtonElement>(root, ".kami-board-toggle").click();
+      return find<HTMLElement>(root, ".kami-board-popover");
+    };
+
+    it("shows the wordmark and the current board, and lists the boards when opened", () => {
       const { root, hud } = setup();
-      const bubble = find<HTMLElement>(root, ".kami-cat");
+      hud.setBoards(BOARDS, "moon-golf");
+      const popover = find<HTMLElement>(root, ".kami-board-popover");
 
-      hud.say("Ask, if you like.");
-      expect(bubble.classList.contains("is-shown")).toBe(true);
-      expect(find(root, ".kami-cat-caption").textContent).toBe("Ask, if you like.");
+      expect(find(root, ".kami-wordmark").textContent).toBe("kami");
+      expect(find(root, ".kami-board-title").textContent).toBe("Moon golf");
+      expect(popover.hidden).toBe(true);
 
-      vi.advanceTimersByTime(3000);
-      expect(bubble.classList.contains("is-shown")).toBe(true);
-      vi.advanceTimersByTime(3000);
-      expect(bubble.classList.contains("is-shown")).toBe(false);
-      vi.useRealTimers();
+      open(root);
+      const items = [...root.querySelectorAll(".kami-board-item")];
+
+      expect(popover.hidden).toBe(false);
+      expect(items.map((item) => item.textContent)).toEqual(["Wonderland", "Moon golf"]);
+      expect(items.map((item) => item.getAttribute("aria-checked"))).toEqual(["false", "true"]);
     });
-  });
 
-  describe("title card", () => {
-    it("resolves once the card has faded back out", async () => {
-      vi.useFakeTimers();
-      const { root, hud } = setup();
-      const card = find<HTMLElement>(root, ".kami-title");
-      const done = vi.fn();
+    it("opens another board and closes, but not the board already open", () => {
+      const { root, handlers, hud } = setup();
+      hud.setBoards(BOARDS, "moon-golf");
 
-      void hud.showTitleCard({ title: "Kami", durationMs: 2000 }).then(done);
-      expect(card.classList.contains("is-shown")).toBe(true);
-      expect(find(root, ".kami-title-heading").textContent).toBe("Kami");
+      const popover = open(root);
+      find<HTMLButtonElement>(root, "[data-board-id='moon-golf']").click();
+      expect(handlers.onOpenBoard).not.toHaveBeenCalled();
+      expect(popover.hidden).toBe(true);
 
-      await vi.advanceTimersByTimeAsync(1900);
-      expect(done).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(200);
-      expect(done).toHaveBeenCalledOnce();
-      expect(card.classList.contains("is-shown")).toBe(false);
-      vi.useRealTimers();
+      open(root);
+      find<HTMLButtonElement>(root, "[data-board-id='wonderland']").click();
+      expect(handlers.onOpenBoard).toHaveBeenCalledExactlyOnceWith("wonderland");
+      expect(popover.hidden).toBe(true);
+    });
+
+    it("starts a new board", () => {
+      const { root, handlers } = setup();
+
+      open(root);
+      find<HTMLButtonElement>(root, ".kami-board-new").click();
+
+      expect(handlers.onNewBoard).toHaveBeenCalledOnce();
+    });
+
+    it("clears the board only on a second tap", () => {
+      const { root, handlers } = setup();
+      const clear = find<HTMLButtonElement>(root, ".kami-board-clear");
+
+      const popover = open(root);
+      clear.click();
+      expect(handlers.onClearBoard).not.toHaveBeenCalled();
+      expect(clear.textContent).toBe("tap again to clear");
+      expect(popover.hidden).toBe(false);
+
+      clear.click();
+      expect(handlers.onClearBoard).toHaveBeenCalledOnce();
+      expect(popover.hidden).toBe(true);
+      expect(clear.textContent).toBe("clear board");
+    });
+
+    it("forgets a half-confirmed clear when the board is pressed instead", () => {
+      const { root, handlers } = setup();
+      const clear = find<HTMLButtonElement>(root, ".kami-board-clear");
+
+      const popover = open(root);
+      clear.click();
+      document.body.dispatchEvent(pointer("pointerdown", 1));
+      expect(popover.hidden).toBe(true);
+
+      open(root);
+      clear.click();
+      expect(handlers.onClearBoard).not.toHaveBeenCalled();
     });
   });
 });

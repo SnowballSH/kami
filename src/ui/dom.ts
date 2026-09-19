@@ -7,7 +7,6 @@ export interface ElementOptions {
 }
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
-const SHOWN_CLASS = "is-shown";
 
 export const el = <K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -35,17 +34,15 @@ export const svgEl = (
   return element;
 };
 
-export const setShown = (element: HTMLElement, shown: boolean): void => {
-  element.classList.toggle(SHOWN_CLASS, shown);
-  element.setAttribute("aria-hidden", String(!shown));
-};
-
-export const isShown = (element: HTMLElement): boolean => element.classList.contains(SHOWN_CLASS);
-
 export const isTextField = (target: EventTarget | null): boolean =>
   target instanceof HTMLInputElement ||
   target instanceof HTMLTextAreaElement ||
   (target instanceof HTMLElement && target.isContentEditable);
+
+export const blurFocusedTextField = (owner: Document): void => {
+  const focused = owner.activeElement;
+  if (focused instanceof HTMLElement && isTextField(focused)) focused.blur();
+};
 
 /** Capture fails with NotFoundError when the pointer has already lifted; the stroke still works uncaptured. */
 export const capturePointer = (element: Element, pointerId: number): void => {

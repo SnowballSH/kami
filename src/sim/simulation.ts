@@ -1,17 +1,20 @@
 import Matter from "matter-js";
+import type { BoardDefinition } from "../board/types";
 import type { Ruling } from "../cat/types";
-import type { Rect, Vec } from "../core/geometry";
-import { FIXED_STEP_MS } from "../core/world";
-import type { LevelDefinition } from "../game/types";
+import { distanceToRect, type Rect, type Vec } from "../core/geometry";
+import { FIXED_STEP_MS, LOST_DISTANCE } from "../core/world";
 import type { Drawing, DrawingId } from "../ink/types";
+import { EARTH, type WorldPhysics } from "../rules/types";
 import { AliceController, type AliceSurroundings } from "./alice";
-import { BLANK_LEVEL } from "./blankLevel";
-import { GRAVITY_SCALE, GRAVITY_Y, GROW_REFUSAL_COOLDOWN_MS } from "./constants";
+import { BoardProps } from "./boardProps";
+import { exactBounds } from "./bodyBounds";
+import { Checkpoints } from "./checkpoints";
+import { GRAVITY_SCALE, GROW_REFUSAL_COOLDOWN_MS, MIN_TIME_SCALE } from "./constants";
 import { type Contact, contactsWith, toContact } from "./contacts";
+import { EMPTY_BOARD } from "./emptyBoard";
 import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
 import { NATURES, type NatureWorld } from "./natures";
-import { LevelProps } from "./props";
 import {
   ALICE_BASE,
   ALICE_SCALE,
@@ -21,30 +24,29 @@ import {
   type WalkIntent,
   type WorldSnapshot,
 } from "./types";
+import { accelerationOf, push } from "./worldPhysics";
 
 const IDLE: WalkIntent = { x: 0, y: 0 };
 const HEADROOM_INSET = 1;
 
-interface Room {
-  readonly level: LevelDefinition;
+interface BoardWorld {
+  readonly board: BoardDefinition;
   readonly engine: Matter.Engine;
-  readonly props: LevelProps;
+  readonly props: BoardProps;
   readonly inks: InkLayer;
   readonly alice: AliceController;
+  readonly checkpoints: Checkpoints;
   readonly activePairs: Matter.Pair[];
-  readonly gravityPerMass: Vec;
   readonly growthRefusedAt: Map<DrawingId, number>;
-  exitReached: boolean;
+  goalReached: boolean;
+  aliceLost: boolean;
 }
 
-const buildRoom = (level: LevelDefinition, timeScale: number): Room => {
+const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld => {
   const engine = Matter.Engine.create();
-  engine.gravity.y = GRAVITY_Y;
   engine.gravity.scale = GRAVITY_SCALE;
-  engine.timing.timeScale = timeScale;
-  const props = new LevelProps(engine.world, level);
-  const gravityPerMass = { x: 0, y: GRAVITY_Y * GRAVITY_SCALE };
-  const alice = new AliceController(level.spawn, gravityPerMass);
+  const props = new BoardProps(engine.world, board);
+  const alice = new AliceController(board.spawn, physics);
   Matter.Composite.add(engine.world, alice.body);
 
   const activePairs: Matter.Pair[] = [];
@@ -55,41 +57,48 @@ const buildRoom = (level: LevelDefinition, timeScale: number): Room => {
   Matter.Events.on(engine, "collisionActive", collectPairs);
 
   return {
-    level,
+    board,
     engine,
     props,
-    inks: new InkLayer(engine.world, props.anchorRects),
+    inks: new InkLayer(engine.world, props.anchorRects, physics),
     alice,
+    checkpoints: new Checkpoints(board),
     activePairs,
-    gravityPerMass,
     growthRefusedAt: new Map(),
-    exitReached: false,
+    goalReached: false,
+    aliceLost: false,
   };
 };
 
 export class MatterSimulation implements Simulation {
-  private room: Room = buildRoom(BLANK_LEVEL, 1);
+  private physics: WorldPhysics = EARTH;
+  private world: BoardWorld = buildWorld(EMPTY_BOARD, EARTH);
   private intent: WalkIntent = IDLE;
-  private timeScale = 1;
+  private bulletTime = 1;
   private events: SimEvent[] = [];
 
-  loadLevel(level: LevelDefinition): void {
-    Matter.Engine.clear(this.room.engine);
-    this.room = buildRoom(level, this.timeScale);
-    this.intent = IDLE;
+  loadBoard(board: BoardDefinition): void {
+    Matter.Engine.clear(this.world.engine);
+    this.world = buildWorld(board, this.physics);
     this.events = [];
   }
 
+  setPhysics(physics: WorldPhysics): void {
+    this.physics = physics;
+    this.world.alice.applyPhysics(physics);
+    this.world.inks.setPhysics(physics);
+  }
+
   addDrawing(drawing: Drawing): void {
-    this.room.inks.add(drawing);
+    this.world.inks.add(drawing);
   }
 
   applyRuling(id: DrawingId, ruling: Ruling): void {
-    this.room.inks.applyRuling(id, ruling);
+    this.world.inks.applyRuling(id, ruling);
   }
 
   removeDrawing(id: DrawingId): void {
-    this.room.inks.remove(id);
+    this.world.inks.remove(id);
   }
 
   setWalkIntent(intent: WalkIntent): void {
@@ -97,30 +106,19 @@ export class MatterSimulation implements Simulation {
   }
 
   setTimeScale(scale: number): void {
-    this.timeScale = scale;
-    this.room.engine.timing.timeScale = scale;
+    this.bulletTime = scale;
   }
 
   step(): readonly SimEvent[] {
-    const { alice, engine, inks, activePairs } = this.room;
-    const natureWorld = this.natureWorld();
     this.events = [];
-    activePairs.length = 0;
-
-    alice.control(this.intent, this.surroundings(), this.timeScale);
-    for (const ink of inks.all) NATURES[ink.nature].beforeStep?.(ink, natureWorld);
-    Matter.Engine.update(engine, FIXED_STEP_MS);
-    alice.advanceResize(FIXED_STEP_MS * this.timeScale);
-    alice.sense(this.surroundings(), this.intent);
-
-    this.resolveAliceTouches(natureWorld);
-    this.resolveInkTouches(natureWorld);
-    this.resolveProps();
+    const timeScale = Math.max(this.bulletTime * this.physics.timeScale, MIN_TIME_SCALE);
+    const ticks = Math.ceil(timeScale);
+    for (let tick = 0; tick < ticks; tick++) this.tick(timeScale / ticks);
     return this.events;
   }
 
   snapshot(): WorldSnapshot {
-    const { alice, inks, props } = this.room;
+    const { alice, inks, props } = this.world;
     return {
       alice: alice.snapshot(),
       drawings: inks.poses,
@@ -130,30 +128,64 @@ export class MatterSimulation implements Simulation {
   }
 
   aliceBounds(): Rect {
-    return this.room.alice.bounds();
+    return this.world.alice.bounds();
+  }
+
+  private tick(timeScale: number): void {
+    const { alice, engine, inks, activePairs } = this.world;
+    const natureWorld = this.natureWorld();
+    activePairs.length = 0;
+    engine.gravity.x = this.physics.gravity.x;
+    engine.gravity.y = this.physics.gravity.y;
+    engine.timing.timeScale = timeScale;
+
+    alice.control(this.intent, this.surroundings(), timeScale);
+    for (const ink of inks.all) NATURES[ink.nature].beforeStep?.(ink, natureWorld);
+    this.blowWind();
+    Matter.Engine.update(engine, FIXED_STEP_MS);
+    alice.advanceResize(FIXED_STEP_MS * timeScale);
+    alice.sense(this.surroundings(), this.intent);
+
+    this.resolveAliceTouches(natureWorld);
+    this.resolveInkTouches(natureWorld);
+    this.resolveProps();
+    this.resolveWhereabouts();
+  }
+
+  private blowWind(): void {
+    const { x, y } = this.physics.wind;
+    if (x === 0 && y === 0) return;
+    const wind = accelerationOf(this.physics.wind);
+    for (const body of [this.world.alice.body, ...this.world.inks.dynamicBodies]) push(body, wind);
   }
 
   private surroundings(): AliceSurroundings {
-    const { inks, props } = this.room;
+    const { inks, props } = this.world;
     const solidInk = inks.all.filter((ink) => NATURES[ink.nature].solidToAlice);
-    const climbableInk = inks.all.filter((ink) => !NATURES[ink.nature].solidToAlice);
+    const passableInk = inks.all.filter((ink) => !NATURES[ink.nature].solidToAlice);
+    const natureOf = (body: Matter.Body) => {
+      const ink = inks.find(body);
+      return ink === undefined ? undefined : NATURES[ink.nature];
+    };
     return {
       obstacles: [...props.solidBodies, ...solidInk.map((ink) => ink.body)],
-      climbables: climbableInk.map((ink) => ink.body),
+      passables: passableInk.map((ink) => ink.body),
       isInk: (body) => inks.find(body) !== undefined,
-      isSlippery: (body) => {
-        const ink = inks.find(body);
-        return ink !== undefined && NATURES[ink.nature].slippery;
-      },
+      isSlippery: (body) => natureOf(body)?.slippery ?? false,
+      isClimbable: (body) => natureOf(body)?.climbable ?? false,
     };
   }
 
   private natureWorld(): NatureWorld {
-    const { alice, engine, inks, gravityPerMass, growthRefusedAt } = this.room;
+    const { alice, engine, inks, growthRefusedAt } = this.world;
     return {
       alice,
-      gravityPerMass,
+      gravity: accelerationOf(this.physics.gravity),
       emit: (event) => this.events.push(event),
+      reachGoal: () => this.reachGoal(),
+      loseAlice: () => {
+        this.world.aliceLost = true;
+      },
       consume: (ink) => inks.remove(ink.id),
       freeze: (ink) => inks.freeze(ink),
       refuseGrowth: (ink) => {
@@ -168,7 +200,7 @@ export class MatterSimulation implements Simulation {
   }
 
   private aliceContacts(): readonly Contact[] {
-    const { alice, activePairs } = this.room;
+    const { alice, activePairs } = this.world;
     const pairContacts = activePairs
       .filter(
         ({ collision }) => collision.parentA === alice.body || collision.parentB === alice.body,
@@ -178,7 +210,7 @@ export class MatterSimulation implements Simulation {
   }
 
   private resolveAliceTouches(natureWorld: NatureWorld): void {
-    const { alice, inks, props } = this.room;
+    const { alice, inks, props } = this.world;
     const touched = new Map<InkEntity, Contact>();
     for (const contact of this.aliceContacts()) {
       if (props.isDoor(contact.body) && alice.hasKey) {
@@ -194,9 +226,9 @@ export class MatterSimulation implements Simulation {
   }
 
   private resolveInkTouches(natureWorld: NatureWorld): void {
-    const { inks, props, activePairs } = this.room;
+    const { inks, props, activePairs } = this.world;
     const holdsInk = (surface: Matter.Body): boolean =>
-      props.isPaper(surface) || (surface.isStatic && inks.find(surface) !== undefined);
+      props.isMarker(surface) || (surface.isStatic && inks.find(surface) !== undefined);
     for (const { collision } of activePairs) {
       const sides = [
         [collision.parentA, collision.parentB],
@@ -212,25 +244,51 @@ export class MatterSimulation implements Simulation {
   }
 
   private resolveProps(): void {
-    const { alice, props, level } = this.room;
+    const { alice, props } = this.world;
     const bounds = alice.bounds();
     if (props.keyWithinReach(bounds)) {
       props.keyTaken = true;
       alice.hasKey = true;
       this.events.push({ type: "key-taken" });
     }
-    if (!this.room.exitReached && props.exitReachedBy(bounds)) {
-      this.room.exitReached = true;
-      this.events.push({ type: "exit-reached" });
-    }
-    if (alice.body.position.y > level.killY) {
+    if (props.goalReachedBy(bounds)) this.reachGoal();
+  }
+
+  private resolveWhereabouts(): void {
+    const { alice, checkpoints } = this.world;
+    if (this.world.aliceLost || this.isAliceOffTheBoard()) {
+      this.world.aliceLost = false;
       this.events.push({ type: "fell" });
-      alice.placeAt(level.spawn);
+      alice.placeAt(this.respawnPoint());
     }
+    const zone = checkpoints.visit(alice.body.position.x);
+    if (zone !== null) this.events.push({ type: "zone-entered", zoneId: zone.id });
+  }
+
+  private reachGoal(): void {
+    if (this.world.goalReached) return;
+    this.world.goalReached = true;
+    this.events.push({ type: "goal-reached" });
+  }
+
+  private isAliceOffTheBoard(): boolean {
+    const { alice, board, inks, props } = this.world;
+    const { position } = alice.body;
+    if (position.y > board.killY) return true;
+    const isNear = (rect: Rect): boolean => distanceToRect(position, rect) <= LOST_DISTANCE;
+    return !props.solidRects.some(isNear) && !inks.heldBounds.some(isNear);
+  }
+
+  private respawnPoint(): Vec {
+    const { checkpoints, inks } = this.world;
+    const marker = inks.spawnMarker;
+    if (marker === undefined) return checkpoints.respawn;
+    const bounds = exactBounds(marker.body);
+    return { x: bounds.x + bounds.width / 2, y: bounds.y };
   }
 
   private hasHeadroomFor(size: AliceSize): boolean {
-    const { alice, inks, props } = this.room;
+    const { alice, inks, props } = this.world;
     const current = alice.bounds();
     const targetHeight = ALICE_BASE.height * ALICE_SCALE[size];
     const extraHeight = targetHeight - current.height;
@@ -243,7 +301,9 @@ export class MatterSimulation implements Simulation {
     );
     const ceilings = [
       ...props.solidBodies,
-      ...inks.all.map((ink) => ink.body).filter((body) => body.isStatic),
+      ...inks.all
+        .filter((ink) => ink.body.isStatic && NATURES[ink.nature].solidToAlice)
+        .map((ink) => ink.body),
     ];
     return contactsWith(headroom, ceilings).length === 0;
   }

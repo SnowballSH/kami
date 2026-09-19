@@ -2,16 +2,11 @@ import Matter from "matter-js";
 import { distance, distanceToSegment, type Stroke, type Vec } from "../core/geometry";
 import { INK_THICKNESS } from "../core/world";
 import { INK_DOT_RADIUS, MIN_SEGMENT_LENGTH, SIMPLIFY_TOLERANCE } from "./constants";
-
-export interface InkMaterial {
-  readonly density: number;
-  readonly friction: number;
-  readonly frictionAir: number;
-}
+import type { BodyMaterial } from "./worldPhysics";
 
 export interface InkBodyOptions {
   readonly isStatic: boolean;
-  readonly material: InkMaterial;
+  readonly material: BodyMaterial;
   readonly collisionFilter: Matter.ICollisionFilter;
 }
 

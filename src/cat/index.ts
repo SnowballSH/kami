@@ -4,6 +4,6 @@ import type { Cat } from "./types";
 
 export * from "./types";
 
-export function createCat(_recognizer?: Recognizer): Cat {
-  return new ScriptedCat();
+export function createCat(recognizer?: Recognizer): Cat {
+  return new ScriptedCat(recognizer ?? null);
 }

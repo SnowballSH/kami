@@ -1,7 +1,7 @@
-import { distance, type Stroke, strokesLength, type Vec } from "../core/geometry";
+import { distance, type Stroke, strokeLength, strokesLength, type Vec } from "../core/geometry";
 import { InkLedger } from "./budget";
 import { COMMIT_DELAY_MS, MIN_DRAWING_LENGTH } from "./constants";
-import { pageDrawingIds } from "./ids";
+import { DrawingIdSequence } from "./ids";
 import { judgePlacement } from "./placement";
 import { nextInkPoint } from "./stroke";
 import type {
@@ -15,6 +15,7 @@ import type {
 export class PenInkSession implements InkSession {
   readonly #listener: InkSessionListener;
   readonly #ledger = new InkLedger();
+  readonly #ids = new DrawingIdSequence();
   #strokes: Vec[][] = [];
   #penIsDown = false;
   #liftedAtMs: number | null = null;
@@ -43,7 +44,6 @@ export class PenInkSession implements InkSession {
   penDown(point: Vec): void {
     if (this.#penIsDown || this.#ledger.isDry) return;
     this.#penIsDown = true;
-    this.#liftedAtMs = null;
     this.#strokes.push([point]);
   }
 
@@ -58,7 +58,15 @@ export class PenInkSession implements InkSession {
   }
 
   penUp(): void {
+    if (!this.#penIsDown) return;
     this.#penIsDown = false;
+    this.#liftedAtMs = null;
+  }
+
+  penCancel(): void {
+    if (!this.#penIsDown) return;
+    this.#penIsDown = false;
+    this.#ledger.undraw(strokeLength(this.#strokes.pop() ?? []));
   }
 
   update(nowMs: number, rules: PlacementRules): void {
@@ -88,7 +96,7 @@ export class PenInkSession implements InkSession {
       return;
     }
     this.#ledger.spend(cost);
-    this.#listener.onCommit({ id: pageDrawingIds.next(), strokes, cost });
+    this.#listener.onCommit({ id: this.#ids.next(), strokes, cost });
   }
 
   #dropPending(): void {

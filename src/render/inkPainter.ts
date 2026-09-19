@@ -1,16 +1,19 @@
-import type { Stroke, Vec } from "../core/geometry";
+import { boundsOf, type Rect, type Stroke, type Vec } from "../core/geometry";
+import { INK_THICKNESS } from "../core/world";
 import type { Drawing, DrawingId, PlacementVerdict } from "../ink/types";
 import { awakening, inkTint, isSettled, shiverOffset } from "./awakening";
-import { inkPath } from "./inkPath";
-import { FOUNTAIN_BLUE, mapNatures, NATURE_TINTS, REJECTED_RED, rgbCss } from "./palette";
+import { posedInView } from "./culling";
+import { INK_PEN, strokesPath } from "./inkPath";
+import { MARKER, mapNatures, NATURE_TINTS, rgbCss } from "./palette";
 import type { InkView } from "./types";
 
-interface SettledPath {
+interface SettledInk {
   readonly strokeCount: number;
   readonly path: Path2D;
+  readonly bounds: Rect;
 }
 
-interface LivePath {
+interface LiveInk {
   readonly strokeCount: number;
   readonly pointCount: number;
   readonly lastPoint: Vec | undefined;
@@ -18,23 +21,27 @@ interface LivePath {
 }
 
 const SETTLED_CSS = mapNatures((nature) => rgbCss(NATURE_TINTS[nature]));
-const WET_ALPHA = 0.88;
-const LIVE_CSS = rgbCss(FOUNTAIN_BLUE, WET_ALPHA);
-const REJECTED_CSS = rgbCss(REJECTED_RED, WET_ALPHA);
-const HALO_WIDTH = 9;
-const HALO_ALPHA = 0.4;
+const LIVE_CSS = rgbCss(MARKER.black);
+const REJECTED_CSS = rgbCss(MARKER.red);
+const SOLID_EXTRA_WIDTH = 4;
+const CULL_MARGIN = INK_THICKNESS * 2;
 
 export class InkPainter {
-  private readonly settled = new Map<DrawingId, SettledPath>();
-  private live: LivePath | null = null;
+  private readonly settled = new Map<DrawingId, SettledInk>();
+  private live: LiveInk | null = null;
 
   forget(): void {
     this.settled.clear();
     this.live = null;
   }
 
-  paintInks(ctx: CanvasRenderingContext2D, inks: readonly InkView[], nowMs: number): void {
-    for (const ink of inks) this.paintInk(ctx, ink, nowMs);
+  paintInks(
+    ctx: CanvasRenderingContext2D,
+    inks: readonly InkView[],
+    view: Rect,
+    nowMs: number,
+  ): void {
+    for (const ink of inks) this.paintInk(ctx, ink, view, nowMs);
     if (this.settled.size > inks.length) this.prune(inks);
   }
 
@@ -51,38 +58,43 @@ export class InkPainter {
     ctx.fill(this.livePath(strokes));
   }
 
-  private paintInk(ctx: CanvasRenderingContext2D, ink: InkView, nowMs: number): void {
+  private paintInk(ctx: CanvasRenderingContext2D, ink: InkView, view: Rect, nowMs: number): void {
+    const { path, bounds } = this.settledInk(ink.drawing);
+    if (!posedInView(bounds, ink.pose, view, CULL_MARGIN)) return;
     const progress = awakening(nowMs, ink.awakenedAtMs);
-    const path = this.settledPath(ink.drawing);
+    const awake = ink.awakenedAtMs !== null;
     const { origin, position, angle } = ink.pose;
     ctx.save();
     if (isSettled(progress)) {
       ctx.translate(position.x, position.y);
+      ctx.fillStyle = awake ? SETTLED_CSS[ink.nature] : LIVE_CSS;
     } else {
       const shiver = shiverOffset(nowMs, progress);
       ctx.translate(position.x + shiver.x, position.y + shiver.y);
+      ctx.fillStyle = rgbCss(inkTint(ink.nature, progress));
     }
     ctx.rotate(angle);
     ctx.translate(-origin.x, -origin.y);
-    if (isSettled(progress)) {
-      ctx.fillStyle = SETTLED_CSS[ink.nature];
-    } else {
-      ctx.strokeStyle = rgbCss(NATURE_TINTS[ink.nature], HALO_ALPHA * (1 - progress));
-      ctx.lineWidth = HALO_WIDTH;
+    ctx.fill(path);
+    if (awake && ink.nature === "solid") {
+      ctx.strokeStyle = ctx.fillStyle;
+      ctx.lineWidth = SOLID_EXTRA_WIDTH;
       ctx.lineJoin = "round";
       ctx.stroke(path);
-      ctx.fillStyle = rgbCss(inkTint(ink.nature, progress));
     }
-    ctx.fill(path);
     ctx.restore();
   }
 
-  private settledPath(drawing: Drawing): Path2D {
+  private settledInk(drawing: Drawing): SettledInk {
     const cached = this.settled.get(drawing.id);
-    if (cached?.strokeCount === drawing.strokes.length) return cached.path;
-    const path = inkPath(drawing.strokes);
-    this.settled.set(drawing.id, { strokeCount: drawing.strokes.length, path });
-    return path;
+    if (cached?.strokeCount === drawing.strokes.length) return cached;
+    const ink: SettledInk = {
+      strokeCount: drawing.strokes.length,
+      path: strokesPath(drawing.strokes, INK_PEN),
+      bounds: boundsOf(drawing.strokes.flat()),
+    };
+    this.settled.set(drawing.id, ink);
+    return ink;
   }
 
   private livePath(strokes: readonly Stroke[]): Path2D {
@@ -97,7 +109,7 @@ export class InkPainter {
     ) {
       return cached.path;
     }
-    const path = inkPath(strokes);
+    const path = strokesPath(strokes, INK_PEN);
     this.live = { strokeCount: strokes.length, pointCount, lastPoint, path };
     return path;
   }

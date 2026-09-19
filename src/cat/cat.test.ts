@@ -1,14 +1,42 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { wonderland } from "../board/boards/wonderland";
 import type { Stroke } from "../core/geometry";
-import { hallOfDoors } from "../game/levels/hallOfDoors";
-import { LEVELS } from "../game/levels/index";
-import { riverbank } from "../game/levels/riverbank";
-import { shelves } from "../game/levels/shelves";
 import type { Drawing, DrawingId } from "../ink/types";
+import type { Recognizer } from "../recognition/types";
 import { createCat } from "./index";
 import { REFUSALS } from "./lines";
 import { isAllowed } from "./natures";
-import type { Cat } from "./types";
+import type { Cat, Nature, RoomBrief } from "./types";
+
+const zoneOf = (id: string): RoomBrief => {
+  const zone = wonderland.zones.find((candidate) => candidate.id === id);
+  if (zone === undefined) throw new Error(`Wonderland has no zone called ${id}`);
+  return zone;
+};
+
+const restricted = (id: string, allowedNatures: readonly Nature[]): RoomBrief => ({
+  ...zoneOf(id),
+  allowedNatures,
+});
+
+const hallOfDoors = zoneOf("hall-of-doors");
+const inkOnlyRiverbank = restricted("riverbank", ["ink"]);
+const shelves = restricted("shelves", [
+  "ink",
+  "bouncy",
+  "climbable",
+  "floaty",
+  "heavy",
+  "light",
+  "slippery",
+  "sticky",
+]);
+const sizeOnlyHall = restricted("hall-of-doors", ["ink", "heavy", "grow", "shrink"]);
+const ROOMS: readonly RoomBrief[] = [...wonderland.zones, inkOnlyRiverbank, shelves, sizeOnlyHall];
+
+const seeing = (...words: readonly string[]): Recognizer => ({
+  recognize: () => Promise.resolve(words),
+});
 
 const drawingOf = (...strokes: Stroke[]): Drawing => ({
   id: "fixture" as DrawingId,
@@ -179,8 +207,8 @@ describe("ScriptedCat", () => {
       expect((await cat.guess(SHAPES.ladder ?? drawingOf()))[0]).toBe("a ladder");
     });
 
-    it("leans on the room: cake and bottle in the Hall of Doors", async () => {
-      cat.enterRoom(hallOfDoors);
+    it("leans on the room: cake and bottle where only size matters", async () => {
+      cat.enterRoom(sizeOnlyHall);
       expect(await cat.guess(SHAPES.round ?? drawingOf())).toEqual([
         "a cake",
         "a bottle",
@@ -189,28 +217,118 @@ describe("ScriptedCat", () => {
     });
 
     it("always offers three distinct names the room would honour", async () => {
-      for (const level of LEVELS) {
+      const anythingGoes = createCat();
+      for (const room of ROOMS.filter((candidate) => candidate !== inkOnlyRiverbank)) {
         for (const drawing of [...Object.values(SHAPES), drawingOf()]) {
-          cat.enterRoom(level);
+          cat.enterRoom(room);
           const guesses = await cat.guess(drawing);
           expect(new Set(guesses).size).toBe(3);
           for (const guess of guesses) {
-            const { nature } = await createCatIn("all").name(guess, SKETCH);
-            expect(isAllowed(nature, level.allowedNatures)).toBe(true);
+            const { nature } = await anythingGoes.name(guess, SKETCH);
+            expect(isAllowed(nature, room.allowedNatures)).toBe(true);
           }
         }
       }
     });
 
     it("still finds three names where only ink exists", async () => {
-      cat.enterRoom(riverbank);
+      cat.enterRoom(inkOnlyRiverbank);
       expect(new Set(await cat.guess(SHAPES.flat ?? drawingOf())).size).toBe(3);
+    });
+
+    it("offers a platform for a flat line on an open board", async () => {
+      cat.enterRoom(zoneOf("riverbank"));
+      expect(await cat.guess(SHAPES.flat ?? drawingOf())).toEqual([
+        "a plank",
+        "a platform",
+        "a trampoline",
+      ]);
+    });
+  });
+
+  describe("guess, with a recognizer", () => {
+    const ROUND = SHAPES.round ?? drawingOf();
+
+    const guessesIn = (room: RoomBrief, recognizer: Recognizer) => {
+      const watchful = createCat(recognizer);
+      watchful.enterRoom(room);
+      return watchful.guess(ROUND);
+    };
+
+    it("says what was seen first, in the words he knows, and fills up with his hunch", async () => {
+      expect(await guessesIn(hallOfDoors, seeing("birthday cake"))).toEqual([
+        "a cake",
+        "a mushroom",
+        "a balloon",
+      ]);
+      expect(await guessesIn(hallOfDoors, seeing("hot air balloon", "wine bottle"))).toEqual([
+        "a balloon",
+        "a bottle",
+        "a mushroom",
+      ]);
+    });
+
+    it("keeps the recognizer's order, drops repeats and stops at three", async () => {
+      const seen = seeing("stairs", "ladder", "birthday cake", "cake", "umbrella", "anvil");
+      expect(await guessesIn(hallOfDoors, seen)).toEqual(["stairs", "a ladder", "a cake"]);
+      expect(await guessesIn(hallOfDoors, seeing("umbrella", "anvil", "Umbrella"))).toEqual([
+        "an umbrella",
+        "an anvil",
+        "a mushroom",
+      ]);
+    });
+
+    it("does not call a bare shape a name", async () => {
+      expect(await guessesIn(hallOfDoors, seeing("circle", "line", "mushroom"))).toEqual([
+        "a mushroom",
+        "a cake",
+        "a balloon",
+      ]);
+    });
+
+    it("prefers what the room would honour", async () => {
+      expect(await guessesIn(shelves, seeing("birthday cake", "ladder", "house"))).toEqual([
+        "a ladder",
+        "a house",
+        "a mushroom",
+      ]);
+    });
+
+    it.each([
+      ["sees nothing", seeing()],
+      ["is offline", { recognize: () => Promise.reject(new Error("offline")) }],
+    ] as const)("falls back to the hunch alone when the recognizer %s", async (_, recognizer) => {
+      cat.enterRoom(shelves);
+      expect(await guessesIn(shelves, recognizer)).toEqual(await cat.guess(ROUND));
+      expect(await guessesIn(shelves, recognizer)).toEqual(["a mushroom", "a balloon", "a rock"]);
+    });
+  });
+
+  describe("name, for sketching a new game", () => {
+    it.each([
+      ["ground", "solid", "ground"],
+      ["a platform", "solid", "a platform"],
+      ["brick wall", "solid", "a brick wall"],
+      ["the finish line", "goal", "the finish line"],
+      ["rabbit hole", "goal", "a rabbit hole"],
+      ["home", "goal", "a home"],
+      ["lava", "hazard", "lava"],
+      ["the floor is lava", "hazard", "the floor is lava"],
+      ["spikes", "hazard", "spikes"],
+      ["fire!", "hazard", "fire"],
+      ["start", "spawn", "a start"],
+      ["Alice starts here", "spawn", "alice starts here"],
+      ["start here", "spawn", "start here"],
+    ] as const)("hears %j as %s", async (utterance, nature, name) => {
+      cat.enterRoom(hallOfDoors);
+      const ruling = await cat.name(utterance, SKETCH);
+      expect(ruling).toMatchObject({ nature, name, strength: 1 });
+    });
+
+    it("still reads a block of ice as slippery and a rabbit as bouncy", async () => {
+      cat.enterRoom(hallOfDoors);
+      expect((await cat.name("a block of ice", SKETCH)).nature).toBe("slippery");
+      expect((await cat.name("a rabbit", SKETCH)).nature).toBe("bouncy");
     });
   });
 });
-
-const createCatIn = (allowedNatures: "all"): Cat => {
-  const cat = createCat();
-  cat.enterRoom({ ...shelves, allowedNatures });
-  return cat;
-};

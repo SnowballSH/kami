@@ -34,8 +34,8 @@ export const ALICE_POSES: Readonly<Record<AlicePoseName, AlicePose>> = {
     backFoot: { x: -2, y: 25 },
   },
   climb: {
-    frontHand: { x: 8, y: -27 },
-    backHand: { x: -6, y: -23 },
+    frontHand: { x: 9, y: -28 },
+    backHand: { x: 13, y: -19 },
     frontFoot: { x: 5, y: 26 },
     backFoot: { x: -5, y: 28.5 },
   },
