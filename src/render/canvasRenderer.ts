@@ -1,7 +1,7 @@
 import type { BoardDefinition } from "../board/types";
 import { distanceToRect, type Rect, type Vec } from "../core/geometry";
 import type { Handwriting } from "../handwriting/types";
-import type { AliceSnapshot } from "../sim/types";
+import type { AliceSnapshot, SumikuiSnapshot } from "../sim/types";
 import { paintAlice } from "./alicePainter";
 import { BoardPainter } from "./boardPainter";
 import {
@@ -22,10 +22,19 @@ import { NotePainter } from "./notePainter";
 import { BOARD_COLORS } from "./palette";
 import { PointerTracker } from "./pointerTracker";
 import { paintSumikui } from "./sumikuiPainter";
-import type { Camera, Renderer, RenderFrame } from "./types";
+import type { Camera, Chew, Renderer, RenderFrame } from "./types";
 
 const aliceInView = (alice: AliceSnapshot, view: Rect): boolean =>
   distanceToRect(alice.center, view) <= Math.max(alice.width, alice.height);
+
+const chewOf = (sumikui: SumikuiSnapshot | null): Chew | null =>
+  sumikui === null || sumikui.chewing === null
+    ? null
+    : { drawingId: sumikui.chewing, bite: sumikui.bite };
+
+/** How far Alice has gone down its throat: she fades as it closes on her. */
+const swallowOf = (sumikui: SumikuiSnapshot | null): number =>
+  sumikui?.quarry === "alice" ? sumikui.bite : 0;
 
 export class CanvasRenderer implements Renderer {
   private readonly ctx: CanvasRenderingContext2D;
@@ -85,11 +94,16 @@ export class CanvasRenderer implements Renderer {
     ctx.setTransform(scale, 0, 0, scale, dx, dy);
     paintDotGrid(ctx, view, zoomOf(camera));
     this.boardPainter.paint(ctx, view, world);
-    this.inkPainter.paintInks(ctx, frame.inks, view, nowMs);
+    this.inkPainter.paintInks(ctx, frame.inks, view, nowMs, chewOf(world.sumikui));
     const moonlit = frame.daylight < 1;
     if (!moonlit) this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
     for (const twin of world.twins) if (aliceInView(twin, view)) paintAlice(ctx, twin, nowMs);
-    if (aliceInView(world.alice, view)) paintAlice(ctx, world.alice, nowMs);
+    if (aliceInView(world.alice, view)) {
+      ctx.save();
+      ctx.globalAlpha = 1 - swallowOf(world.sumikui);
+      paintAlice(ctx, world.alice, nowMs);
+      ctx.restore();
+    }
     if (world.sumikui !== null) paintSumikui(ctx, world.sumikui, nowMs);
     this.inkPainter.paintActive(ctx, frame.activeStrokes, frame.activeVerdict);
     this.nightPainter.paint(

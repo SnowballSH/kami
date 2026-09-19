@@ -142,6 +142,7 @@ export class Chart {
     for (const solid of scene.board.solids) {
       chart.stampRect(solid.rect, CellFlag.solid | CellFlag.fixture);
     }
+    for (const bite of scene.bites) chart.clearRect(bite, CellFlag.solid | CellFlag.fixture);
     if (scene.board.door !== undefined && !scene.doorOpen) {
       chart.stampRect(scene.board.door, CellFlag.solid | CellFlag.fixture | CellFlag.door);
     }
@@ -212,6 +213,21 @@ export class Chart {
     const { c0, c1, r0, r1 } = cellsOf(rect);
     for (let r = r0; r < r1; r++) {
       for (let c = c0; c < c1; c++) this.mark(c, r, flags);
+    }
+  }
+
+  /** Unmarks `flags` on every cell lying wholly inside `rect`: a hole bitten out of a solid. */
+  private clearRect(rect: Rect, flags: number): void {
+    const c0 = Math.ceil(rect.x / CELL_PX);
+    const c1 = Math.floor((rect.x + rect.width) / CELL_PX);
+    const r0 = Math.ceil(rect.y / CELL_PX);
+    const r1 = Math.floor((rect.y + rect.height) / CELL_PX);
+    for (let r = r0; r < r1; r++) {
+      for (let c = c0; c < c1; c++) {
+        if (!this.contains(c, r)) continue;
+        const index = this.index(c, r);
+        this.cells[index] = (this.cells[index] ?? 0) & ~flags;
+      }
     }
   }
 

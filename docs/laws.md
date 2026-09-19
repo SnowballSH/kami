@@ -114,7 +114,7 @@ A **system** reads the folded state each tick and produces forces or state trans
 | twins | `clones` | `n` further Alice bodies hearing the same intent, spawned beside her, never colliding with her |
 | lighting | `daylight`; `lantern` natures | a night layer cut out around Alice and every lantern — presentation only |
 | creatures | natures `walker`/`hopper`/`flier` | per-body minds; Alice rides them |
-| the Sumikui | `inkEater`; Alice's touches | a ghost that shadows Alice, wakes at the second drawing, hunts only ink she has used (never roles), devours it after a dwell, and doubles its pace every 20 s awake up to a cap; emits `sumikui-woke`, `devoured` |
+| the Sumikui | `inkEater`; Alice's touches; the board's solids | a ghost that shadows Alice, wakes at the second drawing, and eats everything on the paper that she depends on: ink she has used (never roles), the board's ground under her feet (bitten out, healing later), and Alice herself (swallowed; she respawns) — never where Kami sets her down, and never untouched scribbles until it is quick enough to sweep them up in one gulp. Doubles its pace every 20 s awake up to a cap; emits `sumikui-woke`, `devoured`, `paper-bitten`, `paper-healed`, `alice-devoured` |
 
 The autopilot is a system too: `Scene.canFly` marks every cell of air climbable, so a flight law makes “fly over the gap” a plan rather than a special case.
 

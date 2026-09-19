@@ -40,6 +40,16 @@ export const SUMIKUI_DEVOURED_LINES: readonly string[] = [
   "Another one. It only takes what she leans on.",
   "It fed. It is quicker than it was.",
 ];
+export const SUMIKUI_PAPER_BITTEN_LINES: readonly string[] = [
+  "It bit the ground itself. The page is ink too, to it.",
+  "A hole where she stood. Paper heals; slowly.",
+  "It eats the floor out from under her now. Draw her a way across.",
+];
+export const SUMIKUI_ALICE_DEVOURED_LINES: readonly string[] = [
+  "It had her. She is ink like the rest, and I have set her down again.",
+  "Gone in one swallow. It is gorged now, and slow. Run while it is.",
+  "Keep her moving. It only catches what stands still.",
+];
 export const SUMIKUI_SEALED_LINE = "Sealed. It waits under the page, with the one it came from.";
 export const SUMIKUI_LORE_LINE_DELAY_MS = 3_200;
 

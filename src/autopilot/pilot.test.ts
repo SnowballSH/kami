@@ -69,6 +69,7 @@ const scene = (overrides: Partial<Scene> = {}): Scene => ({
   board: board(),
   alice: alice({ x: 100, y: GROUND_Y }),
   inks: [],
+  bites: [],
   keyTaken: false,
   doorOpen: false,
   walkSpeed: walkSpeedAt(1),

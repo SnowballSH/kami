@@ -34,12 +34,18 @@ export interface AliceSnapshot {
   readonly hasKey: boolean;
 }
 
-export type SumikuiPhase = "stirring" | "prowling" | "hunting" | "feeding";
+export type SumikuiPhase = "stirring" | "prowling" | "hunting" | "feeding" | "sated";
+
+/** What it is after: a drawing, the board's own paper under her feet, or Alice herself. */
+export type SumikuiQuarry = "ink" | "paper" | "alice";
 
 export interface SumikuiSnapshot {
   readonly centre: Vec;
   readonly facing: -1 | 1;
   readonly phase: SumikuiPhase;
+  readonly quarry: SumikuiQuarry | null;
+  /** The drawing between its teeth right now, dissolving as `bite` climbs. */
+  readonly chewing: DrawingId | null;
   /** How far through its meal it is, 0 to 1; 0 unless feeding. */
   readonly bite: number;
   readonly awakeMs: number;
@@ -67,6 +73,8 @@ export interface WorldSnapshot {
   readonly sumikui: SumikuiSnapshot | null;
   /** Live drawings only; consumed and removed ones are gone. */
   readonly drawings: readonly DrawingPose[];
+  /** Holes the Sumikui has bitten out of the board's solids and that have not healed yet. */
+  readonly bites: readonly Rect[];
   readonly keyTaken: boolean;
   readonly doorOpen: boolean;
 }
@@ -82,7 +90,12 @@ export type SimEvent =
   | { readonly type: "perished"; readonly drawingId: DrawingId; readonly nature: Nature }
   | { readonly type: "grow-blocked"; readonly drawingId: DrawingId }
   | { readonly type: "sumikui-woke" }
-  | { readonly type: "devoured"; readonly drawingId: DrawingId; readonly nature: Nature };
+  | { readonly type: "devoured"; readonly drawingId: DrawingId; readonly nature: Nature }
+  /** It bit through the board's own paper; `hole` is gone from the solids until it heals. */
+  | { readonly type: "paper-bitten"; readonly hole: Rect }
+  | { readonly type: "paper-healed" }
+  /** It caught Alice; she is returned to her checkpoint (a `fell` follows in the same step). */
+  | { readonly type: "alice-devoured" };
 
 export interface Simulation {
   /** Discards the whole world and rebuilds it with Alice standing at `board.spawn`. */
