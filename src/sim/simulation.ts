@@ -20,9 +20,8 @@ import { NATURES, type NatureWorld } from "./natures";
 import { Sumikui } from "./sumikui";
 import { Twins } from "./twins";
 import {
-  ALICE_BASE,
-  ALICE_SCALE,
   type AliceSize,
+  aliceDimensions,
   type BounceArc,
   type SimEvent,
   type Simulation,
@@ -258,7 +257,7 @@ export class MatterSimulation implements Simulation {
         if (lastRefusedAt !== undefined && now - lastRefusedAt <= GROW_REFUSAL_COOLDOWN_MS) return;
         this.events.push({ type: "grow-blocked", drawingId: ink.id });
       },
-      hasHeadroomFor: (size) => this.hasHeadroomFor(size),
+      hasHeadroomFor: (size, meal) => this.hasHeadroomFor(size, meal),
       pullToward: (ink, strengthInG) => {
         const loose = inks.dynamicBodies.filter((body) => body !== ink.body);
         pullToward(ink.body.position, strengthInG, [alice.body, ...loose]);
@@ -386,22 +385,21 @@ export class MatterSimulation implements Simulation {
     return { x: bounds.x + bounds.width / 2, y: bounds.y };
   }
 
-  private hasHeadroomFor(size: AliceSize): boolean {
+  private hasHeadroomFor(size: AliceSize, meal: InkEntity): boolean {
     const { alice, inks, props } = this.world;
     const current = alice.bounds();
-    const targetHeight = ALICE_BASE.height * ALICE_SCALE[size];
-    const extraHeight = targetHeight - current.height;
-    if (extraHeight <= 0) return true;
+    const target = aliceDimensions(size, this.physics.aliceSize);
+    if (target.height <= current.height && target.width <= current.width) return true;
     const headroom = Matter.Bodies.rectangle(
       current.x + current.width / 2,
-      current.y - extraHeight / 2,
-      current.width - 2 * HEADROOM_INSET,
-      extraHeight - 2 * HEADROOM_INSET,
+      current.y + current.height - target.height / 2,
+      target.width - 2 * HEADROOM_INSET,
+      target.height - 2 * HEADROOM_INSET,
     );
     const ceilings = [
       ...props.solidBodies,
       ...inks.all
-        .filter((ink) => ink.body.isStatic && NATURES[ink.nature].solidToAlice)
+        .filter((ink) => ink !== meal && ink.body.isStatic && NATURES[ink.nature].solidToAlice)
         .map((ink) => ink.body),
     ];
     return contactsWith(headroom, ceilings).length === 0;

@@ -10,6 +10,11 @@ export const ALICE_SCALE: Readonly<Record<AliceSize, number>> = { small: 0.5, no
 
 export const ALICE_BASE = { width: 28, height: 60 } as const;
 
+export const aliceDimensions = (size: AliceSize, multiplier: number) => ({
+  width: ALICE_BASE.width * ALICE_SCALE[size] * multiplier,
+  height: ALICE_BASE.height * ALICE_SCALE[size] * multiplier,
+});
+
 /** She takes the key when it lies within `radius` of her body grown by `reachRatio` of her height. */
 export const KEY_PICKUP = { reachRatio: 0.5, radius: 18 } as const;
 
@@ -27,6 +32,7 @@ export interface AliceSnapshot {
   readonly width: number;
   readonly height: number;
   readonly size: AliceSize;
+  readonly sizeMultiplier: number;
   readonly facing: -1 | 1;
   readonly walking: boolean;
   readonly grounded: boolean;

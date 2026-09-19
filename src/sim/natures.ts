@@ -33,7 +33,7 @@ export interface NatureWorld {
   consume(ink: InkEntity): void;
   freeze(ink: InkEntity): void;
   refuseGrowth(ink: InkEntity): void;
-  hasHeadroomFor(size: AliceSize): boolean;
+  hasHeadroomFor(size: AliceSize, meal: InkEntity): boolean;
   /** Pulls Alice and every loose drawing but `ink` itself toward `ink`, at `strengthInG` up close. */
   pullToward(ink: InkEntity, strengthInG: number): void;
 }
@@ -106,7 +106,7 @@ const rise: InkHook = (ink, world) => {
 const resizeTo =
   (size: AliceSize): AliceTouchHook =>
   (ink, _contact, world) => {
-    if (!world.hasHeadroomFor(size)) {
+    if (!world.hasHeadroomFor(size, ink)) {
       world.refuseGrowth(ink);
       return;
     }

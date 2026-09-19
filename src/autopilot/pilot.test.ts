@@ -7,6 +7,7 @@ import { EARTH } from "../rules/types";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "../sim/flight";
 import { ALICE_BASE, type AliceSize, type AliceSnapshot } from "../sim/types";
 import { createAutopilot } from "./index";
+import { footprintFor } from "./pathfinder";
 import type { Scene, SceneInk } from "./types";
 
 const GROUND_Y = 400;
@@ -28,14 +29,15 @@ const board = (overrides: Partial<BoardDefinition> = {}): BoardDefinition => ({
   ...overrides,
 });
 
-const alice = (feet: Vec, size: AliceSize = "normal"): AliceSnapshot => {
-  const scale = size === "big" ? 2 : size === "small" ? 0.5 : 1;
+const alice = (feet: Vec, size: AliceSize = "normal", sizeMultiplier = 1): AliceSnapshot => {
+  const scale = (size === "big" ? 2 : size === "small" ? 0.5 : 1) * sizeMultiplier;
   const height = ALICE_BASE.height * scale;
   return {
     center: { x: feet.x, y: feet.y - height / 2 },
     width: ALICE_BASE.width * scale,
     height,
     size,
+    sizeMultiplier,
     facing: 1,
     walking: false,
     grounded: true,
@@ -78,6 +80,32 @@ const scene = (overrides: Partial<Scene> = {}): Scene => ({
 });
 
 describe("Pilot", () => {
+  it("replans a low passage when a law enlarges Alice without changing her size state", () => {
+    const pilot = createAutopilot();
+    const passage = board({
+      solids: [
+        solid({ x: 0, y: GROUND_Y, width: 1000, height: 40 }),
+        solid({ x: 200, y: 0, width: 200, height: GROUND_Y - 80 }),
+      ],
+      goal: { x: 600, y: GROUND_Y - 60, width: 40, height: 60 },
+    });
+    pilot.drive(scene({ board: passage }));
+    expect(pilot.status.errand.kind).toBe("objective");
+
+    const resizing = { ...alice({ x: 100, y: GROUND_Y }), sizeMultiplier: 2 };
+    pilot.drive(scene({ board: passage, alice: resizing }));
+    expect(pilot.status.errand.kind).toBe("wait");
+    expect(pilot.status.stuck).toBe(true);
+  });
+
+  it("uses law-scaled meal footprints and retains the larger body during shrinking", () => {
+    const enlarged = alice({ x: 100, y: GROUND_Y }, "normal", 2);
+    expect(footprintFor(enlarged)).toEqual({ cols: 7, rows: 15 });
+    expect(footprintFor(enlarged, "big")).toEqual({ cols: 14, rows: 30 });
+    expect(footprintFor(enlarged, "small")).toEqual({ cols: 4, rows: 8 });
+    expect(footprintFor({ ...enlarged, sizeMultiplier: 1 })).toEqual({ cols: 7, rows: 15 });
+  });
+
   it("idles on a board with nothing to go for", () => {
     const pilot = createAutopilot();
 
