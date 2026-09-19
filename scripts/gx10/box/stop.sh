@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# On the GX10: stop the Kami server and its MongoDB, if they are running.
-cd ~/kami
-for service in server mongod; do
+# On the GX10: stop the Kami server, Kami's Eye and their MongoDB, if they are running.
+#   stop.sh          all of them
+#   stop.sh eye      only the named services
+cd ~/kami || exit 1
+services=("$@")
+[ ${#services[@]} -gt 0 ] || services=(server eye mongod)
+for service in "${services[@]}"; do
   pidfile=run/$service.pid
   [ -s "$pidfile" ] || continue
   pid=$(cat "$pidfile")

@@ -7,6 +7,7 @@ import { createApi } from "./http/api";
 import { createStaticSite } from "./http/staticSite";
 import { QuickdrawRecognizer } from "./quickdraw/recognizer";
 import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
+import { createRecognizerChain } from "./recognition/chain";
 
 const API_PREFIX = "/api";
 
@@ -16,14 +17,17 @@ const connection = await connectDatabase(config.database);
 const boards = new BoardRepository(connection.db);
 await boards.ensureIndexes();
 
-const recognizer = new QuickdrawRecognizer(
+const knn = new QuickdrawRecognizer(
   await new QuickdrawSampleRepository(connection.db).loadFeatures(),
 );
+const eye = createRecognizerChain(config.recognizerUrl, knn, {
+  log: (line) => console.log(`  ${line}`),
+});
 
 const compiler = createLlmCompiler(config.llm);
 const api = createApi({
   boards,
-  recognizer,
+  recognizer: eye.recognizer,
   compiler,
   beautifier: createBeautifier(config.beautifyUrl),
 });
@@ -44,10 +48,11 @@ console.log(`Kami server on http://localhost:${server.port}`);
 console.log(`  memory: ${connection.description}`);
 console.log(`  game: ${config.webDirectory ?? "not built (Vite serves it in development)"}`);
 console.log(
-  recognizer.size > 0
-    ? `  recognition: ${recognizer.size} Quick, Draw! sketches`
+  knn.size > 0
+    ? `  recognition: ${knn.size} Quick, Draw! sketches`
     : "  recognition: empty (run `bun run quickdraw:ingest`)",
 );
+void eye.describe().then((line) => console.log(`  ${line}`));
 console.log(`  beautifier: ${config.beautifyUrl ?? "none attached"}`);
 console.log(`  model compile: ${config.llm === null ? "off" : config.llm.model}`);
 if (config.llm !== null) {

@@ -1,0 +1,45 @@
+[project]
+name = "kami-eye"
+version = "0.1.0"
+description = "Kami's Eye: the sketch recogniser's training kit and ONNX sidecar"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=2.0",
+  "opencv-python-headless>=4.10",
+  "onnxruntime>=1.20",
+]
+
+[dependency-groups]
+train = [
+  "torch>=2.5",
+  "torchvision>=0.20",
+  "onnx>=1.17",
+  "tqdm>=4.66",
+]
+dev = [
+  "pytest>=8.0",
+  "onnx>=1.17",
+  "tqdm>=4.66",
+  "ruff>=0.8",
+  "mypy>=1.13",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ANN", "SIM", "PTH", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+disallow_untyped_calls = false

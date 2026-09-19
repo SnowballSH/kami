@@ -1,0 +1,2076 @@
+{
+  "aircraft carrier": {
+    "name": "an aircraft carrier",
+    "nature": "heavy",
+    "strength": 1.8,
+    "line": "A whole airport that swims. Mind where it lands."
+  },
+  "airplane": {
+    "name": "an airplane",
+    "nature": "floaty",
+    "strength": 1.2,
+    "line": "Up it goes. I never bother with tickets myself."
+  },
+  "alarm clock": {
+    "name": "an alarm clock",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It's always six o'clock somewhere. Usually at tea."
+  },
+  "ambulance": {
+    "name": "an ambulance",
+    "nature": "heavy",
+    "strength": 1.2,
+    "line": "In a hurry, and heavy with it. Do stand aside."
+  },
+  "angel": {
+    "name": "an angel",
+    "nature": "floaty",
+    "strength": 1,
+    "line": "Wings and good manners. It rises above things."
+  },
+  "animal migration": {
+    "name": "a flock of birds",
+    "nature": "floaty",
+    "strength": 1,
+    "line": "Everyone leaving at once. How fashionable."
+  },
+  "ant": {
+    "name": "an ant",
+    "nature": "light",
+    "strength": 0.6,
+    "line": "Small enough to be overlooked. I envy it."
+  },
+  "anvil": {
+    "name": "an anvil",
+    "nature": "heavy",
+    "strength": 1.8,
+    "line": "Heavy as a Monday. Do mind her toes."
+  },
+  "apple": {
+    "name": "an apple",
+    "nature": "grow",
+    "strength": 1,
+    "line": "An apple a day keeps the ceiling near."
+  },
+  "arm": {
+    "name": "an arm",
+    "nature": "ink",
+    "strength": 1,
+    "line": "An arm, all on its own. How disarming."
+  },
+  "asparagus": {
+    "name": "asparagus",
+    "nature": "grow",
+    "strength": 0.8,
+    "line": "Eat your greens and grow. Nannies were right, annoyingly."
+  },
+  "axe": {
+    "name": "an axe",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Only a picture of one. Nobody's head is in danger."
+  },
+  "backpack": {
+    "name": "a backpack",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Packed with everything but sense, I expect."
+  },
+  "banana": {
+    "name": "a banana",
+    "nature": "slippery",
+    "strength": 1.2,
+    "line": "The oldest joke there is. Do watch her step."
+  },
+  "bandage": {
+    "name": "a bandage",
+    "nature": "sticky",
+    "strength": 1,
+    "line": "It sticks to whatever it meets. Rather clingy."
+  },
+  "barn": {
+    "name": "a barn",
+    "nature": "heavy",
+    "strength": 1.3,
+    "line": "Big, red, and going nowhere in a hurry."
+  },
+  "baseball": {
+    "name": "a baseball",
+    "nature": "bouncy",
+    "strength": 1,
+    "line": "It bounces, it rolls, it finds windows. Busy thing."
+  },
+  "baseball bat": {
+    "name": "a baseball bat",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A stick with ambitions. Down here it stays a stick."
+  },
+  "basket": {
+    "name": "a basket",
+    "nature": "ink",
+    "strength": 1,
+    "line": "For eggs. All of them at once, against advice."
+  },
+  "basketball": {
+    "name": "a basketball",
+    "nature": "bouncy",
+    "strength": 1.4,
+    "line": "Bounce is its whole personality. I rather respect that."
+  },
+  "bat": {
+    "name": "a bat",
+    "nature": "floaty",
+    "strength": 1,
+    "line": "Twinkle, twinkle, little bat. How I wonder what you're at."
+  },
+  "bathtub": {
+    "name": "a bathtub",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "Soapy and smooth. Dignity is not guaranteed."
+  },
+  "beach": {
+    "name": "a beach",
+    "nature": "solid",
+    "strength": 1,
+    "line": "Sand as far as she can walk. It stays put."
+  },
+  "bear": {
+    "name": "a bear",
+    "nature": "heavy",
+    "strength": 1.4,
+    "line": "Large, furry and heavy. Do not ask it to dance."
+  },
+  "beard": {
+    "name": "a beard",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A beard without a face. I know the feeling."
+  },
+  "bed": {
+    "name": "a bed",
+    "nature": "bouncy",
+    "strength": 1.2,
+    "line": "For sleeping, officially. For jumping, obviously."
+  },
+  "bee": {
+    "name": "a bee",
+    "nature": "floaty",
+    "strength": 0.8,
+    "line": "Busy, buzzy, and up. It has places to be."
+  },
+  "belt": {
+    "name": "a belt",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It holds things up. Trousers, mostly. Not girls."
+  },
+  "bench": {
+    "name": "a bench",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A place to sit and think. Or just sit."
+  },
+  "bicycle": {
+    "name": "a bicycle",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Two wheels and a wobble. Nobody's pedalling, mind."
+  },
+  "binoculars": {
+    "name": "binoculars",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Far things near, near things far. Depends which end."
+  },
+  "bird": {
+    "name": "a bird",
+    "nature": "floaty",
+    "strength": 1,
+    "line": "It rises. Birds do, given half a sky."
+  },
+  "birthday cake": {
+    "name": "a birthday cake",
+    "nature": "grow",
+    "strength": 1.2,
+    "alias": "cake",
+    "line": "A very merry unbirthday. Eat me, say the candles."
+  },
+  "blackberry": {
+    "name": "a blackberry",
+    "nature": "grow",
+    "strength": 0.7,
+    "line": "A small bite, a small growth. Fair is fair."
+  },
+  "blueberry": {
+    "name": "a blueberry",
+    "nature": "grow",
+    "strength": 0.6,
+    "line": "Tiny, blue and ambitious. She'll grow a little."
+  },
+  "book": {
+    "name": "a book",
+    "nature": "ink",
+    "strength": 1,
+    "line": "What is the use of a book without pictures?"
+  },
+  "boomerang": {
+    "name": "a boomerang",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Throw it away and it disagrees. I like it."
+  },
+  "bottlecap": {
+    "name": "a bottle cap",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A lid with nothing to keep a lid on."
+  },
+  "bowtie": {
+    "name": "a bow tie",
+    "nature": "light",
+    "strength": 0.8,
+    "line": "Very dapper. It weighs less than a compliment."
+  },
+  "bracelet": {
+    "name": "a bracelet",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A circle with somewhere to be. A wrist, usually."
+  },
+  "brain": {
+    "name": "a brain",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A brain! Do pass it round. We're all mad here."
+  },
+  "bread": {
+    "name": "bread",
+    "nature": "grow",
+    "strength": 1,
+    "line": "A loaf to grow on. Butter not included."
+  },
+  "bridge": {
+    "name": "a bridge",
+    "nature": "solid",
+    "strength": 1,
+    "line": "Solid as a fact. Cross it when she comes to it."
+  },
+  "broccoli": {
+    "name": "broccoli",
+    "nature": "grow",
+    "strength": 0.8,
+    "line": "A little tree you can eat. She'll sprout too."
+  },
+  "broom": {
+    "name": "a broom",
+    "nature": "floaty",
+    "strength": 1,
+    "line": "Sweeps by day, flies by night. It's night somewhere."
+  },
+  "bucket": {
+    "name": "a bucket",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Full of nothing, which is still something."
+  },
+  "bulldozer": {
+    "name": "a bulldozer",
+    "nature": "heavy",
+    "strength": 1.7,
+    "line": "It moves mountains, slowly. Nothing moves it."
+  },
+  "bus": {
+    "name": "a bus",
+    "nature": "heavy",
+    "strength": 1.5,
+    "line": "Heavy, and late, I expect. Buses usually are."
+  },
+  "bush": {
+    "name": "a bush",
+    "nature": "bouncy",
+    "strength": 0.7,
+    "line": "Springy twigs all the way through. A leafy cushion."
+  },
+  "butterfly": {
+    "name": "a butterfly",
+    "nature": "floaty",
+    "strength": 0.7,
+    "line": "It was a caterpillar once. Ask it who it is."
+  },
+  "cactus": {
+    "name": "a cactus",
+    "nature": "hazard",
+    "strength": 0.8,
+    "line": "Prickly company. One touch and she begins again."
+  },
+  "cake": {
+    "name": "a cake",
+    "nature": "grow",
+    "strength": 1.2,
+    "line": "Eat me, it says. She usually does."
+  },
+  "calculator": {
+    "name": "a calculator",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Four times five is twelve. It disagrees. How dull."
+  },
+  "calendar": {
+    "name": "a calendar",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Jam tomorrow and jam yesterday, but never jam today."
+  },
+  "camel": {
+    "name": "a camel",
+    "nature": "heavy",
+    "strength": 1.1,
+    "line": "One hump or two? Heavy either way."
+  },
+  "camera": {
+    "name": "a camera",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Say Cheshire. I photograph terribly well, in parts."
+  },
+  "camouflage": {
+    "name": "camouflage",
+    "nature": "ink",
+    "strength": 1,
+    "line": "I can't see it either. We'd get along."
+  },
+  "campfire": {
+    "name": "a campfire",
+    "nature": "hazard",
+    "strength": 1,
+    "line": "Warm from a distance. Do keep her at one."
+  },
+  "candle": {
+    "name": "a candle",
+    "nature": "hazard",
+    "strength": 0.6,
+    "line": "A small flame, but it nips. Mind her fingers."
+  },
+  "cannon": {
+    "name": "a cannon",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Only cardboard and ink. It won't go off."
+  },
+  "canoe": {
+    "name": "a canoe",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A boat in want of a river. Paddle not included."
+  },
+  "car": {
+    "name": "a car",
+    "nature": "heavy",
+    "strength": 1.1,
+    "line": "Heavy, and nobody driving. It will sit and sulk."
+  },
+  "carrot": {
+    "name": "a carrot",
+    "nature": "grow",
+    "strength": 0.9,
+    "line": "The White Rabbit swears by them. Up she grows."
+  },
+  "castle": {
+    "name": "a castle",
+    "nature": "heavy",
+    "strength": 1.8,
+    "line": "Stone upon stone. The Queen will want the keys."
+  },
+  "cat": {
+    "name": "a cat",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A relative, I think. The grin needs work."
+  },
+  "ceiling fan": {
+    "name": "a ceiling fan",
+    "nature": "shrink",
+    "strength": 1,
+    "alias": "fan",
+    "line": "Round and round. Fanning makes her smaller, remember?"
+  },
+  "cello": {
+    "name": "a cello",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A violin that ate the cake. Deep voice, too."
+  },
+  "cell phone": {
+    "name": "a cell phone",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Nobody's calling. Nobody often does, down here."
+  },
+  "chair": {
+    "name": "a chair",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Sit, by all means. It's sturdier than it looks."
+  },
+  "chandelier": {
+    "name": "a chandelier",
+    "nature": "heavy",
+    "strength": 1.2,
+    "line": "Grand and heavy. Best admired from one side."
+  },
+  "church": {
+    "name": "a church",
+    "nature": "heavy",
+    "strength": 1.5,
+    "line": "Steeple, bells and a great deal of stone."
+  },
+  "circle": {
+    "name": "a circle",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Round and round with no end. My favourite argument."
+  },
+  "clarinet": {
+    "name": "a clarinet",
+    "nature": "ink",
+    "strength": 1,
+    "line": "All those keys and not one opens a door."
+  },
+  "clock": {
+    "name": "a clock",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Two days slow. The Hatter blames the butter."
+  },
+  "cloud": {
+    "name": "a cloud",
+    "nature": "floaty",
+    "strength": 1,
+    "line": "Up it goes. Soft to look at, tricky to sit on."
+  },
+  "coffee cup": {
+    "name": "a coffee cup",
+    "nature": "shrink",
+    "strength": 1,
+    "alias": "cup",
+    "line": "Drink me, but hot. Do blow on it first."
+  },
+  "compass": {
+    "name": "a compass",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It knows where north is. Not where she's going."
+  },
+  "computer": {
+    "name": "a computer",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It thinks in ones and noughts. How very limiting."
+  },
+  "cookie": {
+    "name": "a cookie",
+    "nature": "grow",
+    "strength": 1,
+    "line": "Eat me, down to the crumbs. Up she goes."
+  },
+  "cooler": {
+    "name": "a cooler",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Cold inside, I'm told. Picnics take it everywhere."
+  },
+  "couch": {
+    "name": "a couch",
+    "nature": "bouncy",
+    "strength": 1.1,
+    "line": "Made for sitting. Destined for jumping."
+  },
+  "cow": {
+    "name": "a cow",
+    "nature": "heavy",
+    "strength": 1.3,
+    "line": "Over the moon, was it? Not at that weight."
+  },
+  "crab": {
+    "name": "a crab",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It goes sideways on purpose. I approve."
+  },
+  "crayon": {
+    "name": "a crayon",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A rival pen. I shall pretend not to notice."
+  },
+  "crocodile": {
+    "name": "a crocodile",
+    "nature": "hazard",
+    "strength": 1.2,
+    "line": "How doth the little crocodile? With gently smiling jaws."
+  },
+  "crown": {
+    "name": "a crown",
+    "nature": "goal",
+    "strength": 1,
+    "line": "The eighth square at last. Queen Alice, I presume."
+  },
+  "cruise ship": {
+    "name": "a cruise ship",
+    "nature": "heavy",
+    "strength": 1.7,
+    "line": "A floating hotel. Rather less floating, down here."
+  },
+  "cup": {
+    "name": "a cup",
+    "nature": "shrink",
+    "strength": 1,
+    "line": "Drink me. One sip and the world gets roomier."
+  },
+  "diamond": {
+    "name": "a diamond",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Hard, bright, and quite sure of itself."
+  },
+  "dishwasher": {
+    "name": "a dishwasher",
+    "nature": "heavy",
+    "strength": 1.2,
+    "line": "A heavy box of other people's plates."
+  },
+  "diving board": {
+    "name": "a diving board",
+    "nature": "bouncy",
+    "strength": 1.5,
+    "line": "Springy. Do look before she leaps."
+  },
+  "dog": {
+    "name": "a dog",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It wags when it's pleased. I do the opposite."
+  },
+  "dolphin": {
+    "name": "a dolphin",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "Sleek as a wet excuse. Nothing to hold on to."
+  },
+  "donut": {
+    "name": "a donut",
+    "nature": "grow",
+    "strength": 1,
+    "line": "Eat me, and mind the hole. It's the best part."
+  },
+  "door": {
+    "name": "a door",
+    "nature": "goal",
+    "strength": 1,
+    "line": "A way out. Or in. It depends which side."
+  },
+  "dragon": {
+    "name": "a dragon",
+    "nature": "floaty",
+    "strength": 1.4,
+    "line": "Up it goes, with opinions. Do hold on."
+  },
+  "dresser": {
+    "name": "a dresser",
+    "nature": "heavy",
+    "strength": 1.2,
+    "line": "Drawers full of heavy secrets. It shan't budge easily."
+  },
+  "drill": {
+    "name": "a drill",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It makes holes. Rabbits manage without one."
+  },
+  "drums": {
+    "name": "drums",
+    "nature": "bouncy",
+    "strength": 1.3,
+    "line": "Boing and boom. Everything on them keeps the beat."
+  },
+  "duck": {
+    "name": "a duck",
+    "nature": "floaty",
+    "strength": 0.8,
+    "line": "The Duck ran the Caucus-race. Still bobbing about."
+  },
+  "dumbbell": {
+    "name": "a dumbbell",
+    "nature": "heavy",
+    "strength": 1.6,
+    "line": "Heavy on purpose. People lift these for fun, apparently."
+  },
+  "ear": {
+    "name": "an ear",
+    "nature": "ink",
+    "strength": 1,
+    "line": "An ear! Careful what you say around it."
+  },
+  "elbow": {
+    "name": "an elbow",
+    "nature": "ink",
+    "strength": 1,
+    "line": "An elbow. Every arm's change of mind."
+  },
+  "elephant": {
+    "name": "an elephant",
+    "nature": "heavy",
+    "strength": 1.9,
+    "line": "It never forgets, and the floor won't either."
+  },
+  "envelope": {
+    "name": "an envelope",
+    "nature": "light",
+    "strength": 0.8,
+    "line": "Light as a rumour, and probably carrying one."
+  },
+  "eraser": {
+    "name": "an eraser",
+    "nature": "bouncy",
+    "strength": 0.8,
+    "line": "Rubber through and through. It bounces back from mistakes."
+  },
+  "eye": {
+    "name": "an eye",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It's rude to stare. I should know."
+  },
+  "eyeglasses": {
+    "name": "spectacles",
+    "nature": "ink",
+    "strength": 1,
+    "line": "For seeing what's there. I manage without being there."
+  },
+  "face": {
+    "name": "a face",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A face! Most of mine is optional."
+  },
+  "fan": {
+    "name": "a fan",
+    "nature": "shrink",
+    "strength": 1,
+    "line": "The Rabbit's fan. Keep fanning and she'll vanish entirely."
+  },
+  "feather": {
+    "name": "a feather",
+    "nature": "light",
+    "strength": 0.6,
+    "line": "Light as a rumour. A sneeze would move it."
+  },
+  "fence": {
+    "name": "a fence",
+    "nature": "climbable",
+    "strength": 1,
+    "line": "Meant to keep her out. The rungs say otherwise."
+  },
+  "finger": {
+    "name": "a finger",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Pointing at what, exactly? Oh. Me."
+  },
+  "fire hydrant": {
+    "name": "a fire hydrant",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Full of water and patience. Dogs adore it."
+  },
+  "fireplace": {
+    "name": "a fireplace",
+    "nature": "hazard",
+    "strength": 1,
+    "line": "Cosy from the rug. Less so from inside."
+  },
+  "firetruck": {
+    "name": "a fire truck",
+    "nature": "heavy",
+    "strength": 1.5,
+    "line": "Ladders, hoses and a great deal of red."
+  },
+  "fish": {
+    "name": "a fish",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "Slippery customer. The Footman was one, you know."
+  },
+  "flamingo": {
+    "name": "a flamingo",
+    "nature": "floaty",
+    "strength": 0.8,
+    "line": "The Queen's croquet mallet. It would rather fly off."
+  },
+  "flashlight": {
+    "name": "a flashlight",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It points out the obvious. Brightly."
+  },
+  "flip flops": {
+    "name": "flip flops",
+    "nature": "light",
+    "strength": 0.8,
+    "line": "Flip, then flop. Always in that order."
+  },
+  "floor lamp": {
+    "name": "a floor lamp",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A lamp that stands up for itself."
+  },
+  "flower": {
+    "name": "a flower",
+    "nature": "light",
+    "strength": 0.8,
+    "line": "The flowers talk here. This one is petal-light and shy."
+  },
+  "flying saucer": {
+    "name": "a flying saucer",
+    "nature": "floaty",
+    "strength": 1.4,
+    "line": "Near enough. Up it goes. Teacup not included."
+  },
+  "foot": {
+    "name": "a foot",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Alice's Right Foot, Esquire. She once sent it presents."
+  },
+  "fork": {
+    "name": "a fork",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A fork. In the road, I'd take it."
+  },
+  "frog": {
+    "name": "a frog",
+    "nature": "bouncy",
+    "strength": 1.3,
+    "line": "All legs and leaping. The other Footman was one."
+  },
+  "frying pan": {
+    "name": "a frying pan",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "Greased and ready. The Cook throws these, so duck."
+  },
+  "garden": {
+    "name": "a garden",
+    "nature": "goal",
+    "strength": 1,
+    "line": "The loveliest garden you ever saw. So that's where she's going."
+  },
+  "garden hose": {
+    "name": "a garden hose",
+    "nature": "climbable",
+    "strength": 0.8,
+    "line": "A rope with a drip. Up she goes, damply."
+  },
+  "giraffe": {
+    "name": "a giraffe",
+    "nature": "climbable",
+    "strength": 1.2,
+    "line": "Mostly neck. Climb politely, it has feelings."
+  },
+  "goatee": {
+    "name": "a goatee",
+    "nature": "ink",
+    "strength": 1,
+    "alias": "beard",
+    "line": "A small beard with large opinions."
+  },
+  "golf club": {
+    "name": "a golf club",
+    "nature": "ink",
+    "strength": 1,
+    "line": "The Queen prefers flamingos. This one won't squawk, at least."
+  },
+  "grapes": {
+    "name": "grapes",
+    "nature": "grow",
+    "strength": 0.8,
+    "line": "One at a time, she grows by the inch."
+  },
+  "grass": {
+    "name": "grass",
+    "nature": "solid",
+    "strength": 1,
+    "line": "Ground with a haircut. It stays where it's planted."
+  },
+  "guitar": {
+    "name": "a guitar",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Six strings and nobody strumming. A quiet sort of music."
+  },
+  "hamburger": {
+    "name": "a hamburger",
+    "nature": "grow",
+    "strength": 1.3,
+    "line": "Eat me, with both hands. Up she goes."
+  },
+  "hammer": {
+    "name": "a hammer",
+    "nature": "heavy",
+    "strength": 1,
+    "line": "Heavy at one end. To it, everything's a nail."
+  },
+  "hand": {
+    "name": "a hand",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A hand! I'd applaud, but mine come and go."
+  },
+  "harp": {
+    "name": "a harp",
+    "nature": "ink",
+    "strength": 1,
+    "line": "All strings, no fingers. It hums when nobody listens."
+  },
+  "hat": {
+    "name": "a hat",
+    "nature": "light",
+    "strength": 0.8,
+    "line": "In this style, ten and six. The Hatter wants it back."
+  },
+  "headphones": {
+    "name": "headphones",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Music for two ears only. How secretive."
+  },
+  "hedgehog": {
+    "name": "a hedgehog",
+    "nature": "hazard",
+    "strength": 0.7,
+    "line": "The Queen's croquet ball. Prickly about it, too."
+  },
+  "helicopter": {
+    "name": "a helicopter",
+    "nature": "floaty",
+    "strength": 1.3,
+    "line": "Near enough. Up it goes, chopping the air."
+  },
+  "helmet": {
+    "name": "a helmet",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Sensible. The White Knight fell off anyway."
+  },
+  "hexagon": {
+    "name": "a hexagon",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Six sides. Bees would approve."
+  },
+  "hockey puck": {
+    "name": "a hockey puck",
+    "nature": "slippery",
+    "strength": 1.2,
+    "line": "Born on ice. It slides and never apologises."
+  },
+  "hockey stick": {
+    "name": "a hockey stick",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A stick with a bend in its plans."
+  },
+  "horse": {
+    "name": "a horse",
+    "nature": "heavy",
+    "strength": 1.1,
+    "line": "A noble beast. Heavy in the hoof."
+  },
+  "hospital": {
+    "name": "a hospital",
+    "nature": "heavy",
+    "strength": 1.6,
+    "line": "A big building full of getting better."
+  },
+  "hot air balloon": {
+    "name": "a hot air balloon",
+    "nature": "floaty",
+    "strength": 1.3,
+    "line": "Up it goes. Most things do, if you let go."
+  },
+  "hot dog": {
+    "name": "a hot dog",
+    "nature": "grow",
+    "strength": 1,
+    "line": "Neither hot nor a dog. Eat it and grow."
+  },
+  "hot tub": {
+    "name": "a hot tub",
+    "nature": "slippery",
+    "strength": 0.9,
+    "line": "Warm, bubbly and slippery. Tea for the whole body."
+  },
+  "hourglass": {
+    "name": "an hourglass",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Time runs through its waist. The Rabbit can't bear to look."
+  },
+  "house": {
+    "name": "a house",
+    "nature": "heavy",
+    "strength": 1.3,
+    "line": "Heavy with chimneys. She outgrew one once, you know."
+  },
+  "house plant": {
+    "name": "a house plant",
+    "nature": "climbable",
+    "strength": 0.8,
+    "line": "Water it and it's a beanstalk. Up she goes."
+  },
+  "hurricane": {
+    "name": "a hurricane",
+    "nature": "hazard",
+    "strength": 1.5,
+    "line": "Wind with a temper. Best admired from elsewhere."
+  },
+  "ice cream": {
+    "name": "an ice cream",
+    "nature": "grow",
+    "strength": 1,
+    "line": "Eat me, quickly, before it becomes a puddle."
+  },
+  "jacket": {
+    "name": "a jacket",
+    "nature": "light",
+    "strength": 0.9,
+    "line": "A jacket with nobody in it. Lighter that way."
+  },
+  "jail": {
+    "name": "a jail",
+    "nature": "climbable",
+    "strength": 1,
+    "line": "Stole some tarts, did we? The bars make fine rungs."
+  },
+  "kangaroo": {
+    "name": "a kangaroo",
+    "nature": "bouncy",
+    "strength": 1.5,
+    "line": "Bounce is a family tradition. Mind her head."
+  },
+  "key": { "name": "a key", "nature": "ink", "strength": 1, "line": "A lovely picture of a key." },
+  "keyboard": {
+    "name": "a keyboard",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Every letter, in no sensible order. My kind of alphabet."
+  },
+  "knee": {
+    "name": "a knee",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A knee. It bends, but only one way."
+  },
+  "knife": {
+    "name": "a knife",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Only ink. It couldn't cut butter, best or otherwise."
+  },
+  "ladder": {
+    "name": "a ladder",
+    "nature": "climbable",
+    "strength": 1,
+    "line": "Rung by rung, then. I prefer to simply appear."
+  },
+  "lantern": {
+    "name": "a lantern",
+    "nature": "floaty",
+    "strength": 0.8,
+    "line": "Light it and let go. It wanders upward."
+  },
+  "laptop": {
+    "name": "a laptop",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A book that glows and argues back."
+  },
+  "leaf": {
+    "name": "a leaf",
+    "nature": "light",
+    "strength": 0.7,
+    "line": "Light as a whisper. It falls when it remembers to."
+  },
+  "leg": {
+    "name": "a leg",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A leg, going nowhere. It needs a partner."
+  },
+  "light bulb": {
+    "name": "a light bulb",
+    "nature": "light",
+    "strength": 1,
+    "line": "Light by name, light by nature. I do love a pun."
+  },
+  "lighter": {
+    "name": "a lighter",
+    "nature": "hazard",
+    "strength": 0.6,
+    "line": "A pocketful of fire. Small, but it nips."
+  },
+  "lighthouse": {
+    "name": "a lighthouse",
+    "nature": "climbable",
+    "strength": 1,
+    "line": "Stairs all the way up, and a view."
+  },
+  "lightning": {
+    "name": "lightning",
+    "nature": "hazard",
+    "strength": 1.5,
+    "line": "It never strikes twice. Once is plenty."
+  },
+  "line": {
+    "name": "a line",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A line. Every drawing's first step and last resort."
+  },
+  "lion": {
+    "name": "a lion",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A cousin of mine. Bigger teeth, smaller grin."
+  },
+  "lipstick": {
+    "name": "a lipstick",
+    "nature": "ink",
+    "strength": 1,
+    "line": "For painting smiles on. Mine came free."
+  },
+  "lobster": {
+    "name": "a lobster",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Will you, won't you, join the dance? Lobsters insist."
+  },
+  "lollipop": {
+    "name": "a lollipop",
+    "nature": "grow",
+    "strength": 0.8,
+    "line": "Eat me, one lick at a time. Slow growing."
+  },
+  "mailbox": {
+    "name": "a mailbox",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Parcels for her own feet go here. Long story."
+  },
+  "map": {
+    "name": "a map",
+    "nature": "light",
+    "strength": 0.8,
+    "line": "Useful, if she cares where she's going."
+  },
+  "marker": {
+    "name": "a marker",
+    "nature": "ink",
+    "strength": 1,
+    "line": "My sort of pen. Do put the cap back."
+  },
+  "matches": {
+    "name": "matches",
+    "nature": "hazard",
+    "strength": 0.6,
+    "line": "Little sticks with big ideas. Keep her clear."
+  },
+  "megaphone": {
+    "name": "a megaphone",
+    "nature": "ink",
+    "strength": 1,
+    "line": "For those who prefer to be heard twice."
+  },
+  "mermaid": {
+    "name": "a mermaid",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "Half girl, half fish, wholly slippery."
+  },
+  "microphone": {
+    "name": "a microphone",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Speak up. Or don't. It listens either way."
+  },
+  "microwave": {
+    "name": "a microwave",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A box that hums and hurries supper."
+  },
+  "monkey": {
+    "name": "a monkey",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It climbs everything. Nothing much climbs it."
+  },
+  "moon": {
+    "name": "the moon",
+    "nature": "floaty",
+    "strength": 0.8,
+    "line": "It rises nightly. Some say it borrowed my grin."
+  },
+  "mosquito": {
+    "name": "a mosquito",
+    "nature": "floaty",
+    "strength": 0.6,
+    "line": "A very small opinion, loudly held. Up it whines."
+  },
+  "motorbike": {
+    "name": "a motorbike",
+    "nature": "heavy",
+    "strength": 1.1,
+    "line": "Two wheels, much noise, considerable weight."
+  },
+  "mountain": {
+    "name": "a mountain",
+    "nature": "heavy",
+    "strength": 2,
+    "line": "It shan't come to her. She must go to it."
+  },
+  "mouse": {
+    "name": "a mouse",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Oh, a mouse! Best not mention me. Or Dinah."
+  },
+  "moustache": {
+    "name": "a moustache",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A moustache with nobody behind it. I sympathise."
+  },
+  "mouth": {
+    "name": "a mouth",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Grin with it. It's the last thing to go."
+  },
+  "mug": {
+    "name": "a mug",
+    "nature": "shrink",
+    "strength": 1,
+    "alias": "cup",
+    "line": "Drink me, in a sturdier cup."
+  },
+  "mushroom": {
+    "name": "a mushroom",
+    "nature": "bouncy",
+    "strength": 1.3,
+    "line": "One side makes her taller. The top makes her fly."
+  },
+  "nail": {
+    "name": "a nail",
+    "nature": "sticky",
+    "strength": 1,
+    "line": "It stays where it's put. Stubborn, like the Duchess."
+  },
+  "necklace": {
+    "name": "a necklace",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A chain for wearing, not climbing. Pity."
+  },
+  "nose": {
+    "name": "a nose",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A nose! It runs in most families."
+  },
+  "ocean": {
+    "name": "the ocean",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "A pool of tears, only saltier. Slippery going."
+  },
+  "octagon": {
+    "name": "an octagon",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Eight sides. It usually says stop. I never do."
+  },
+  "octopus": {
+    "name": "an octopus",
+    "nature": "sticky",
+    "strength": 1.1,
+    "line": "Eight arms, all suckers. It does get attached."
+  },
+  "onion": {
+    "name": "an onion",
+    "nature": "grow",
+    "strength": 0.7,
+    "line": "Eat it and grow. Cry a little first."
+  },
+  "oven": {
+    "name": "an oven",
+    "nature": "heavy",
+    "strength": 1.3,
+    "line": "A heavy box for tarts. Somebody always steals those."
+  },
+  "owl": {
+    "name": "an owl",
+    "nature": "floaty",
+    "strength": 1,
+    "line": "Wise, they say. Wise enough to fly off."
+  },
+  "paintbrush": {
+    "name": "a paintbrush",
+    "nature": "sticky",
+    "strength": 0.8,
+    "line": "Painting the roses red? Wet paint sticks to everything."
+  },
+  "paint can": {
+    "name": "a paint can",
+    "nature": "sticky",
+    "strength": 1,
+    "line": "Red, for the roses. Sticky till it dries."
+  },
+  "palm tree": {
+    "name": "a palm tree",
+    "nature": "climbable",
+    "strength": 1,
+    "line": "Straight up, coconuts at the top. Hold on tight."
+  },
+  "panda": {
+    "name": "a panda",
+    "nature": "heavy",
+    "strength": 1.3,
+    "line": "Black, white and heavy all over."
+  },
+  "pants": {
+    "name": "pants",
+    "nature": "light",
+    "strength": 0.9,
+    "line": "Trousers out walking alone. Light on their feet."
+  },
+  "paper clip": {
+    "name": "a paper clip",
+    "nature": "sticky",
+    "strength": 0.7,
+    "line": "It holds things together. Somebody has to."
+  },
+  "parachute": {
+    "name": "a parachute",
+    "nature": "floaty",
+    "strength": 0.7,
+    "line": "It argues with gravity. Politely, but it wins."
+  },
+  "parrot": {
+    "name": "a parrot",
+    "nature": "floaty",
+    "strength": 1,
+    "line": "It repeats everything. It repeats everything. Up it goes."
+  },
+  "passport": {
+    "name": "a passport",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Papers for leaving. Nobody checks them down a rabbit hole."
+  },
+  "peanut": {
+    "name": "a peanut",
+    "nature": "grow",
+    "strength": 0.6,
+    "line": "A small snack for a small growth."
+  },
+  "pear": {
+    "name": "a pear",
+    "nature": "grow",
+    "strength": 1,
+    "line": "Eat me, it says, in a pear-shaped voice."
+  },
+  "peas": {
+    "name": "peas",
+    "nature": "grow",
+    "strength": 0.6,
+    "line": "Tiny, green and good for her. Up a little."
+  },
+  "pencil": {
+    "name": "a pencil",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Another pen! This board has room for two. Just."
+  },
+  "penguin": {
+    "name": "a penguin",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "Dressed for dinner, built for sliding."
+  },
+  "piano": {
+    "name": "a piano",
+    "nature": "heavy",
+    "strength": 1.7,
+    "line": "Grand, and heavy with it. Mind her toes."
+  },
+  "pickup truck": {
+    "name": "a pickup truck",
+    "nature": "heavy",
+    "strength": 1.3,
+    "alias": "truck",
+    "line": "Heavy, with room in the back for more heavy."
+  },
+  "picture frame": {
+    "name": "a picture frame",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A frame round nothing. I've sat for that portrait."
+  },
+  "pig": {
+    "name": "a pig",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It was a baby a minute ago. Do keep up."
+  },
+  "pillow": {
+    "name": "a pillow",
+    "nature": "bouncy",
+    "strength": 0.8,
+    "line": "Soft landing, gentle bounce. Sweet dreams on the way up."
+  },
+  "pineapple": {
+    "name": "a pineapple",
+    "nature": "grow",
+    "strength": 1,
+    "line": "Prickly outside, growth inside. Eat carefully."
+  },
+  "pizza": {
+    "name": "a pizza",
+    "nature": "grow",
+    "strength": 1.3,
+    "line": "Eat me, by the slice. Up she goes."
+  },
+  "pliers": {
+    "name": "pliers",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A firm grip and no conversation."
+  },
+  "police car": {
+    "name": "a police car",
+    "nature": "heavy",
+    "strength": 1.1,
+    "alias": "car",
+    "line": "Heavy, with a flashing hat. Nobody's in trouble. Yet."
+  },
+  "pond": {
+    "name": "a pond",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "Still water. Slippery at the edges, like most truths."
+  },
+  "pool": {
+    "name": "a pool",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "She swam in her own tears once. Slippery stuff."
+  },
+  "popsicle": {
+    "name": "a popsicle",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "Ice on a stick. Slippery until it's gone."
+  },
+  "postcard": {
+    "name": "a postcard",
+    "nature": "light",
+    "strength": 0.7,
+    "line": "Wish you were here. Wherever here is."
+  },
+  "potato": {
+    "name": "a potato",
+    "nature": "grow",
+    "strength": 0.9,
+    "line": "Eat me, it says, plainly. Potatoes don't show off."
+  },
+  "power outlet": {
+    "name": "a power outlet",
+    "nature": "hazard",
+    "strength": 0.7,
+    "line": "It looks shocked. So would she be. Hands off."
+  },
+  "purse": {
+    "name": "a purse",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Full of everything except what you're looking for."
+  },
+  "rabbit": {
+    "name": "a rabbit",
+    "nature": "bouncy",
+    "strength": 1.2,
+    "line": "Late again, I expect. Springy, though."
+  },
+  "raccoon": {
+    "name": "a raccoon",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A bandit's mask, and nothing stolen yet."
+  },
+  "radio": {
+    "name": "a radio",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Voices from nowhere. I do that too."
+  },
+  "rain": {
+    "name": "rain",
+    "nature": "slippery",
+    "strength": 0.8,
+    "line": "Wet all the way down. Mind her footing."
+  },
+  "rainbow": {
+    "name": "a rainbow",
+    "nature": "solid",
+    "strength": 1,
+    "line": "A bridge made of weather. It holds, if she believes."
+  },
+  "rake": {
+    "name": "a rake",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Step on it and it answers back."
+  },
+  "remote control": {
+    "name": "a remote control",
+    "nature": "ink",
+    "strength": 1,
+    "line": "So many buttons. None of them work on me."
+  },
+  "rhinoceros": {
+    "name": "a rhinoceros",
+    "nature": "heavy",
+    "strength": 1.7,
+    "line": "A ton of bad eyesight. It shan't budge."
+  },
+  "rifle": {
+    "name": "a rifle",
+    "nature": "ink",
+    "strength": 1,
+    "line": "None of that down here. It's only ink."
+  },
+  "river": {
+    "name": "a river",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "Wet and in a hurry. Nothing to hold on to."
+  },
+  "roller coaster": {
+    "name": "a roller coaster",
+    "nature": "climbable",
+    "strength": 1,
+    "line": "Up, down and shrieking. Climb it, if she dares."
+  },
+  "rollerskates": {
+    "name": "roller skates",
+    "nature": "slippery",
+    "strength": 1.2,
+    "line": "Wheels for feet. Dignity is not guaranteed."
+  },
+  "sailboat": {
+    "name": "a sailboat",
+    "nature": "light",
+    "strength": 1,
+    "line": "All sail and no anchor. The wind decides."
+  },
+  "sandwich": {
+    "name": "a sandwich",
+    "nature": "grow",
+    "strength": 1,
+    "line": "Eat me, between two slices. Up she goes."
+  },
+  "saw": {
+    "name": "a saw",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It has seen better days. Saw them, even."
+  },
+  "saxophone": {
+    "name": "a saxophone",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Bent like a question. Sounds like an answer."
+  },
+  "school bus": {
+    "name": "a school bus",
+    "nature": "heavy",
+    "strength": 1.5,
+    "alias": "bus",
+    "line": "Yellow, heavy and full of lessons."
+  },
+  "scissors": {
+    "name": "scissors",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Snip, snip. Only paper need worry, and this is ink."
+  },
+  "scorpion": {
+    "name": "a scorpion",
+    "nature": "hazard",
+    "strength": 1,
+    "line": "A sting in its tale. Do keep her back."
+  },
+  "screwdriver": {
+    "name": "a screwdriver",
+    "nature": "sticky",
+    "strength": 0.8,
+    "line": "A turn or two and things stay put."
+  },
+  "sea turtle": {
+    "name": "a sea turtle",
+    "nature": "ink",
+    "strength": 1,
+    "line": "The Mock Turtle's real cousin. Slow, wet and sentimental."
+  },
+  "see saw": {
+    "name": "a seesaw",
+    "nature": "bouncy",
+    "strength": 1.3,
+    "line": "What goes down must come up, apparently."
+  },
+  "shark": {
+    "name": "a shark",
+    "nature": "hazard",
+    "strength": 1.2,
+    "line": "All teeth and no grin. Do keep her clear."
+  },
+  "sheep": {
+    "name": "a sheep",
+    "nature": "bouncy",
+    "strength": 0.9,
+    "line": "A cloud with legs. Woolly landings all round."
+  },
+  "shoe": {
+    "name": "a shoe",
+    "nature": "ink",
+    "strength": 1,
+    "line": "One shoe. The other is always somewhere else."
+  },
+  "shorts": {
+    "name": "shorts",
+    "nature": "light",
+    "strength": 0.9,
+    "line": "Trousers that stopped early. Light as a breeze."
+  },
+  "shovel": {
+    "name": "a shovel",
+    "nature": "ink",
+    "strength": 1,
+    "line": "For digging holes. Rabbits do it without one."
+  },
+  "sink": {
+    "name": "a sink",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Everything but the kitchen. No, wait. Exactly the kitchen."
+  },
+  "skateboard": {
+    "name": "a skateboard",
+    "nature": "slippery",
+    "strength": 1.2,
+    "line": "A plank on wheels. Off it goes, with or without her."
+  },
+  "skull": {
+    "name": "a skull",
+    "nature": "hazard",
+    "strength": 1,
+    "line": "Alas, poor somebody. Best she keeps her distance."
+  },
+  "skyscraper": {
+    "name": "a skyscraper",
+    "nature": "climbable",
+    "strength": 1.2,
+    "line": "A very tall ladder with offices in it."
+  },
+  "sleeping bag": {
+    "name": "a sleeping bag",
+    "nature": "bouncy",
+    "strength": 0.7,
+    "line": "A bed you can carry. A gentle bounce."
+  },
+  "smiley face": {
+    "name": "a smiley face",
+    "nature": "ink",
+    "strength": 1,
+    "alias": "face",
+    "line": "A grin without much else. I approve entirely."
+  },
+  "snail": {
+    "name": "a snail",
+    "nature": "slippery",
+    "strength": 0.8,
+    "line": "Will you walk a little faster? It leaves a slippery trail."
+  },
+  "snake": {
+    "name": "a snake",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "Serpent! cried the Pigeon. Smooth, anyway. Nothing to grip."
+  },
+  "snorkel": {
+    "name": "a snorkel",
+    "nature": "ink",
+    "strength": 1,
+    "line": "For breathing where one shouldn't. Handy in a pool of tears."
+  },
+  "snowflake": {
+    "name": "a snowflake",
+    "nature": "light",
+    "strength": 0.7,
+    "line": "No two alike, and none of them weigh a thing."
+  },
+  "snowman": {
+    "name": "a snowman",
+    "nature": "slippery",
+    "strength": 1,
+    "line": "Cold company. Icy to stand on, too."
+  },
+  "soccer ball": {
+    "name": "a soccer ball",
+    "nature": "bouncy",
+    "strength": 1.2,
+    "line": "Kick it and it comes back. Bouncy, loyal thing."
+  },
+  "sock": {
+    "name": "a sock",
+    "nature": "light",
+    "strength": 0.8,
+    "line": "One sock. The other vanished. I know how."
+  },
+  "speedboat": {
+    "name": "a speedboat",
+    "nature": "slippery",
+    "strength": 1.1,
+    "line": "It skims. Fast, wet, and gone."
+  },
+  "spider": {
+    "name": "a spider",
+    "nature": "sticky",
+    "strength": 1,
+    "line": "Along came a spider. Its web does the sticking."
+  },
+  "spoon": {
+    "name": "a spoon",
+    "nature": "ink",
+    "strength": 1,
+    "line": "For stirring tea. Or treacle, down the well."
+  },
+  "spreadsheet": {
+    "name": "a spreadsheet",
+    "nature": "climbable",
+    "strength": 0.8,
+    "line": "Rows and columns. Rungs, if you squint."
+  },
+  "square": {
+    "name": "a square",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Four corners, all of them right. How smug."
+  },
+  "squiggle": {
+    "name": "a squiggle",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A line that changed its mind. Repeatedly."
+  },
+  "squirrel": {
+    "name": "a squirrel",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Busy hiding nuts it will never find again."
+  },
+  "stairs": {
+    "name": "stairs",
+    "nature": "climbable",
+    "strength": 1,
+    "line": "Up and down, like a good argument."
+  },
+  "star": {
+    "name": "a star",
+    "nature": "floaty",
+    "strength": 0.8,
+    "line": "Twinkle, twinkle. Up where it belongs."
+  },
+  "steak": {
+    "name": "a steak",
+    "nature": "grow",
+    "strength": 1.2,
+    "line": "Eat me, medium rare. Up she goes."
+  },
+  "stereo": {
+    "name": "a stereo",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Music on both sides. Arguments sound better that way."
+  },
+  "stethoscope": {
+    "name": "a stethoscope",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It listens to hearts. The Queen keeps a whole deck."
+  },
+  "stitches": {
+    "name": "stitches",
+    "nature": "sticky",
+    "strength": 0.8,
+    "line": "They hold things together. A stitch in time, and so on."
+  },
+  "stop sign": {
+    "name": "a stop sign",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It says stop. I never take advice from octagons."
+  },
+  "stove": {
+    "name": "a stove",
+    "nature": "heavy",
+    "strength": 1.3,
+    "line": "Pepper in the soup, weight in the iron. The Cook's pride."
+  },
+  "strawberry": {
+    "name": "a strawberry",
+    "nature": "grow",
+    "strength": 0.7,
+    "line": "Eat me, it blushes. A small bite, a small growth."
+  },
+  "streetlight": {
+    "name": "a streetlight",
+    "nature": "climbable",
+    "strength": 1,
+    "line": "A pole with a halo. Up she shins."
+  },
+  "string bean": {
+    "name": "a string bean",
+    "nature": "grow",
+    "strength": 0.8,
+    "line": "Long, thin and good for her. She'll follow suit."
+  },
+  "submarine": {
+    "name": "a submarine",
+    "nature": "heavy",
+    "strength": 1.5,
+    "line": "Built to sink on purpose. It does it well."
+  },
+  "suitcase": {
+    "name": "a suitcase",
+    "nature": "heavy",
+    "strength": 1.1,
+    "line": "Packed for every occasion. Heavy with just-in-case."
+  },
+  "sun": {
+    "name": "the sun",
+    "nature": "floaty",
+    "strength": 1,
+    "line": "It rises every morning. Habit, I suppose."
+  },
+  "swan": {
+    "name": "a swan",
+    "nature": "floaty",
+    "strength": 0.8,
+    "line": "All grace above, all paddling below. Off it glides."
+  },
+  "sweater": {
+    "name": "a sweater",
+    "nature": "light",
+    "strength": 0.9,
+    "line": "Knitted by someone's aunt. Light, and slightly itchy."
+  },
+  "swing set": {
+    "name": "a swing set",
+    "nature": "climbable",
+    "strength": 1,
+    "line": "Chains to climb, and a seat for second thoughts."
+  },
+  "sword": {
+    "name": "a sword",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A picture of a sword. Off with nobody's head."
+  },
+  "syringe": {
+    "name": "a syringe",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A sharp little thing. It stays a drawing, thank you."
+  },
+  "table": {
+    "name": "a table",
+    "nature": "solid",
+    "strength": 1,
+    "line": "A little glass table? It stays exactly there."
+  },
+  "teapot": {
+    "name": "a teapot",
+    "nature": "shrink",
+    "strength": 1,
+    "line": "Drink me. There's a Dormouse in it, probably."
+  },
+  "teddy-bear": {
+    "name": "a teddy bear",
+    "nature": "bouncy",
+    "strength": 0.8,
+    "line": "Stuffed with fluff. Soft landings, small bounces."
+  },
+  "telephone": {
+    "name": "a telephone",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Ring ring. It's for the Hatter. It always is."
+  },
+  "television": {
+    "name": "a television",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A window that only looks one way."
+  },
+  "tennis racquet": {
+    "name": "a tennis racquet",
+    "nature": "bouncy",
+    "strength": 1.2,
+    "line": "Strings pulled tight. Things leave faster than they arrive."
+  },
+  "tent": {
+    "name": "a tent",
+    "nature": "light",
+    "strength": 1,
+    "line": "Canvas and optimism. A breeze could borrow it."
+  },
+  "The Eiffel Tower": {
+    "name": "The Eiffel Tower",
+    "nature": "climbable",
+    "strength": 1.3,
+    "line": "All rungs and no walls. Paris is that way."
+  },
+  "The Great Wall of China": {
+    "name": "The Great Wall of China",
+    "nature": "solid",
+    "strength": 1.5,
+    "line": "Solid as a fact, and rather longer."
+  },
+  "The Mona Lisa": {
+    "name": "The Mona Lisa",
+    "nature": "ink",
+    "strength": 1,
+    "line": "She's smiling about something. I know the feeling."
+  },
+  "tiger": {
+    "name": "a tiger",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Another cousin. Stripes where the grin should be."
+  },
+  "toaster": {
+    "name": "a toaster",
+    "nature": "bouncy",
+    "strength": 1.1,
+    "line": "Pop! Up comes the toast. She may follow."
+  },
+  "toe": {
+    "name": "a toe",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A toe. This little piggy stayed on the board."
+  },
+  "toilet": {
+    "name": "a toilet",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A throne of sorts. The Queen wouldn't approve."
+  },
+  "tooth": {
+    "name": "a tooth",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A tooth! Every grin starts somewhere."
+  },
+  "toothbrush": {
+    "name": "a toothbrush",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Essential kit. A grin like mine takes upkeep."
+  },
+  "toothpaste": {
+    "name": "toothpaste",
+    "nature": "sticky",
+    "strength": 0.7,
+    "line": "Minty glue, really. It sticks to everything but teeth."
+  },
+  "tornado": {
+    "name": "a tornado",
+    "nature": "hazard",
+    "strength": 1.3,
+    "line": "A spin she won't enjoy. Wrong story, anyway."
+  },
+  "tractor": {
+    "name": "a tractor",
+    "nature": "heavy",
+    "strength": 1.5,
+    "line": "Slow, muddy and heavy. It ploughs on regardless."
+  },
+  "traffic light": {
+    "name": "a traffic light",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Red, amber, green. It can't make up its mind either."
+  },
+  "train": {
+    "name": "a train",
+    "nature": "heavy",
+    "strength": 1.8,
+    "line": "Heavy, and sticks to its lines. How unimaginative."
+  },
+  "tree": {
+    "name": "a tree",
+    "nature": "climbable",
+    "strength": 1,
+    "line": "I'm usually found in one. Do come up."
+  },
+  "triangle": {
+    "name": "a triangle",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Three corners and a point to make."
+  },
+  "trombone": {
+    "name": "a trombone",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A trumpet that can't decide how long to be."
+  },
+  "truck": {
+    "name": "a truck",
+    "nature": "heavy",
+    "strength": 1.4,
+    "line": "It will stay where it lands, that one."
+  },
+  "trumpet": {
+    "name": "a trumpet",
+    "nature": "ink",
+    "strength": 1,
+    "line": "The Rabbit blows one at trials. Three blasts, then nonsense."
+  },
+  "t-shirt": {
+    "name": "a T-shirt",
+    "nature": "light",
+    "strength": 0.8,
+    "line": "Washing-line weight. It flaps when it's pleased."
+  },
+  "umbrella": {
+    "name": "an umbrella",
+    "nature": "floaty",
+    "strength": 0.8,
+    "line": "Catch a breeze and up it goes. Nannies swear by it."
+  },
+  "underwear": {
+    "name": "underwear",
+    "nature": "light",
+    "strength": 0.8,
+    "line": "I shan't look. Light as a blush, though."
+  },
+  "van": {
+    "name": "a van",
+    "nature": "heavy",
+    "strength": 1.2,
+    "line": "A box on wheels, heavy with parcels."
+  },
+  "vase": {
+    "name": "a vase",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Lovely. Do keep it away from the Duchess's cook."
+  },
+  "violin": {
+    "name": "a violin",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Small, sweet and highly strung. Like the Dormouse."
+  },
+  "washing machine": {
+    "name": "a washing machine",
+    "nature": "heavy",
+    "strength": 1.3,
+    "line": "Round and round and going nowhere. Heavy, too."
+  },
+  "watermelon": {
+    "name": "a watermelon",
+    "nature": "grow",
+    "strength": 1.3,
+    "line": "Eat me, it says, in big green letters. Up she goes."
+  },
+  "waterslide": {
+    "name": "a water slide",
+    "nature": "slippery",
+    "strength": 1.4,
+    "line": "Down she goes, faster than intended. Wheee, I believe."
+  },
+  "whale": {
+    "name": "a whale",
+    "nature": "heavy",
+    "strength": 2,
+    "line": "The heaviest thing I've ever grinned at."
+  },
+  "wheel": {
+    "name": "a wheel",
+    "nature": "ink",
+    "strength": 1,
+    "line": "Round and ready to roll. It's going places, slowly."
+  },
+  "windmill": {
+    "name": "a windmill",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It waves at the wind all day. Friendly thing."
+  },
+  "wine bottle": {
+    "name": "a wine bottle",
+    "nature": "shrink",
+    "strength": 1.2,
+    "line": "Drink me. She'll shut up like a telescope."
+  },
+  "wine glass": {
+    "name": "a wine glass",
+    "nature": "shrink",
+    "strength": 0.9,
+    "line": "Drink me, daintily. One sip, and down she goes."
+  },
+  "wristwatch": {
+    "name": "a wristwatch",
+    "nature": "ink",
+    "strength": 1,
+    "line": "The Rabbit keeps his in a waistcoat. Same panic, though."
+  },
+  "yoga": {
+    "name": "a yoga pose",
+    "nature": "bouncy",
+    "strength": 0.7,
+    "line": "Bendy as a riddle. It springs back, eventually."
+  },
+  "zebra": {
+    "name": "a zebra",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A horse that couldn't choose. I respect the indecision."
+  },
+  "zigzag": {
+    "name": "a zigzag",
+    "nature": "ink",
+    "strength": 1,
+    "line": "It changes its mind at every corner."
+  }
+}

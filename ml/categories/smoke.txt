@@ -1,0 +1,8 @@
+circle
+line
+square
+triangle
+star
+mushroom
+ladder
+cloud

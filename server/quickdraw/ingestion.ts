@@ -1,5 +1,5 @@
-import { type FetchLike, fetchCategoryDrawings, toStrokes } from "./dataset";
-import { computeFeature } from "./feature";
+import { type FetchLike, fetchCategoryDrawings } from "./dataset";
+import { sampleOf } from "./indexing";
 import type { QuickdrawSample, QuickdrawSampleRepository } from "./sampleRepository";
 
 export const DEFAULT_SAMPLES_PER_CATEGORY = 300;
@@ -16,12 +16,7 @@ const fetchCategorySamples = async (
   fetchFn?: FetchLike,
 ): Promise<readonly QuickdrawSample[]> => {
   const drawings = await fetchCategoryDrawings(category, limit, fetchFn);
-  return drawings.map(({ keyId, drawing }) => ({
-    category,
-    keyId,
-    drawing,
-    feature: computeFeature(toStrokes(drawing)),
-  }));
+  return drawings.map(({ keyId, drawing }) => sampleOf({ category, keyId, drawing }));
 };
 
 export const ingestQuickdraw = async (

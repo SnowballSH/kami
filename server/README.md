@@ -52,8 +52,9 @@ index. `_id` and `boardId` never leave the server.
 ## Quick, Draw!
 
 ```sh
-bun run quickdraw:ingest        # 300 drawings per category (default)
-bun run quickdraw:ingest 600    # or another N
+bun run quickdraw:ingest          # 300 drawings per category (default)
+bun run quickdraw:ingest 600      # or another N
+bun server/quickdraw/reindex.ts   # recompute every feature from the drawings already stored; no network
 bun server/quickdraw/evaluate.ts
 ```
 
@@ -62,10 +63,11 @@ bun server/quickdraw/evaluate.ts
 categories in `quickdraw/categories.ts` (chosen because the Cat's lexicon can use them: mushroom,
 ladder, stairs, cloud, hot air balloon, cake, wine bottle, key, door, …, plus the plain shapes),
 keeps `recognized: true` drawings, drops the line the byte range cut short, takes the first N and
-upserts them into the `quickdraw` collection with their feature. It is repeatable; a smaller N or a
-shorter category list prunes what is no longer wanted. About 25 s and 46 MB on disk for N = 300.
-**Restart the server afterwards** — features are loaded into memory once, at startup. Ingest and
-evaluate may run while the server is up (they share its `mongod`).
+upserts them into the `quickdraw` collection with their features. It is repeatable; a smaller N or a
+shorter category list prunes what is no longer wanted. About 25 s for N = 300; `.kami-data` is
+114 MB after a re-index with the prefix features below. **Restart the server afterwards** —
+features are loaded into memory once, at startup. Ingest, re-index and evaluate may run while the
+server is up (they share its `mongod`, and stop it only if they started it).
 
 The feature (`quickdraw/feature.ts`, shared by ingest and `/api/recognize`): strokes are fitted to
 a 24×24 grid by their bounding box (aspect kept, centred, 1.5-cell margin), rasterised with
@@ -73,28 +75,85 @@ bilinear line drawing, blurred once with a 3×3 binomial kernel and L2-normalise
 is cosine similarity. Player strokes in world px and the dataset's 0–255 grid go through the same
 code, which makes recognition independent of where and how large something was drawn.
 
-The recogniser (`quickdraw/recognizer.ts`) keeps every feature in one flat `Float32Array` and does
-brute-force cosine k-NN: k = 15, each neighbour votes for its category with weight similarity⁸,
-categories are ranked by vote share, and up to three with a share of at least 0.08 are returned.
-If the single best neighbour is below 0.35 similarity the answer is `[]`. About 5 ms per sketch
-over 12 600 samples.
+**Half-finished drawings.** So that the same index can guess while the pen is still moving, every
+drawing is indexed at each share of its points in `PREFIX_FRACTIONS` (`quickdraw/prefix.ts`: 20 %,
+35 %, 65 % and 100 %). `prefixOfStrokes` takes the first share of the points in drawing order
+across strokes, keeps stroke boundaries and cuts the stroke under the pen short; each prefix is
+then fitted to *its own* bounding box, exactly as a half-drawn sketch arrives from the player. One
+document per drawing holds all of them (`features: [{ fraction, feature }]`), so the unique
+`{ category, keyId }` index, the snapshot format and the pruning are unchanged; shares that cut a
+short drawing at the same point are stored once. Ingest and snapshot import (so the GX10 too) do
+this on the way in. `reindex.ts` does it for a database ingested before prefixes existed, from the
+stored drawings alone — 6 s for 12 600 drawings; until it has run, old documents (a single
+`feature`) still load, as whole drawings. 12 600 drawings become 50 206 rows: 116 MB of
+`Float32Array`, loaded in 0.3 s (the process peaks around 0.6 GB while loading).
+
+The recogniser (`quickdraw/recognizer.ts`) keeps every feature in one flat `Float32Array`, whole
+drawings first, and does brute-force cosine k-NN: k = 15, each neighbour votes for its category
+with weight similarity⁸, categories are ranked by vote share (the `confidence` the route returns),
+and up to three with a share of at least 0.08 are returned. If the single best neighbour is below
+0.35 similarity the answer is `[]`. `rank(strokes, { partial })` is synchronous;
+`asAsyncRecognizer` wraps it in the promise-returning shape the recogniser chain speaks.
+
+- **Finished** (`partial` absent or false): compared with the whole-drawing rows only. Same answers
+  as before prefixes existed, 4.8 ms per sketch.
+- **Still under the pen** (`partial: true`): compared with every row, 19 ms per sketch. Too few
+  points is never a reason to refuse, but the answer is `[]` unless the leading category holds at
+  least 0.6 of the vote (`partialLeaderFloor`) — Kami takes most of a second to write a guess, so a
+  live guess has to be worth writing.
 
 ### Measured accuracy
 
 `evaluate.ts` fetches, for each category, the next 50 recognised drawings that are **not** in the
-collection and asks the recogniser exactly as the route would (floors included).
+collection (42 × 50 = 2100), shows the recogniser the first 20/40/60/80/100 % of each one's points
+as a live guess and the whole drawing once more as a finished one, and scores the answers as the
+route would give them (floors included). *Top-1/top-3* ignore the live silence floor, to show what
+the ranking knows; *speaks* is how often the live floor lets an answer out and *right when it
+speaks* how often that answer's first guess is correct. The last column is the reliability of a
+high confidence: how often the leader reaches 0.8, and how often it is right when it does. Index:
+42 categories × 300, indexed at 20/35/65/100 %. Single-threaded on an Apple M4, other work running.
 
-| Index | Held out | Top-1 | Top-3 |
-|---|---|---|---|
-| 42 categories × 300 | 42 × 50 = 2100 | **65.1 %** | **82.9 %** |
+| Ink shown | Top-1 | Top-3 | Speaks (leader ≥ 0.6) | Right when it speaks | Confidence ≥ 0.8: how often / right | Per query |
+|---|---|---|---|---|---|---|
+| 20 %, live | 18.0 % | 38.1 % | 6.2 % | 30.8 % | 1.6 % / 48.5 % | 19 ms |
+| 40 %, live | 32.7 % | 57.9 % | 13.0 % | 59.0 % | 3.6 % / 66.7 % | 19 ms |
+| 60 %, live | 47.3 % | 69.0 % | 23.0 % | 81.5 % | 8.1 % / 91.8 % | 19 ms |
+| 80 %, live | 58.2 % | 78.6 % | 30.4 % | 85.9 % | 13.0 % / 95.2 % | 19 ms |
+| 100 %, live | 62.0 % | 81.0 % | 35.4 % | 89.0 % | 15.0 % / 98.1 % | 19 ms |
+| 100 %, finished | **65.1 %** | **82.9 %** | always | 65.1 % | 25.3 % / 95.5 % | 4.8 ms |
 
-Best: line 92/96, door 88/98, fence 88/92, circle 86/90, stairs 82/88, triangle 82/88, wine bottle
-80/90, ladder 76/84, hot air balloon 76/94, mushroom 68/88. Worst: zigzag 20/40 and bird 22/32
-(drawn too many ways for a raster match), birthday cake 44/74 and cake 52/88 (they steal each
-other's votes; the Cat maps both to "a cake"). N = 600 only bought +2 points for twice the memory
-and query time, so 300 is the default. k from 5 to 25 and the vote exponent from 1 to 16 move the
-numbers by about a point. The GX10 can replace the k-NN with a trained classifier behind the same
-route without the client noticing.
+Over all 10 500 live trials a stated guess is right **79.6 %** of the time and one is stated 21.6 %
+of the time. The floor is a trade (`evaluate.ts` prints the sweep): ≥ 0.5 speaks 32.4 % / right
+72.7 %, ≥ 0.6 21.6 % / 79.6 %, ≥ 0.7 13.8 % / 86.3 %, ≥ 0.8 8.3 % / 91.4 %. The vote share does not
+know how much of the drawing it is looking at, so the rare early answers are the unreliable ones
+(a first stroke looks like a finished `line`); from 60 % of the ink on, four stated guesses in five
+are right. A client that wants to be surer can wait for a returned confidence of 0.8.
+
+What the prefix rows cost and buy, all measured the same way:
+
+| Index | 20 % | 40 % | 60 % | 80 % | 100 % | Live answers at equal precision |
+|---|---|---|---|---|---|---|
+| whole drawings only (measured before this change) | 5.4 / 13.1 | 18.5 / 32.4 | 37.3 / 57.7 | 58.0 / 78.1 | 65.1 / 82.9 | — |
+| + 35 %, 65 % rows, searched for every query | 14.5 / 30.8 | 35.0 / 60.4 | 49.5 / 71.4 | 60.5 / 80.4 | 63.3 / 81.7 | 27.7 % speak at 72.7 % right |
+| + 20 %, 35 %, 65 % rows (now) | 18.0 / 38.1 | 32.7 / 57.9 | 47.3 / 69.0 | 58.2 / 78.6 | 62.0 / 81.0 live, **65.1 / 82.9** finished | 32.4 % speak at 72.7 % right |
+
+Searching the prefix rows for a finished drawing costs 1.8–3.1 points of top-1 and four times the
+query time, which is why finished drawings are compared with whole drawings only and keep 65.1 /
+82.9. The 20 % rows cost the live ranking about two points in the middle of a drawing but teach
+the index what a first stroke looks like in every category: without them high-confidence answers
+at 20 % ink were right 17 % of the time instead of 48 % and three times as frequent, and on a
+700-sketch subsample 17 of the 28 confident wrong answers at 20 % ink were "line". On the same
+subsample more neighbours (k = 30), a sharper vote (16) and also gating on how finished the
+neighbours were did not improve the speak/right trade, so they were left out.
+
+Finished drawings, per category (top-1/top-3) — best: line 92/96, door 88/98, fence 88/92, circle
+86/90, stairs 82/88, triangle 82/88, wine bottle 80/90, ladder 76/84, hot air balloon 76/94,
+mushroom 68/88. Worst: zigzag 20/40 and bird 22/32 (drawn too many ways for a raster match),
+birthday cake 44/74 and cake 52/88 (they steal each other's votes; the Cat maps both to "a cake").
+N = 600 only bought +2 points for twice the memory and query time, so 300 is the default. k from 5
+to 25 and the vote exponent from 1 to 16 move the numbers by about a point. The trained model
+(`ml/CONTRACT.md`) replaces the k-NN behind the same route when its sidecar answers; this stays as
+the fallback.
 
 ## Model-backed compile
 
@@ -133,7 +192,7 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 
 | Route | Request | Response |
 |---|---|---|
-| `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[] }` — bare Quick, Draw! words, best first, at most three, each with a 0–1 confidence; `[]`/`[]` when unsure |
+| `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[], names: string[], natures: Nature[], strengths: number[], lines: string[] }` — parallel arrays, best first, at most three, all empty when unsure. `guesses` are bare Quick, Draw! words, each with a 0–1 `confidence`; the other four say what each guess is for the game (below) |
 | `POST /api/beautify` | `{ strokes: {x,y}[][], name: string }` | whatever the attached model answers, content-type preserved: **`application/json` `{ strokes: {x,y}[][] }`** (preferred — drawn with the pen, scales with zoom, fits the whiteboard) or an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
 | boards, drawings, notes, rules | see the table above | |
@@ -143,6 +202,23 @@ post the strokes so far every ~150 ms and the whole prefix is re-read each time 
 that is far cheaper than keeping per-pen state on the server, and it survives dropped requests. The flag
 changes nothing for the k-NN; the trained streaming model will use it (no "I give up" on three points).
 Returned strokes from `beautify` are in the same world space as the request, fitted to the sketch's bounds.
+
+**From a noun to physics.** Every guess arrives already ruled on, from the reviewed table
+`server/natures/quickdrawNatures.json` (all 345 Quick, Draw! categories, validated against `NATURES` at
+start-up, compiled once — no model is asked at play time). Index `i` of each array describes `guesses[i]`:
+
+| Field | |
+|---|---|
+| `names[i]` | the display name as Kami writes it, article included: `"a mushroom"`, `"an anvil"`, `"stairs"`, `"The Eiffel Tower"` |
+| `natures[i]` | one of `NATURES` in `src/cat/types.ts` (`"bouncy"`, `"grow"`, `"ink"`, …) |
+| `strengths[i]` | within `STRENGTH_RANGE` (0.5–2); 1 unless the thing is notably more or less so (a whale 2, a feather 0.6) |
+| `lines[i]` | Kami's one-line reaction, twelve words or fewer |
+
+Categories that are one thing for the game are folded together before the best three are chosen, their
+confidence summed: `birthday cake` → `cake`, `coffee cup` and `mug` → `cup`, `ceiling fan` → `fan`,
+`school bus` → `bus`, `pickup truck` → `truck`, `police car` → `car`, `goatee` → `beard`, `smiley face` →
+`face`. So `guesses` only ever holds the canonical word, and a client that reads just `guesses` and
+`confidence` keeps working unchanged. A word the table has never met is `"ink"`, strength 1.
 
 ## Running everything on the ASUS Ascent GX10
 

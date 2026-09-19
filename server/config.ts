@@ -15,6 +15,8 @@ export interface ServerConfig {
   readonly webDirectory: string | null;
   /** Where the sketch-beautifier model listens (`POST {strokes, name}`); null until one is attached. */
   readonly beautifyUrl: string | null;
+  /** Where the Kami's Eye sidecar listens (ml/CONTRACT.md); null means the built-in k-NN recognises alone. */
+  readonly recognizerUrl: string | null;
 }
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -46,4 +48,5 @@ export const readConfig = (env: Env = process.env): ServerConfig => ({
   llm: llmFrom(env),
   webDirectory: webDirectoryFrom(env),
   beautifyUrl: nonEmpty(env.KAMI_BEAUTIFY_URL) ?? null,
+  recognizerUrl: nonEmpty(env.KAMI_RECOGNIZER_URL) ?? null,
 });

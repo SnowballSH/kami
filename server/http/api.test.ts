@@ -12,7 +12,7 @@ import { computeFeature } from "../quickdraw/feature";
 import { QuickdrawRecognizer } from "../quickdraw/recognizer";
 import { startMemoryDatabase } from "../testing/memoryDatabase";
 import { circleSketch, lineSketch } from "../testing/sketches";
-import { type ApiDependencies, createApi } from "./api";
+import { type ApiDependencies, createApi, type RankOptions, type SketchRecognizer } from "./api";
 import type { Router } from "./router";
 
 const ORIGIN = "http://kami.test";
@@ -71,6 +71,7 @@ const PRETTIER = [
 let connection: DatabaseConnection;
 let api: Router;
 let apiParts: () => Omit<ApiDependencies, "beautifier">;
+let beautifier: ApiDependencies["beautifier"];
 
 const call = (method: string, path: string, body?: unknown): Promise<Response> =>
   api.handle(
@@ -92,7 +93,7 @@ beforeAll(async () => {
   connection = await startMemoryDatabase();
   const boards = new BoardRepository(connection.db);
   await boards.ensureIndexes();
-  const recognizer = new QuickdrawRecognizer(
+  const nearestNeighbours = new QuickdrawRecognizer(
     Array.from({ length: 8 }, (_, index) => [
       { category: "circle", feature: computeFeature(circleSketch({ x: 0, y: 0 }, 30 + index)) },
       {
@@ -101,10 +102,13 @@ beforeAll(async () => {
       },
     ]).flat(),
   );
+  const recognizer: SketchRecognizer = {
+    rank: async (strokes) => nearestNeighbours.rank(strokes),
+  };
   const compiler = {
     compile: async (text: string) => (text.includes("mars") ? MARS_RULE : null),
   };
-  const beautifier = createBeautifier("http://beautifier.test/beautify", async (_url, init) => {
+  beautifier = createBeautifier("http://beautifier.test/beautify", async (_url, init) => {
     const { name } = JSON.parse(String(init?.body)) as { name: string };
     return name === "a storm"
       ? new Response("model fell over", { status: 500 })
@@ -290,6 +294,53 @@ describe("recognise and compile", () => {
     expect(response.status).toBe(200);
     const { guesses } = (await response.json()) as { guesses: string[] };
     expect(guesses[0]).toBe("circle");
+  });
+
+  it("says what each guess is called, what it would do, and what Kami makes of it", async () => {
+    const strokes = circleSketch({ x: 5200, y: -340 }, 85, 0.02);
+    const recognition = (await (await call("POST", "/api/recognize", { strokes })).json()) as {
+      guesses: string[];
+      names: string[];
+      natures: string[];
+      strengths: number[];
+      lines: string[];
+    };
+    expect(recognition.names[0]).toBe("a circle");
+    expect(recognition.natures[0]).toBe("ink");
+    expect(recognition.strengths[0]).toBe(1);
+    for (const field of ["names", "natures", "strengths", "lines"] as const) {
+      expect(recognition[field]).toHaveLength(recognition.guesses.length);
+    }
+  });
+
+  it("folds aliases into one guess, keeps the best three, and passes the pen's state on", async () => {
+    const asked: RankOptions[] = [];
+    const scripted: SketchRecognizer = {
+      rank: async (_strokes, options = {}) => {
+        asked.push(options);
+        return [
+          { category: "birthday cake", confidence: 0.4 },
+          { category: "cake", confidence: 0.3 },
+          { category: "mushroom", confidence: 0.2 },
+          { category: "door", confidence: 0.06 },
+          { category: "ladder", confidence: 0.04 },
+        ];
+      },
+    };
+    const eyes = createApi({ ...apiParts(), recognizer: scripted, beautifier });
+    const response = await eyes.handle(
+      new Request(`${ORIGIN}/api/recognize`, {
+        method: "POST",
+        body: JSON.stringify({ strokes: circleSketch({ x: 0, y: 0 }, 40), partial: true }),
+      }),
+    );
+    expect(asked).toEqual([{ partial: true }]);
+    expect(await response.json()).toMatchObject({
+      guesses: ["cake", "mushroom", "door"],
+      confidence: [0.7, 0.2, 0.06],
+      names: ["a cake", "a mushroom", "a door"],
+      natures: ["grow", "bouncy", "goal"],
+    });
   });
 
   it("returns the compiler's rule, or null when it has none", async () => {

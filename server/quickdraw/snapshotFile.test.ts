@@ -8,6 +8,8 @@ import { startMemoryDatabase } from "../testing/memoryDatabase";
 import type { SimplifiedStroke } from "./dataset";
 import { toStrokes } from "./dataset";
 import { computeFeature } from "./feature";
+import { sampleOf } from "./indexing";
+import { COMPLETE_FRACTION } from "./prefix";
 import { QuickdrawSampleRepository } from "./sampleRepository";
 import { exportSnapshot, importSnapshot } from "./snapshotFile";
 
@@ -24,12 +26,8 @@ const BOX: readonly SimplifiedStroke[] = [
   ],
 ];
 
-const sample = (category: string, keyId: string, drawing: readonly SimplifiedStroke[]) => ({
-  category,
-  keyId,
-  drawing,
-  feature: computeFeature(toStrokes(drawing)),
-});
+const sample = (category: string, keyId: string, drawing: readonly SimplifiedStroke[]) =>
+  sampleOf({ category, keyId, drawing });
 
 describe("Quick, Draw! snapshot", () => {
   let source: DatabaseConnection;
@@ -60,8 +58,10 @@ describe("Quick, Draw! snapshot", () => {
     expect(await importSnapshot(offline, file)).toBe(3);
 
     const features = await offline.loadFeatures();
-    expect(features.map(({ category }) => category).sort()).toEqual(["line", "line", "square"]);
-    const square = features.find(({ category }) => category === "square");
+    const whole = features.filter(({ fraction }) => fraction === COMPLETE_FRACTION);
+    expect(whole.map(({ category }) => category).sort()).toEqual(["line", "line", "square"]);
+    expect(features.length).toBeGreaterThan(whole.length);
+    const square = whole.find(({ category }) => category === "square");
     expect(Array.from(square?.feature ?? [])).toEqual(Array.from(computeFeature(toStrokes(BOX))));
   });
 });

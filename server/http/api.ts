@@ -2,6 +2,7 @@ import type { Stroke } from "../../src/core/geometry";
 import type { RuleCompiler } from "../../src/rules/types";
 import type { Beautifier } from "../beautify/beautifier";
 import { type BoardRepository, type EntityKind, isEntityKind } from "../db/boardRepository";
+import { type NatureTable, quickdrawNatureTable } from "../natures/natureTable";
 import type { RankedCategory } from "../quickdraw/recognizer";
 import {
   beautifyRequestSchema,
@@ -25,22 +26,37 @@ import {
 } from "./responses";
 import { Router } from "./router";
 
-export interface SketchRecognizer {
-  rank(strokes: readonly Stroke[]): readonly RankedCategory[];
+export interface RankOptions {
+  /** The drawing is still under the pen: guess from what there is, do not give up. */
+  readonly partial?: boolean;
 }
 
+export interface SketchRecognizer {
+  rank(strokes: readonly Stroke[], options?: RankOptions): Promise<readonly RankedCategory[]>;
+}
+
+const MAX_GUESSES = 3;
 const CONFIDENCE_DECIMALS = 3;
 
-const guessesOf = (ranked: readonly RankedCategory[]) => ({
-  guesses: ranked.map(({ category }) => category),
-  confidence: ranked.map(({ confidence }) => Number(confidence.toFixed(CONFIDENCE_DECIMALS))),
-});
+const recognitionOf = (ranked: readonly RankedCategory[], natures: NatureTable) => {
+  const best = natures.merge(ranked).slice(0, MAX_GUESSES);
+  const described = best.map(({ category }) => natures.describe(category));
+  return {
+    guesses: best.map(({ category }) => category),
+    confidence: best.map(({ confidence }) => Number(confidence.toFixed(CONFIDENCE_DECIMALS))),
+    names: described.map(({ name }) => name),
+    natures: described.map(({ nature }) => nature),
+    strengths: described.map(({ strength }) => strength),
+    lines: described.map(({ line }) => line),
+  };
+};
 
 export interface ApiDependencies {
   readonly boards: BoardRepository;
   readonly recognizer: SketchRecognizer;
   readonly compiler: RuleCompiler;
   readonly beautifier: Beautifier;
+  readonly natures?: NatureTable;
 }
 
 interface IdentifiedEntity {
@@ -90,7 +106,13 @@ const parseAddress = (params: {
   return { ok: true, value: { boardId: boardId.value, kind: params.kind, id: id.value } };
 };
 
-export const createApi = ({ boards, recognizer, compiler, beautifier }: ApiDependencies): Router =>
+export const createApi = ({
+  boards,
+  recognizer,
+  compiler,
+  beautifier,
+  natures = quickdrawNatureTable,
+}: ApiDependencies): Router =>
   new Router()
     .on("GET", "/api/boards", async () => json({ boards: await boards.summaries() }))
     .on("GET", "/api/boards/:board", async ({ params }) => {
@@ -121,7 +143,9 @@ export const createApi = ({ boards, recognizer, compiler, beautifier }: ApiDepen
     })
     .on("POST", "/api/recognize", async ({ request }) => {
       const body = await parseJsonBody(request, recognizeRequestSchema);
-      return body.ok ? json(guessesOf(recognizer.rank(body.value.strokes))) : body.response;
+      if (!body.ok) return body.response;
+      const { strokes, partial = false } = body.value;
+      return json(recognitionOf(await recognizer.rank(strokes, { partial }), natures));
     })
     .on("POST", "/api/beautify", async ({ request }) => {
       const body = await parseJsonBody(request, beautifyRequestSchema);

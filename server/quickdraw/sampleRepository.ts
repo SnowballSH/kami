@@ -1,11 +1,8 @@
 import { Binary, type Collection, type Db } from "../db/mongo";
 import type { SimplifiedStroke } from "./dataset";
+import { COMPLETE_FRACTION } from "./prefix";
+import type { PrefixFeature } from "./prefixFeatures";
 import type { LabelledFeature } from "./recognizer";
-
-export interface QuickdrawSample extends LabelledFeature {
-  readonly keyId: string;
-  readonly drawing: readonly SimplifiedStroke[];
-}
 
 export interface StoredSketch {
   readonly category: string;
@@ -13,18 +10,34 @@ export interface StoredSketch {
   readonly drawing: readonly SimplifiedStroke[];
 }
 
-interface SampleDocument {
-  readonly category: string;
-  readonly keyId: string;
-  readonly drawing: readonly SimplifiedStroke[];
+export interface QuickdrawSample extends StoredSketch {
+  readonly features: readonly PrefixFeature[];
+}
+
+interface PrefixFeatureDocument {
+  readonly fraction: number;
   readonly feature: Binary;
+}
+
+/** `feature` alone is how a sketch was stored before prefixes were indexed: the whole drawing. */
+interface SampleDocument extends StoredSketch {
+  readonly features?: readonly PrefixFeatureDocument[];
+  readonly feature?: Binary;
 }
 
 const encodeFeature = (feature: Float32Array): Binary =>
   new Binary(new Uint8Array(feature.buffer, feature.byteOffset, feature.byteLength));
 
-const decodeFeature = (binary: Binary): Float32Array =>
-  new Float32Array(Uint8Array.from(binary.buffer).buffer);
+const decodeFeature = ({ buffer: bytes }: Binary): Float32Array =>
+  new Float32Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+
+const storedFeaturesOf = ({
+  features,
+  feature,
+}: Pick<SampleDocument, "features" | "feature">): readonly PrefixFeatureDocument[] => {
+  if (features !== undefined) return features;
+  return feature === undefined ? [] : [{ fraction: COMPLETE_FRACTION, feature }];
+};
 
 export class QuickdrawSampleRepository {
   readonly #samples: Collection<SampleDocument>;
@@ -40,10 +53,18 @@ export class QuickdrawSampleRepository {
   async upsertCategory(category: string, samples: readonly QuickdrawSample[]): Promise<void> {
     if (samples.length === 0) return;
     await this.#samples.bulkWrite(
-      samples.map(({ keyId, drawing, feature }) => ({
+      samples.map(({ keyId, drawing, features }) => ({
         replaceOne: {
           filter: { category, keyId },
-          replacement: { category, keyId, drawing, feature: encodeFeature(feature) },
+          replacement: {
+            category,
+            keyId,
+            drawing,
+            features: features.map(({ fraction, feature }) => ({
+              fraction,
+              feature: encodeFeature(feature),
+            })),
+          },
           upsert: true,
         },
       })),
@@ -59,17 +80,21 @@ export class QuickdrawSampleRepository {
     await this.#samples.deleteMany({ category: { $nin: [...categories] } });
   }
 
+  /** One row per indexed prefix of every sketch, the whole drawing included. */
   async loadFeatures(): Promise<readonly LabelledFeature[]> {
     const documents = await this.#samples
-      .find({}, { projection: { _id: 0, category: 1, feature: 1 } })
+      .find({}, { projection: { _id: 0, category: 1, features: 1, feature: 1 } })
       .toArray();
-    return documents.map(({ category, feature }) => ({
-      category,
-      feature: decodeFeature(feature),
-    }));
+    return documents.flatMap(({ category, ...stored }) =>
+      storedFeaturesOf(stored).map(({ fraction, feature }) => ({
+        category,
+        fraction,
+        feature: decodeFeature(feature),
+      })),
+    );
   }
 
-  /** Every stored drawing without its feature: what a snapshot needs, since features can be recomputed. */
+  /** Every stored drawing without its features: what a snapshot or a re-index needs to recompute them. */
   async loadDrawings(): Promise<readonly StoredSketch[]> {
     return this.#samples
       .find({}, { projection: { _id: 0, category: 1, keyId: 1, drawing: 1 } })

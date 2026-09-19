@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Run on the Mac while it can reach the GX10 (its 'gx10-4d82' Wi-Fi). Ships what prepare.sh gathered
-# into ~/kami on the box, installs the runtimes there (no sudo), and starts MongoDB + the Kami server.
+# into ~/kami on the box, installs the runtimes there (no sudo), and starts MongoDB, Kami's Eye (when a
+# trained model was prepared) and the Kami server.
 #   --autostart   also start Kami whenever the box boots (a user crontab entry; remove with box/autostart.sh disable)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 HOST_ALIAS=gx10
-BOX_ADDRESS=10.13.37.1
+BOX_ADDRESS=$(ssh -G "$HOST_ALIAS" | awk '$1 == "hostname" { print $2 }')
 PORT=8787
 BUILD=.gx10/build
 CACHE=.gx10/cache
@@ -25,18 +26,25 @@ mkdir -p .gx10
 exec > >(tee "$LOG") 2>&1
 date
 
-echo "→ Shipping the game and the server"
-ssh "$HOST_ALIAS" 'mkdir -p ~/kami/cache ~/kami/app && rm -rf ~/kami/dist ~/kami/box'
+ship_missing() {
+  local source=$1 destination=$2 file name
+  for file in "$source"/*; do
+    [ -f "$file" ] || continue
+    name=$(basename "$file")
+    if ssh "$HOST_ALIAS" "test -s ~/kami/$destination/$name"; then echo "  ✓ $name (already there)"
+    else echo "  ↑ $name"; scp -q "$file" "$HOST_ALIAS:kami/$destination/$name"; fi
+  done
+}
+
+echo "→ Shipping the game, the server and Kami's Eye"
+ssh "$HOST_ALIAS" 'mkdir -p ~/kami/cache/wheels ~/kami/app && rm -rf ~/kami/dist ~/kami/box ~/kami/app/eye'
 tar -czf - dist | ssh "$HOST_ALIAS" 'tar -xzf - -C ~/kami'
 tar -czf - -C "$BUILD" . | ssh "$HOST_ALIAS" 'tar -xzf - -C ~/kami/app'
 tar -czf - -C scripts/gx10 box | ssh "$HOST_ALIAS" 'tar -xzf - -C ~/kami'
 
-echo "→ Shipping runtimes the box doesn't have yet"
-for archive in "$CACHE"/*; do
-  name=$(basename "$archive")
-  if ssh "$HOST_ALIAS" "test -s ~/kami/cache/$name"; then echo "  ✓ $name (already there)"
-  else echo "  ↑ $name"; scp -q "$archive" "$HOST_ALIAS:kami/cache/$name"; fi
-done
+echo "→ Shipping runtimes and Python wheels the box doesn't have yet"
+ship_missing "$CACHE" cache
+ship_missing "$CACHE/wheels" cache/wheels
 
 echo "→ Installing and starting on the box"
 ssh "$HOST_ALIAS" 'bash ~/kami/box/install.sh && bash ~/kami/box/start.sh'

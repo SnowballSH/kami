@@ -1,8 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { z } from "zod";
-import { simplifiedStrokeSchema, toStrokes } from "./dataset";
-import { computeFeature } from "./feature";
+import { simplifiedStrokeSchema } from "./dataset";
+import { indexSketches } from "./indexing";
 import type { QuickdrawSampleRepository, StoredSketch } from "./sampleRepository";
 
 const sketchSchema = z.object({
@@ -35,19 +35,4 @@ const readSketches = async (path: string): Promise<readonly StoredSketch[]> =>
 export const importSnapshot = async (
   repository: QuickdrawSampleRepository,
   path: string,
-): Promise<number> => {
-  const sketches = await readSketches(path);
-  await repository.ensureIndexes();
-  for (const [category, group] of Map.groupBy(sketches, ({ category }) => category)) {
-    await repository.upsertCategory(
-      category,
-      group.map(({ keyId, drawing }) => ({
-        category,
-        keyId,
-        drawing,
-        feature: computeFeature(toStrokes(drawing)),
-      })),
-    );
-  }
-  return sketches.length;
-};
+): Promise<number> => indexSketches(repository, await readSketches(path));

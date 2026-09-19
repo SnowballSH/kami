@@ -1,0 +1,113 @@
+mushroom
+bed
+rabbit
+ladder
+stairs
+tree
+fence
+hot air balloon
+cloud
+parachute
+bird
+anvil
+mountain
+feather
+leaf
+snowflake
+banana
+nail
+cake
+birthday cake
+wine bottle
+teapot
+cup
+key
+door
+bridge
+house
+flower
+star
+moon
+sun
+cat
+umbrella
+river
+candle
+skull
+campfire
+line
+circle
+square
+triangle
+zigzag
+airplane
+apple
+axe
+backpack
+baseball
+basketball
+bathtub
+bench
+bicycle
+book
+boomerang
+bucket
+bus
+butterfly
+cactus
+cannon
+car
+castle
+chair
+clock
+couch
+crown
+diamond
+dog
+donut
+drums
+dumbbell
+envelope
+eye
+fish
+flying saucer
+guitar
+hammer
+hat
+helicopter
+hexagon
+hourglass
+ice cream
+light bulb
+lighthouse
+lightning
+lollipop
+octagon
+palm tree
+pencil
+piano
+pizza
+rain
+rainbow
+sailboat
+scissors
+see saw
+shovel
+skateboard
+snail
+snake
+snowman
+soccer ball
+spider
+spoon
+squiggle
+submarine
+swing set
+sword
+table
+tent
+tornado
+train
+truck
+wheel
+windmill
