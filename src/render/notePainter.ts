@@ -41,22 +41,28 @@ export class NotePainter {
     notes: readonly NoteView[],
     view: Rect,
     nowMs: number,
+    daylight = 1,
   ): void {
     ctx.save();
     ctx.lineCap = "round";
     for (const note of notes) {
       if (note.opacity > 0 && rectInView(note.script.bounds, view, CULL_MARGIN)) {
-        this.paintNote(ctx, note, nowMs - note.writtenAtMs);
+        this.paintNote(ctx, note, nowMs - note.writtenAtMs, daylight);
       }
     }
     ctx.restore();
     if (this.written.size > notes.length) this.prune(notes);
   }
 
-  private paintNote(ctx: CanvasRenderingContext2D, note: NoteView, elapsedMs: number): void {
+  private paintNote(
+    ctx: CanvasRenderingContext2D,
+    note: NoteView,
+    elapsedMs: number,
+    daylight: number,
+  ): void {
     const { script } = note;
     const written = this.writtenNote(note, elapsedMs);
-    const color = noteCss(note.author, note.tone);
+    const color = noteCss(note.author, note.tone, daylight);
     ctx.globalAlpha = clamp(note.opacity, 0, 1);
     ctx.fillStyle = color;
     this.settle(written, elapsedMs);

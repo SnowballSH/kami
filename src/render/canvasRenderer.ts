@@ -85,17 +85,22 @@ export class CanvasRenderer implements Renderer {
     paintDotGrid(ctx, view, zoomOf(camera));
     this.boardPainter.paint(ctx, view, world);
     this.inkPainter.paintInks(ctx, frame.inks, view, nowMs);
-    this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
+    const moonlit = frame.daylight < 1;
+    if (!moonlit) this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
     for (const twin of world.twins) if (aliceInView(twin, view)) paintAlice(ctx, twin, nowMs);
     if (aliceInView(world.alice, view)) paintAlice(ctx, world.alice, nowMs);
     this.inkPainter.paintActive(ctx, frame.activeStrokes, frame.activeVerdict);
     this.nightPainter.paint(
       ctx,
       frame.daylight,
-      lightsOf(world.alice, frame.inks),
+      lightsOf([world.alice, ...world.twins], frame.inks),
       { width: this.canvas.width, height: this.canvas.height },
       transform,
     );
+    if (moonlit) {
+      ctx.setTransform(scale, 0, 0, scale, dx, dy);
+      this.notePainter.paintNotes(ctx, frame.notes, view, nowMs, frame.daylight);
+    }
     if (frame.eraserActive) this.paintEraserCursor();
   }
 
