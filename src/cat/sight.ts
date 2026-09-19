@@ -1,4 +1,5 @@
 import type { Sighting } from "../recognition/types";
+import { REFUSALS } from "./lines";
 import { isAllowed } from "./natures";
 import { parsePhrase } from "./phrase";
 import { namesForRecognized } from "./recognizedNames";
@@ -10,25 +11,39 @@ export const isCertain = (sighting: Sighting): boolean => sighting.certain;
 const honoured = (sighting: Sighting, allowed: AllowedNatures): boolean =>
   sighting.nature === "ink" || isAllowed(sighting.nature, allowed);
 
+const canOffer = (sighting: Sighting, allowed: AllowedNatures): boolean =>
+  honoured(sighting, allowed) && namesForRecognized([sighting.word]).length > 0;
+
 /** The best sighting the room would honour, or null when there is nothing worth saying. */
 export const bestSighting = (
   sightings: readonly Sighting[],
   allowed: AllowedNatures,
-): Sighting | null =>
-  sightings.find((sighting) => honoured(sighting, allowed) && namesFor([sighting]).length > 0) ??
-  null;
+): Sighting | null => sightings.find((sighting) => canOffer(sighting, allowed)) ?? null;
 
-/** The sighting words as names the Cat would say, skipping bare shapes. */
-export const namesFor = (sightings: readonly Sighting[]): readonly string[] =>
-  namesForRecognized(sightings.map((sighting) => sighting.word));
+export const offeredRulings = (
+  sightings: readonly Sighting[],
+  allowed: AllowedNatures,
+): readonly Ruling[] =>
+  sightings
+    .filter((sighting) => canOffer(sighting, allowed))
+    .map((sighting) => rulingOf(sighting, allowed));
 
-export const rulingOf = (sighting: Sighting, allowed: AllowedNatures): Ruling => ({
-  name: sighting.name,
-  nature: honoured(sighting, allowed) ? sighting.nature : "ink",
-  strength: sighting.strength,
-  tags: [],
-  line: sighting.line,
-});
+export const honourRuling = (ruling: Ruling, allowed: AllowedNatures): Ruling =>
+  ruling.nature === "ink" || isAllowed(ruling.nature, allowed)
+    ? ruling
+    : { ...ruling, nature: "ink", strength: 1, line: REFUSALS.forbidden };
+
+export const rulingOf = (sighting: Sighting, allowed: AllowedNatures): Ruling =>
+  honourRuling(
+    {
+      name: sighting.name,
+      nature: sighting.nature,
+      strength: sighting.strength,
+      tags: [],
+      line: sighting.line,
+    },
+    allowed,
+  );
 
 const stems = (text: string): ReadonlySet<string> => new Set(parsePhrase(text).stems);
 
