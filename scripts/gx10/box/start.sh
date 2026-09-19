@@ -9,6 +9,8 @@ MONGO_PORT=27017
 EYE_PORT=${KAMI_EYE_PORT:-8790}
 EYE_URL="http://127.0.0.1:$EYE_PORT"
 EYE_HEALTH_ATTEMPTS=120
+EYE_MODEL_NAME=${KAMI_EYE_MODEL_NAME:-kami-eye}
+ML_HOME=~/kami-ml
 MODEL=${KAMI_LLM_MODEL:-qwen3.8:latest}
 export MONGODB_URI="mongodb://127.0.0.1:$MONGO_PORT"
 
@@ -19,10 +21,15 @@ wait_for_port() {
 
 eye_model_directory() {
   local model
-  for model in app/eye/artifacts/*/; do
-    if [ -s "${model}model.onnx" ]; then echo "$PWD/${model%/}"; return 0; fi
+  for model in "$ML_HOME/artifacts/$EYE_MODEL_NAME/" "$PWD"/app/eye/artifacts/*/; do
+    if [ -s "${model}model.onnx" ]; then echo "${model%/}"; return 0; fi
   done
   return 0
+}
+
+eye_python() {
+  if [ -d pydeps ]; then echo python3
+  elif [ -x "$ML_HOME/.venv/bin/python" ]; then echo "$ML_HOME/.venv/bin/python"; fi
 }
 
 eye_is_healthy() {
@@ -32,7 +39,7 @@ eye_is_healthy() {
 
 start_eye() {
   PYTHONPATH="$PWD/pydeps" KAMI_EYE_PORT=$EYE_PORT KAMI_EYE_MODEL=$1 \
-    nohup python3 app/eye/sidecar.py > logs/eye.log 2>&1 &
+    nohup "$2" app/eye/sidecar.py > logs/eye.log 2>&1 &
   echo $! > run/eye.pid
   for _ in $(seq 1 "$EYE_HEALTH_ATTEMPTS"); do
     eye_is_healthy && return 0
@@ -48,16 +55,17 @@ runtime/mongodb/bin/mongod --dbpath "$PWD/data" --bind_ip 127.0.0.1 --port "$MON
 wait_for_port "$MONGO_PORT" || { echo "✗ mongod did not start:"; tail -5 logs/mongod.log; exit 1; }
 
 snapshot=app/quickdraw.ndjson.gz
-stamp=$(cksum "$snapshot" | cut -d' ' -f1)
+stamp=$(cat "$snapshot" app/snapshot.js | cksum | cut -d' ' -f1)
 if [ "$(cat run/quickdraw.stamp 2>/dev/null)" != "$stamp" ]; then
   runtime/bun app/snapshot.js import "$snapshot" | sed 's/^/  /'
   echo "$stamp" > run/quickdraw.stamp
 fi
 
 EYE_MODEL=$(eye_model_directory)
-if [ -z "$EYE_MODEL" ] || [ ! -s app/eye/sidecar.py ] || [ ! -d pydeps ]; then
+EYE_PYTHON=$(eye_python)
+if [ -z "$EYE_MODEL" ] || [ ! -s app/eye/sidecar.py ] || [ -z "$EYE_PYTHON" ]; then
   echo "  eye: no trained model (or its Python packages) on this box — the k-NN recognises sketches"
-elif start_eye "$EYE_MODEL"; then
+elif start_eye "$EYE_MODEL" "$EYE_PYTHON"; then
   export KAMI_RECOGNIZER_URL=$EYE_URL
 else
   echo "  ! eye: the sidecar did not come up — the k-NN recognises sketches. Its last words:"

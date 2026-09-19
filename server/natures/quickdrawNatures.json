@@ -25,19 +25,19 @@
   },
   "angel": {
     "name": "an angel",
-    "nature": "floaty",
+    "nature": "flier",
     "strength": 1,
     "line": "Wings and good manners. It rises above things."
   },
   "animal migration": {
     "name": "a flock of birds",
-    "nature": "floaty",
+    "nature": "flier",
     "strength": 1,
     "line": "Everyone leaving at once. How fashionable."
   },
   "ant": {
     "name": "an ant",
-    "nature": "light",
+    "nature": "walker",
     "strength": 0.6,
     "line": "Small enough to be overlooked. I envy it."
   },
@@ -121,7 +121,7 @@
   },
   "bat": {
     "name": "a bat",
-    "nature": "floaty",
+    "nature": "flier",
     "strength": 1,
     "line": "Twinkle, twinkle, little bat. How I wonder what you're at."
   },
@@ -139,9 +139,9 @@
   },
   "bear": {
     "name": "a bear",
-    "nature": "heavy",
-    "strength": 1.4,
-    "line": "Large, furry and heavy. Do not ask it to dance."
+    "nature": "walker",
+    "strength": 1,
+    "line": "Large, furry and pacing. Do not ask it to dance."
   },
   "beard": {
     "name": "a beard",
@@ -157,7 +157,7 @@
   },
   "bee": {
     "name": "a bee",
-    "nature": "floaty",
+    "nature": "flier",
     "strength": 0.8,
     "line": "Busy, buzzy, and up. It has places to be."
   },
@@ -187,7 +187,7 @@
   },
   "bird": {
     "name": "a bird",
-    "nature": "floaty",
+    "nature": "flier",
     "strength": 1,
     "line": "It rises. Birds do, given half a sky."
   },
@@ -296,7 +296,7 @@
   },
   "butterfly": {
     "name": "a butterfly",
-    "nature": "floaty",
+    "nature": "flier",
     "strength": 0.7,
     "line": "It was a caterpillar once. Ask it who it is."
   },
@@ -326,9 +326,9 @@
   },
   "camel": {
     "name": "a camel",
-    "nature": "heavy",
-    "strength": 1.1,
-    "line": "One hump or two? Heavy either way."
+    "nature": "walker",
+    "strength": 1,
+    "line": "One hump or two? It plods on either way."
   },
   "camera": {
     "name": "a camera",
@@ -386,7 +386,7 @@
   },
   "cat": {
     "name": "a cat",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "A relative, I think. The grin needs work."
   },
@@ -490,13 +490,13 @@
   },
   "cow": {
     "name": "a cow",
-    "nature": "heavy",
-    "strength": 1.3,
-    "line": "Over the moon, was it? Not at that weight."
+    "nature": "walker",
+    "strength": 1,
+    "line": "Over the moon, was it? It walks these days."
   },
   "crab": {
     "name": "a crab",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "It goes sideways on purpose. I approve."
   },
@@ -550,7 +550,7 @@
   },
   "dog": {
     "name": "a dog",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "It wags when it's pleased. I do the opposite."
   },
@@ -574,8 +574,8 @@
   },
   "dragon": {
     "name": "a dragon",
-    "nature": "floaty",
-    "strength": 1.4,
+    "nature": "flier",
+    "strength": 1,
     "line": "Up it goes, with opinions. Do hold on."
   },
   "dresser": {
@@ -598,9 +598,9 @@
   },
   "duck": {
     "name": "a duck",
-    "nature": "floaty",
+    "nature": "walker",
     "strength": 0.8,
-    "line": "The Duck ran the Caucus-race. Still bobbing about."
+    "line": "The Duck ran the Caucus-race. Still waddling about."
   },
   "dumbbell": {
     "name": "a dumbbell",
@@ -622,9 +622,9 @@
   },
   "elephant": {
     "name": "an elephant",
-    "nature": "heavy",
-    "strength": 1.9,
-    "line": "It never forgets, and the floor won't either."
+    "nature": "walker",
+    "strength": 1,
+    "line": "It never forgets, and it never hurries."
   },
   "envelope": {
     "name": "an envelope",
@@ -706,7 +706,7 @@
   },
   "flamingo": {
     "name": "a flamingo",
-    "nature": "floaty",
+    "nature": "flier",
     "strength": 0.8,
     "line": "The Queen's croquet mallet. It would rather fly off."
   },
@@ -754,8 +754,8 @@
   },
   "frog": {
     "name": "a frog",
-    "nature": "bouncy",
-    "strength": 1.3,
+    "nature": "hopper",
+    "strength": 1,
     "line": "All legs and leaping. The other Footman was one."
   },
   "frying pan": {
@@ -887,9 +887,9 @@
   },
   "horse": {
     "name": "a horse",
-    "nature": "heavy",
-    "strength": 1.1,
-    "line": "A noble beast. Heavy in the hoof."
+    "nature": "walker",
+    "strength": 1,
+    "line": "A noble beast. It would rather trot than stand."
   },
   "hospital": {
     "name": "a hospital",
@@ -959,11 +959,16 @@
   },
   "kangaroo": {
     "name": "a kangaroo",
-    "nature": "bouncy",
-    "strength": 1.5,
+    "nature": "hopper",
+    "strength": 1,
     "line": "Bounce is a family tradition. Mind her head."
   },
-  "key": { "name": "a key", "nature": "ink", "strength": 1, "line": "A lovely picture of a key." },
+  "key": {
+    "name": "a key",
+    "nature": "ink",
+    "strength": 1,
+    "line": "A lovely picture of a key."
+  },
   "keyboard": {
     "name": "a keyboard",
     "nature": "ink",
@@ -1044,7 +1049,7 @@
   },
   "lion": {
     "name": "a lion",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "A cousin of mine. Bigger teeth, smaller grin."
   },
@@ -1056,7 +1061,7 @@
   },
   "lobster": {
     "name": "a lobster",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "Will you, won't you, join the dance? Lobsters insist."
   },
@@ -1116,7 +1121,7 @@
   },
   "monkey": {
     "name": "a monkey",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "It climbs everything. Nothing much climbs it."
   },
@@ -1128,7 +1133,7 @@
   },
   "mosquito": {
     "name": "a mosquito",
-    "nature": "floaty",
+    "nature": "flier",
     "strength": 0.6,
     "line": "A very small opinion, loudly held. Up it whines."
   },
@@ -1146,7 +1151,7 @@
   },
   "mouse": {
     "name": "a mouse",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "Oh, a mouse! Best not mention me. Or Dinah."
   },
@@ -1225,7 +1230,7 @@
   },
   "owl": {
     "name": "an owl",
-    "nature": "floaty",
+    "nature": "flier",
     "strength": 1,
     "line": "Wise, they say. Wise enough to fly off."
   },
@@ -1249,9 +1254,9 @@
   },
   "panda": {
     "name": "a panda",
-    "nature": "heavy",
-    "strength": 1.3,
-    "line": "Black, white and heavy all over."
+    "nature": "walker",
+    "strength": 1,
+    "line": "Black, white and ambling all over."
   },
   "pants": {
     "name": "pants",
@@ -1273,7 +1278,7 @@
   },
   "parrot": {
     "name": "a parrot",
-    "nature": "floaty",
+    "nature": "flier",
     "strength": 1,
     "line": "It repeats everything. It repeats everything. Up it goes."
   },
@@ -1309,9 +1314,9 @@
   },
   "penguin": {
     "name": "a penguin",
-    "nature": "slippery",
+    "nature": "walker",
     "strength": 1,
-    "line": "Dressed for dinner, built for sliding."
+    "line": "Dressed for dinner, and waddling there."
   },
   "piano": {
     "name": "a piano",
@@ -1334,7 +1339,7 @@
   },
   "pig": {
     "name": "a pig",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "It was a baby a minute ago. Do keep up."
   },
@@ -1413,13 +1418,13 @@
   },
   "rabbit": {
     "name": "a rabbit",
-    "nature": "bouncy",
-    "strength": 1.2,
-    "line": "Late again, I expect. Springy, though."
+    "nature": "hopper",
+    "strength": 1,
+    "line": "Late again, I expect. Off it hops."
   },
   "raccoon": {
     "name": "a raccoon",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "A bandit's mask, and nothing stolen yet."
   },
@@ -1534,7 +1539,7 @@
   },
   "sea turtle": {
     "name": "a sea turtle",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "The Mock Turtle's real cousin. Slow, wet and sentimental."
   },
@@ -1552,9 +1557,9 @@
   },
   "sheep": {
     "name": "a sheep",
-    "nature": "bouncy",
+    "nature": "walker",
     "strength": 0.9,
-    "line": "A cloud with legs. Woolly landings all round."
+    "line": "A cloud with legs. It wanders where it likes."
   },
   "shoe": {
     "name": "a shoe",
@@ -1613,9 +1618,9 @@
   },
   "snail": {
     "name": "a snail",
-    "nature": "slippery",
+    "nature": "walker",
     "strength": 0.8,
-    "line": "Will you walk a little faster? It leaves a slippery trail."
+    "line": "Will you walk a little faster? It will not."
   },
   "snake": {
     "name": "a snake",
@@ -1691,7 +1696,7 @@
   },
   "squirrel": {
     "name": "a squirrel",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "Busy hiding nuts it will never find again."
   },
@@ -1781,7 +1786,7 @@
   },
   "swan": {
     "name": "a swan",
-    "nature": "floaty",
+    "nature": "flier",
     "strength": 0.8,
     "line": "All grace above, all paddling below. Off it glides."
   },
@@ -1871,7 +1876,7 @@
   },
   "tiger": {
     "name": "a tiger",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "Another cousin. Stripes where the grin should be."
   },
@@ -2063,7 +2068,7 @@
   },
   "zebra": {
     "name": "a zebra",
-    "nature": "ink",
+    "nature": "walker",
     "strength": 1,
     "line": "A horse that couldn't choose. I respect the indecision."
   },

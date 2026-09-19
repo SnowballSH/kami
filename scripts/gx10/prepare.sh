@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Run on the Mac WITH internet. Gathers everything the GX10 needs, because the box has none:
-# the built game, the server as one file, the Quick, Draw! snapshot, Bun + MongoDB for Linux arm64,
-# and — once ml/ has them — Kami's Eye: the sidecar, its trained model and its Python wheels.
+# Run on the Mac. Gathers everything the GX10 runs: the built game, the server as one file, the
+# Quick, Draw! snapshot, Bun + MongoDB for Linux arm64, and Kami's Eye: the sidecar and its Python wheels.
+# The Eye's model is trained on the box itself (~/kami-ml/artifacts/kami-eye) and start.sh finds it there;
+# a model under ml/artifacts here is shipped too, for a box that has none of its own.
 #   KAMI_EYE_MODEL_NAME=<dir under ml/artifacts>   ship this model instead of the newest one
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -13,6 +14,7 @@ CACHE=.gx10/cache
 EYE_BUILD=$BUILD/eye
 WHEELS=$CACHE/wheels
 EYE_PACKAGES=(onnxruntime numpy opencv-python-headless)
+EYE_SOURCES=(render.py recognizer.py sidecar.py)
 BOX_PYTHON=3.12
 BOX_PLATFORMS=(manylinux_2_28_aarch64 manylinux_2_17_aarch64 manylinux2014_aarch64)
 mkdir -p "$BUILD" "$CACHE"
@@ -36,7 +38,7 @@ copy_eye_model() {
   model=${model%/}
   if [ -z "$model" ] || [ ! -s "$model/model.onnx" ] || [ ! -s "$model/labels.json" ]; then
     if [ -n "${KAMI_EYE_MODEL_NAME:-}" ]; then echo "✗ $model has no model.onnx + labels.json"; exit 1; fi
-    echo "  – no trained model under ml/artifacts yet; the box will use the k-NN"
+    echo "  – no model under ml/artifacts to ship; the box uses the one it trained, or the k-NN"
     return
   fi
   mkdir -p "$EYE_BUILD/artifacts"
@@ -88,9 +90,9 @@ fetch_once "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-ubuntu2404-$M
 
 echo "→ Kami's Eye (the sketch-recognition sidecar)"
 rm -rf "$EYE_BUILD"
-if [ -s ml/sidecar.py ] && [ -s ml/render.py ]; then
+if [ -s ml/sidecar.py ]; then
   mkdir -p "$EYE_BUILD"
-  cp ml/render.py ml/sidecar.py "$EYE_BUILD/"
+  for source in "${EYE_SOURCES[@]}"; do cp "ml/$source" "$EYE_BUILD/"; done
   copy_eye_model
   pin_eye_requirements
   gather_eye_wheels
@@ -100,4 +102,4 @@ fi
 
 echo
 du -sh dist "$BUILD" "$CACHE" | sed 's/^/  /'
-echo "✓ Ready. Join the 'gx10-4d82' Wi-Fi and run: bun run gx10:deploy"
+echo "✓ Ready. Run: bun run gx10:deploy"
