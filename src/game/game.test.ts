@@ -7,7 +7,7 @@ import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
 import type { HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
-import type { LiveRecognizer, Sighting } from "../recognition/types";
+import type { Completion, LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import type { CompiledRule } from "../rules/types";
 import { createSimulation } from "../sim";
@@ -82,8 +82,13 @@ class Eyes implements LiveRecognizer {
     return Promise.resolve(partial ? this.glimpsed : this.settled);
   }
 
-  complete(): Promise<null> {
-    return Promise.resolve(null);
+  /** How Kami would tidy whatever is sent; null leaves the player's ink alone. */
+  tidy: ((strokes: readonly Vec[][]) => Completion | null) | null = null;
+  readonly tidiedAs: (string | undefined)[] = [];
+
+  complete(strokes: readonly Vec[][], name?: string): Promise<Completion | null> {
+    this.tidiedAs.push(name);
+    return Promise.resolve(this.tidy?.(strokes) ?? null);
   }
 }
 
@@ -137,6 +142,7 @@ class Player {
         sim: createSimulation(),
         autopilot: createAutopilot(),
         cat: createCat(eyes),
+        ...(eyes === undefined ? {} : { finisher: eyes }),
         renderer: this.renderer,
         handwriting: new FakeHandwriting(),
         compiler: createRuleCompiler(),
@@ -595,6 +601,71 @@ describe("Game with Kami's eyes on the ink", () => {
       "a zebra?",
       "a mushroom?",
     ]);
+  });
+});
+
+describe("Game with a Kami who tidies", () => {
+  const lifted = (strokes: readonly Vec[][]): Vec[][] =>
+    strokes.map((stroke) => stroke.map(({ x, y }) => ({ x, y: y - 3 })));
+  const flourish: Vec[] = [
+    { x: 300, y: 480 },
+    { x: 310, y: 470 },
+    { x: 320, y: 480 },
+  ];
+
+  it("glides a named drawing into its tidied strokes, draws in what was missing, and saves it", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
+    eyes.tidy = (strokes) => ({
+      tidied: lifted(strokes),
+      added: [flourish],
+      word: "mushroom",
+      confidence: 0.9,
+    });
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    expect(eyes.tidiedAs).toEqual(["a mushroom"]);
+    const drawn = (await player.store.load("wonderland")).drawings[0]?.drawing.strokes ?? [];
+    expect(drawn).toHaveLength(2);
+    expect(drawn[1]).toEqual(flourish);
+
+    await player.wait(800);
+    const shown = player.renderer.lastFrame?.inks[0]?.drawing.strokes ?? [];
+    expect(shown).toEqual(drawn);
+    expect(player.renderer.lastFrame?.inks[0]?.nature).toBe("bouncy");
+  });
+
+  it("shows the ink on its way there, never jumping", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
+    eyes.tidy = (strokes) => ({
+      tidied: lifted(strokes),
+      added: [],
+      word: "mushroom",
+      confidence: 1,
+    });
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    const saved = (await player.store.load("wonderland")).drawings[0]?.drawing.strokes ?? [];
+    const onTheWay = player.renderer.lastFrame?.inks[0]?.drawing.strokes ?? [];
+    const lift = (saved[0]?.[0]?.y ?? 0) - (onTheWay[0]?.[0]?.y ?? 0);
+    expect(onTheWay[0]).toHaveLength(saved[0]?.length ?? -1);
+    expect(Math.abs(lift)).toBeLessThanOrEqual(3);
+  });
+
+  it("leaves the player's ink exactly as drawn when Kami has nothing to offer", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.wait(800);
+    expect(eyes.tidiedAs).toEqual(["a mushroom"]);
+    const saved = (await player.store.load("wonderland")).drawings[0]?.drawing.strokes ?? [];
+    expect(player.renderer.lastFrame?.inks[0]?.drawing.strokes).toEqual(saved);
+    expect(saved).toHaveLength(1);
   });
 });
 
