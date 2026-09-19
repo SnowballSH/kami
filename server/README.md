@@ -97,8 +97,10 @@ The recogniser (`quickdraw/recognizer.ts`) keeps every feature in one flat `Floa
 drawings first, and does brute-force cosine k-NN: k = 15, each neighbour votes for its category
 with weight similarity⁸, categories are ranked by vote share (the `confidence` the route returns),
 and up to three with a share of at least 0.08 are returned. If the single best neighbour is below
-0.35 similarity the answer is `[]`. `rank(strokes, { partial })` is synchronous;
-`asAsyncRecognizer` wraps it in the promise-returning shape the recogniser chain speaks.
+0.35 similarity the answer is `[]`. `rank(strokes, { partial })` is synchronous; `read(strokes,
+{ partial })` is the same ranking with the vote share above which it may go unasked (`certainAbove`,
+see "Naming without asking"), and `recognition/inProcessRanker.ts` wraps that in the promise-returning
+shape the recogniser chain speaks.
 
 - **Finished** (`partial` absent or false): compared with the whole-drawing rows only. Same answers
   as before prefixes existed, 4.8 ms per sketch.
@@ -197,7 +199,7 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 
 | Route | Request | Response |
 |---|---|---|
-| `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[], names: string[], natures: Nature[], strengths: number[], lines: string[] }` — parallel arrays, best first, at most three, all empty when unsure. `guesses` are bare Quick, Draw! words, each with a 0–1 `confidence`; the other four say what each guess is for the game (below) |
+| `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[], names: string[], natures: Nature[], strengths: number[], lines: string[], certain: boolean }` — parallel arrays, best first, at most three, all empty when unsure. `guesses` are bare Quick, Draw! words, each with a 0–1 `confidence`; the other four say what each guess is for the game (below). `certain: true` means `guesses[0]` may be named without offering the player a choice (see "Naming without asking"); a client that ignores it keeps asking, as before |
 | `POST /api/beautify` | `{ strokes: {x,y}[][], name: string }` | whatever the attached model answers, content-type preserved: **`application/json` `{ strokes: {x,y}[][] }`** (preferred — drawn with the pen, scales with zoom, fits the whiteboard) or an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
 | boards, drawings, notes, rules | see the table above | |
@@ -217,6 +219,26 @@ prefixes and reads a half-drawn sketch like any other. An empty answer to a part
 say yet" — keep the last guess on screen. The client for all of this is `src/recognition`
 (`LiveRecognizer.sight(strokes, { partial })` → `Sighting[]`).
 Returned strokes from `beautify` are in the same world space as the request, fitted to the sketch's bounds.
+
+**Naming without asking.** When Kami is sure what a drawing is, the game names it instead of offering three
+guesses. The server decides, because only it knows which recogniser answered and how far that one's
+confidence can be trusted: every answer in the chain is a `Reading { ranking, certainAbove }`
+(`recognition/types.ts`), where `certainAbove` is the leader confidence from which the answer may be taken
+without asking, or `null` for never. `certain` is true only when, **after** aliases are folded together,
+there is a leader whose summed, unrounded confidence reaches the `certainAbove` of the recogniser that
+answered; an all-empty answer is never certain. The floors are the points of 95 % precision on held-out
+drawings:
+
+| Recogniser | Finished | Still under the pen | Measured in |
+|---|---|---|---|
+| Kami's Eye (the sidecar), calibrated confidence | ≥ 0.80 — right 95 % of the time, 65 % of drawings | ≥ 0.90 — right 95 % of the time on drawings at least half done, 36 % of them; below half the ink no threshold reaches 95 % | [`docs/reports/kami-eye-results.md`](../docs/reports/kami-eye-results.md), Figure 3, test split |
+| k-NN, leading vote share | ≥ 0.8 — right 95.5 % of the time, 25 % of drawings | never: a share ≥ 0.8 is right only 48.5 % of the time at 20 % of the ink and 66.7 % at 40 %, and the k-NN cannot tell how much of the drawing it sees | [`docs/reports/prefix-knn.md`](../docs/reports/prefix-knn.md) |
+
+The k-NN's pair is `certainAbove` in `DEFAULT_RECOGNIZER_OPTIONS`; the sidecar's is
+`DEFAULT_CERTAINTY_FLOORS` in `recognition/remoteRecognizer.ts`, used until the sidecar states its own: a
+`certainAbove` in its `/recognize` answer (a number in 0–1, or `null`) replaces the default, and anything
+else there is ignored. The browser reads the flag as `Sighting.certain`, true at most on the first
+sighting; an older server without the field reads as `false` everywhere.
 
 **From a noun to physics.** Every guess arrives already ruled on, from the reviewed table
 `server/natures/quickdrawNatures.json` (all 345 Quick, Draw! categories, validated against `NATURES` at
