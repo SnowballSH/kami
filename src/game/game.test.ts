@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
-import { rectsOverlap, type Vec } from "../core/geometry";
+import { rectsOverlap, type Stroke, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
 import type { HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
-import type { LiveRecognizer, Sighting } from "../recognition/types";
+import type { Completion, LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import type { CompiledRule } from "../rules/types";
 import { createSimulation } from "../sim";
@@ -51,6 +51,7 @@ interface PlayerOptions {
   readonly thoughts?: Thoughts;
   readonly eyes?: LiveRecognizer;
   readonly reader?: HandwritingReader;
+  readonly completer?: Pick<LiveRecognizer, "complete">;
 }
 
 const seen = (word: string, nature: Sighting["nature"], certain = false): Sighting => ({
@@ -129,7 +130,7 @@ class Player {
 
   constructor(
     boardId: string,
-    { store = new MemoryBoardStore(), thoughts = {}, eyes, reader }: PlayerOptions = {},
+    { store = new MemoryBoardStore(), thoughts = {}, eyes, reader, completer }: PlayerOptions = {},
   ) {
     this.store = store;
     this.game = new Game(
@@ -148,6 +149,7 @@ class Player {
         },
         store,
         ...(reader === undefined ? {} : { penReader: createPenReader(reader) }),
+        ...(completer === undefined ? {} : { completer }),
         resolvePhysics,
         boardFor,
         createInkSession,
@@ -692,5 +694,98 @@ describe("Game on a blank board", () => {
     expect(
       await player.until(() => player.written.some((text) => text.includes("rabbit hole"))),
     ).toBe(true);
+  });
+});
+
+class FinishingPen {
+  readonly requests: {
+    readonly strokes: readonly Stroke[];
+    readonly name: string | undefined;
+    readonly reply: (completion: Completion | null) => void;
+  }[] = [];
+
+  complete(strokes: readonly Stroke[], name?: string): Promise<Completion | null> {
+    return new Promise((reply) => this.requests.push({ strokes, name, reply }));
+  }
+}
+
+const prepareCompletion = async () => {
+  const completer = new FinishingPen();
+  const player = new Player("completion", { completer });
+  await player.arrive();
+  await player.draw(line({ x: 200, y: -40 }, { x: 700, y: -40 }));
+  await player.write("platform", { x: 400, y: -130 });
+  const original = (await player.store.load("completion")).drawings[0];
+  const request = completer.requests[0];
+  if (original === undefined || request === undefined) throw new Error("no completion requested");
+  const completion: Completion = {
+    tidied: request.strokes.map((stroke) => stroke.map((p) => ({ x: p.x, y: p.y + 4 }))),
+    added: [
+      [
+        { x: 700, y: -36 },
+        { x: 700, y: -100 },
+      ],
+    ],
+    word: "platform",
+    confidence: 0.9,
+  };
+  return { player, completer, original, request, completion };
+};
+
+describe("Game ink completion", () => {
+  it("animates a named drawing and persists its replacement with the same id and ruling", async () => {
+    const { player, completer, original, request, completion } = await prepareCompletion();
+    expect(request.name).toBe(original.ruling?.name);
+    request.reply(completion);
+    await player.wait(100);
+    const moving = player.renderer.lastFrame?.inks[0];
+    expect(moving?.drawing.strokes).not.toEqual(original.drawing.strokes);
+    expect(moving?.drawing.strokes).not.toEqual([...completion.tidied, ...completion.added]);
+    expect((await player.store.load("completion")).drawings).toEqual([original]);
+    await player.wait(1_600);
+    expect((await player.store.load("completion")).drawings).toEqual([
+      {
+        drawing: { ...original.drawing, strokes: [...completion.tidied, ...completion.added] },
+        ruling: original.ruling,
+      },
+    ]);
+    expect(player.renderer.lastFrame?.inks[0]?.nature).toBe("solid");
+    expect(completer.requests).toHaveLength(1);
+  });
+
+  it("leaves the original ink intact when completion declines", async () => {
+    const { player, original, request } = await prepareCompletion();
+    request.reply(null);
+    await player.wait(1_600);
+    expect((await player.store.load("completion")).drawings).toEqual([original]);
+    expect(player.renderer.lastFrame?.inks[0]?.drawing).toEqual(original.drawing);
+  });
+
+  it("ignores a reply from a prior visit even when the same drawing id is restored", async () => {
+    const { player, original, request, completion } = await prepareCompletion();
+    player.game.onOpenBoard("elsewhere");
+    await player.wait(50);
+    player.game.onOpenBoard("completion");
+    await player.wait(50);
+    request.reply(completion);
+    await player.wait(1_600);
+    expect((await player.store.load("completion")).drawings).toEqual([original]);
+  });
+
+  it("ignores an old reply after renaming and cancels an animation when erased", async () => {
+    const { player, completer, request, completion } = await prepareCompletion();
+    await player.write("wall", { x: 400, y: -130 });
+    const renamed = (await player.store.load("completion")).drawings[0];
+    request.reply(completion);
+    await player.wait(1_600);
+    expect((await player.store.load("completion")).drawings).toEqual([renamed]);
+    const latest = completer.requests[1];
+    if (latest === undefined) throw new Error("no completion for renamed ink");
+    latest.reply(completion);
+    await player.wait(100);
+    await player.erase({ x: 400, y: -40 });
+    await player.wait(1_600);
+    expect((await player.store.load("completion")).drawings).toEqual([]);
+    expect(player.renderer.lastFrame?.inks).toEqual([]);
   });
 });

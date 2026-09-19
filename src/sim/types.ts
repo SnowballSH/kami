@@ -91,6 +91,7 @@ export interface Simulation {
   setPhysics(physics: WorldPhysics): void;
   /** Ink is solid the moment it commits — as plain ink, before anyone has named it. */
   addDrawing(drawing: Drawing): void;
+  replaceDrawing(drawing: Drawing): boolean;
   applyRuling(id: DrawingId, ruling: Ruling): void;
   removeDrawing(id: DrawingId): void;
   setWalkIntent(intent: WalkIntent): void;

@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { IDENTITY_POSE } from "../core/geometry";
 import type { Handwriting } from "../handwriting/types";
+import { drawingOf } from "../sim/testSupport";
 import { TAU } from "./canvas2d";
 import { CanvasRenderer } from "./canvasRenderer";
 import { ERASER_RING } from "./eraserRing";
@@ -92,6 +94,49 @@ const setup = () => {
   };
   return { renderer, calls, rings, touch };
 };
+
+it("refreshes a completed drawing's cached path when its points change at the same stroke count", () => {
+  vi.stubGlobal(
+    "Path2D",
+    class {
+      moveTo() {}
+      quadraticCurveTo() {}
+      closePath() {}
+    },
+  );
+  try {
+    const { renderer, calls } = setup();
+    const original = drawingOf("tidied", [
+      { x: 0, y: 0 },
+      { x: 40, y: 0 },
+    ]);
+    const ink = {
+      drawing: original,
+      pose: IDENTITY_POSE,
+      nature: "ink",
+      awakenedAtMs: null,
+    } as const;
+    const path = () => calls.findLast(({ method }) => method === "fill")?.args[0];
+    renderer.render({ ...frame(false), inks: [ink] });
+    const before = path();
+    expect(before).toBeDefined();
+    renderer.render({ ...frame(false), inks: [ink] });
+    expect(path()).toBe(before);
+    const drawing = {
+      ...original,
+      strokes: [
+        [
+          { x: 0, y: 4 },
+          { x: 40, y: 4 },
+        ],
+      ],
+    };
+    renderer.render({ ...frame(false), inks: [{ ...ink, drawing }] });
+    expect(path()).not.toBe(before);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
 
 describe("CanvasRenderer eraser cursor", () => {
   it("rings the pointer last of all, in screen space, while the eraser is out", () => {

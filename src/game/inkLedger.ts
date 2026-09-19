@@ -25,6 +25,14 @@ export class InkLedger {
     return awake;
   }
 
+  replace(drawing: Drawing): InkRecord | null {
+    const record = this.records.get(drawing.id);
+    if (record === undefined) return null;
+    const replaced = { ...record, drawing };
+    this.records.set(drawing.id, replaced);
+    return replaced;
+  }
+
   get(id: DrawingId): InkRecord | null {
     return this.records.get(id) ?? null;
   }

@@ -115,6 +115,10 @@ export class MatterSimulation implements Simulation {
     this.world.inks.add(drawing);
   }
 
+  replaceDrawing(drawing: Drawing): boolean {
+    return this.world.inks.replace(drawing);
+  }
+
   applyRuling(id: DrawingId, ruling: Ruling): void {
     this.world.inks.applyRuling(id, ruling);
   }

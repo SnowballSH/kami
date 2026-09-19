@@ -22,7 +22,7 @@ import type {
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore } from "../persistence/types";
 import type { PenReader } from "../reading/types";
-import type { Sighting } from "../recognition/types";
+import type { LiveRecognizer, Sighting } from "../recognition/types";
 import type { Renderer } from "../render/types";
 import type { CompiledRule, Rule, RuleCompiler, RuleId, WorldPhysics } from "../rules/types";
 import type { DrawingPose, SimEvent, Simulation, WalkIntent } from "../sim/types";
@@ -37,6 +37,7 @@ import type {
 import { CameraRig } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
 import { IdMint } from "./idMint";
+import { InkCompletion } from "./inkCompletion";
 import { InkLedger, type InkRecord } from "./inkLedger";
 import {
   BLANK_BOARD_BRIEF,
@@ -103,6 +104,7 @@ export interface GameModules {
   readonly store: BoardStore;
   /** Reads pen strokes as words (a vision model behind the server); without one, ink is only ink. */
   readonly penReader?: PenReader;
+  readonly completer?: Pick<LiveRecognizer, "complete">;
   readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
   readonly boardFor: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
@@ -126,6 +128,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly laws: LawsPanel;
   private readonly loop = new FixedStepLoop(FIXED_STEP_MS, MAX_STEPS_PER_FRAME);
   private readonly ledger = new InkLedger();
+  private readonly completions = new Map<
+    DrawingId,
+    { readonly record: InkRecord; readonly animation: InkCompletion }
+  >();
   private readonly notes: NoteBook;
   private readonly rules: RuleBook;
   private readonly camera = new CameraRig();
@@ -186,6 +192,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.nowMs = nowMs;
     this.lastFrameMs = nowMs;
 
+    this.advanceCompletions();
     sim.setTimeScale(this.ink.isDrawing ? BULLET_TIME_SCALE : 1);
     for (let step = 0; step < steps; step++) {
       sim.setWalkIntent(this.chooseIntent());
@@ -207,7 +214,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       camera: this.camera.camera,
       world,
       daylight: this.rules.physics.daylight,
-      inks: this.ledger.views(world.drawings),
+      inks: this.ledger.views(world.drawings).map((view) => {
+        const animation = this.completions.get(view.drawing.id)?.animation;
+        return animation === undefined
+          ? view
+          : { ...view, drawing: { ...view.drawing, strokes: animation.strokesAt(nowMs) } };
+      }),
       notes: this.notes.views(nowMs),
       activeStrokes: this.ink.activeStrokes,
       activeVerdict: this.ink.activeVerdict,
@@ -340,6 +352,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.ink.reset(Number.POSITIVE_INFINITY);
     this.penReader?.forget();
     this.unread.clear();
+    this.completions.clear();
     this.ledger.clear();
     this.notes.clear();
     this.labelsByKami.clear();
@@ -689,6 +702,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private name(id: DrawingId, ruling: Ruling, label: Note): void {
+    this.completions.delete(id);
     const awake = this.ledger.awaken(id, ruling, this.nowMs);
     if (awake === null) return;
 
@@ -703,6 +717,43 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
     }
     this.stuck.progress(this.nowMs);
+    if (ruling.nature !== "ink") void this.completeDrawing(awake);
+  }
+
+  private async completeDrawing(record: InkRecord): Promise<void> {
+    const { completer } = this.modules;
+    if (completer === undefined) return;
+    const epoch = this.epoch;
+    const completion = await completer.complete(record.drawing.strokes, record.ruling?.name);
+    if (
+      completion === null ||
+      epoch !== this.epoch ||
+      this.ledger.get(record.drawing.id) !== record
+    )
+      return;
+    this.completions.set(record.drawing.id, {
+      record,
+      animation: new InkCompletion(record.drawing, completion, this.nowMs),
+    });
+  }
+
+  private advanceCompletions(): void {
+    for (const [id, { record, animation }] of this.completions) {
+      if (this.ledger.get(id) !== record) {
+        this.completions.delete(id);
+        continue;
+      }
+      if (!animation.done(this.nowMs)) continue;
+      this.completions.delete(id);
+      if (!this.modules.sim.replaceDrawing(animation.drawing)) continue;
+      const completed = this.ledger.replace(animation.drawing);
+      if (completed === null) continue;
+      this.modules.store.saveDrawing(this.board.id, {
+        drawing: completed.drawing,
+        ruling: completed.ruling,
+      });
+      this.modules.autopilot.invalidate();
+    }
   }
 
   private shrug(noteId: NoteId): void {
@@ -862,6 +913,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private discard(id: DrawingId): void {
+    this.completions.delete(id);
     if (this.ledger.remove(id) === null) return;
     this.modules.sim.removeDrawing(id);
     this.modules.autopilot.invalidate();

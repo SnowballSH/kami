@@ -8,7 +8,7 @@ import { MARKER, mapNatures, NATURE_TINTS, rgbCss } from "./palette";
 import type { InkView } from "./types";
 
 interface SettledInk {
-  readonly strokeCount: number;
+  readonly strokes: readonly Stroke[];
   readonly path: Path2D;
   readonly bounds: Rect;
 }
@@ -87,9 +87,9 @@ export class InkPainter {
 
   private settledInk(drawing: Drawing): SettledInk {
     const cached = this.settled.get(drawing.id);
-    if (cached?.strokeCount === drawing.strokes.length) return cached;
+    if (cached?.strokes === drawing.strokes) return cached;
     const ink: SettledInk = {
-      strokeCount: drawing.strokes.length,
+      strokes: drawing.strokes,
       path: strokesPath(drawing.strokes, INK_PEN),
       bounds: boundsOf(drawing.strokes.flat()),
     };

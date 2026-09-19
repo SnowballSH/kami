@@ -13,8 +13,8 @@ export class InkEntity {
   mind: Mind;
 
   constructor(
-    readonly drawing: Drawing,
-    readonly origin: Vec,
+    public drawing: Drawing,
+    public origin: Vec,
     public body: Matter.Body,
   ) {
     this.mind = freshMind(drawing.id);

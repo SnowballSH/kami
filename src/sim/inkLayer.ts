@@ -1,6 +1,6 @@
 import Matter from "matter-js";
 import type { Ruling } from "../cat/types";
-import type { Rect, Stroke } from "../core/geometry";
+import { poseToWorld, type Rect, type Stroke } from "../core/geometry";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { WorldPhysics } from "../rules/types";
 import { countAnchorClusters } from "./anchoring";
@@ -72,6 +72,30 @@ export class InkLayer {
     if (ink === undefined) return;
     this.detach(ink);
     this.inks.delete(id);
+  }
+
+  replace(drawing: Drawing): boolean {
+    const ink = this.inks.get(drawing.id);
+    if (ink === undefined) return false;
+    const pose = ink.pose;
+    const worldStrokes = drawing.strokes.map((stroke) =>
+      stroke.map((point) => poseToWorld(point, pose)),
+    );
+    const body = this.build(drawing.strokes, worldStrokes, ink);
+    if (body === null) return false;
+    const origin = { x: body.position.x, y: body.position.y };
+    Matter.Body.setPosition(body, poseToWorld(origin, pose));
+    Matter.Body.setAngle(body, pose.angle);
+    if (!body.isStatic) {
+      Matter.Body.setVelocity(body, Matter.Body.getVelocity(ink.body));
+      Matter.Body.setAngularVelocity(body, Matter.Body.getAngularVelocity(ink.body));
+    }
+    this.detach(ink);
+    ink.drawing = drawing;
+    ink.origin = origin;
+    ink.body = body;
+    this.attach(ink);
+    return true;
   }
 
   applyRuling(id: DrawingId, ruling: Ruling): void {
