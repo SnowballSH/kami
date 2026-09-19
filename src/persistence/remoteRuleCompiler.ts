@@ -1,10 +1,29 @@
-import type { CompiledRule, RuleCompiler, RuleEffect } from "../rules/types";
+import type { CompiledRule, Governs, RuleCompiler, RuleEffect } from "../rules/types";
 import { browserFetch, compilePath, type FetchLike, JSON_HEADERS } from "./api";
 
 const COMPILE_TIMEOUT_MS = 35_000;
 
-const VECTOR_SETTINGS: readonly string[] = ["gravity", "wind"];
-const SCALAR_SETTINGS: readonly string[] = ["timeScale", "airDrag", "friction", "bounciness"];
+type ShapeOf<Setting extends Governs> =
+  Extract<RuleEffect, { governs: Setting }> extends { readonly x: number } ? "vector" : "scalar";
+
+/** Typed against `RuleEffect`, so a new setting fails the typecheck here until it is listed. */
+const EFFECT_SHAPES: { readonly [Setting in Governs]: ShapeOf<Setting> } = {
+  gravity: "vector",
+  wind: "vector",
+  timeScale: "scalar",
+  airDrag: "scalar",
+  friction: "scalar",
+  bounciness: "scalar",
+  temperature: "scalar",
+  daylight: "scalar",
+  flight: "scalar",
+  walkSpeed: "scalar",
+  aliceSize: "scalar",
+  attraction: "scalar",
+  clones: "scalar",
+};
+
+const isGoverns = (setting: string): setting is Governs => Object.hasOwn(EFFECT_SHAPES, setting);
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null;
@@ -13,11 +32,12 @@ const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
 const isRuleEffect = (value: unknown): value is RuleEffect => {
-  if (!isRecord(value) || typeof value.governs !== "string") return false;
-  if (VECTOR_SETTINGS.includes(value.governs)) {
-    return isFiniteNumber(value.x) && isFiniteNumber(value.y);
+  if (!isRecord(value) || typeof value.governs !== "string" || !isGoverns(value.governs)) {
+    return false;
   }
-  return SCALAR_SETTINGS.includes(value.governs) && isFiniteNumber(value.value);
+  return EFFECT_SHAPES[value.governs] === "vector"
+    ? isFiniteNumber(value.x) && isFiniteNumber(value.y)
+    : isFiniteNumber(value.value);
 };
 
 const isCompiledRule = (value: unknown): value is CompiledRule =>

@@ -17,6 +17,20 @@ describe("RemoteRuleCompiler", () => {
     ]);
   });
 
+  it.each([
+    { governs: "clones", value: 2 },
+    { governs: "temperature", value: 95 },
+    { governs: "daylight", value: 0 },
+    { governs: "flight", value: 1 },
+    { governs: "walkSpeed", value: 2 },
+    { governs: "aliceSize", value: 0.5 },
+    { governs: "attraction", value: -1 },
+  ])("accepts a law on Alice or the weather from the model: $governs", async (effect) => {
+    const rule = { effect, explanation: "as the model put it" };
+    const compiler = new RemoteRuleCompiler(async () => Response.json({ rule }));
+    expect(await compiler.compile("whatever the grammar did not know")).toEqual(rule);
+  });
+
   it("returns null when the server has no model or does not see a rule", async () => {
     const compiler = new RemoteRuleCompiler(async () => Response.json({ rule: null }));
     expect(await compiler.compile("a mushroom")).toBeNull();

@@ -84,6 +84,23 @@ describe("createLlmCompiler", () => {
     expect(storm).toEqual({ effect: { governs: "wind", x: -3, y: 0.5 }, explanation: "a storm" });
   });
 
+  it("accepts laws on Alice and the weather, clamped like the rest", async () => {
+    const crowd = await createLlmCompiler(
+      CONFIG,
+      modelSaying('{"effect":{"governs":"clones","value":40},"explanation":"a crowd of Alices"}'),
+    ).compile("an army of alices");
+    expect(crowd).toEqual({
+      effect: { governs: "clones", value: 8 },
+      explanation: "a crowd of Alices",
+    });
+
+    const dusk = await createLlmCompiler(
+      CONFIG,
+      modelSaying('{"effect":{"governs":"daylight","value":0.3},"explanation":"dusk"}'),
+    ).compile("the sun is going down");
+    expect(dusk).toEqual({ effect: { governs: "daylight", value: 0.3 }, explanation: "dusk" });
+  });
+
   it.each([
     ["not a rule", '{"effect":null}'],
     ["garbage", "I am a large language model"],
