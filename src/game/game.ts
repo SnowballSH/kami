@@ -1,7 +1,7 @@
 import type { Autopilot, Scene } from "../autopilot/types";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
-import { boundsOf, type Rect, rectGap, translateRect, type Vec } from "../core/geometry";
+import { boundsOf, poseToWorld, type Rect, rectGap, type Vec } from "../core/geometry";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
 import type { Handwriting } from "../handwriting/types";
 import type {
@@ -744,7 +744,4 @@ const IDLE_INTENT: WalkIntent = { x: 0, y: 0 };
 const isPlayers = (note: Note): boolean => note.author === "player";
 
 const currentBounds = (drawing: Drawing, { pose }: DrawingPose): Rect =>
-  translateRect(boundsOf(drawing.strokes.flat()), {
-    x: pose.position.x - pose.origin.x,
-    y: pose.position.y - pose.origin.y,
-  });
+  boundsOf(drawing.strokes.flatMap((stroke) => stroke.map((point) => poseToWorld(point, pose))));
