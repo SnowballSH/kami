@@ -60,3 +60,18 @@ export const FLY_SPEED = 1.5;
 export const FLY_BOB_SPEED = 0.7;
 export const FLY_BOB_PERIOD_TICKS = 90;
 export const FLY_ROAM_PX = 320;
+
+/** The Sumikui stirs once the board holds this many drawings. */
+export const SUMIKUI_WAKES_AT_DRAWINGS = 2;
+/** Where it hovers relative to Alice while it has no prey: behind her, above her head. */
+export const SUMIKUI_HOVER = { x: 110, y: -80 } as const;
+/** Pace in px per ms when it first wakes; it doubles every `SUMIKUI_DOUBLES_EVERY_MS` awake. */
+export const SUMIKUI_BASE_SPEED = 0.02;
+export const SUMIKUI_DOUBLES_EVERY_MS = 20_000;
+export const SUMIKUI_MAX_SPEED = 0.6;
+/** Ink Alice touched longer ago than this is no longer hers to lose: it will not hunt it. */
+export const SUMIKUI_MEMORY_MS = 20_000;
+export const SUMIKUI_NEAR_PX = 600;
+export const SUMIKUI_REACH = 24;
+/** How long it sits on a drawing before the drawing is gone. */
+export const SUMIKUI_BITE_MS = 1500;
