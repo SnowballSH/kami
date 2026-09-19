@@ -20,3 +20,20 @@ describe("Twins", () => {
     expect(twin.body.position.x).toBeCloseTo(TWIN_STRAY_DISTANCE - 1, 0);
   });
 });
+
+describe("Twins.match", () => {
+  it.each([-1, 0.5, 9, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects %s without mutating an existing crowd",
+    (count) => {
+      const world = Matter.World.create({});
+      const twins = new Twins(world);
+      const alice = new AliceController({ x: 0, y: 0 }, EARTH);
+      twins.match(2, alice, EARTH);
+      expect(() => twins.match(count, alice, EARTH)).toThrow(RangeError);
+      expect(twins.all).toHaveLength(2);
+      expect(world.bodies).toHaveLength(2);
+      twins.match(0, alice, EARTH);
+      expect(world.bodies).toEqual([]);
+    },
+  );
+});

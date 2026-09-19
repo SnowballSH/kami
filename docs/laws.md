@@ -95,6 +95,17 @@ The model-backed compiler on the server is asked to emit the same shape. `server
 
 Every dial `d` has a closed range `[lo_d, hi_d]` (`src/rules/effects.ts`; the server's wider table in `effectRanges.ts`). `set(d, v)` is only admitted with `v := clamp(v, lo_d, hi_d)` and the gloss says “(capped)” when clamping bit. Because the fold only ever composes admitted dial sets, `physics(R)` lies inside the product of the ranges for *any* `R` — the invariant the simulation relies on, and the reason a model or a mischievous player cannot produce a world the engine cannot simulate.
 
+Persisted values use `src/rules/effectDomains.ts`: gravity ±30 g per axis, wind ±3 g per
+axis, time 0.1–3, drag/friction 0–10, bounce/daylight/flight/inkEater 0–1, temperature
+−100–1000 °C, walking 0.1–5, size 0.25–4, attraction ±3 g, and integer clones 0–8.
+These domains include both compilers' outputs. The offline grammar deliberately retains
+its narrower vector magnitude caps (gravity 5 g, wind 2 g) and friction cap of 5.
+Both compilers round clone counts to the nearest integer after clamping. Flight and
+inkEater retain their existing positive-means-enabled behavior within 0–1.
+Persistence rejects out-of-domain values rather than clamping stored player intent.
+The fold ignores invalid numeric effects from historic rules; simulation entry points
+reject unsafe physics before modifying bodies. Ruling strength must stay in 0.5–2.
+
 ## 6. Drawings: natures as morphisms on one body
 
 A drawing's state is its **nature** and **strength**: `ruling : Drawing → Drawing` sets both (`sim.applyRuling`). Natures are presets — “mushroom” is `bouncy`, “black hole” is `attractor`, “lantern” is `lantern` — chosen by the Cat from the player's words and scaled by their adjectives. They compose like dial sets on one subject: the newest ruling wins, erasing the drawing removes it entirely.
