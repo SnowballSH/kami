@@ -21,7 +21,6 @@ import { Twins } from "./twins";
 import {
   ALICE_BASE,
   ALICE_SCALE,
-  type AliceSize,
   type BounceArc,
   type SimEvent,
   type Simulation,
@@ -168,6 +167,7 @@ export class MatterSimulation implements Simulation {
     engine.gravity.y = this.physics.gravity.y;
     engine.timing.timeScale = timeScale;
 
+    this.growLawfully();
     const surroundings = this.surroundings();
     alice.control(this.intent, surroundings, timeScale);
     twins.control(this.intent, surroundings, timeScale);
@@ -243,7 +243,8 @@ export class MatterSimulation implements Simulation {
         if (lastRefusedAt !== undefined && now - lastRefusedAt <= GROW_REFUSAL_COOLDOWN_MS) return;
         this.events.push({ type: "grow-blocked", drawingId: ink.id });
       },
-      hasHeadroomFor: (size) => this.hasHeadroomFor(size),
+      hasHeadroomFor: (size) =>
+        this.hasHeadroomFor(alice, ALICE_SCALE[size] * this.physics.aliceSize),
       pullToward: (ink, strengthInG) => {
         const loose = inks.dynamicBodies.filter((body) => body !== ink.body);
         pullToward(ink.body.position, strengthInG, [alice.body, ...loose]);
@@ -358,10 +359,21 @@ export class MatterSimulation implements Simulation {
     return { x: bounds.x + bounds.width / 2, y: bounds.y };
   }
 
-  private hasHeadroomFor(size: AliceSize): boolean {
-    const { alice, inks, props } = this.world;
+  /** Grants each Alice the size the laws ask for; growing waits until nothing is overhead. */
+  private growLawfully(): void {
+    const { alice, twins } = this.world;
+    for (const each of [alice, ...twins.all]) {
+      const wanted = each.lawfulScale;
+      if (wanted === each.headingScale) continue;
+      if (wanted < each.headingScale || this.hasHeadroomFor(each, wanted))
+        each.beginResize(each.size);
+    }
+  }
+
+  private hasHeadroomFor(alice: AliceController, scale: number): boolean {
+    const { inks, props } = this.world;
     const current = alice.bounds();
-    const targetHeight = ALICE_BASE.height * ALICE_SCALE[size];
+    const targetHeight = ALICE_BASE.height * scale;
     const extraHeight = targetHeight - current.height;
     if (extraHeight <= 0) return true;
     const headroom = Matter.Bodies.rectangle(
