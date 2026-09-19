@@ -14,7 +14,7 @@ import { Game } from "./game";
 const BOARD_PARAM = "board";
 const AUTOPILOT_PARAM = "autopilot";
 const AUTOPILOT_MEMORY = "kami.autopilot";
-const OFF = "off";
+const ON = "on";
 
 const remembered = (): string | null => {
   try {
@@ -24,13 +24,16 @@ const remembered = (): string | null => {
   }
 };
 
-/** `?autopilot=off` (or `on`) wins; otherwise whatever the player last chose on this device. */
+/**
+ * The player walks Alice unless they ask otherwise: `?autopilot=on` (or `off`) wins, then whatever
+ * they last chose on this device with the HUD switch.
+ */
 const startsSelfDriving = (): boolean =>
-  (new URLSearchParams(window.location.search).get(AUTOPILOT_PARAM) ?? remembered()) !== OFF;
+  (new URLSearchParams(window.location.search).get(AUTOPILOT_PARAM) ?? remembered()) === ON;
 
 const rememberSelfDriving = (enabled: boolean): void => {
   try {
-    window.localStorage.setItem(AUTOPILOT_MEMORY, enabled ? "on" : OFF);
+    window.localStorage.setItem(AUTOPILOT_MEMORY, enabled ? ON : "off");
   } catch {}
 };
 
