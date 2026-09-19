@@ -6,6 +6,7 @@ export interface TopBarHandlers {
   onEraserToggled(active: boolean): void;
   onResetRoom(): void;
   onAskCat(): void;
+  onSpellToggled(): void;
   onMuteToggled(muted: boolean): void;
 }
 
@@ -39,6 +40,9 @@ export class TopBar {
         this.eraser.element,
         iconButton("Reset room", "kami-reset", "reset", () => handlers.onResetRoom()),
         iconButton("Ask the Cat", "kami-ask", "cat", () => handlers.onAskCat()),
+        iconButton("Write to the world", "kami-spell-toggle", "quill", () =>
+          handlers.onSpellToggled(),
+        ),
         mute.element,
       ]),
     ]);

@@ -6,6 +6,7 @@ import { judgePlacement } from "./placement";
 import { nextInkPoint } from "./stroke";
 import type {
   InkBudget,
+  InkGrant,
   InkSession,
   InkSessionListener,
   PlacementRules,
@@ -70,6 +71,10 @@ export class PenInkSession implements InkSession {
 
   refund(cost: number): void {
     this.#ledger.refund(cost);
+  }
+
+  grant(grant: InkGrant): void {
+    this.#ledger.grant(grant);
   }
 
   reset(totalInk: number): void {

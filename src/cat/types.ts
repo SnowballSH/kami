@@ -1,4 +1,5 @@
 import type { Drawing } from "../ink/types";
+import type { WorldEdit, WorldFacts } from "../world/types";
 
 export const NATURES = [
   "ink",
@@ -46,17 +47,35 @@ export interface RoomBrief {
   readonly hints: readonly [string, string, string];
 }
 
+export type Guesses = readonly [string, string, string];
+
+/** A PNG data URL of the drawing on plain paper, made only if a Cat asks for it. */
+export type SketchSource = () => string;
+
+/** What the Cat sees when ink settles: a picture to be named, or words meant for the world. */
+export type Glance =
+  | { readonly kind: "picture"; readonly guesses: Guesses }
+  | { readonly kind: "words"; readonly text: string };
+
+/** The Cat's answer to words aimed at the world: what to change, and what he says about it. */
+export interface Decree {
+  readonly edits: readonly WorldEdit[];
+  readonly line: string;
+}
+
 /**
  * The single face of all the AI in the game. Methods are async where a model
- * could sit behind them; the demo implementation is offline and instant.
+ * could sit behind them; the scripted implementation is offline and instant.
  */
 export interface Cat {
   /** Resets the hint ladder and the once-per-room offer of help. */
   enterRoom(room: RoomBrief): void;
   /** Maps whatever the player said about `drawing` onto a nature. Never rejects. */
-  name(utterance: string, drawing: Drawing): Promise<Ruling>;
-  /** His three best guesses at an unnamed drawing, as short names ("a mushroom"). */
-  guess(drawing: Drawing): Promise<readonly [string, string, string]>;
+  name(utterance: string, drawing: Drawing, facts: WorldFacts): Promise<Ruling>;
+  /** Looks at freshly settled ink: three guesses if it is a picture, the text if it is writing. */
+  look(drawing: Drawing, sketch: SketchSource, facts: WorldFacts): Promise<Glance>;
+  /** Turns words about the world ("g = 1 m/s²", "make it windy") into edits. */
+  command(text: string, facts: WorldFacts): Promise<Decree>;
   /** "And what is that supposed to be?" */
   askWhatItIs(): string;
   /** Climbs one rung per call, never skips, stays on the answer once reached. */

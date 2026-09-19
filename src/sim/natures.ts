@@ -50,6 +50,7 @@ const PLAIN_MATERIAL: InkMaterial = {
   density: INK_DENSITY,
   friction: INK_FRICTION,
   frictionAir: INK_AIR_FRICTION,
+  restitution: 0,
 };
 
 const PLAIN: NatureStrategy = {

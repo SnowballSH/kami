@@ -1,10 +1,12 @@
 import type { Drawing } from "../ink/types";
+import type { WorldFacts } from "../world/types";
+import { decree } from "./decree";
 import { HintLadder } from "./hintLadder";
 import { ASK_WHAT_IT_IS, OFFER_HELP } from "./lines";
 import { ruleOn } from "./ruling";
 import { isDot } from "./shape";
-import { type Guesses, guessNames } from "./shapeGuesser";
-import type { Cat, Hint, RoomBrief, Ruling } from "./types";
+import { guessNames } from "./shapeGuesser";
+import type { Cat, Decree, Glance, Hint, RoomBrief, Ruling } from "./types";
 
 const NOWHERE: RoomBrief = {
   id: "nowhere",
@@ -33,8 +35,15 @@ export class ScriptedCat implements Cat {
     );
   }
 
-  guess(drawing: Drawing): Promise<Guesses> {
-    return Promise.resolve(guessNames(drawing, this.#room.allowedNatures));
+  look(drawing: Drawing): Promise<Glance> {
+    return Promise.resolve({
+      kind: "picture",
+      guesses: guessNames(drawing, this.#room.allowedNatures),
+    });
+  }
+
+  command(text: string, facts: WorldFacts): Promise<Decree> {
+    return Promise.resolve(decree(text, facts));
   }
 
   askWhatItIs(): string {

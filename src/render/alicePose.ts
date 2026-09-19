@@ -1,7 +1,7 @@
 import type { Vec } from "../core/geometry";
 import type { AliceSnapshot } from "../sim/types";
 
-export type AlicePoseName = "stand" | "stride" | "pass" | "climb" | "air";
+export type AlicePoseName = "stand" | "wait" | "stride" | "pass" | "climb" | "air";
 
 export interface AlicePose {
   readonly frontHand: Vec;
@@ -20,6 +20,12 @@ export const ALICE_POSES: Readonly<Record<AlicePoseName, AlicePose>> = {
     backHand: { x: -8, y: 3 },
     frontFoot: { x: 4, y: 28.5 },
     backFoot: { x: -4, y: 28.5 },
+  },
+  wait: {
+    frontHand: { x: 9, y: 7 },
+    backHand: { x: -9, y: 7 },
+    frontFoot: { x: 5, y: 28.5 },
+    backFoot: { x: -5, y: 28.5 },
   },
   stride: {
     frontHand: { x: -7, y: 1 },
@@ -47,9 +53,13 @@ export const ALICE_POSES: Readonly<Record<AlicePoseName, AlicePose>> = {
   },
 };
 
-export const alicePoseName = (alice: AliceMotion, nowMs: number): AlicePoseName => {
+export const alicePoseName = (
+  alice: AliceMotion,
+  nowMs: number,
+  waiting = false,
+): AlicePoseName => {
   if (alice.climbing) return "climb";
   if (!alice.grounded) return "air";
-  if (!alice.walking) return "stand";
+  if (!alice.walking) return waiting ? "wait" : "stand";
   return Math.floor(nowMs / WALK_FRAME_MS) % 2 === 0 ? "stride" : "pass";
 };

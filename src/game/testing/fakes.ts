@@ -1,6 +1,6 @@
 import type { Vec } from "../../core/geometry";
-import type { Drawing } from "../../ink/types";
-import type { Renderer, RenderFrame } from "../../render/types";
+import type { Drawing, DrawingId } from "../../ink/types";
+import type { DrawingArt, Renderer, RenderFrame } from "../../render/types";
 import type { EndingEntry, Hud, HudHandlers, TitleCard } from "../../ui/types";
 import type { LevelDefinition } from "../types";
 
@@ -8,6 +8,7 @@ export class FakeHud implements Hud {
   readonly said: string[] = [];
   readonly rooms: string[] = [];
   readonly cards: TitleCard[] = [];
+  readonly scrawled: string[] = [];
   guesses: readonly string[] | null = null;
   ending: readonly EndingEntry[] | null = null;
   restart: (() => void) | null = null;
@@ -44,6 +45,10 @@ export class FakeHud implements Hud {
     this.eraserActive = active;
   }
 
+  scrawl(text: string): void {
+    this.scrawled.push(text);
+  }
+
   showTitleCard(card: TitleCard): Promise<void> {
     this.cards.push(card);
     return Promise.resolve();
@@ -61,6 +66,7 @@ export class FakeHud implements Hud {
 
 export class FakeRenderer implements Renderer {
   readonly levels: LevelDefinition[] = [];
+  readonly art = new Map<DrawingId, DrawingArt>();
   lastFrame: RenderFrame | null = null;
 
   setLevel(level: LevelDefinition): void {
@@ -82,5 +88,10 @@ export class FakeRenderer implements Renderer {
     canvas.width = sizePx;
     canvas.height = sizePx;
     return canvas;
+  }
+
+  setArt(id: DrawingId, art: DrawingArt | null): void {
+    if (art === null) this.art.delete(id);
+    else this.art.set(id, art);
   }
 }

@@ -1,3 +1,4 @@
+import type { SceneInk } from "../autopilot/types";
 import type { Ruling } from "../cat/types";
 import type { Drawing, DrawingId, PosedDrawing } from "../ink/types";
 import type { InkView } from "../render/types";
@@ -25,6 +26,14 @@ export class InkLedger {
 
   has(id: DrawingId): boolean {
     return this.live.has(id);
+  }
+
+  record(id: DrawingId): InkRecord | null {
+    return this.live.get(id) ?? null;
+  }
+
+  onPage(): readonly InkRecord[] {
+    return [...this.live.values()];
   }
 
   erase(id: DrawingId): InkRecord | null {
@@ -57,6 +66,15 @@ export class InkLedger {
       pose,
       nature: ruling?.nature ?? "ink",
       awakenedAtMs,
+    }));
+  }
+
+  scene(poses: readonly DrawingPose[]): readonly SceneInk[] {
+    return this.join(poses, ({ drawing, ruling }, pose) => ({
+      drawing,
+      pose,
+      nature: ruling?.nature ?? "ink",
+      strength: ruling?.strength ?? 1,
     }));
   }
 

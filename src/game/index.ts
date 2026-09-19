@@ -1,5 +1,6 @@
+import { createAutopilot } from "../autopilot";
 import { createCat } from "../cat";
-import { createInkSession, findDrawingAt } from "../ink";
+import { createInkSession, findDrawingAt, mintDrawingId } from "../ink";
 import { createRenderer } from "../render";
 import { createSimulation } from "../sim";
 import { attachPen, createHud } from "../ui";
@@ -17,10 +18,12 @@ export function startGame(root: HTMLElement): void {
     levels: LEVELS,
     sim: createSimulation(),
     cat: createCat(),
+    autopilot: createAutopilot(),
     renderer,
     createInkSession,
     createHud: (handlers) => createHud(root, handlers),
     findDrawingAt,
+    mintDrawingId,
   });
 
   attachPen(canvas, (clientX, clientY) => renderer.toWorld(clientX, clientY), game);

@@ -1,4 +1,5 @@
 import { el, isShown, setShown } from "./dom";
+import { onTap } from "./tap";
 import type { EndingEntry } from "./types";
 
 export const ENDING_ADVANCE_MS = 1800;
@@ -32,8 +33,8 @@ export class EndingView {
       this.restart,
     ]);
     setShown(this.element, false);
-    this.element.addEventListener("click", () => this.advance());
-    this.restart.addEventListener("click", () => {
+    onTap(this.element, () => this.advance());
+    onTap(this.restart, () => {
       const restart = this.onRestart;
       this.hide();
       restart();

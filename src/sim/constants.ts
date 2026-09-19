@@ -1,4 +1,5 @@
 import { INK_THICKNESS } from "../core/world";
+import { KEY_PICKUP } from "./types";
 
 export const GRAVITY_Y = 1;
 export const GRAVITY_SCALE = 0.001;
@@ -32,9 +33,9 @@ export const STEP_INCREMENT = 2;
 export const SOLID_STEP = { ratio: 0.3, min: 12, maxRatio: 0.5 } as const;
 export const INK_STEP_RATIO = 0.8;
 export const RESIZE_MS = 400;
-export const REACH_RATIO = 0.5;
+export const REACH_RATIO = KEY_PICKUP.reachRatio;
 
-export const KEY_RADIUS = 18;
+export const KEY_RADIUS = KEY_PICKUP.radius;
 
 export const BOUNCE_SPEED = 16.5;
 export const BOUNCE_MAX_RISING_SPEED = 1;

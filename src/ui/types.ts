@@ -6,6 +6,8 @@ export interface HudHandlers {
   /** A guess chip was tapped or a name was typed and submitted. */
   onNameChosen(name: string): void;
   onNamingDismissed(): void;
+  /** Words typed at the world ("g = 1 m/s²"), for the Cat to turn into edits. */
+  onSpell(text: string): void;
   onAskCat(): void;
   onEraserToggled(active: boolean): void;
   onResetRoom(): void;
@@ -32,6 +34,8 @@ export interface Hud {
   /** The Cat's grin fades in, the line is captioned, and spoken if the device can. */
   say(line: string): void;
   setEraserActive(active: boolean): void;
+  /** Shows words written to the world big across the page, then lets them fade. */
+  scrawl(text: string): void;
   /** Covers the page, resolves once the card has faded back out. */
   showTitleCard(card: TitleCard): Promise<void>;
   showEnding(entries: readonly EndingEntry[], onRestart: () => void): void;

@@ -23,6 +23,12 @@ export interface InkBudget {
   readonly remaining: number;
 }
 
+/** A change to the budget from outside: either field may be left alone. */
+export interface InkGrant {
+  readonly total?: number;
+  readonly remaining?: number;
+}
+
 export interface InkSessionListener {
   onCommit(drawing: Drawing): void;
   onReject(reason: PlacementRejection): void;
@@ -40,6 +46,8 @@ export interface InkSession {
   /** Called every frame. Advances the commit timer and refreshes `activeVerdict`. */
   update(nowMs: number, rules: PlacementRules): void;
   refund(cost: number): void;
+  /** Rewrites the budget mid-room; `total` grows to fit `remaining` if it must. */
+  grant(grant: InkGrant): void;
   /** New room or room reset: drops pending strokes and refills the budget. */
   reset(totalInk: number): void;
 }

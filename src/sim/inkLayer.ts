@@ -6,6 +6,7 @@ import { countAnchorClusters } from "./anchoring";
 import { GHOST_TO_ALICE, SOLID_TO_ALL } from "./contacts";
 import { buildInkBody } from "./inkBody";
 import { InkEntity } from "./inkEntity";
+import type { Laws } from "./laws";
 import { holdsStill, NATURES } from "./natures";
 import type { DrawingPose } from "./types";
 
@@ -21,6 +22,7 @@ export class InkLayer {
   constructor(
     private readonly world: Matter.World,
     private readonly anchorRects: readonly Rect[],
+    private readonly laws: Laws,
   ) {}
 
   get all(): readonly InkEntity[] {
@@ -67,6 +69,12 @@ export class InkLayer {
     this.rebuild(ink);
   }
 
+  redress(): void {
+    for (const ink of this.all) {
+      this.laws.dressInk(ink.body, NATURES[ink.nature].material(ink.strength));
+    }
+  }
+
   private rebuild(ink: InkEntity): void {
     const previous = ink.body;
     const body = this.build(ink.drawing.strokes, ink.worldStrokes, ink);
@@ -91,7 +99,7 @@ export class InkLayer {
     const anchorClusters = countAnchorClusters(worldStrokes, this.anchorRects);
     return buildInkBody(drawnStrokes, {
       isStatic: state.frozen || holdsStill(strategy, anchorClusters),
-      material: strategy.material(state.strength),
+      material: this.laws.inkMaterial(strategy.material(state.strength)),
       collisionFilter: strategy.solidToAlice ? SOLID_TO_ALL : GHOST_TO_ALICE,
     });
   }

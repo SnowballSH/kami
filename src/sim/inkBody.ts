@@ -7,6 +7,7 @@ export interface InkMaterial {
   readonly density: number;
   readonly friction: number;
   readonly frictionAir: number;
+  readonly restitution: number;
 }
 
 export interface InkBodyOptions {

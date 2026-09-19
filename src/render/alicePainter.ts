@@ -17,6 +17,18 @@ const BACK_HIP: Vec = { x: -3.5, y: 12 };
 const SHOE = { radiusX: 2.6, radiusY: 1.5, toe: 1.2 } as const;
 const KEY_HOLD: Vec = { x: 11, y: -7 };
 const CARRIED_KEY = { length: 13, angle: -Math.PI / 2 } as const;
+const FACING_EYES: readonly Vec[] = [
+  { x: -2.6, y: -22.5 },
+  { x: 3.6, y: -22.5 },
+];
+const FACING_SMILE = {
+  x: 0.5,
+  y: -19.5,
+  radius: 2.4,
+  from: 0.2 * Math.PI,
+  to: 0.8 * Math.PI,
+} as const;
+const THOUGHT_DOTS = { y: -37, spacing: 4.5, radius: 1.1, periodMs: 1800 } as const;
 
 const DRESS: readonly Vec[] = [
   { x: -3.5, y: -13.5 },
@@ -66,23 +78,42 @@ const paintHair = (ctx: CanvasRenderingContext2D): void => {
   ctx.stroke();
 };
 
-const paintHead = (ctx: CanvasRenderingContext2D): void => {
+const paintFace = (ctx: CanvasRenderingContext2D, towardPlayer: boolean): void => {
+  const eyes = towardPlayer ? FACING_EYES : [EYE];
+  ctx.fillStyle = PAGE_COLORS.printInk;
+  for (const eye of eyes) {
+    ctx.beginPath();
+    ctx.arc(eye.x, eye.y, EYE.radius, 0, TAU);
+    ctx.fill();
+  }
+  const smile = towardPlayer ? FACING_SMILE : SMILE;
+  ctx.beginPath();
+  ctx.arc(smile.x, smile.y, smile.radius, smile.from, smile.to);
+  ctx.stroke();
+};
+
+const paintThoughtDots = (ctx: CanvasRenderingContext2D, nowMs: number): void => {
+  const phase = (nowMs % THOUGHT_DOTS.periodMs) / THOUGHT_DOTS.periodMs;
+  const lit = Math.floor(phase * 4);
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc((i - 1) * THOUGHT_DOTS.spacing, THOUGHT_DOTS.y, THOUGHT_DOTS.radius, 0, TAU);
+    ctx.fillStyle = i < lit ? PAGE_COLORS.printInk : ALICE_COLORS.apron;
+    ctx.fill();
+    ctx.stroke();
+  }
+};
+
+const paintHead = (ctx: CanvasRenderingContext2D, towardPlayer: boolean): void => {
   ctx.beginPath();
   ctx.arc(HEAD.x, HEAD.y, HEAD.radius, 0, TAU);
   ctx.fillStyle = ALICE_COLORS.skin;
   ctx.fill();
   ctx.stroke();
 
-  ctx.beginPath();
-  ctx.arc(EYE.x, EYE.y, EYE.radius, 0, TAU);
-  ctx.fillStyle = PAGE_COLORS.printInk;
-  ctx.fill();
-
   ctx.save();
   ctx.lineWidth = LINE_WIDTH / 2;
-  ctx.beginPath();
-  ctx.arc(SMILE.x, SMILE.y, SMILE.radius, SMILE.from, SMILE.to);
-  ctx.stroke();
+  paintFace(ctx, towardPlayer);
   ctx.lineWidth = HAIR_BAND.width;
   ctx.beginPath();
   ctx.arc(HEAD.x, HEAD.y, HEAD.radius, HAIR_BAND.from, HAIR_BAND.to);
@@ -90,14 +121,19 @@ const paintHead = (ctx: CanvasRenderingContext2D): void => {
   ctx.restore();
 };
 
-const paintBody = (ctx: CanvasRenderingContext2D, pose: AlicePose, frontHand: Vec): void => {
+const paintBody = (
+  ctx: CanvasRenderingContext2D,
+  pose: AlicePose,
+  frontHand: Vec,
+  towardPlayer: boolean,
+): void => {
   paintLimb(ctx, BACK_SHOULDER, pose.backHand);
   paintLeg(ctx, BACK_HIP, pose.backFoot);
   paintHair(ctx);
   paintLeg(ctx, FRONT_HIP, pose.frontFoot);
   paintShape(ctx, DRESS, ALICE_COLORS.dress);
   paintShape(ctx, APRON, ALICE_COLORS.apron);
-  paintHead(ctx);
+  paintHead(ctx, towardPlayer);
   paintLimb(ctx, FRONT_SHOULDER, frontHand);
 };
 
@@ -105,8 +141,11 @@ export const paintAlice = (
   ctx: CanvasRenderingContext2D,
   alice: AliceSnapshot,
   nowMs: number,
+  waiting = false,
 ): void => {
-  const pose = ALICE_POSES[alicePoseName(alice, nowMs)];
+  const poseName = alicePoseName(alice, nowMs, waiting);
+  const pose = ALICE_POSES[poseName];
+  const towardPlayer = poseName === "wait";
   const frontHand = alice.hasKey ? KEY_HOLD : pose.frontHand;
   ctx.save();
   ctx.translate(alice.center.x, alice.center.y);
@@ -115,7 +154,8 @@ export const paintAlice = (
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.strokeStyle = PAGE_COLORS.printInk;
-  paintBody(ctx, pose, frontHand);
+  paintBody(ctx, pose, frontHand, towardPlayer);
   if (alice.hasKey) paintKey(ctx, frontHand, CARRIED_KEY.length, CARRIED_KEY.angle);
+  if (towardPlayer) paintThoughtDots(ctx, nowMs);
   ctx.restore();
 };

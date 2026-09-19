@@ -1,5 +1,6 @@
 import { el } from "./dom";
 import { type IconName, icon } from "./icons";
+import { onTap } from "./tap";
 
 export interface ToggleOptions {
   readonly label: string;
@@ -21,7 +22,7 @@ export const iconButton = (
   );
   button.setAttribute("aria-label", label);
   button.title = label;
-  button.addEventListener("click", onClick);
+  onTap(button, onClick);
   return button;
 };
 

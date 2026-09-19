@@ -1,4 +1,5 @@
 import { el, isShown, setShown } from "./dom";
+import { onTap } from "./tap";
 
 const PROMPT = "What is it?";
 const MAX_NAME_LENGTH = 60;
@@ -33,7 +34,7 @@ export class NamingPanel {
     const submit = el("button", {
       className: "kami-button kami-naming-ok",
       text: "OK",
-      attrs: { type: "submit" },
+      attrs: { type: "button" },
     });
     const form = el("form", { className: "kami-naming-form", attrs: { novalidate: "" } }, [
       this.input,
@@ -55,7 +56,8 @@ export class NamingPanel {
       event.preventDefault();
       this.choose(this.input.value);
     });
-    justInk.addEventListener("click", () => this.dismiss());
+    onTap(submit, () => this.choose(this.input.value));
+    onTap(justInk, () => this.dismiss());
     this.input.addEventListener("blur", () => window.scrollTo(0, 0));
   }
 
@@ -80,7 +82,7 @@ export class NamingPanel {
       text: guess,
       attrs: { type: "button" },
     });
-    chip.addEventListener("click", () => this.choose(guess));
+    onTap(chip, () => this.choose(guess));
     return chip;
   }
 

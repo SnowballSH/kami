@@ -1,9 +1,9 @@
-import type { Stroke, Vec } from "../core/geometry";
+import type { Pose, Stroke, Vec } from "../core/geometry";
 import type { Drawing, DrawingId, PlacementVerdict } from "../ink/types";
 import { awakening, inkTint, isSettled, shiverOffset } from "./awakening";
 import { inkPath } from "./inkPath";
 import { FOUNTAIN_BLUE, mapNatures, NATURE_TINTS, REJECTED_RED, rgbCss } from "./palette";
-import type { InkView } from "./types";
+import type { DrawingArt, GhostInk, InkView } from "./types";
 
 interface SettledPath {
   readonly strokeCount: number;
@@ -24,18 +24,46 @@ const REJECTED_CSS = rgbCss(REJECTED_RED, WET_ALPHA);
 const HALO_WIDTH = 9;
 const HALO_ALPHA = 0.4;
 
+const withPose = (ctx: CanvasRenderingContext2D, pose: Pose, shiver: Vec): void => {
+  const { origin, position, angle } = pose;
+  ctx.translate(position.x + shiver.x, position.y + shiver.y);
+  ctx.rotate(angle);
+  ctx.translate(-origin.x, -origin.y);
+};
+
+const NO_SHIVER: Vec = { x: 0, y: 0 };
+
 export class InkPainter {
   private readonly settled = new Map<DrawingId, SettledPath>();
+  private readonly art = new Map<DrawingId, DrawingArt>();
   private live: LivePath | null = null;
 
   forget(): void {
     this.settled.clear();
+    this.art.clear();
     this.live = null;
+  }
+
+  setArt(id: DrawingId, art: DrawingArt | null): void {
+    if (art === null) this.art.delete(id);
+    else this.art.set(id, art);
   }
 
   paintInks(ctx: CanvasRenderingContext2D, inks: readonly InkView[], nowMs: number): void {
     for (const ink of inks) this.paintInk(ctx, ink, nowMs);
     if (this.settled.size > inks.length) this.prune(inks);
+  }
+
+  paintGhosts(ctx: CanvasRenderingContext2D, ghosts: readonly GhostInk[], nowMs: number): void {
+    for (const ghost of ghosts) {
+      const alpha = 1 - (nowMs - ghost.fadeStartMs) / ghost.fadeMs;
+      if (alpha <= 0) continue;
+      ctx.save();
+      withPose(ctx, ghost.pose, NO_SHIVER);
+      ctx.fillStyle = rgbCss(FOUNTAIN_BLUE, Math.min(WET_ALPHA, alpha));
+      ctx.fill(inkPath(ghost.drawing.strokes));
+      ctx.restore();
+    }
   }
 
   paintActive(
@@ -54,16 +82,15 @@ export class InkPainter {
   private paintInk(ctx: CanvasRenderingContext2D, ink: InkView, nowMs: number): void {
     const progress = awakening(nowMs, ink.awakenedAtMs);
     const path = this.settledPath(ink.drawing);
-    const { origin, position, angle } = ink.pose;
+    const art = this.art.get(ink.drawing.id);
     ctx.save();
-    if (isSettled(progress)) {
-      ctx.translate(position.x, position.y);
-    } else {
-      const shiver = shiverOffset(nowMs, progress);
-      ctx.translate(position.x + shiver.x, position.y + shiver.y);
+    withPose(ctx, ink.pose, isSettled(progress) ? NO_SHIVER : shiverOffset(nowMs, progress));
+    if (art !== undefined) {
+      const { x, y, width, height } = art.frame;
+      ctx.drawImage(art.image, x, y, width, height);
+      ctx.restore();
+      return;
     }
-    ctx.rotate(angle);
-    ctx.translate(-origin.x, -origin.y);
     if (isSettled(progress)) {
       ctx.fillStyle = SETTLED_CSS[ink.nature];
     } else {

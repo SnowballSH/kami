@@ -10,6 +10,7 @@ const createHandlers = () =>
     onWalkIntent: vi.fn<(intent: WalkIntent) => void>(),
     onNameChosen: vi.fn(),
     onNamingDismissed: vi.fn(),
+    onSpell: vi.fn(),
     onAskCat: vi.fn(),
     onEraserToggled: vi.fn(),
     onResetRoom: vi.fn(),
@@ -21,8 +22,13 @@ const find = <T extends Element>(root: Element, selector: string): T => {
   return match;
 };
 
-const pointer = (type: string, pointerId: number): PointerEvent =>
-  new PointerEvent(type, { pointerId, bubbles: true, cancelable: true });
+const pointer = (
+  type: string,
+  pointerId: number,
+  pointerType = "touch",
+  position: { clientX: number; clientY: number } = { clientX: 0, clientY: 0 },
+): PointerEvent =>
+  new PointerEvent(type, { pointerId, pointerType, bubbles: true, cancelable: true, ...position });
 
 const key = (type: "keydown" | "keyup", code: string): KeyboardEvent =>
   new KeyboardEvent(type, { code, bubbles: true, cancelable: true });
@@ -90,6 +96,29 @@ describe("DomHud", () => {
       expect(input.getAttribute("autocomplete")).toBe("off");
     });
 
+    it("takes a Pencil tap on a chip without waiting for a click, and ignores the late click", () => {
+      const { root, handlers, hud } = setup();
+      hud.showNaming(GUESSES);
+      const chip = find<HTMLButtonElement>(root, ".kami-chip");
+
+      chip.dispatchEvent(pointer("pointerdown", 7, "pen"));
+      chip.dispatchEvent(pointer("pointerup", 7, "pen"));
+      chip.click();
+
+      expect(handlers.onNameChosen).toHaveBeenCalledExactlyOnceWith("a mushroom");
+    });
+
+    it("does not take a tap that slid off the chip", () => {
+      const { root, handlers, hud } = setup();
+      hud.showNaming(GUESSES);
+      const chip = find<HTMLButtonElement>(root, ".kami-chip");
+
+      chip.dispatchEvent(pointer("pointerdown", 7, "pen", { clientX: 0, clientY: 0 }));
+      chip.dispatchEvent(pointer("pointerup", 7, "pen", { clientX: 40, clientY: 0 }));
+
+      expect(handlers.onNameChosen).not.toHaveBeenCalled();
+    });
+
     it("dismisses with 'just ink' and closes on request", () => {
       const { root, handlers, hud } = setup();
 
@@ -105,34 +134,19 @@ describe("DomHud", () => {
     });
   });
 
-  describe("walking", () => {
-    it("holds and releases a d-pad direction per pointer", () => {
-      const { root, handlers } = setup();
-      const right = find<HTMLButtonElement>(root, ".kami-dpad-right");
-      const up = find<HTMLButtonElement>(root, ".kami-dpad-up");
-
-      right.dispatchEvent(pointer("pointerdown", 1));
-      up.dispatchEvent(pointer("pointerdown", 2));
-      right.dispatchEvent(pointer("pointerup", 1));
-      right.dispatchEvent(pointer("lostpointercapture", 1));
-      up.dispatchEvent(pointer("pointercancel", 2));
-
-      expect(intents(handlers)).toEqual([
-        { x: 1, y: 0 },
-        { x: 1, y: -1 },
-        { x: 0, y: -1 },
-        { x: 0, y: 0 },
-      ]);
+  describe("walking override", () => {
+    it("has no on-screen d-pad: Alice walks by herself", () => {
+      const { root } = setup();
+      expect(root.querySelector(".kami-dpad")).toBeNull();
     });
 
-    it("walks with arrows and WASD, cancelling opposites across inputs", () => {
-      const { root, handlers } = setup();
-      const left = find<HTMLButtonElement>(root, ".kami-dpad-left");
+    it("walks with arrows and WASD, cancelling opposites, releasing on blur", () => {
+      const { handlers } = setup();
 
       window.dispatchEvent(key("keydown", "ArrowRight"));
       window.dispatchEvent(key("keydown", "ArrowRight"));
-      left.dispatchEvent(pointer("pointerdown", 1));
-      left.dispatchEvent(pointer("lostpointercapture", 1));
+      window.dispatchEvent(key("keydown", "KeyA"));
+      window.dispatchEvent(key("keyup", "KeyA"));
       window.dispatchEvent(key("keyup", "ArrowRight"));
       window.dispatchEvent(key("keydown", "KeyS"));
       window.dispatchEvent(new Event("blur"));

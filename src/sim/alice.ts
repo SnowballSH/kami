@@ -25,6 +25,7 @@ import {
   isFreeAt,
   supports,
 } from "./contacts";
+import type { Laws } from "./laws";
 import {
   ALICE_BASE,
   ALICE_SCALE,
@@ -72,7 +73,7 @@ export class AliceController {
 
   constructor(
     feet: Vec,
-    private readonly gravity: Vec,
+    private readonly laws: Laws,
   ) {
     this.body = Matter.Bodies.rectangle(
       feet.x,
@@ -88,6 +89,7 @@ export class AliceController {
       },
     );
     Matter.Body.setInertia(this.body, Number.POSITIVE_INFINITY);
+    laws.dressAlice(this.body);
     this.lastFootingY = feet.y;
   }
 
@@ -109,6 +111,10 @@ export class AliceController {
 
   bounds(): Rect {
     return exactBounds(this.body);
+  }
+
+  walkSpeed(): number {
+    return WALK_SPEED * Math.sqrt(this.scale) * this.laws.current.walkSpeedFactor;
   }
 
   standsOn(body: Matter.Body): boolean {
@@ -136,8 +142,13 @@ export class AliceController {
       ? holdBack(velocity.x, intent.x)
       : this.walkVelocity(velocity.x, intent.x, surroundings);
 
-    if (this.climbing) cancelGravity(this.body, this.gravity);
-    const velocityY = this.climbing ? intent.y * CLIMB_SPEED : stepped ? 0 : velocity.y;
+    if (this.climbing) cancelGravity(this.body, this.laws.gravityPerMass);
+    const climbSpeed = CLIMB_SPEED * this.laws.current.walkSpeedFactor;
+    const velocityY = this.climbing
+      ? intent.y * climbSpeed
+      : stepped
+        ? Math.min(0, velocity.y)
+        : velocity.y;
     Matter.Body.setVelocity(this.body, { x: velocityX, y: velocityY });
   }
 
@@ -194,7 +205,7 @@ export class AliceController {
   }
 
   private walkVelocity(current: number, direction: Axis, surroundings: AliceSurroundings): number {
-    const target = direction * WALK_SPEED * Math.sqrt(this.scale);
+    const target = direction * this.walkSpeed();
     const sliding = this.footing.some((contact) => surroundings.isSlippery(contact.body));
     return sliding ? approach(current, target, SLIDE_ACCELERATION) : target;
   }

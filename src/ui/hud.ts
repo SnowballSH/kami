@@ -1,11 +1,12 @@
 import { CatBubble } from "./catBubble";
 import { type CatVoice, createCatVoice } from "./catVoice";
 import { el } from "./dom";
-import { DPad } from "./dpad";
 import { EndingView } from "./ending";
 import { KeyboardWalk } from "./keyboard";
 import { trackKeyboardInset } from "./keyboardInset";
 import { NamingPanel } from "./namingPanel";
+import { Scrawl } from "./scrawl";
+import { SpellPanel } from "./spellPanel";
 import { TitleCardView } from "./titleCard";
 import { TopBar } from "./topBar";
 import { installTouchGuards } from "./touchGuards";
@@ -16,7 +17,8 @@ export class DomHud implements Hud {
   private readonly overlay = el("div", { className: "kami-hud" });
   private readonly topBar: TopBar;
   private readonly naming: NamingPanel;
-  private readonly dpad: DPad;
+  private readonly spell: SpellPanel;
+  private readonly scrawlLine = new Scrawl();
   private readonly cat = new CatBubble();
   private readonly titleCard = new TitleCardView();
   private readonly ending = new EndingView();
@@ -27,19 +29,21 @@ export class DomHud implements Hud {
     const host = root.ownerDocument.defaultView ?? window;
     const walk = new WalkIntentMerger((intent) => handlers.onWalkIntent(intent));
     this.voice = createCatVoice(host);
-    this.dpad = new DPad(walk.source());
     this.naming = new NamingPanel(handlers);
+    this.spell = new SpellPanel(handlers);
     this.topBar = new TopBar({
       onEraserToggled: (active) => handlers.onEraserToggled(active),
       onResetRoom: () => handlers.onResetRoom(),
       onAskCat: () => handlers.onAskCat(),
+      onSpellToggled: () => this.spell.toggle(),
       onMuteToggled: (muted) => this.voice.setMuted(muted),
     });
     this.overlay.append(
       this.topBar.element,
       this.cat.element,
-      this.dpad.element,
+      this.scrawlLine.element,
       this.naming.element,
+      this.spell.element,
       this.titleCard.element,
       this.ending.element,
     );
@@ -48,7 +52,6 @@ export class DomHud implements Hud {
       new KeyboardWalk(walk.source()).attach(host),
       installTouchGuards(root.ownerDocument),
       trackKeyboardInset(host, this.overlay),
-      () => this.dpad.releaseAll(),
     ];
   }
 
@@ -65,6 +68,7 @@ export class DomHud implements Hud {
   }
 
   showNaming(guesses: readonly string[]): void {
+    this.spell.hide();
     this.naming.show(guesses);
   }
 
@@ -81,12 +85,17 @@ export class DomHud implements Hud {
     this.topBar.setEraserActive(active);
   }
 
+  scrawl(text: string): void {
+    this.scrawlLine.write(text);
+  }
+
   showTitleCard(card: TitleCard): Promise<void> {
     return this.titleCard.show(card);
   }
 
   showEnding(entries: readonly EndingEntry[], onRestart: () => void): void {
     this.naming.hide();
+    this.spell.hide();
     this.ending.show(entries, onRestart);
   }
 

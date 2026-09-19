@@ -10,6 +10,9 @@ export const KEY_TAKEN_LINE = "A key! Now, whichever door could it be for?";
 export const DOOR_OPENED_LINE = "Click. After you.";
 export const GROW_BLOCKED_LINE = "No room to grow in here.";
 export const UNNAMED_CAPTION = "just ink";
+export const CONJURED_NAME = "a something";
+export const WAITING_LINE = "She has gone as far as she can. Draw her a way on.";
+export const REFUSED_LINE = (reason: string): string => `Hm. ${reason}.`;
 
 const CARD_MS = 2200;
 

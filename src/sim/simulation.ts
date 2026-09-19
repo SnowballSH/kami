@@ -1,21 +1,26 @@
 import Matter from "matter-js";
 import type { Ruling } from "../cat/types";
-import type { Rect, Vec } from "../core/geometry";
+import type { Rect } from "../core/geometry";
+import type { PhysicsState } from "../core/physics";
 import { FIXED_STEP_MS } from "../core/world";
 import type { LevelDefinition } from "../game/types";
 import type { Drawing, DrawingId } from "../ink/types";
 import { AliceController, type AliceSurroundings } from "./alice";
 import { BLANK_LEVEL } from "./blankLevel";
-import { GRAVITY_SCALE, GRAVITY_Y, GROW_REFUSAL_COOLDOWN_MS } from "./constants";
+import { exactBounds } from "./bodyBounds";
+import { BOUNCE_SPEED, GROW_REFUSAL_COOLDOWN_MS } from "./constants";
 import { type Contact, contactsWith, toContact } from "./contacts";
 import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
+import { Laws } from "./laws";
 import { NATURES, type NatureWorld } from "./natures";
 import { LevelProps } from "./props";
 import {
   ALICE_BASE,
   ALICE_SCALE,
   type AliceSize,
+  type BounceArc,
+  type DrawingBodyFact,
   type SimEvent,
   type Simulation,
   type WalkIntent,
@@ -32,19 +37,14 @@ interface Room {
   readonly inks: InkLayer;
   readonly alice: AliceController;
   readonly activePairs: Matter.Pair[];
-  readonly gravityPerMass: Vec;
   readonly growthRefusedAt: Map<DrawingId, number>;
   exitReached: boolean;
 }
 
-const buildRoom = (level: LevelDefinition, timeScale: number): Room => {
+const buildRoom = (level: LevelDefinition, laws: Laws): Room => {
   const engine = Matter.Engine.create();
-  engine.gravity.y = GRAVITY_Y;
-  engine.gravity.scale = GRAVITY_SCALE;
-  engine.timing.timeScale = timeScale;
   const props = new LevelProps(engine.world, level);
-  const gravityPerMass = { x: 0, y: GRAVITY_Y * GRAVITY_SCALE };
-  const alice = new AliceController(level.spawn, gravityPerMass);
+  const alice = new AliceController(level.spawn, laws);
   Matter.Composite.add(engine.world, alice.body);
 
   const activePairs: Matter.Pair[] = [];
@@ -58,26 +58,32 @@ const buildRoom = (level: LevelDefinition, timeScale: number): Room => {
     level,
     engine,
     props,
-    inks: new InkLayer(engine.world, props.anchorRects),
+    inks: new InkLayer(engine.world, props.anchorRects, laws),
     alice,
     activePairs,
-    gravityPerMass,
     growthRefusedAt: new Map(),
     exitReached: false,
   };
 };
 
 export class MatterSimulation implements Simulation {
-  private room: Room = buildRoom(BLANK_LEVEL, 1);
+  private readonly laws = new Laws();
+  private room: Room;
   private intent: WalkIntent = IDLE;
-  private timeScale = 1;
+  private bulletTimeScale = 1;
   private events: SimEvent[] = [];
+
+  constructor() {
+    this.room = buildRoom(BLANK_LEVEL, this.laws);
+    this.applyLaws();
+  }
 
   loadLevel(level: LevelDefinition): void {
     Matter.Engine.clear(this.room.engine);
-    this.room = buildRoom(level, this.timeScale);
+    this.room = buildRoom(level, this.laws);
     this.intent = IDLE;
     this.events = [];
+    this.applyLaws();
   }
 
   addDrawing(drawing: Drawing): void {
@@ -97,20 +103,56 @@ export class MatterSimulation implements Simulation {
   }
 
   setTimeScale(scale: number): void {
-    this.timeScale = scale;
-    this.room.engine.timing.timeScale = scale;
+    this.bulletTimeScale = scale;
+    this.applyLaws();
+  }
+
+  physics(): PhysicsState {
+    return this.laws.current;
+  }
+
+  setPhysics(patch: Partial<PhysicsState>): void {
+    this.laws.set(patch);
+    this.applyLaws();
+  }
+
+  resetPhysics(): void {
+    this.laws.reset();
+    this.applyLaws();
+  }
+
+  walkSpeed(): number {
+    return this.room.alice.walkSpeed();
+  }
+
+  resizeAlice(size: AliceSize): void {
+    if (this.hasHeadroomFor(size)) this.room.alice.beginResize(size);
+  }
+
+  bounceArc(strength: number): BounceArc {
+    return this.laws.arcOf(BOUNCE_SPEED * Math.sqrt(strength));
+  }
+
+  drawingFacts(): readonly DrawingBodyFact[] {
+    return this.room.inks.all.map((ink) => ({
+      id: ink.id,
+      bounds: exactBounds(ink.body),
+      isStatic: ink.body.isStatic,
+    }));
   }
 
   step(): readonly SimEvent[] {
     const { alice, engine, inks, activePairs } = this.room;
     const natureWorld = this.natureWorld();
+    const timeScale = engine.timing.timeScale;
     this.events = [];
     activePairs.length = 0;
 
-    alice.control(this.intent, this.surroundings(), this.timeScale);
+    alice.control(this.intent, this.surroundings(), timeScale);
     for (const ink of inks.all) NATURES[ink.nature].beforeStep?.(ink, natureWorld);
+    this.laws.blow([alice.body, ...inks.all.map((ink) => ink.body)]);
     Matter.Engine.update(engine, FIXED_STEP_MS);
-    alice.advanceResize(FIXED_STEP_MS * this.timeScale);
+    alice.advanceResize(FIXED_STEP_MS * timeScale);
     alice.sense(this.surroundings(), this.intent);
 
     this.resolveAliceTouches(natureWorld);
@@ -148,11 +190,19 @@ export class MatterSimulation implements Simulation {
     };
   }
 
+  private applyLaws(): void {
+    const { engine, alice, inks, props } = this.room;
+    this.laws.applyTo(engine, this.bulletTimeScale);
+    this.laws.dressAlice(alice.body);
+    for (const solid of props.solidBodies) this.laws.dressSolid(solid);
+    inks.redress();
+  }
+
   private natureWorld(): NatureWorld {
-    const { alice, engine, inks, gravityPerMass, growthRefusedAt } = this.room;
+    const { alice, engine, inks, growthRefusedAt } = this.room;
     return {
       alice,
-      gravityPerMass,
+      gravityPerMass: this.laws.gravityPerMass,
       emit: (event) => this.events.push(event),
       consume: (ink) => inks.remove(ink.id),
       freeze: (ink) => inks.freeze(ink),

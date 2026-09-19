@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { createAutopilot } from "../autopilot";
 import { createCat } from "../cat";
 import type { Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
-import { createInkSession, findDrawingAt } from "../ink";
+import { createInkSession, findDrawingAt, mintDrawingId } from "../ink";
 import { createSimulation } from "../sim";
 import { Game } from "./game";
 import { LEVELS } from "./levels";
@@ -36,6 +37,7 @@ class Player {
       levels: LEVELS,
       sim: createSimulation(),
       cat: createCat(),
+      autopilot: createAutopilot(),
       renderer: this.renderer,
       createInkSession,
       createHud: (handlers) => {
@@ -43,6 +45,7 @@ class Player {
         return this.hudRef;
       },
       findDrawingAt,
+      mintDrawingId,
     });
     this.game.start(0);
   }
@@ -87,6 +90,12 @@ class Player {
     this.game.onWalkIntent({ x, y });
   }
 
+  get alice() {
+    const frame = this.renderer.lastFrame;
+    if (frame === null) throw new Error("nothing rendered yet");
+    return frame.world.alice;
+  }
+
   private async frame(): Promise<void> {
     this.nowMs += FIXED_STEP_MS;
     this.game.frame(this.nowMs);
@@ -121,7 +130,43 @@ describe("Game, played headlessly through every room", () => {
     expect(player.renderer.lastFrame?.inks).toHaveLength(0);
   });
 
-  it("is completable: bridge, bouncy mushroom, cake, key, bottle, door", async () => {
+  it("lets Alice walk, wait short of the ledge, then cross a bridge on her own", async () => {
+    await player.wait(3_000);
+    expect(player.alice.center.x).toBeGreaterThan(200);
+    expect(player.alice.center.x).toBeLessThan(300);
+    expect(player.renderer.lastFrame?.aliceWaiting).toBe(true);
+    expect(player.hud.said).toContain("She has gone as far as she can. Draw her a way on.");
+
+    await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
+    expect(await player.waitUntil(() => player.room === "The Shelves")).toBe(true);
+  });
+
+  it("is completable by drawing alone: bridge, bouncy mushroom, cake, key, bottle, door", async () => {
+    await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
+    expect(await player.waitUntil(() => player.room === "The Shelves")).toBe(true);
+    expect(player.hud.cards.map((card) => card.title)).toEqual(["Kami"]);
+
+    await player.drawAndName(blob({ x: 640, y: 620 }, 30, 18), "a bouncy mushroom");
+    expect(player.renderer.lastFrame?.inks[0]?.nature).toBe("bouncy");
+    expect(await player.waitUntil(() => player.room === "The Hall of Doors")).toBe(true);
+
+    await player.drawAndName(blob({ x: 430, y: 624 }, 18, 14), "a cake");
+    expect(await player.waitUntil(() => player.alice.size === "big")).toBe(true);
+    expect(await player.waitUntil(() => player.renderer.lastFrame?.world.keyTaken === true)).toBe(
+      true,
+    );
+
+    await player.drawAndName(blob({ x: 560, y: 624 }, 18, 14), "drink me");
+    expect(await player.waitUntil(() => player.hud.ending !== null)).toBe(true);
+    expect(player.hud.ending?.map((entry) => entry.name)).toEqual([
+      "just ink",
+      "a bouncy mushroom",
+      "a cake",
+      "drink me",
+    ]);
+  });
+
+  it("still obeys the keyboard as a manual override", async () => {
     await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
     player.walk(1);
     expect(await player.waitUntil(() => player.room === "The Shelves")).toBe(true);

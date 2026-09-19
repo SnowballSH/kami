@@ -1,5 +1,5 @@
 import { DRY_INK_EPSILON } from "./constants";
-import type { InkBudget } from "./types";
+import type { InkBudget, InkGrant } from "./types";
 
 export class InkLedger {
   #total = 0;
@@ -39,5 +39,13 @@ export class InkLedger {
     this.#total = total;
     this.#spent = 0;
     this.#pending = 0;
+  }
+
+  grant(grant: InkGrant): void {
+    if (grant.total !== undefined) this.#total = Math.max(0, grant.total);
+    if (grant.remaining === undefined) return;
+    const remaining = Math.max(0, grant.remaining);
+    this.#total = Math.max(this.#total, remaining);
+    this.#spent = Math.max(0, this.#total - remaining - this.#pending);
   }
 }

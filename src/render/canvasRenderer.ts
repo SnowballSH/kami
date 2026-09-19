@@ -1,7 +1,7 @@
 import type { Vec } from "../core/geometry";
 import { WORLD } from "../core/world";
 import type { LevelDefinition } from "../game/types";
-import type { Drawing } from "../ink/types";
+import type { Drawing, DrawingId } from "../ink/types";
 import { paintAlice } from "./alicePainter";
 import { context2d } from "./canvas2d";
 import { Effects } from "./effects";
@@ -10,7 +10,7 @@ import { Page } from "./page";
 import { PAGE_COLORS } from "./palette";
 import { PropsPainter } from "./propsPainter";
 import { paintThumbnail } from "./thumbnail";
-import type { Renderer, RenderFrame } from "./types";
+import type { DrawingArt, Renderer, RenderFrame } from "./types";
 import {
   backingStoreSize,
   cappedPixelRatio,
@@ -87,7 +87,8 @@ export class CanvasRenderer implements Renderer {
     this.paintPage();
     if (this.level !== null) this.propsPainter.paint(this.level, frame.world, frame.nowMs);
     this.inkPainter.paintInks(ctx, frame.inks, frame.nowMs);
-    paintAlice(ctx, frame.world.alice, frame.nowMs);
+    this.inkPainter.paintGhosts(ctx, frame.ghosts, frame.nowMs);
+    paintAlice(ctx, frame.world.alice, frame.nowMs, frame.aliceWaiting);
     this.inkPainter.paintActive(ctx, frame.activeStrokes, frame.activeVerdict);
     this.effects.paint(frame.nowMs, frame.bulletTime, frame.eraserActive);
     ctx.restore();
@@ -95,6 +96,10 @@ export class CanvasRenderer implements Renderer {
 
   thumbnail(drawing: Drawing, sizePx: number): HTMLCanvasElement {
     return paintThumbnail(drawing, sizePx);
+  }
+
+  setArt(id: DrawingId, art: DrawingArt | null): void {
+    this.inkPainter.setArt(id, art);
   }
 
   private refitIfBoxChanged(): void {
