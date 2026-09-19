@@ -15,7 +15,8 @@ Physics = { gravity: Vec, wind: Vec,                       -- fields on the worl
             timeScale, airDrag, friction, bounciness,      -- world ratios
             temperature (°C), daylight (0..1),             -- world ambience
             flight (0|1), walkSpeed, aliceSize,            -- Alice's own dials
-            attraction (g), clones (count) }               -- Alice's reach into the world
+            attraction (g), clones (count),                 -- Alice's reach into the world
+            inkEater (0|1) }                               -- whether the Sumikui is loose
 ```
 
 `EARTH : Physics` is the distinguished starting point: Earth gravity, still air, noon, 20 °C, one ordinary Alice.
@@ -24,7 +25,7 @@ Physics = { gravity: Vec, wind: Vec,                       -- fields on the worl
 
 | Subject | What it names | Dials today |
 |---|---|---|
-| `World` | the board as a whole | gravity, wind, timeScale, airDrag, friction, bounciness, temperature, daylight |
+| `World` | the board as a whole | gravity, wind, timeScale, airDrag, friction, bounciness, temperature, daylight, inkEater |
 | `Alice` | the protagonist | flight, walkSpeed, aliceSize, attraction, clones |
 | `Drawing` | one committed drawing | its *nature* and *strength* (§6) |
 | `Kind` | every drawing sharing a nature (“all clouds”) | *reserved* — see §7 |
@@ -113,6 +114,7 @@ A **system** reads the folded state each tick and produces forces or state trans
 | twins | `clones` | `n` further Alice bodies hearing the same intent, spawned beside her, never colliding with her |
 | lighting | `daylight`; `lantern` natures | a night layer cut out around Alice and every lantern — presentation only |
 | creatures | natures `walker`/`hopper`/`flier` | per-body minds; Alice rides them |
+| the Sumikui | `inkEater`; Alice's touches | a ghost that shadows Alice, wakes at the second drawing, hunts only ink she has used (never roles), devours it after a dwell, and doubles its pace every 20 s awake up to a cap; emits `sumikui-woke`, `devoured` |
 
 The autopilot is a system too: `Scene.canFly` marks every cell of air climbable, so a flight law makes “fly over the gap” a plan rather than a special case.
 
@@ -126,6 +128,7 @@ The autopilot is a system too: `Scene.canFly` marks every cell of air climbable,
 | `it's night` then draw a lamp, write `lantern` | `set(daylight, 0.1)`; `ruling(lantern)` | `W.daylight := 0.1`; drawing.nature := lantern | lighting cuts a pool of light around the lamp |
 | `clone Alice` | `set(clones, 1)` | `W.clones := 1` | twins: one more Alice walking beside her |
 | `give Alice gravitational attraction` | `set(attraction, 1)` | `W.attraction := 1` | attraction pulls loose drawings toward her |
+| `summon the ink eater` then `banish the Sumikui` | `set(inkEater, 1)`, `set(inkEater, 0)` | `0` while both stand; `1` again if the banishment is erased | the Sumikui exists exactly while the fold says `1`; sealing forgets its hunger |
 | `g = moon` then `no gravity` then erase the second note | `set(gravity,(0,.165))`, `set(gravity,(0,0))` | `(0,0)` while both stand; `(0,.165)` after refold | gravity |
 | `a mushroom` | `null` (identity) | — | funnel falls through to naming |
 

@@ -81,7 +81,8 @@ const scalarEffect = <
     | "walkSpeed"
     | "aliceSize"
     | "attraction"
-    | "clones",
+    | "clones"
+    | "inkEater",
 >(
   governs: Governs,
 ) => z.object({ governs: z.literal(governs), value: z.number() });
@@ -100,6 +101,7 @@ export const ruleEffectSchema = z.discriminatedUnion("governs", [
   scalarEffect("aliceSize"),
   scalarEffect("attraction"),
   scalarEffect("clones"),
+  scalarEffect("inkEater"),
 ]) satisfies z.ZodType<RuleEffect>;
 
 export const compiledRuleSchema = z.object({

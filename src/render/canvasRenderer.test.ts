@@ -41,6 +41,7 @@ const frame = (eraserActive: boolean): RenderFrame => ({
       hasKey: false,
     },
     twins: [],
+    sumikui: null,
     drawings: [],
     keyTaken: false,
     doorOpen: false,

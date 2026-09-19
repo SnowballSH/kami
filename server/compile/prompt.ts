@@ -14,6 +14,7 @@ const {
   aliceSize,
   attraction,
   clones,
+  inkEater,
 } = EFFECT_RANGES;
 
 export const COMPILER_SYSTEM_PROMPT = `You compile one line written on a whiteboard into one physics setting for a 2D sketch game.
@@ -36,5 +37,6 @@ If it is anything else (a name for a drawing, a remark, a question) reply {"effe
 {"governs":"aliceSize","value":number}  multiplier on Alice's size, ${aliceSize.min} to ${aliceSize.max}. 1 is normal.
 {"governs":"attraction","value":number}  how hard Alice pulls loose drawings toward her, in g, ${attraction.min} to ${attraction.max}. 0 is not at all; negative repels.
 {"governs":"clones","value":number}  how many copies of Alice walk beside her, ${clones.min} to ${clones.max}. 0 is just her.
+{"governs":"inkEater","value":number}  whether the Sumikui, the ink eater, a monster that follows Alice and devours the drawings she uses, is loose on the board, ${inkEater.min} to ${inkEater.max}. 0 is sealed, 1 is summoned ("ink eater", "summon the sumikui"; "banish the ink eater" is 0).
 
 "explanation" is a plain gloss of at most eight words, such as "gravity = 0.38 g (Mars)" or "time runs at 0.5x".`;

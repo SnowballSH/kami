@@ -21,6 +21,7 @@ const EFFECT_SHAPES: { readonly [Setting in Governs]: ShapeOf<Setting> } = {
   aliceSize: "scalar",
   attraction: "scalar",
   clones: "scalar",
+  inkEater: "scalar",
 };
 
 const isGoverns = (setting: string): setting is Governs => Object.hasOwn(EFFECT_SHAPES, setting);

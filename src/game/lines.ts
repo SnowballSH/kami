@@ -24,6 +24,25 @@ export const STUCK_LINE = "She can't see a way on. Draw her one.";
 export const PONDERING_LINE = "hmm...";
 export const OFFER_HELP_HINT = "(write 'help' anywhere)";
 
+/**
+ * The Sumikui, the ink eater. Kami is the paper; ink is its lifeblood. Long ago something under the
+ * page tore it, and the Sumikui broke off that older thing and came through the tear. It is of the
+ * paper now, so what is written on the paper binds it.
+ */
+export const SUMIKUI_SUMMONED_LINES: readonly string[] = [
+  "You wrote its name. The Sumikui, the ink eater, hears.",
+  "Long ago something under the page tore it. This broke off of that, and came through.",
+  "It is of the paper now. What is written binds it. So does what you wrote.",
+];
+export const SUMIKUI_WOKE_LINE = "It smells ink. Ink is my blood, and it has never had its fill.";
+export const SUMIKUI_DEVOURED_LINES: readonly string[] = [
+  "Gone. It drank that line to the last drop.",
+  "Another one. It only takes what she leans on.",
+  "It fed. It is quicker than it was.",
+];
+export const SUMIKUI_SEALED_LINE = "Sealed. It waits under the page, with the one it came from.";
+export const SUMIKUI_LORE_LINE_DELAY_MS = 3_200;
+
 export const glossOf = (explanation: string): string => `kami: ${explanation}`;
 
 const HELP_REQUEST = /^(help|hint|hints|stuck|i'?m stuck|i am stuck|\?+|what now|tell me)\b/i;

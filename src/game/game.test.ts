@@ -10,6 +10,12 @@ import type { CompiledRule } from "../rules/types";
 import { createSimulation } from "../sim";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
+import {
+  RULE_REPEALED_LINE,
+  SUMIKUI_LORE_LINE_DELAY_MS,
+  SUMIKUI_SEALED_LINE,
+  SUMIKUI_SUMMONED_LINES,
+} from "./lines";
 import { FakeHandwriting, FakeHud, FakeRenderer, MemoryBoardStore } from "./testing/fakes";
 
 const COMMIT_WAIT_MS = 1_200;
@@ -181,6 +187,20 @@ describe("Game on the Wonderland board", () => {
     await player.erase({ x: 210, y: 215 });
     expect((await player.store.load("wonderland")).rules).toHaveLength(0);
     expect(player.written.some((text) => text.startsWith("kami: gravity"))).toBe(false);
+  });
+
+  it("summons the Sumikui with its lore, keeps it while the law stands, and seals it when erased", async () => {
+    await player.write("summon the ink eater", { x: 200, y: 200 });
+    expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
+    expect(player.written).toContain("kami: the Sumikui, the ink eater, is loose");
+    expect(player.written).toContain(SUMIKUI_SUMMONED_LINES[0]);
+    await player.wait(SUMIKUI_LORE_LINE_DELAY_MS * 2 + 100);
+    for (const line of SUMIKUI_SUMMONED_LINES) expect(player.written).toContain(line);
+
+    await player.erase({ x: 210, y: 215 });
+    expect(player.renderer.lastFrame?.world.sumikui).toBeNull();
+    expect(player.written).toContain(SUMIKUI_SEALED_LINE);
+    expect(player.written).not.toContain(RULE_REPEALED_LINE);
   });
 
   it("shrugs at writing that is neither a law nor near a drawing", async () => {
