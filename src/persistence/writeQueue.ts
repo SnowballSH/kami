@@ -22,16 +22,17 @@ export class WriteQueue {
     return tail;
   }
 
-  enqueueBarrier(scope: string, task: WriteTask): Promise<void> {
+  enqueueBarrier<Result>(scope: string, task: () => Promise<Result>): Promise<Result> {
     const tails = this.#tailsOf(scope);
     const before = [...tails.values(), this.#barriers.get(scope) ?? Promise.resolve()];
     tails.clear();
-    const barrier = Promise.all(before).then(task).catch(ignoreFailure);
+    const result = Promise.all(before).then(task);
+    const barrier = result.then(ignoreFailure, ignoreFailure);
     this.#barriers.set(scope, barrier);
     void barrier.then(() => {
       if (this.#barriers.get(scope) === barrier) this.#barriers.delete(scope);
     });
-    return barrier;
+    return result;
   }
 
   async whenIdle(): Promise<void> {

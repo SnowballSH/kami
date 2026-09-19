@@ -44,7 +44,7 @@ export class HttpRecognizer implements LiveRecognizer {
   async complete(strokes: readonly Stroke[], name?: string): Promise<Completion | null> {
     const called = name?.trim() ?? "";
     const request = called.length > 0 ? { strokes, name: called } : { strokes };
-    return completionOf(await this.#ask(COMPLETE_PATH, request, COMPLETE_TIMEOUT_MS));
+    return completionOf(await this.#ask(COMPLETE_PATH, request, COMPLETE_TIMEOUT_MS), strokes);
   }
 
   async #ask(path: string, request: object, timeoutMs = RECOGNIZE_TIMEOUT_MS): Promise<unknown> {
