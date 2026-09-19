@@ -34,6 +34,17 @@ export interface AliceSnapshot {
   readonly hasKey: boolean;
 }
 
+export type SumikuiPhase = "stirring" | "prowling" | "hunting" | "feeding";
+
+export interface SumikuiSnapshot {
+  readonly centre: Vec;
+  readonly facing: -1 | 1;
+  readonly phase: SumikuiPhase;
+  /** How far through its meal it is, 0 to 1; 0 unless feeding. */
+  readonly bite: number;
+  readonly awakeMs: number;
+}
+
 export interface DrawingPose {
   readonly id: DrawingId;
   readonly pose: Pose;
@@ -52,6 +63,8 @@ export interface WorldSnapshot {
   readonly alice: AliceSnapshot;
   /** Her copies, when a law has cloned her; they move as she moves. */
   readonly twins: readonly AliceSnapshot[];
+  /** The ink eater, while the law that loosed it stands. */
+  readonly sumikui: SumikuiSnapshot | null;
   /** Live drawings only; consumed and removed ones are gone. */
   readonly drawings: readonly DrawingPose[];
   readonly keyTaken: boolean;
@@ -67,7 +80,9 @@ export type SimEvent =
   | { readonly type: "bounced"; readonly drawingId: DrawingId }
   | { readonly type: "consumed"; readonly drawingId: DrawingId; readonly nature: Nature }
   | { readonly type: "perished"; readonly drawingId: DrawingId; readonly nature: Nature }
-  | { readonly type: "grow-blocked"; readonly drawingId: DrawingId };
+  | { readonly type: "grow-blocked"; readonly drawingId: DrawingId }
+  | { readonly type: "sumikui-woke" }
+  | { readonly type: "devoured"; readonly drawingId: DrawingId; readonly nature: Nature };
 
 export interface Simulation {
   /** Discards the whole world and rebuilds it with Alice standing at `board.spawn`. */

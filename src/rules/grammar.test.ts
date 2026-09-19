@@ -19,7 +19,8 @@ const dial =
       | "walkSpeed"
       | "aliceSize"
       | "attraction"
-      | "clones",
+      | "clones"
+      | "inkEater",
   ) =>
   (value: number): RuleEffect => ({ governs, value });
 const temperature = dial("temperature");
@@ -29,6 +30,7 @@ const walkSpeed = dial("walkSpeed");
 const aliceSize = dial("aliceSize");
 const attraction = dial("attraction");
 const clones = dial("clones");
+const inkEater = dial("inkEater");
 
 const UNDERSTOOD: readonly Understood[] = [
   ["g = moon", gravity(0, 0.165), "gravity = 0.17 g (the Moon)"],
@@ -113,6 +115,17 @@ const UNDERSTOOD: readonly Understood[] = [
   ["freezing cold", temperature(-10), "temperature = -10 °C"],
   ["it's night", daylight(0.1), "daylight = 0.1"],
   ["morning", daylight(1), "daylight = 1"],
+  ["ink eater", inkEater(1), "the Sumikui, the ink eater, is loose"],
+  ["summon the ink eater", inkEater(1), "the Sumikui, the ink eater, is loose"],
+  ["summon the Sumikui", inkEater(1), "the Sumikui, the ink eater, is loose"],
+  ["release the sumikui", inkEater(1), "the Sumikui, the ink eater, is loose"],
+  ["awaken the Sumi Kui", inkEater(1), "the Sumikui, the ink eater, is loose"],
+  ["an ink-eater", inkEater(1), "the Sumikui, the ink eater, is loose"],
+  ["banish the ink eater", inkEater(0), "the Sumikui is sealed"],
+  ["seal the sumikui", inkEater(0), "the Sumikui is sealed"],
+  ["no ink eater", inkEater(0), "the Sumikui is sealed"],
+  ["the ink eater is gone", inkEater(0), "the Sumikui is sealed"],
+  ["stop the ink eater", inkEater(0), "the Sumikui is sealed"],
 ];
 
 const NOT_RULES: readonly string[] = [
@@ -164,6 +177,10 @@ const NOT_RULES: readonly string[] = [
   "2",
   "gravity = (0.3, -1)",
   "reset everything",
+  "ink",
+  "black ink",
+  "eat me",
+  "a hungry cat",
 ];
 
 describe("the offline rule grammar", () => {
