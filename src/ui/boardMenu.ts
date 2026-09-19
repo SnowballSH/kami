@@ -1,5 +1,6 @@
 import { el } from "./dom";
 import { icon } from "./icons";
+import { activateOnTap } from "./tap";
 import type { BoardListing, Detach, HudHandlers } from "./types";
 
 type BoardHandlers = Pick<HudHandlers, "onOpenBoard" | "onNewBoard" | "onClearBoard">;
@@ -11,13 +12,13 @@ const CLEAR_CONFIRM_LABEL = "tap again to clear";
 const CONFIRMING_CLASS = "is-confirming";
 const CLOSE_KEY = "Escape";
 
-const menuItem = (className: string, text: string, onClick: () => void): HTMLButtonElement => {
+const menuItem = (className: string, text: string, onTap: () => void): HTMLButtonElement => {
   const item = el("button", {
     className: `kami-menu-item ${className}`,
     text,
     attrs: { type: "button", role: "menuitem" },
   });
-  item.addEventListener("click", onClick);
+  activateOnTap(item, onTap);
   return item;
 };
 
@@ -44,7 +45,7 @@ export class BoardMenu {
       },
       [el("span", { className: "kami-wordmark", text: WORDMARK }), this.title, icon("chevron")],
     );
-    this.toggle.addEventListener("click", () => this.setOpen(!this.open));
+    activateOnTap(this.toggle, () => this.setOpen(!this.open));
     this.clear = menuItem("kami-board-clear", CLEAR_LABEL, () => this.requestClear());
     this.popover = el(
       "div",

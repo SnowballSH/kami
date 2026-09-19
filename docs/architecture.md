@@ -6,13 +6,14 @@ Carried over from the original design, unchanged: **compile once, run forever** 
 
 ## Look
 
-A clean whiteboard, not a book page. White board, black marker, no pictures, no textures, no gradients, no panels with drop shadows. Colour is what a whiteboard tray holds and is used sparingly: **black** the player, **blue** Kami's handwriting, **green** understood, **red** confused / hazards / no-ink, plus one marker tint per nature once a drawing wakes. Pre-sketched board geometry is black roughjs marker line with light hatching. Every word on the board — the player's notes, Kami's replies, the "kami 紙" wordmark near each board's spawn — is pen strokes from the handwriting module, never a DOM bubble. The only DOM is a small floating toolbar, the d-pad, zoom buttons and the board menu, styled like Excalidraw's: thin, light, quiet.
+A clean whiteboard, not a book page. White board, black marker, no pictures, no textures, no gradients, no panels with drop shadows. Colour is what a whiteboard tray holds and is used sparingly: **black** the player, **blue** Kami's handwriting, **green** understood, **red** confused / hazards / no-ink, plus one marker tint per nature once a drawing wakes. Pre-sketched board geometry is black roughjs marker line with light hatching. Every word on the board — the player's notes, Kami's replies, the "kami 紙" wordmark near each board's spawn — is pen strokes from the handwriting module, never a DOM bubble. The only DOM is a small floating toolbar, zoom buttons and the board menu, styled like Excalidraw's: thin, light, quiet.
 
 ## Shape
 
 ```
  pointers/wheel ─► ui/attachCanvasInput ─► game ─┬─ draw ─► ink/InkSession ─ commit ─► sim (solid NOW)
- d-pad / keys ──► ui/Hud ───────────────────────►│                               └─► recognition ─► cat.guess ─► Kami writes 3 tappable guesses
+ autopilot.drive(scene) ─► sim.setWalkIntent ──►│                               └─► recognition ─► cat.guess ─► Kami writes 3 tappable guesses
+ arrow keys (override) ─► ui/Hud ──────────────►│
  write tool ────► hud.promptText ─► text ────────┤
                                                  ├─ rules.compile(text) ─► Rule ─► resolvePhysics ─► sim.setPhysics
                                                  ├─ else near a drawing ─► cat.name ─► Ruling ─► sim.applyRuling
@@ -29,6 +30,7 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
 | `board/` | `BoardDefinition`, the Wonderland board, the blank board | `boardFor` |
 | `ink/` | Pen input → committed `Drawing`s, placement rules, eraser hit-test | `createInkSession`, `findDrawingAt` |
 | `sim/` | matter-js: board solids, ink bodies, Alice, natures and roles, world physics | `createSimulation` |
+| `autopilot/` | Alice's own legs: charts solids + ink, plans key → door → goal, waits when there is no way | `createAutopilot` |
 | `cat/` | Name → `Ruling`, guesses (recognizer first, geometry second), hint ladder | `createCat` |
 | `rules/` | Text → `CompiledRule` (offline grammar), `resolvePhysics` | `createRuleCompiler`, `chainCompilers`, `resolvePhysics` |
 | `handwriting/` | Text → timed pen strokes in a single-stroke font | `createHandwriting` |
@@ -36,7 +38,7 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
 | `recognition/` | Client for Quick, Draw! recognition | `createRecognizer` |
 | `persistence/` | Client for the board store and the remote rule compiler | `createBoardStore`, `createRemoteRuleCompiler` |
 | `render/` | Canvas 2D: camera, board, ink, notes, Alice, props | `createRenderer` |
-| `ui/` | Toolbar, d-pad, zoom, board menu, text prompt; pointers → pen/tap/pan/zoom | `createHud`, `attachCanvasInput` |
+| `ui/` | Toolbar, zoom, board menu, text prompt; pointers → pen/tap/pan/zoom | `createHud`, `attachCanvasInput` |
 | `game/` | The frame loop, the funnel, the camera, all wiring | `startGame` |
 | `server/` | Bun HTTP API, MongoDB, Quick, Draw! k-NN, model-backed compile | `bun run server` |
 
@@ -82,6 +84,16 @@ matter-js 0.20. What changed from the page build:
 
 A bare noun phrase with no physics word ("a mushroom", "rock") is never a rule. `resolvePhysics` folds rules over `EARTH`, newest per `governs` wins, so erasing the newest gravity note restores the one before it. `chainCompilers([offline, remote])` lets the server's model try what the grammar can't.
 
+## autopilot/
+
+Alice walks herself; the player only draws. `game/` hands the pilot a `Scene` every step — the board, Alice's snapshot, every committed drawing with its live `Pose` and its nature, key/door progress, and two sim-derived callables (`walkSpeed`, `bounceArc(strength)`) so plans are made with the world's actual physics — and gets back a `WalkIntent`.
+
+- **Chart.** An 8 px grid over the board's extent (plus margin) stamped with board solids, the closed door, the goal and every drawing's transformed strokes, flagged by nature: `solid`, `climbable`, `bouncy` (with strength), `edible` (grow/shrink, remembering the owning drawing), `hazard`, `goal`.
+- **Pathfinder.** A* over foot positions for her current footprint (`small` / `normal` / `big`): walk with small steps up, fall onto anything landable, climb through climbable ink, bounce off bouncy ink to wherever the arc's apex and drift reach. Hazards are never entered. Bounded by a node budget.
+- **Errands.** Key → door → goal. If the objective is unreachable but a grow/shrink drawing would make it reachable, the errand is to eat it. Otherwise she `wait`s at the nearest reachable stance short of the obstacle (a few body widths back) and `status.stuck` is set; `game/` has Kami write *"She can't see a way on. Draw her one."* once.
+- **Replanning.** Every ¼ s, plus immediately on `invalidate()` — `game/` calls it whenever a drawing commits, is named, ruled, erased or eaten, a rule is enacted or repealed, or a board opens — and whenever her size or key/door progress changes. A route that stops making progress for four seconds is dropped and she sulks briefly before trying again.
+- **Override.** Arrow keys still walk her; while a key is held the pilot is bypassed, and she resumes on release.
+
 ## cat/
 
 As before, plus: role words — *ground, floor, wall, platform, block* → `solid`; *goal, finish, flag, exit, rabbit hole, home* → `goal`; *lava, spikes, fire, danger, acid* → `hazard`; *start, spawn, "alice starts here"* → `spawn`. `createCat(recognizer)`: `guess` asks the recognizer first and maps Quick, Draw! words onto names he knows ("birthday cake" → "a cake", "hot air balloon" → "a balloon"), filling up to three with the geometric hunch; with no recognizer or an empty answer it is the hunch alone.
@@ -100,7 +112,9 @@ Canvas 2D at device pixel ratio (cap 2). `toWorld(client, camera)` and `viewport
 
 ## ui/
 
-`touch-action: none` and every iPad guard from before. Floating **toolbar** top-centre: draw ✎ · write T · erase ⌫ · pan ✋ (`aria-pressed`, keys `D` `T` `E` `H`; holding Space pans temporarily — so walking is arrow keys only). **D-pad** bottom-left. **Zoom** − / + / ⌖ recentre bottom-right. **Board menu** top-left: the wordmark "kami", current board, a list of boards, "new board", "clear board". No bubbles, meters, title cards or modals.
+`touch-action: none` and every iPad guard from before. Floating **toolbar** top-centre: draw ✎ · write T · erase ⌫ · pan ✋ (`aria-pressed`, keys `D` `T` `E` `H`; holding Space pans temporarily). No d-pad: Alice walks herself, and the arrow keys are a manual override. **Zoom** − / + / ⌖ recentre bottom-right. **Board menu** top-left: the wordmark "kami", current board, a list of boards, "new board", "clear board". No bubbles, meters, title cards or modals.
+
+Every control activates on `pointerup` (`activateOnTap`), so Apple Pencil, finger and mouse taps all work; the click a browser then synthesises is swallowed, while clicks with no pointer behind them (Enter, Space, `.click()`) still activate. A press that is cancelled or lifts off the control does nothing.
 
 `promptText(client)`: an absolutely positioned single-line input at the tap, handwriting-style CSS font, ≥16 px, transparent with a marker underline, `enterkeyhint="done"`; Enter commits, Escape or blur with no text abandons; works with Apple Pencil Scribble since it is a real text field. While it is open, keys never walk Alice or switch tools.
 
@@ -129,12 +143,14 @@ Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_U
 - **Guesses.** On commit, Kami writes three tappable guesses beside the drawing; tapping one names it; they vanish when it is named, erased, or after ~20 s. Nothing blocks and nothing holds time still.
 - **Eraser** removes drawings (and their guesses) and notes; erasing a rule's note repeals the rule.
 - **Camera** follows Alice loosely when she walks outside a central dead-zone; any manual pan or zoom suspends following until she walks again or ⌖ is pressed. Zoom 0.25–4.
+- **Walking.** Before every sim step: a held arrow key wins, else `autopilot.drive(scene)`. The pilot is reset on board open and invalidated on every ink or rule change (see `autopilot/`).
 - **Boards.** `?board=<id>` in the URL; default `wonderland`. On load: `store.load` → re-add drawings and rulings, notes, rules. Held walk input survives a board load.
 - **Bullet-time** only while the pen is down.
 - On `goal-reached` Kami writes a closing line; play continues.
 
 ## Known limits of the demo
 
+- **Alice rides nothing.** The pilot plans over ink where it currently rests; she will not wait for a floating or falling drawing to line up. A blank board with no goal leaves her idle until one is drawn and named.
 - **Poses are not remembered.** A drawing is stored where it was drawn, so after a reload dynamic ink reappears there and settles again.
 - **One effect per rule.** "low gravity and slow time" is two notes. Relative phrasings ("flip", "double") are relative to Earth, not to the current value.
 - **Clamps differ** between the offline grammar (`rules/`) and the model-backed compiler (`server/compile/effectRanges.ts`); the latter is wider.

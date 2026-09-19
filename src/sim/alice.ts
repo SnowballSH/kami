@@ -15,7 +15,6 @@ import {
   SOLID_STEP,
   STEP_FORWARD,
   STEP_INCREMENT,
-  WALK_SPEED,
 } from "./constants";
 import {
   blocks,
@@ -26,6 +25,7 @@ import {
   isFreeAt,
   supports,
 } from "./contacts";
+import { walkSpeedAt } from "./flight";
 import {
   ALICE_BASE,
   ALICE_SCALE,
@@ -63,7 +63,7 @@ export class AliceController {
   hasKey = false;
 
   private currentSize: AliceSize = "normal";
-  private scale = ALICE_SCALE.normal;
+  private currentScale = ALICE_SCALE.normal;
   private resize: ResizeTween | null = null;
   private facing: -1 | 1 = 1;
   private walking = false;
@@ -98,6 +98,10 @@ export class AliceController {
 
   get size(): AliceSize {
     return this.currentSize;
+  }
+
+  get scale(): number {
+    return this.currentScale;
   }
 
   get velocity(): Vec {
@@ -179,7 +183,7 @@ export class AliceController {
 
   beginResize(size: AliceSize): void {
     this.currentSize = size;
-    this.resize = { from: this.scale, to: ALICE_SCALE[size], elapsedMs: 0 };
+    this.resize = { from: this.currentScale, to: ALICE_SCALE[size], elapsedMs: 0 };
   }
 
   advanceResize(elapsedMs: number): void {
@@ -209,7 +213,7 @@ export class AliceController {
 
   private walkVelocity(current: number, direction: Axis, surroundings: AliceSurroundings): number {
     if (direction === 0 && !this.grounded && !this.climbing) return current;
-    const target = direction * WALK_SPEED * Math.sqrt(this.scale);
+    const target = direction * walkSpeedAt(this.currentScale);
     const onSlipperyInk = this.footing.some((contact) => surroundings.isSlippery(contact.body));
     const traction = onSlipperyInk ? 0 : Math.max(this.physics.friction, 0);
     return traction >= 1 ? target : approach(current, target, SLIDE_ACCELERATION / (1 - traction));
@@ -260,12 +264,12 @@ export class AliceController {
   }
 
   private rescale(nextScale: number): void {
-    const factor = nextScale / this.scale;
+    const factor = nextScale / this.currentScale;
     const velocity = this.velocity;
     const feet = { x: this.body.position.x, y: bottomOf(this.bounds()) };
     Matter.Body.scale(this.body, factor, factor, feet);
     Matter.Body.setInertia(this.body, Number.POSITIVE_INFINITY);
     Matter.Body.setVelocity(this.body, velocity);
-    this.scale = nextScale;
+    this.currentScale = nextScale;
   }
 }

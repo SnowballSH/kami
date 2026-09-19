@@ -1,5 +1,6 @@
 import { el } from "./dom";
 import { type IconName, icon } from "./icons";
+import { activateOnTap } from "./tap";
 import type { Tool } from "./types";
 
 interface ToolSpec {
@@ -27,7 +28,7 @@ const createToolButton = (spec: ToolSpec, onPick: (tool: Tool) => void): HTMLBut
     },
     [icon(spec.icon), el("span", { className: "kami-tool-hotkey", text: hotkey })],
   );
-  button.addEventListener("click", () => onPick(spec.tool));
+  activateOnTap(button, () => onPick(spec.tool));
   return button;
 };
 

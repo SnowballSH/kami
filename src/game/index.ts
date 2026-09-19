@@ -1,3 +1,4 @@
+import { createAutopilot } from "../autopilot";
 import { boardFor, DEMO_BOARD_ID } from "../board";
 import { createCat } from "../cat";
 import { createHandwriting } from "../handwriting";
@@ -29,6 +30,7 @@ export function startGame(root: HTMLElement): void {
   const game = new Game(
     {
       sim: createSimulation(),
+      autopilot: createAutopilot(),
       cat: createCat(createRecognizer()),
       renderer,
       handwriting,

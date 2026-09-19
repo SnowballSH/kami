@@ -1,7 +1,6 @@
 import type { Vec } from "../core/geometry";
 import { BoardMenu } from "./boardMenu";
 import { el } from "./dom";
-import { DPad } from "./dpad";
 import { KeyboardWalk } from "./keyboard";
 import { TextPrompt } from "./textPrompt";
 import { Toolbar } from "./toolbar";
@@ -17,7 +16,6 @@ export class DomHud implements Hud {
   private readonly tools: ToolSelection;
   private readonly toolbar: Toolbar;
   private readonly boards: BoardMenu;
-  private readonly dpad: DPad;
   private readonly prompt: TextPrompt;
   private readonly detachers: readonly Detach[];
 
@@ -32,12 +30,10 @@ export class DomHud implements Hud {
     this.toolbar = new Toolbar((tool) => this.tools.pick(tool));
     this.toolbar.show(this.tools.inForce);
     this.boards = new BoardMenu(handlers);
-    this.dpad = new DPad(walk.source());
     this.prompt = new TextPrompt(host);
     this.overlay.append(
       this.boards.element,
       this.toolbar.element,
-      this.dpad.element,
       new ZoomControls(handlers).element,
       this.prompt.element,
     );
@@ -48,7 +44,6 @@ export class DomHud implements Hud {
       this.boards.attach(owner),
       this.prompt.attach(),
       installTouchGuards(owner),
-      () => this.dpad.releaseAll(),
     ];
   }
 

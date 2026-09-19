@@ -26,8 +26,15 @@ const find = <T extends Element>(root: Element, selector: string): T => {
   return match;
 };
 
-const pointer = (type: string, pointerId: number): PointerEvent =>
-  new PointerEvent(type, { pointerId, bubbles: true, cancelable: true });
+const pointer = (type: string, pointerId: number, init: PointerEventInit = {}): PointerEvent =>
+  new PointerEvent(type, { pointerId, bubbles: true, cancelable: true, ...init });
+
+/** A pen or finger tap as Safari delivers it: pointer down, up, then a click echoing the tap. */
+const tap = (target: Element, pointerType: "pen" | "touch" | "mouse" = "pen"): void => {
+  target.dispatchEvent(pointer("pointerdown", 7, { pointerType, isPrimary: true }));
+  target.dispatchEvent(pointer("pointerup", 7, { pointerType, isPrimary: true }));
+  target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
+};
 
 const key = (type: "keydown" | "keyup", init: KeyboardEventInit): KeyboardEvent =>
   new KeyboardEvent(type, { bubbles: true, cancelable: true, ...init });
@@ -119,33 +126,19 @@ describe("DomHud", () => {
     const intents = (handlers: ReturnType<typeof createHandlers>): readonly WalkIntent[] =>
       handlers.onWalkIntent.mock.calls.map(([intent]) => intent);
 
-    it("holds and releases a d-pad direction per pointer", () => {
-      const { root, handlers } = setup();
-      const right = find<HTMLButtonElement>(root, ".kami-dpad-right");
-      const up = find<HTMLButtonElement>(root, ".kami-dpad-up");
+    it("has no on-screen d-pad: Alice walks herself", () => {
+      const { root } = setup();
 
-      right.dispatchEvent(pointer("pointerdown", 1));
-      up.dispatchEvent(pointer("pointerdown", 2));
-      right.dispatchEvent(pointer("pointerup", 1));
-      right.dispatchEvent(pointer("lostpointercapture", 1));
-      up.dispatchEvent(pointer("pointercancel", 2));
-
-      expect(intents(handlers)).toEqual([
-        { x: 1, y: 0 },
-        { x: 1, y: -1 },
-        { x: 0, y: -1 },
-        { x: 0, y: 0 },
-      ]);
+      expect(root.querySelector(".kami-dpad")).toBeNull();
     });
 
-    it("walks with the arrow keys, cancelling opposites across inputs", () => {
-      const { root, handlers } = setup();
-      const left = find<HTMLButtonElement>(root, ".kami-dpad-left");
+    it("walks with the arrow keys, cancelling opposites, and lets go on blur", () => {
+      const { handlers } = setup();
 
       window.dispatchEvent(key("keydown", { code: "ArrowRight" }));
       window.dispatchEvent(key("keydown", { code: "ArrowRight" }));
-      left.dispatchEvent(pointer("pointerdown", 1));
-      left.dispatchEvent(pointer("lostpointercapture", 1));
+      window.dispatchEvent(key("keydown", { code: "ArrowLeft" }));
+      window.dispatchEvent(key("keyup", { code: "ArrowLeft" }));
       window.dispatchEvent(key("keyup", { code: "ArrowRight" }));
       window.dispatchEvent(key("keydown", { code: "ArrowDown" }));
       window.dispatchEvent(new Event("blur"));
@@ -271,6 +264,60 @@ describe("DomHud", () => {
 
       expect(handlers.onZoom.mock.calls).toEqual([[1 / ZOOM_STEP], [ZOOM_STEP]]);
       expect(handlers.onRecenter).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("Pencil taps", () => {
+    it("activates a control once per pen, finger or mouse tap, swallowing the echoed click", () => {
+      const { root, handlers } = setup();
+
+      tap(find(root, ".kami-zoom-in"), "pen");
+      tap(find(root, ".kami-zoom-in"), "touch");
+      tap(find(root, ".kami-zoom-in"), "mouse");
+      tap(find(root, ".kami-tool-erase"));
+
+      expect(handlers.onZoom.mock.calls).toEqual([[ZOOM_STEP], [ZOOM_STEP], [ZOOM_STEP]]);
+      expect(handlers.onToolChanged.mock.calls).toEqual([["erase"]]);
+    });
+
+    it("does nothing when the pen lifts elsewhere or the press is cancelled", () => {
+      const { root, handlers } = setup();
+      const recenter = find<HTMLButtonElement>(root, ".kami-recenter");
+
+      recenter.dispatchEvent(pointer("pointerdown", 1, { pointerType: "pen" }));
+      recenter.dispatchEvent(pointer("pointercancel", 1, { pointerType: "pen" }));
+      recenter.dispatchEvent(pointer("pointerdown", 2, { pointerType: "pen" }));
+      recenter.dispatchEvent(pointer("pointerup", 2, { pointerType: "pen", clientX: 500 }));
+
+      expect(handlers.onRecenter).not.toHaveBeenCalled();
+    });
+
+    it("still activates from the keyboard after a tap", () => {
+      const { root, handlers } = setup();
+      const recenter = find<HTMLButtonElement>(root, ".kami-recenter");
+
+      tap(recenter);
+      recenter.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+
+      expect(handlers.onRecenter).toHaveBeenCalledTimes(2);
+    });
+
+    it("drives the board menu: open, pick a board, confirm a clear", () => {
+      const { root, handlers, hud } = setup();
+      hud.setBoards(BOARDS, "moon-golf");
+      const popover = find<HTMLElement>(root, ".kami-board-popover");
+
+      tap(find(root, ".kami-board-toggle"));
+      expect(popover.hidden).toBe(false);
+      tap(find(root, "[data-board-id='wonderland']"));
+      expect(handlers.onOpenBoard).toHaveBeenCalledExactlyOnceWith("wonderland");
+      expect(popover.hidden).toBe(true);
+
+      tap(find(root, ".kami-board-toggle"));
+      tap(find(root, ".kami-board-clear"));
+      expect(handlers.onClearBoard).not.toHaveBeenCalled();
+      tap(find(root, ".kami-board-clear"));
+      expect(handlers.onClearBoard).toHaveBeenCalledOnce();
     });
   });
 

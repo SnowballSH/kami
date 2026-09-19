@@ -1,5 +1,6 @@
 import { el } from "./dom";
 import { type IconName, icon } from "./icons";
+import { activateOnTap } from "./tap";
 
 export interface IconButtonOptions {
   readonly label: string;
@@ -17,6 +18,6 @@ export const iconButton = (options: IconButtonOptions): HTMLButtonElement => {
     },
     [icon(options.icon)],
   );
-  button.addEventListener("click", () => options.onClick());
+  activateOnTap(button, () => options.onClick());
   return button;
 };
