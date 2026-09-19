@@ -10,6 +10,7 @@ import {
   type FetchLike,
   JSON_HEADERS,
 } from "./api";
+import { withRequestDeadline } from "./requestDeadline";
 import type { BoardSnapshot, BoardStore, BoardSummary, StoredDrawing } from "./types";
 import { WriteQueue } from "./writeQueue";
 
@@ -39,9 +40,11 @@ export class HttpBoardStore implements BoardStore {
     this.#fetch = fetchFn;
   }
 
-  async load(boardId: string): Promise<BoardSnapshot> {
-    const body = await this.#read(boardPath(boardId));
-    return isSnapshot(body) ? body : EMPTY_SNAPSHOT;
+  load(boardId: string): Promise<BoardSnapshot> {
+    return this.#queue.enqueueBarrier(boardId, async () => {
+      const body = await this.#read(boardPath(boardId));
+      return isSnapshot(body) ? body : EMPTY_SNAPSHOT;
+    });
   }
 
   async listBoards(): Promise<readonly BoardSummary[]> {
@@ -98,9 +101,11 @@ export class HttpBoardStore implements BoardStore {
 
   async #read(path: string): Promise<unknown> {
     try {
-      const response = await this.#fetch(path);
-      if (!response.ok) throw new Error(`${path} answered ${response.status}`);
-      return await response.json();
+      return await withRequestDeadline(async (signal) => {
+        const response = await this.#fetch(path, { signal });
+        if (!response.ok) throw new Error(`${path} answered ${response.status}`);
+        return await response.json();
+      });
     } catch (error) {
       this.#warnOnce(error);
       return undefined;
@@ -109,8 +114,10 @@ export class HttpBoardStore implements BoardStore {
 
   async #write(path: string, init: RequestInit): Promise<void> {
     try {
-      const response = await this.#fetch(path, init);
-      if (!response.ok) throw new Error(`${path} answered ${response.status}`);
+      await withRequestDeadline(async (signal) => {
+        const response = await this.#fetch(path, { ...init, signal });
+        if (!response.ok) throw new Error(`${path} answered ${response.status}`);
+      });
     } catch (error) {
       this.#warnOnce(error);
     }
