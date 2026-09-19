@@ -46,7 +46,6 @@ const JUMP_MIN_COLS = 2;
 const DRIFT_MARGIN = 0.8;
 /** Nodes a single search may open before it gives up: the board is endless, her patience is not. */
 const SEARCH_BUDGET = 200_000;
-const KEY_STRIDE = 1 << 20;
 
 export const footprintFor = (size: AliceSize): Footprint => ({
   cols: Math.ceil((ALICE_BASE.width * ALICE_SCALE[size]) / CELL_PX),
@@ -90,7 +89,7 @@ interface Edge {
   readonly cost: number;
 }
 
-const key = (node: Node): number => node.r0 * KEY_STRIDE + node.c0;
+const key = (node: Node): string => `${node.r0},${node.c0}`;
 
 class MinHeap {
   private readonly items: { node: Node; cost: number }[] = [];
@@ -162,7 +161,10 @@ export class Pathfinder {
   isFree(node: Node): boolean {
     const body = bodyRange(node, this.footprint);
     return (
-      !this.chart.anyIn(body, CellFlag.solid) && !this.chart.anyIn(grow(body, 1), CellFlag.hazard)
+      this.chart.contains(body.c0, body.r0) &&
+      this.chart.contains(body.c1 - 1, body.r1 - 1) &&
+      !this.chart.anyIn(body, CellFlag.solid) &&
+      !this.chart.anyIn(grow(body, 1), CellFlag.hazard)
     );
   }
 
@@ -216,7 +218,7 @@ export class Pathfinder {
   /** Cheapest route from `start` to any node satisfying `goal`, or null. `start` need not be a stance. */
   route(start: Node, goal: Goal): readonly Waypoint[] | null {
     this.goal = goal;
-    const cameFrom = new Map<number, Waypoint>();
+    const cameFrom = new Map<string, Waypoint>();
     const end = this.search(start, cameFrom, (node) => this.satisfies(node, goal));
     return end === null ? null : this.unwind(end, cameFrom);
   }
@@ -224,7 +226,7 @@ export class Pathfinder {
   /** The way to wherever she can stand that is nearest `point`, for going to the edge and looking. */
   nearestTo(start: Node, point: Vec): readonly Waypoint[] | null {
     this.goal = null;
-    const cameFrom = new Map<number, Waypoint>();
+    const cameFrom = new Map<string, Waypoint>();
     let closest: Node | null = null;
     let closestGap = Number.POSITIVE_INFINITY;
     this.search(start, cameFrom, (node) => {
@@ -242,10 +244,21 @@ export class Pathfinder {
 
   private search(
     start: Node,
-    cameFrom: Map<number, Waypoint>,
+    cameFrom: Map<string, Waypoint>,
     accept: (node: Node) => boolean,
   ): Node | null {
-    const best = new Map<number, number>([[key(start), 0]]);
+    const { cols, rows } = this.footprint;
+    const { c0, c1, r0, r1 } = this.chart.range;
+    if (
+      !Number.isSafeInteger(cols) ||
+      !Number.isSafeInteger(rows) ||
+      cols <= 0 ||
+      rows <= 0 ||
+      cols > c1 - c0 ||
+      rows > r1 - r0
+    )
+      return null;
+    const best = new Map<string, number>([[key(start), 0]]);
     const open = new MinHeap();
     open.push(start, 0);
     let opened = 0;
@@ -269,7 +282,7 @@ export class Pathfinder {
     return null;
   }
 
-  private unwind(end: Node, cameFrom: Map<number, Waypoint>): readonly Waypoint[] {
+  private unwind(end: Node, cameFrom: Map<string, Waypoint>): readonly Waypoint[] {
     const path: Waypoint[] = [];
     let node = end;
     let from = cameFrom.get(key(node));
