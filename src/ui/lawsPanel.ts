@@ -7,11 +7,13 @@ const HEADING = "laws in force";
 const REPEAL_HINT = "tap a law to repeal it";
 const CONFIRM_LABEL = "tap again to repeal";
 const CONFIRMING_CLASS = "is-confirming";
+const DISARM_AFTER_MS = 3000;
 
 /**
  * The standing laws of the board, newest last, each a button. The first tap arms a law, the
- * second repeals it; tapping anything else disarms. Kami's notes fade, so this list is how a
- * law can always be found and undone.
+ * second repeals it; arming another law, or a few seconds passing, disarms it, so a stray touch
+ * much later cannot repeal anything. Kami's notes fade, so this list is how a law can always be
+ * found and undone.
  */
 export class DomLawsPanel implements LawsPanel {
   readonly element: HTMLElement;
@@ -21,6 +23,7 @@ export class DomLawsPanel implements LawsPanel {
   });
   private laws: readonly LawListing[] = [];
   private armed: RuleId | null = null;
+  private disarming: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly handlers: LawsPanelHandlers) {
     this.element = el(
@@ -61,12 +64,15 @@ export class DomLawsPanel implements LawsPanel {
   }
 
   private tapped(law: LawListing): void {
-    if (this.armed === law.id) {
-      this.armed = null;
-      this.handlers.onRepealLaw(law.id);
-      return;
-    }
-    this.armed = law.id;
+    const confirmed = this.armed === law.id;
+    this.arm(confirmed ? null : law.id);
+    if (confirmed) this.handlers.onRepealLaw(law.id);
+  }
+
+  private arm(id: RuleId | null): void {
+    if (this.disarming !== null) clearTimeout(this.disarming);
+    this.disarming = id === null ? null : setTimeout(() => this.arm(null), DISARM_AFTER_MS);
+    this.armed = id;
     this.setLaws(this.laws);
   }
 }

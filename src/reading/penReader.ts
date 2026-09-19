@@ -44,7 +44,11 @@ export class PrefixPenReader implements PenReader {
 
   settle(strokes: readonly Stroke[]): Promise<string | null> {
     const known = this.recall(strokes);
-    const text = known === undefined ? this.#attemptFor(strokes).text : Promise.resolve(known);
+    if (known !== undefined) {
+      this.forget();
+      return Promise.resolve(known);
+    }
+    const { text } = this.#attemptFor(strokes);
     this.#turnPage();
     return text;
   }

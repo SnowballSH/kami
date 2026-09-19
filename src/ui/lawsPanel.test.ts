@@ -74,4 +74,26 @@ describe("DomLawsPanel", () => {
     panel.setLaws(LAWS.slice(0, 1));
     expect(items(panel).map((item) => item.classList.contains("is-confirming"))).toEqual([false]);
   });
+
+  it("disarms by itself after a few seconds, so a stray touch much later repeals nothing", () => {
+    vi.useFakeTimers();
+    try {
+      const { panel, onRepealLaw } = setup();
+      panel.setLaws(LAWS);
+      const [gravity] = items(panel);
+      if (gravity === undefined) throw new Error("no law listed");
+      tap(gravity);
+      expect(items(panel)[0]?.classList.contains("is-confirming")).toBe(true);
+
+      vi.advanceTimersByTime(3000);
+      expect(items(panel)[0]?.classList.contains("is-confirming")).toBe(false);
+      const later = items(panel)[0];
+      if (later === undefined) throw new Error("no law listed");
+      tap(later);
+      expect(onRepealLaw).not.toHaveBeenCalled();
+      expect(items(panel)[0]?.classList.contains("is-confirming")).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

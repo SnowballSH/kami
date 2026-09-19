@@ -108,6 +108,16 @@ describe("PrefixPenReader", () => {
     expect(reader.asked).toHaveLength(0);
   });
 
+  it("drops a read still in flight when the finished drawing is plainly not writing", async () => {
+    const reader = new SlowReader();
+    const pen = new PrefixPenReader(reader);
+    pen.glimpse([H, BAR]);
+    const tall = [H, BAR, stroke(40, 0, 400)];
+    expect(await pen.settle(tall)).toBeNull();
+    expect(reader.asked).toHaveLength(1);
+    expect(reader.asked[0]?.signal?.aborted).toBe(true);
+  });
+
   it("forgets everything when the strokes are dropped", async () => {
     const reader = new SlowReader();
     const pen = new PrefixPenReader(reader);
