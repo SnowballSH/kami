@@ -11,6 +11,8 @@ const isNumber = (item: unknown): item is number =>
   typeof item === "number" && Number.isFinite(item);
 const isNature = (item: unknown): item is Nature => NATURES.some((nature) => nature === item);
 
+const LEADER = 0;
+
 const isWords = isListOf(isWord);
 const isNumbers = isListOf(isNumber);
 const isNatures = isListOf(isNature);
@@ -18,7 +20,10 @@ const isNatures = isListOf(isNature);
 /** The server's parallel arrays as one list; [] for anything that is not the documented shape. */
 export const sightingsOf = (body: unknown): readonly Sighting[] => {
   if (typeof body !== "object" || body === null) return [];
-  const { guesses, confidence, names, natures, strengths, lines } = body as Record<string, unknown>;
+  const { guesses, confidence, names, natures, strengths, lines, certain } = body as Record<
+    string,
+    unknown
+  >;
   if (!isWords(guesses) || !isNumbers(confidence) || !isWords(names)) return [];
   if (!isNatures(natures) || !isNumbers(strengths) || !isWords(lines)) return [];
   const columns = [confidence, names, natures, strengths, lines];
@@ -30,5 +35,6 @@ export const sightingsOf = (body: unknown): readonly Sighting[] => {
     nature: natures[index] ?? "ink",
     strength: strengths[index] ?? 1,
     line: lines[index] ?? "",
+    certain: index === LEADER && certain === true,
   }));
 };

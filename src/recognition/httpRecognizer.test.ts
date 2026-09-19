@@ -73,6 +73,7 @@ describe("HttpRecognizer", () => {
         nature: "bouncy",
         strength: 1.2,
         line: "Spongy. Do try one.",
+        certain: false,
       },
       {
         word: "umbrella",
@@ -81,9 +82,29 @@ describe("HttpRecognizer", () => {
         nature: "floaty",
         strength: 1,
         line: "Up it goes.",
+        certain: false,
       },
     ]);
     expect(bodies).toEqual([{ strokes: drawing.strokes }]);
+  });
+
+  const certaintyOf = async (body: unknown): Promise<readonly boolean[]> => {
+    const recognizer = new HttpRecognizer(async () => Response.json(body));
+    return (await recognizer.sight(drawing.strokes)).map(({ certain }) => certain);
+  };
+
+  it("is certain of the first sighting alone, when the server says it is", async () => {
+    expect(await certaintyOf({ ...seenByServer, certain: true })).toEqual([true, false]);
+  });
+
+  it.each<[string, unknown]>([
+    ["says it is not", false],
+    ["is too old to say", undefined],
+    ["says so in words", "true"],
+    ["says so with a number", 1],
+    ["says null", null],
+  ])("is certain of nothing when the server %s", async (_what, certain) => {
+    expect(await certaintyOf({ ...seenByServer, certain })).toEqual([false, false]);
   });
 
   it("says so when the pen is still moving", async () => {
