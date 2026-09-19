@@ -85,6 +85,101 @@ unexpected exception is `500 {"error"}` and the process keeps serving. `/health`
 reports `renderMatches` — whether `render.py` still has the sha256 the model was trained with.
 One log line per request: `POST /recognize 200 5.3 ms`.
 
+## Kami finishes your drawing — exemplars and `/complete`
+
+`POST /complete` answers a rough sketch (and, optionally, the name the player gave it) with a clean
+human drawing of the same thing from Quick, Draw!, the one whose embedding is closest to the
+player's, scaled and centred onto their ink. The rules are in `CONTRACT.md` → Completion. It needs an
+exemplar set next to the model, built once per trained model, **on the box** (it embeds half a
+million drawings; ONNX Runtime on the CPU, no torch, no GPU), after the `rsync` above has put this
+directory's code in `~/kami-ml`:
+
+```sh
+ssh gx10
+cd ~/kami-ml
+setsid nohup nice -n 10 .venv/bin/python exemplars.py --model artifacts/kami-eye \
+  --min-probability 0.7 > logs/exemplars.log 2>&1 < /dev/null & disown      # ~26 min; tail the log
+~/kami/box/start.sh          # the sidecar loads artifacts/kami-eye/exemplars/, and the Kami server
+                             # gets KAMI_BEAUTIFY_URL=http://127.0.0.1:8790/complete
+curl -s localhost:8790/health                                  # … "exemplars": N (up to 345 × 200)
+curl -s localhost:8790/complete -d '{"name":"a square","strokes":[[{"x":0,"y":0},{"x":90,"y":5},{"x":85,"y":90},{"x":0,"y":80},{"x":0,"y":0}]]}'
+```
+
+Switches: `--per-class 200`, `--candidates-per-class 1500` (the head of each `.bin`),
+`--min-probability 0.9`, `--threads 6` (ONNX Runtime; keep it modest while something trains),
+`--data-dir data` (holds `bin/`). The build prints progress every 25 categories and ends with a
+summary: exemplars kept, categories that came up short (reported, never fatal — a weak model is
+sure of fewer drawings), candidates per second, size on disk and load time. The same model, data and
+arguments write byte-identical files.
+
+`--min-probability` only decides categories that come up short: a category with 200 drawings above
+0.9 keeps the same 200 at any lower bar, because they are ranked by probability. The real `kami-eye`
+(8 epochs, 81 % top-1 on finished drawings) is rarely 0.9 sure of the plainest shapes, which look
+like many things: at 0.9 it keeps 2 of 1500 circles and 9 squares (bird 166; cloud, dog, cat, house,
+star, car, line, triangle 200); at 0.7 circle, square and bird are full too. Hence 0.7 above; the
+default stays the contract's 0.9.
+
+**Retrain the model and the set is stale**: the sidecar notices (`modelSha256`), warns, and serves
+without `/complete` until `exemplars.py` has run again.
+
+Without an exemplar set `/complete` is `404`, `/health` says `"exemplars": 0`, and the game keeps the
+player's own ink (`/api/beautify` → `501`).
+
+**Measured on the GB10** with `artifacts/timing` (345 classes, one epoch, 52 % top-1 — weak but
+real), CPU only, `--threads 6`, `nice -n 10`, while a training run and another job had the box:
+
+| | |
+|---|---|
+| Build | 517 500 candidates in 1 552 s — 333 drawings/s (4.3 s per category when the six threads are not contended) |
+| Kept | 44 477 exemplars: 163 categories full (200), 182 short, 35 of those empty (circle, square, cloud, dog, … — a one-epoch model is never 0.9 sure of them); median 174 per category, 4 strokes and 36 points per exemplar |
+| On disk | 50.7 MB: embeddings 45.5 MB, 1.76 M points 3.5 MB, offsets 1.0 MB, the rest 0.6 MB |
+| Load | 4 ms for the arrays; 26 ms at sidecar start with the sha256 of `model.onnx`; the sidecar's RSS is 179 MB with them |
+| Determinism | two builds with equal arguments in different directories: every file byte-identical |
+
+`POST /complete` on a quiet box, keep-alive, 25 held-out drawings (test split, beyond the first 8000
+of their `.bin`, never exemplars) from 25 categories, each posted four ways in world px (×2.5, offset):
+
+| Request (n = 25 each) | p50 | p95 | 200 | right category |
+|---|---|---|---|---|
+| finished | 8.8 ms | 16.8 ms | 15 | 14 |
+| finished, `name` | 8.8 ms | 12.9 ms | 23 | 23 |
+| first half of the points | 6.9 ms | 13.8 ms | 3 | 2 |
+| first half of the points, `name` | 9.3 ms | 15.5 ms | 23 | 23 |
+| all 100 | 8.8 ms | 16.1 ms | 64 | all 64 answers inside the request's bounds |
+
+The 404s are this model, not the route: without a name a one-epoch model is rarely 0.5 sure, least
+of all of half a drawing, and two of the 25 categories had no exemplars. Example answers — finished
+banana, no name: banana 0.78, similarity 0.97, 2 strokes / 30 points in, 4 strokes / 26 points out,
+bounds (4000, −700)–(4342.5, −62.5) in, (4013.8, −700)–(4328.8, −62.5) out; half a calculator named
+"a calculator": confidence 0.36, similarity 0.89, 3 strokes / 26 points, full height, centred in the
+width; half a sailboat named: confidence 0.02 (the model sees something else in two strokes; the
+name decides), similarity 0.70, a whole sailboat inside the half's box.
+
+**The real model**, `artifacts/kami-eye` (8 epochs, 81 % top-1 finished), `--min-probability 0.7`, on
+a quiet box: 517 500 candidates in 1 054 s (491 drawings/s); **68 971 exemplars, 342 of 345
+categories full** (garden hose 191, hurricane 199, marker 181); 79.0 MB (embeddings 70.6 MB, 2.89 M
+points 5.8 MB); arrays load in 5 ms, 28 ms at sidecar start; sidecar RSS 207 MB. The same 100
+requests (their own 25 held-out drawings):
+
+| Request (n = 25 each) | p50 | p95 | 200 | right category |
+|---|---|---|---|---|
+| finished | 10.0 ms | 22.2 ms | 24 | 24 |
+| finished, `name` | 10.1 ms | 17.7 ms | 25 | 25 |
+| first half of the points | 9.8 ms | 18.2 ms | 17 | 11 |
+| first half of the points, `name` | 11.0 ms | 19.8 ms | 25 | 25 |
+| all 100 | 10.1 ms | 20.4 ms | 91 | all 91 answers inside the request's bounds |
+
+Finished envelope, no name: envelope 0.95, similarity 0.97, 1 stroke / 24 points in, 1 stroke / 25
+points out. Half a bracelet named "a bracelet": confidence 0.55, similarity 0.76, 2 strokes in, a
+whole 5-stroke bracelet out, full width, centred in the height. A hand-made five-point square named
+"a square": a human's one-stroke square, similarity 0.97. Half a panda without a name came back as
+a cat (0.80): with no name a wrong guess is a clean drawing of the wrong thing, which is why the
+game sends the name.
+
+The handler now sets `TCP_NODELAY`: the stdlib server writes headers and body separately, and on Linux
+a keep-alive client otherwise sits out the 40 ms delayed ACK on every request — `/recognize` on the
+box went from p50 51 ms to p50 3.6 ms, p95 6.3 ms (n = 60, keep-alive).
+
 ## The first smoke test (on a Mac, before the box was reachable) — not the real model
 
 `uv run --group train python train.py --categories categories/smoke.txt --samples-per-class 2500 --epochs 3 --name smoke`
@@ -132,6 +227,8 @@ points → mushroom 0.51, circle 0.26; half a ladder → ladder 0.99. The smoke 
 | `loop.py`, `metrics.py`, `calibrate.py` | the fit loop, bucketed top-1/top-3, temperature scaling |
 | `export.py` | ONNX export and the four artefact files |
 | `recognizer.py`, `sidecar.py` | artefact directory → recogniser; the stdlib HTTP server over it |
+| `exemplars.py`, `exemplar_set.py` | the CLI that picks each category's prototypical drawings with a trained model; the file set they are kept in (ragged uint8 strokes + float16 embeddings) |
+| `completion.py` | sketch + optional name → category → most similar exemplar → placed on the player's ink |
 | `train.py` | the CLI that runs all of the above |
 
 - **Stem: 3×3 stride 2, no max-pool** (not stride 1): ink is ~1.5 px wide after the 256 → 64
@@ -157,8 +254,9 @@ points → mushroom 0.51, circle 0.26; half a ladder → ladder 0.99. The smoke 
 ## Checks
 
 ```sh
-uv run --group train pytest     # 49 tests: render, .bin round trip, dataset, sidecar routes on a
-                                # tiny real ONNX model, model/export/calibration, golden parity
+uv run --group train pytest     # 133 tests: render, .bin round trip, dataset, sidecar routes on a
+                                # tiny real ONNX model, model/export/calibration, golden parity,
+                                # exemplar files and selection, completion and placement, /complete
 uv run ruff check . && uv run ruff format --check . && uv run mypy .
 ```
 
