@@ -27,7 +27,7 @@ All vocabulary lives in `lexicon.ts`; `lexicon.test.ts` checks that no keyword b
 
 ## The dot joke
 
-`name(utterance)` receives no drawing, so the Cat remembers the drawing from the preceding `guess(drawing)` call (the game always guesses before it names) and forgets it once a name lands.
+`name(utterance, drawing)` sees the drawing being named, so a dot called "a ladder" earns *"The smallest ladder I ever saw."* An LLM-backed Cat will use the same parameter to look at the drawing in context.
 
 ## Guesses
 

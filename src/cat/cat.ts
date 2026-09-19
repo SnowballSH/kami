@@ -20,23 +20,20 @@ export class ScriptedCat implements Cat {
   #room = NOWHERE;
   #ladder = new HintLadder(NOWHERE.hints);
   #helpOffered = false;
-  #lastSeen: Drawing | null = null;
 
   enterRoom(room: RoomBrief): void {
     this.#room = room;
     this.#ladder = new HintLadder(room.hints);
     this.#helpOffered = false;
-    this.#lastSeen = null;
   }
 
-  name(utterance: string): Promise<Ruling> {
-    const drawingIsDot = this.#lastSeen !== null && isDot(this.#lastSeen);
-    this.#lastSeen = null;
-    return Promise.resolve(ruleOn(utterance, { allowed: this.#room.allowedNatures, drawingIsDot }));
+  name(utterance: string, drawing: Drawing): Promise<Ruling> {
+    return Promise.resolve(
+      ruleOn(utterance, { allowed: this.#room.allowedNatures, drawingIsDot: isDot(drawing) }),
+    );
   }
 
   guess(drawing: Drawing): Promise<Guesses> {
-    this.#lastSeen = drawing;
     return Promise.resolve(guessNames(drawing, this.#room.allowedNatures));
   }
 

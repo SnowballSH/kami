@@ -125,7 +125,7 @@ describe("Game, played headlessly through every room", () => {
     await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
     player.walk(1);
     expect(await player.waitUntil(() => player.room === "The Shelves")).toBe(true);
-    expect(player.hud.cards.map((card) => card.title)).toEqual(["Kami", "The Shelves"]);
+    expect(player.hud.cards.map((card) => card.title)).toEqual(["Kami"]);
 
     player.walk(0);
     await player.drawAndName(blob({ x: 640, y: 620 }, 30, 18), "a bouncy mushroom");

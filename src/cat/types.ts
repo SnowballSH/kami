@@ -53,8 +53,8 @@ export interface RoomBrief {
 export interface Cat {
   /** Resets the hint ladder and the once-per-room offer of help. */
   enterRoom(room: RoomBrief): void;
-  /** Maps whatever the player said onto a nature. Never rejects. */
-  name(utterance: string): Promise<Ruling>;
+  /** Maps whatever the player said about `drawing` onto a nature. Never rejects. */
+  name(utterance: string, drawing: Drawing): Promise<Ruling>;
   /** His three best guesses at an unnamed drawing, as short names ("a mushroom"). */
   guess(drawing: Drawing): Promise<readonly [string, string, string]>;
   /** "And what is that supposed to be?" */

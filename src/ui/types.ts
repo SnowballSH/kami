@@ -24,7 +24,7 @@ export interface EndingEntry {
 
 export interface Hud {
   readonly namingOpen: boolean;
-  setRoom(title: string, index: number, count: number): void;
+  setRoom(title: string, pageNumber: number, pageCount: number): void;
   setInk(budget: { readonly total: number; readonly remaining: number }): void;
   /** Opens the naming panel: three guess chips, a typed box, and a "just ink" way out. */
   showNaming(guesses: readonly string[]): void;

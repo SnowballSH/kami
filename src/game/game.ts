@@ -48,7 +48,7 @@ export interface GameModules {
 type Phase = "playing" | "between-pages" | "ending";
 
 interface PendingNaming {
-  readonly id: DrawingId;
+  readonly drawing: Drawing;
   readonly openedAtMs: number;
 }
 
@@ -246,13 +246,15 @@ export class Game implements PenSink, InkSessionListener, HudHandlers {
 
   private async beginNaming(drawing: Drawing): Promise<void> {
     const epoch = this.roomEpoch;
-    this.naming = { id: drawing.id, openedAtMs: this.nowMs };
+    this.naming = { drawing, openedAtMs: this.nowMs };
     if (!this.catHasAsked) {
       this.catHasAsked = true;
       this.hud.say(this.modules.cat.askWhatItIs());
     }
     const guesses = await this.modules.cat.guess(drawing);
-    if (epoch === this.roomEpoch && this.naming?.id === drawing.id) this.hud.showNaming(guesses);
+    if (epoch === this.roomEpoch && this.naming?.drawing.id === drawing.id) {
+      this.hud.showNaming(guesses);
+    }
   }
 
   private async nameIt(utterance: string): Promise<void> {
@@ -260,10 +262,11 @@ export class Game implements PenSink, InkSessionListener, HudHandlers {
     if (pending === null) return;
     const epoch = this.roomEpoch;
     this.closeNaming();
-    const ruling = await this.modules.cat.name(utterance);
-    if (epoch !== this.roomEpoch || !this.ledger.has(pending.id)) return;
-    this.modules.sim.applyRuling(pending.id, ruling);
-    this.ledger.awaken(pending.id, ruling, this.nowMs);
+    const { id } = pending.drawing;
+    const ruling = await this.modules.cat.name(utterance, pending.drawing);
+    if (epoch !== this.roomEpoch || !this.ledger.has(id)) return;
+    this.modules.sim.applyRuling(id, ruling);
+    this.ledger.awaken(id, ruling, this.nowMs);
     this.progress(ruling.line);
   }
 
@@ -273,7 +276,7 @@ export class Game implements PenSink, InkSessionListener, HudHandlers {
   }
 
   private forget(id: DrawingId): void {
-    if (this.naming?.id === id) this.closeNaming();
+    if (this.naming?.drawing.id === id) this.closeNaming();
   }
 
   private eraseAt(point: Vec): void {
@@ -298,8 +301,9 @@ export class Game implements PenSink, InkSessionListener, HudHandlers {
       this.showEnding();
       return;
     }
-    if (this.roomIndex === 0) await this.hud.showTitleCard(GAME_TITLE_CARD);
-    await this.hud.showTitleCard(pageCard(nextLevel.title, next + 1));
+    await this.hud.showTitleCard(
+      this.roomIndex === 0 ? GAME_TITLE_CARD : pageCard(nextLevel.title, next + 1),
+    );
     this.enterRoom(next);
   }
 

@@ -27,6 +27,8 @@ const line = (x0: number, y0: number, x1: number, y1: number): Stroke => [
   { x: x1, y: y1 },
 ];
 
+const SKETCH = drawingOf(ellipse(40, 30));
+
 const SHAPES: Readonly<Record<string, Drawing>> = {
   round: drawingOf(ellipse(50, 45)),
   flat: drawingOf(line(100, 300, 400, 310)),
@@ -61,7 +63,7 @@ describe("ScriptedCat", () => {
       ["a paper plane", "light", "a paper plane"],
       ["bubble gum", "sticky", "bubble gum"],
     ] as const)("hears %j as %s", async (utterance, nature, name) => {
-      const ruling = await cat.name(utterance);
+      const ruling = await cat.name(utterance, SKETCH);
       expect(ruling.nature).toBe(nature);
       expect(ruling.name).toBe(name);
       expect(ruling.strength).toBe(1);
@@ -69,27 +71,30 @@ describe("ScriptedCat", () => {
 
     it("maps the book's labels onto size", async () => {
       cat.enterRoom(hallOfDoors);
-      expect(await cat.name("eat me")).toMatchObject({ nature: "grow", name: "eat me" });
-      expect(await cat.name("Drink Me")).toMatchObject({ nature: "shrink", name: "drink me" });
-      expect((await cat.name("a cup of tea")).nature).toBe("shrink");
-      expect((await cat.name("a cake for Alice")).nature).toBe("grow");
+      expect(await cat.name("eat me", SKETCH)).toMatchObject({ nature: "grow", name: "eat me" });
+      expect(await cat.name("Drink Me", SKETCH)).toMatchObject({
+        nature: "shrink",
+        name: "drink me",
+      });
+      expect((await cat.name("a cup of tea", SKETCH)).nature).toBe("shrink");
+      expect((await cat.name("a cake for Alice", SKETCH)).nature).toBe("grow");
     });
 
     it("scales strength with adjectives, inside the range", async () => {
-      expect((await cat.name("a very bouncy mushroom")).strength).toBe(1.5);
-      expect((await cat.name("a really really super huge rock")).strength).toBe(2);
-      expect((await cat.name("a slightly bouncy mushroom")).strength).toBe(0.75);
-      expect((await cat.name("a tiny little weak bit of a spring")).strength).toBe(0.5);
+      expect((await cat.name("a very bouncy mushroom", SKETCH)).strength).toBe(1.5);
+      expect((await cat.name("a really really super huge rock", SKETCH)).strength).toBe(2);
+      expect((await cat.name("a slightly bouncy mushroom", SKETCH)).strength).toBe(0.75);
+      expect((await cat.name("a tiny little weak bit of a spring", SKETCH)).strength).toBe(0.5);
     });
 
     it("keeps a white rose as ink, but tags it", async () => {
-      const ruling = await cat.name("a white rose");
+      const ruling = await cat.name("a white rose", SKETCH);
       expect(ruling.nature).toBe("ink");
       expect(ruling.tags).toContain("rose");
     });
 
     it("refuses cake where cake isn't allowed, in character", async () => {
-      const ruling = await cat.name("a cake");
+      const ruling = await cat.name("a cake", SKETCH);
       expect(ruling).toMatchObject({ nature: "ink", strength: 1, name: "a cake" });
       expect(ruling.line).toBe("No cake down here. It's only ink.");
     });
@@ -104,34 +109,33 @@ describe("ScriptedCat", () => {
       ["a sword", REFUSALS.weapon],
     ] as const)("rules %j plain ink with the authored line", async (utterance, line) => {
       cat.enterRoom({ ...shelves, allowedNatures: "all" });
-      const ruling = await cat.name(utterance);
+      const ruling = await cat.name(utterance, SKETCH);
       expect(ruling.nature).toBe("ink");
       expect(ruling.line).toBe(line);
     });
 
     it("sends a helicopter up as the nearest honest nature", async () => {
-      const ruling = await cat.name("a helicopter");
+      const ruling = await cat.name("a helicopter", SKETCH);
       expect(ruling.nature).toBe("floaty");
       expect(ruling.line).toBe("Near enough. Up it goes.");
     });
 
     it("admires a dot called a ladder", async () => {
-      await cat.guess(SHAPES.dot ?? drawingOf());
-      const ruling = await cat.name("a ladder");
+      const ruling = await cat.name("a ladder", SHAPES.dot ?? drawingOf());
       expect(ruling.nature).toBe("climbable");
       expect(ruling.line).toBe("The smallest ladder I ever saw.");
-      expect((await cat.name("a ladder")).line).not.toContain("smallest");
+      expect((await cat.name("a ladder", SKETCH)).line).not.toContain("smallest");
     });
 
     it("asks again when nothing is named", async () => {
-      const ruling = await cat.name("   ");
+      const ruling = await cat.name("   ", SKETCH);
       expect(ruling.nature).toBe("ink");
       expect(ruling.line).toBe(cat.askWhatItIs());
     });
 
     it("shrugs at the unknown, the same way every time", async () => {
-      const first = await cat.name("my uncle's hat");
-      const second = await cat.name("my uncle's hat");
+      const first = await cat.name("my uncle's hat", SKETCH);
+      const second = await cat.name("my uncle's hat", SKETCH);
       expect(first).toMatchObject({ nature: "ink", name: "my uncle's hat" });
       expect(second.line).toBe(first.line);
     });
@@ -191,7 +195,7 @@ describe("ScriptedCat", () => {
           const guesses = await cat.guess(drawing);
           expect(new Set(guesses).size).toBe(3);
           for (const guess of guesses) {
-            const { nature } = await createCatIn("all").name(guess);
+            const { nature } = await createCatIn("all").name(guess, SKETCH);
             expect(isAllowed(nature, level.allowedNatures)).toBe(true);
           }
         }

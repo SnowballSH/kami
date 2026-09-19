@@ -62,7 +62,7 @@ matter-js 0.20, gravity `y = 1`, `Engine.update(engine, FIXED_STEP_MS)` per `ste
 | Nature | Behaviour |
 |---|---|
 | `ink` | Nothing extra. |
-| `bouncy` | Alice touching it from above (contact normal mostly vertical, her feet above its centre) gets `vy = -11.5 · √strength` px/tick, emit `bounced`. At strength 1 she must clear a 220 px ledge with margin; tune against a test. |
+| `bouncy` | Alice touching it from above (contact normal mostly vertical, her feet above its centre) gets `vy = -16.5 · √strength` px/tick (`BOUNCE_SPEED`; Alice's air friction eats a lot of it), emit `bounced`. At strength 1 she clears the 220 px ledge with margin; `sim/rooms.test.ts` holds that line. |
 | `climbable` | Does not collide with Alice. While her bounds overlap it (within 6 px of a stroke), gravity on her is cancelled, `vy = intent.y · 2` px/tick, `climbing = true`. |
 | `floaty` | Rises at `1.1 · strength` px/tick (velocity set each tick, angular velocity damped), and carries Alice if she is standing on it. Made dynamic even if it was anchored. |
 | `heavy` | Density ×12 · strength. |
@@ -106,4 +106,4 @@ DOM over the canvas; `touch-action: none`, no text selection, no callouts, no ov
 - **Naming flow:** commit → `sim.addDrawing` (solid immediately) → if `level.namingEnabled`: Cat asks, `cat.guess` fills the chips → chip/typed name → `cat.name` → `sim.applyRuling` + tint + Cat line. Dismissing, or 12 s of silence, leaves it plain ink.
 - **Eraser:** while active, pen-down erases the drawing under the point and refunds its ink.
 - **Stuck:** 45 s without progress or three falls → `cat.offerHelp()`.
-- **Rooms:** Riverbank → title card "Kami" → Shelves → Hall of Doors → ending: a flip-through of everything the player drew, captioned with what they called it.
+- **Rooms:** Riverbank → title card "Kami" → Shelves → page card → Hall of Doors → ending: a flip-through of everything the player drew, captioned with what they called it.
