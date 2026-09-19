@@ -1,6 +1,7 @@
 import Matter from "matter-js";
 import type { Ruling } from "../cat/types";
 import type { Rect, Stroke } from "../core/geometry";
+import { bearingStrokes } from "../ink/bearing";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { WorldPhysics } from "../rules/types";
 import { countAnchorClusters } from "./anchoring";
@@ -116,7 +117,7 @@ export class InkLayer {
   ): Matter.Body | null {
     const strategy = NATURES[state.nature];
     const anchorClusters = countAnchorClusters(worldStrokes, this.anchorRects);
-    return buildInkBody(drawnStrokes, {
+    return buildInkBody(bearingStrokes(drawnStrokes), {
       isStatic: state.frozen || holdsStill(strategy, anchorClusters),
       material: this.materialOf(state),
       collisionFilter: strategy.solidToAlice ? SOLID_TO_ALL : GHOST_TO_ALICE,
