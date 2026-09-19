@@ -63,6 +63,7 @@ export const noteSchema = z.looseObject({
   tone: z.enum(["plain", "understood", "confused"]),
   createdAt: z.number(),
   action: noteActionSchema.exactOptional(),
+  drawingId: brandedId<DrawingId>().exactOptional(),
   fleeting: z.boolean(),
 }) satisfies z.ZodType<Note>;
 

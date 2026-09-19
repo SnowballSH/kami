@@ -169,6 +169,35 @@ describe("board memory", () => {
     expect((await loadBoard("demo")).notes).toEqual([guess]);
   });
 
+  it("round-trips drawing label associations alongside legacy notes", async () => {
+    const stored = storedDrawing("drawing-1", MUSHROOM_RULING);
+    const label: Note = {
+      ...note("label", "a bouncy mushroom", 1),
+      drawingId: stored.drawing.id,
+    };
+    const legacy = note("legacy", "old writing", 2);
+    await call("PUT", "/api/boards/demo/drawings/drawing-1", stored);
+    expect((await call("PUT", "/api/boards/demo/notes/label", label)).status).toBe(200);
+    expect((await call("PUT", "/api/boards/demo/notes/legacy", legacy)).status).toBe(200);
+    expect(await loadBoard("demo")).toEqual({
+      drawings: [stored],
+      notes: [label, legacy],
+      rules: [],
+    });
+  });
+
+  it.each(["", "x".repeat(201), null, 1, {}])(
+    "rejects an invalid drawing label association: %j",
+    async (drawingId) => {
+      const response = await call("PUT", "/api/boards/demo/notes/label", {
+        ...note("label", "a rock", 1),
+        drawingId,
+      });
+      expect(response.status).toBe(400);
+      expect((await loadBoard("demo")).notes).toEqual([]);
+    },
+  );
+
   it("overwrites on a second save of the same id", async () => {
     await call("PUT", "/api/boards/demo/drawings/drawing-1", storedDrawing("drawing-1"));
     await call(
