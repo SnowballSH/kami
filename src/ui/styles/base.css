@@ -1,0 +1,64 @@
+:root {
+  --kami-paper: #f3e7c9;
+  --kami-paper-light: #faf3dd;
+  --kami-paper-shade: #e4d3a6;
+  --kami-ink: #1d1a16;
+  --kami-ink-soft: rgb(29 26 22 / 0.62);
+  --kami-pen: #1f3f9e;
+  --kami-red: #b3261e;
+  --kami-hand:
+    "Bradley Hand", "Chalkboard SE", "Noteworthy", "Marker Felt", "Comic Sans MS", cursive, serif;
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--kami-paper);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+}
+
+#app {
+  position: relative;
+}
+
+#app > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}

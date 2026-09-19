@@ -1,18 +1,22 @@
+import "./styles/base.css";
+import "./styles/hud.css";
 import type { Vec } from "../core/geometry";
+import { DomHud } from "./hud";
+import { PenTracker } from "./pen";
 import type { Detach, Hud, HudHandlers, PenSink } from "./types";
 
 export type * from "./types";
 
 /** Builds the HUD overlay inside `root` and listens for keyboard and on-screen walking. */
-export function createHud(_root: HTMLElement, _handlers: HudHandlers): Hud {
-  throw new Error("not implemented");
+export function createHud(root: HTMLElement, handlers: HudHandlers): Hud {
+  return new DomHud(root, handlers);
 }
 
 /** Routes one pointer at a time (finger, Pencil or mouse) from the canvas to `sink` in world space. */
 export function attachPen(
-  _canvas: HTMLCanvasElement,
-  _toWorld: (clientX: number, clientY: number) => Vec,
-  _sink: PenSink,
+  canvas: HTMLCanvasElement,
+  toWorld: (clientX: number, clientY: number) => Vec,
+  sink: PenSink,
 ): Detach {
-  throw new Error("not implemented");
+  return new PenTracker(canvas, toWorld, sink).attach();
 }

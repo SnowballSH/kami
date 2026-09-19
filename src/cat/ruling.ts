@@ -1,0 +1,69 @@
+import { TAG_WORDS, type Tag } from "./lexicon";
+import {
+  ACCEPTANCE,
+  ASK_WHAT_IT_IS,
+  forbiddenThingLine,
+  NEAR_ENOUGH,
+  pickLine,
+  REFUSALS,
+  smallestThingLine,
+  TAG_LINES,
+} from "./lines";
+import { type NatureMatch, resolveNature } from "./natureResolver";
+import { isAllowed } from "./natures";
+import { type Phrase, parsePhrase, stemWord } from "./phrase";
+import { findRefusal } from "./scriptedRefusals";
+import { strengthOf } from "./strength";
+import { tidyName } from "./tidyName";
+import type { AllowedNatures, Ruling } from "./types";
+
+export interface RulingContext {
+  readonly allowed: AllowedNatures;
+  readonly drawingIsDot: boolean;
+}
+
+const PLAIN_STRENGTH = 1;
+
+const tagsIn = (phrase: Phrase): readonly Tag[] =>
+  TAG_WORDS.filter((tag) => phrase.stems.includes(stemWord(tag)));
+
+const plainInk = (name: string, tags: readonly Tag[], line: string): Ruling => ({
+  name,
+  nature: "ink",
+  strength: PLAIN_STRENGTH,
+  tags,
+  line,
+});
+
+const plainLine = (phrase: Phrase, [tag]: readonly Tag[]): string =>
+  tag === undefined ? pickLine(ACCEPTANCE.ink, phrase.text) : TAG_LINES[tag];
+
+const forbiddenLine = ({ kind, keyword }: NatureMatch): string =>
+  kind === "description" ? REFUSALS.forbidden : forbiddenThingLine(keyword);
+
+const acceptanceLine = (phrase: Phrase, match: NatureMatch, drawingIsDot: boolean): string => {
+  if (drawingIsDot && match.kind !== "description") return smallestThingLine(match.keyword);
+  if (match.kind === "near-enough") return NEAR_ENOUGH;
+  return pickLine(ACCEPTANCE[match.nature], phrase.text);
+};
+
+export const ruleOn = (utterance: string, { allowed, drawingIsDot }: RulingContext): Ruling => {
+  const phrase = parsePhrase(utterance);
+  const name = tidyName(utterance);
+  if (phrase.words.length === 0) return plainInk(name, [], ASK_WHAT_IT_IS);
+
+  const tags = tagsIn(phrase);
+  const match = resolveNature(phrase);
+  const refusal = findRefusal(phrase, match !== null);
+  if (refusal !== null) return plainInk(name, tags, refusal);
+  if (match === null) return plainInk(name, tags, plainLine(phrase, tags));
+  if (!isAllowed(match.nature, allowed)) return plainInk(name, tags, forbiddenLine(match));
+
+  return {
+    name,
+    nature: match.nature,
+    strength: strengthOf(phrase),
+    tags,
+    line: acceptanceLine(phrase, match, drawingIsDot),
+  };
+};
