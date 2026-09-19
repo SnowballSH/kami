@@ -67,7 +67,8 @@ export const NATURE_THINGS: WordTable = {
     cow, sheep, goat, horse, pony, donkey, hedgehog, duck, chicken, hen, penguin, crab, beetle,
     ant, spider, lizard, dodo, walrus, gryphon, elephant, hippo, rhino, bull, bear, dinosaur,
     lion, tiger, wolf, fox, deer, monkey, robot, soldier, knight, person, man, woman, boy, child,
-    baby, cheshire cat, creature, monster, animal, pet, beast, worm, slug, lobster, crocodile,
+    baby, girl, kid, hero, heroine, character, player, princess, prince, queen, king, wizard,
+    witch, pirate, cheshire cat, creature, monster, animal, pet, beast, worm, slug, lobster, crocodile,
     alligator, camel, zebra, giraffe, gorilla, panda, koala
   `),
   hopper: list(`

@@ -11,7 +11,15 @@ import type {
 } from "../../persistence/types";
 import type { Camera, Renderer, RenderFrame } from "../../render/types";
 import type { Rule, RuleId } from "../../rules/types";
-import type { BoardListing, Hud, HudHandlers, Tool } from "../../ui/types";
+import type {
+  BoardListing,
+  Hud,
+  HudHandlers,
+  LawListing,
+  LawsPanel,
+  LawsPanelHandlers,
+  Tool,
+} from "../../ui/types";
 
 export class FakeHud implements Hud {
   tool: Tool = "draw";
@@ -40,6 +48,16 @@ export class FakeHud implements Hud {
 
   promptText(): Promise<string | null> {
     return Promise.resolve(this.answers.shift() ?? null);
+  }
+}
+
+export class FakeLawsPanel implements LawsPanel {
+  laws: readonly LawListing[] = [];
+
+  constructor(readonly handlers: LawsPanelHandlers) {}
+
+  setLaws(laws: readonly LawListing[]): void {
+    this.laws = laws;
   }
 }
 

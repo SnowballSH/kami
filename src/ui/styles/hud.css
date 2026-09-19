@@ -1,4 +1,5 @@
-.kami-hud {
+.kami-hud,
+.kami-laws {
   --kami-safe-top: max(12px, env(safe-area-inset-top));
   --kami-safe-right: max(16px, env(safe-area-inset-right));
   --kami-safe-bottom: max(16px, env(safe-area-inset-bottom));
@@ -9,7 +10,9 @@
   --kami-radius-inner: 6px;
   --kami-line: 1px solid var(--kami-ink);
   --kami-hairline: 0 1px 0 rgb(17 17 17 / 0.08);
+}
 
+.kami-hud {
   position: absolute;
   inset: 0;
   z-index: 10;

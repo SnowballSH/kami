@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Ruling } from "../../src/cat/types";
+import type { Stroke } from "../../src/core/geometry";
 import type { DrawingId } from "../../src/ink/types";
 import type { Note, NoteId } from "../../src/notes/types";
 import type { BoardSnapshot, StoredDrawing } from "../../src/persistence/types";
@@ -13,6 +14,7 @@ import { BoardRepository } from "../db/boardRepository";
 import type { DatabaseConnection } from "../db/connect";
 import { computeFeature } from "../quickdraw/feature";
 import { QuickdrawRecognizer } from "../quickdraw/recognizer";
+import type { Reading } from "../recognition/types";
 import { startMemoryDatabase } from "../testing/memoryDatabase";
 import { circleSketch, lineSketch } from "../testing/sketches";
 import { type ApiDependencies, createApi, type RankOptions, type SketchRecognizer } from "./api";
@@ -108,10 +110,14 @@ beforeAll(async () => {
     ]).flat(),
   );
   const recognizer: SketchRecognizer = {
-    rank: async (strokes) => nearestNeighbours.rank(strokes),
+    read: async (strokes) => nearestNeighbours.read(strokes),
   };
   const compiler = {
     compile: async (text: string) => (text.includes("mars") ? MARS_RULE : null),
+  };
+  const transcriber = {
+    transcribe: async (strokes: readonly Stroke[]) => (strokes.length > 1 ? "no gravity" : null),
+    warmUp: async () => true,
   };
   beautifier = createBeautifier("http://beautifier.test/beautify", async (_url, init) => {
     const { name } = JSON.parse(String(init?.body)) as { name: string };
@@ -121,7 +127,7 @@ beforeAll(async () => {
   });
   clock = new ManualClock();
   controllers = new InMemoryControllerHub(clock);
-  apiParts = () => ({ boards, recognizer, compiler, controllers });
+  apiParts = () => ({ boards, recognizer, compiler, controllers, transcriber });
   api = createApi({ ...apiParts(), beautifier });
 }, 120_000);
 
@@ -282,6 +288,34 @@ describe("beautify", () => {
   });
 });
 
+describe("transcribe", () => {
+  const words = [
+    ...lineSketch({ x: 0, y: 0 }, { x: 0, y: 40 }),
+    ...lineSketch({ x: 0, y: 20 }, { x: 20, y: 20 }),
+  ];
+
+  it("answers with the words the reader saw, or null for a drawing", async () => {
+    const read = await call("POST", "/api/transcribe", { strokes: words });
+    expect(read.status).toBe(200);
+    expect(await read.json()).toEqual({ text: "no gravity" });
+    const drawn = await call("POST", "/api/transcribe", { strokes: [words[0]] });
+    expect(await drawn.json()).toEqual({ text: null });
+  });
+
+  it("rejects no strokes, and says so when no reader is attached", async () => {
+    expect((await call("POST", "/api/transcribe", { strokes: [] })).status).toBe(400);
+    expect((await call("POST", "/api/transcribe", { text: "hi" })).status).toBe(400);
+    const bare = createApi({ ...apiParts(), beautifier, transcriber: null });
+    const response = await bare.handle(
+      new Request("http://kami.test/api/transcribe", {
+        method: "POST",
+        body: JSON.stringify({ strokes: words }),
+      }),
+    );
+    expect(response.status).toBe(501);
+  });
+});
+
 describe("recognise and compile", () => {
   it("says how sure it is, and accepts a drawing still under the pen", async () => {
     const strokes = circleSketch({ x: 5200, y: -340 }, 85, 0.02);
@@ -323,15 +357,18 @@ describe("recognise and compile", () => {
   it("folds aliases into one guess, keeps the best three, and passes the pen's state on", async () => {
     const asked: RankOptions[] = [];
     const scripted: SketchRecognizer = {
-      rank: async (_strokes, options = {}) => {
+      read: async (_strokes, options = {}) => {
         asked.push(options);
-        return [
-          { category: "birthday cake", confidence: 0.4 },
-          { category: "cake", confidence: 0.3 },
-          { category: "mushroom", confidence: 0.2 },
-          { category: "door", confidence: 0.06 },
-          { category: "ladder", confidence: 0.04 },
-        ];
+        return {
+          ranking: [
+            { category: "birthday cake", confidence: 0.4 },
+            { category: "cake", confidence: 0.3 },
+            { category: "mushroom", confidence: 0.2 },
+            { category: "door", confidence: 0.06 },
+            { category: "ladder", confidence: 0.04 },
+          ],
+          certainAbove: null,
+        };
       },
     };
     const eyes = createApi({ ...apiParts(), recognizer: scripted, beautifier });
@@ -347,6 +384,87 @@ describe("recognise and compile", () => {
       confidence: [0.7, 0.2, 0.06],
       names: ["a cake", "a mushroom", "a door"],
       natures: ["grow", "bouncy", "goal"],
+    });
+  });
+
+  describe("naming without asking", () => {
+    interface Recognition {
+      readonly guesses: readonly string[];
+      readonly confidence: readonly number[];
+      readonly certain: boolean;
+    }
+
+    const recognitionOf = async (reading: Reading): Promise<Recognition> => {
+      const eyes = createApi({
+        ...apiParts(),
+        recognizer: { read: async () => reading },
+        beautifier,
+      });
+      const response = await eyes.handle(
+        new Request(`${ORIGIN}/api/recognize`, {
+          method: "POST",
+          body: JSON.stringify({ strokes: circleSketch({ x: 0, y: 0 }, 40) }),
+        }),
+      );
+      return (await response.json()) as Recognition;
+    };
+
+    const cakeAt = (confidence: number): Reading["ranking"] => [
+      { category: "cake", confidence },
+      { category: "mushroom", confidence: 0.1 },
+    ];
+
+    it("is certain when the leader reaches the floor its recogniser set", async () => {
+      expect(await recognitionOf({ ranking: cakeAt(0.8), certainAbove: 0.8 })).toMatchObject({
+        guesses: ["cake", "mushroom"],
+        certain: true,
+      });
+      expect((await recognitionOf({ ranking: cakeAt(0.85), certainAbove: 0.8 })).certain).toBe(
+        true,
+      );
+    });
+
+    it("is not certain just under the floor, even when the rounded confidence reads the same", async () => {
+      expect(await recognitionOf({ ranking: cakeAt(0.7996), certainAbove: 0.8 })).toMatchObject({
+        confidence: [0.8, 0.1],
+        certain: false,
+      });
+    });
+
+    it("is never certain when the recogniser's confidence cannot be trusted", async () => {
+      expect((await recognitionOf({ ranking: cakeAt(1), certainAbove: null })).certain).toBe(false);
+    });
+
+    it("decides on the leader after aliases are folded together", async () => {
+      const split: Reading["ranking"] = [
+        { category: "mushroom", confidence: 0.3 },
+        { category: "birthday cake", confidence: 0.28 },
+        { category: "cake", confidence: 0.27 },
+      ];
+      expect(await recognitionOf({ ranking: split, certainAbove: 0.5 })).toMatchObject({
+        guesses: ["cake", "mushroom"],
+        confidence: [0.55, 0.3],
+        certain: true,
+      });
+      expect((await recognitionOf({ ranking: split, certainAbove: 0.6 })).certain).toBe(false);
+    });
+
+    it("is not certain of an empty answer, whatever the floor", async () => {
+      expect(await recognitionOf({ ranking: [], certainAbove: 0 })).toEqual({
+        guesses: [],
+        confidence: [],
+        names: [],
+        natures: [],
+        strengths: [],
+        lines: [],
+        certain: false,
+      });
+    });
+
+    it("names the circle the k-NN is sure of", async () => {
+      const strokes = circleSketch({ x: 5200, y: -340 }, 85, 0.02);
+      const response = await call("POST", "/api/recognize", { strokes });
+      expect(await response.json()).toMatchObject({ guesses: ["circle"], certain: true });
     });
   });
 
