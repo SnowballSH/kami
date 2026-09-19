@@ -12,8 +12,8 @@ export const NATURE_THINGS: WordTable = {
   bouncy: list(`
     mushroom, toadstool, spring, trampoline, jelly, jello, bed, mattress, ball, rubber,
     rubber ball, bouncy ball, beach ball, basketball, bouncy castle, pogo stick, pogo, slinky,
-    cushion, pillow, sofa, couch, drum, springboard, diving board, kangaroo, frog, rabbit, bunny,
-    grasshopper, marshmallow, flubber, jump pad, launch pad, bumper, coil, bounce, boing
+    cushion, pillow, sofa, couch, drum, springboard, diving board, marshmallow, flubber, jump pad,
+    launch pad, bumper, coil, bounce, boing
   `),
   climbable: list(`
     ladder, stepladder, step ladder, vine, rope, stairs, staircase, stairway, steps, tree, net,
@@ -22,17 +22,14 @@ export const NATURE_THINGS: WordTable = {
     braid, cable, cord, stalk, trunk, branch, bamboo, handhold, foothold, creeper, rigging, climb
   `),
   floaty: list(`
-    balloon, hot air balloon, cloud, bubble, kite, bird, butterfly, bee, bat, moth, owl, eagle,
-    pigeon, dove, seagull, parrot, firefly, dragonfly, fly, airship, blimp, zeppelin, parachute,
-    ghost, angel, fairy, smoke, steam, helium, lantern, sky lantern, magic carpet, flying carpet,
-    broomstick, dragon, pegasus, float
+    balloon, hot air balloon, cloud, bubble, kite, airship, blimp, zeppelin, parachute, smoke,
+    steam, helium, lantern, sky lantern, magic carpet, flying carpet, broomstick, float
   `),
   heavy: list(`
     rock, anvil, safe, boulder, stone, weight, dumbbell, barbell, kettlebell, iron, lead,
-    elephant, hippo, whale, piano, cannonball, bowling ball, anchor, mountain, meteor, asteroid,
-    statue, truck, tractor, bulldozer, bus, train, car, gold, gold bar, ingot, steel, metal,
-    concrete, cement, hammer, fridge, paperweight, log, vault, pebble, planet, ton, tonne,
-    dinosaur, rhino, bull, bear, lump, sandbag
+    whale, piano, cannonball, bowling ball, anchor, mountain, meteor, asteroid, statue, truck,
+    tractor, bulldozer, bus, train, car, gold, gold bar, ingot, steel, metal, concrete, cement,
+    hammer, fridge, paperweight, log, vault, pebble, planet, ton, tonne, lump, sandbag
   `),
   light: list(`
     feather, leaf, leaves, paper, paper plane, paper airplane, paper aeroplane, paper bag,
@@ -65,6 +62,24 @@ export const NATURE_THINGS: WordTable = {
     wine, beer, coffee, medicine, tonic, brew, soup, jug, pitcher, kettle, smoothie, milkshake,
     cocktail, pill, fan, soda can, tin can
   `),
+  walker: list(`
+    cat, kitten, dog, puppy, caterpillar, turtle, tortoise, snail, mouse, rat, hamster, pig,
+    cow, sheep, goat, horse, pony, donkey, hedgehog, duck, chicken, hen, penguin, crab, beetle,
+    ant, spider, lizard, dodo, walrus, gryphon, elephant, hippo, rhino, bull, bear, dinosaur,
+    lion, tiger, wolf, fox, deer, monkey, robot, soldier, knight, person, man, woman, boy, child,
+    baby, cheshire cat, creature, monster, animal, pet, beast, worm, slug, lobster, crocodile,
+    alligator, camel, zebra, giraffe, gorilla, panda, koala
+  `),
+  hopper: list(`
+    rabbit, bunny, hare, white rabbit, march hare, frog, toad, kangaroo, grasshopper, cricket,
+    flea, wallaby, jackrabbit, springbok, gazelle, impala, jumping bean, hopper
+  `),
+  flier: list(`
+    bird, butterfly, bee, bumblebee, wasp, bat, moth, owl, eagle, pigeon, dove, seagull, gull,
+    parrot, firefly, dragonfly, fly, mosquito, hummingbird, sparrow, robin, crow, raven, swan,
+    goose, flamingo, pelican, stork, hawk, falcon, vulture, ghost, angel, fairy, dragon, pegasus,
+    phoenix, griffin, bluebird, ladybird, ladybug, jubjub bird, flier
+  `),
   solid: list(`
     ground, floor, wall, platform, block, brick, shelf, ledge, pavement, road, terrain, island,
     cliff, hill
@@ -85,7 +100,7 @@ export const NATURE_THINGS: WordTable = {
 export const NATURE_DESCRIPTIONS: WordTable = {
   bouncy: list("bouncy, bouncey, bouncing, springy, rubbery, jumpy, boingy, elastic, stretchy"),
   climbable: list("climbable, climby, climbing, scalable"),
-  floaty: list("floaty, floating, flying, hovering, airborne, rising, levitating"),
+  floaty: list("floaty, floating, hovering, airborne, rising, levitating"),
   heavy: list("heavy, weighty, dense, hefty, leaden"),
   light: list("light, lightweight, weightless, airy, feathery, flimsy"),
   slippery: list(`
@@ -95,6 +110,9 @@ export const NATURE_DESCRIPTIONS: WordTable = {
   sticky: list("sticky, gluey, gooey, tacky, stuck, glued, nailed, pinned, taped, gummy"),
   grow: list("eat me, eat, edible, yummy, tasty, delicious, grow, growing, growth"),
   shrink: list("drink me, drinkable, shrink, shrinking, shrinky, sip"),
+  walker: list("walking, walks, walker, crawling, crawls, pacing, prowling, alive, living"),
+  hopper: list("hopping, hops, hoppy, jumping, leaping, leaps, bounding"),
+  flier: list("flying, flapping, flaps, flutters, fluttering, soaring, winged"),
   solid: list("solid, static, fixed, immovable, unmovable, rigid"),
   goal: [],
   hazard: list("deadly, dangerous, lethal, poisonous, spiky, burning"),

@@ -17,6 +17,7 @@ import {
   LIGHT_DENSITY_FACTOR,
 } from "./constants";
 import { type Contact, supports } from "./contacts";
+import { type Feelers, fly, hop, walk } from "./creatures";
 import type { InkEntity } from "./inkEntity";
 import type { AliceSize, SimEvent } from "./types";
 import { type BodyMaterial, cancelGravity } from "./worldPhysics";
@@ -25,6 +26,7 @@ import { type BodyMaterial, cancelGravity } from "./worldPhysics";
 export interface NatureWorld {
   readonly alice: AliceController;
   readonly gravity: Vec;
+  readonly feelers: Feelers;
   emit(event: SimEvent): void;
   reachGoal(): void;
   loseAlice(): void;
@@ -45,6 +47,8 @@ export interface NatureStrategy {
   readonly solidToAlice: boolean;
   readonly climbable: boolean;
   readonly slippery: boolean;
+  /** Creatures keep their feet down: the body never rotates. */
+  readonly upright: boolean;
   readonly material: (strength: number) => BodyMaterial;
   readonly beforeStep?: InkHook;
   readonly onAliceTouch?: AliceTouchHook;
@@ -64,8 +68,11 @@ const PLAIN: NatureStrategy = {
   solidToAlice: true,
   climbable: false,
   slippery: false,
+  upright: false,
   material: () => PLAIN_MATERIAL,
 };
+
+const CREATURE: NatureStrategy = { ...PLAIN, anchorsToHold: null, upright: true };
 
 const ROLE: NatureStrategy = { ...PLAIN, anchorsToHold: 0, pinned: true };
 
@@ -126,6 +133,9 @@ export const NATURES: Readonly<Record<Nature, NatureStrategy>> = {
   sticky: { ...PLAIN, anchorsToHold: 1, onSurfaceTouch: (ink, world) => world.freeze(ink) },
   grow: { ...PLAIN, onAliceTouch: resizeTo("big") },
   shrink: { ...PLAIN, onAliceTouch: resizeTo("small") },
+  walker: { ...CREATURE, beforeStep: walk },
+  hopper: { ...CREATURE, beforeStep: hop },
+  flier: { ...CREATURE, beforeStep: fly },
   solid: ROLE,
   goal: {
     ...ROLE,

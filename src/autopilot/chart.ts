@@ -51,7 +51,7 @@ const grow = (range: CellRange, by: number): CellRange => ({
   r1: range.r1 + by,
 });
 
-/** How each nature reads underfoot; mirrors what the simulation lets Alice stand on and pass through. */
+/** How each nature reads underfoot; mirrors what the simulation lets Alice stand on and pass through. Creatures move, so the chart leaves them out. */
 const flagsFor = (nature: Nature): number => {
   switch (nature) {
     case "climbable":
@@ -59,6 +59,9 @@ const flagsFor = (nature: Nature): number => {
     case "goal":
       return CellFlag.goal;
     case "spawn":
+    case "walker":
+    case "hopper":
+    case "flier":
       return 0;
     case "bouncy":
       return CellFlag.solid | CellFlag.bouncy;

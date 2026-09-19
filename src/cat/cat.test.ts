@@ -325,10 +325,10 @@ describe("ScriptedCat", () => {
       expect(ruling).toMatchObject({ nature, name, strength: 1 });
     });
 
-    it("still reads a block of ice as slippery and a rabbit as bouncy", async () => {
+    it("still reads a block of ice as slippery and a mushroom as bouncy", async () => {
       cat.enterRoom(hallOfDoors);
       expect((await cat.name("a block of ice", SKETCH)).nature).toBe("slippery");
-      expect((await cat.name("a rabbit", SKETCH)).nature).toBe("bouncy");
+      expect((await cat.name("a mushroom", SKETCH)).nature).toBe("bouncy");
     });
   });
 });

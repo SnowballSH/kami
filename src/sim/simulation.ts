@@ -10,7 +10,7 @@ import { BoardProps } from "./boardProps";
 import { exactBounds } from "./bodyBounds";
 import { Checkpoints } from "./checkpoints";
 import { GRAVITY_SCALE, GROW_REFUSAL_COOLDOWN_MS, MIN_TIME_SCALE } from "./constants";
-import { type Contact, contactsWith, toContact } from "./contacts";
+import { type Contact, contactsAt, contactsWith, toContact } from "./contacts";
 import { EMPTY_BOARD } from "./emptyBoard";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "./flight";
 import type { InkEntity } from "./inkEntity";
@@ -195,6 +195,10 @@ export class MatterSimulation implements Simulation {
     return {
       alice,
       gravity: accelerationOf(this.physics.gravity),
+      feelers: {
+        touches: (ink, offset) => this.feltBy(ink, offset),
+        groundBelow: (ink, foot, drop) => this.groundBelow(ink, foot, drop),
+      },
       emit: (event) => this.events.push(event),
       reachGoal: () => this.reachGoal(),
       loseAlice: () => {
@@ -211,6 +215,24 @@ export class MatterSimulation implements Simulation {
       },
       hasHeadroomFor: (size) => this.hasHeadroomFor(size),
     };
+  }
+
+  private feltBy(ink: InkEntity, offset: Vec): readonly Contact[] {
+    return contactsAt(ink.body, offset, this.bodiesAround(ink));
+  }
+
+  private groundBelow(ink: InkEntity, foot: Vec, drop: number): boolean {
+    const probe = Matter.Bodies.rectangle(foot.x, foot.y + drop / 2, 2, drop);
+    return contactsWith(probe, this.bodiesAround(ink)).length > 0;
+  }
+
+  private bodiesAround(ink: InkEntity): readonly Matter.Body[] {
+    const { alice, inks, props } = this.world;
+    return [
+      alice.body,
+      ...props.solidBodies,
+      ...inks.all.filter((other) => other !== ink).map((other) => other.body),
+    ];
   }
 
   private aliceContacts(): readonly Contact[] {
