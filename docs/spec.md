@@ -63,6 +63,11 @@ One per drawing. The player never sees this list — they see the ink change tin
 | **sticky** | glue, nail, tape, honey | Fixes itself wherever it lands |
 | **grow** | cake, biscuit, "eat me" | One use: Alice doubles in size |
 | **shrink** | bottle, potion, "drink me" | One use: Alice shrinks to fit tiny doors |
+| **walker** | cat, dog, turtle, knight, any animal that walks | Alive. Paces its ground, turns at walls, edges and Alice; carries her if she stands on it |
+| **hopper** | rabbit, frog, kangaroo, grasshopper | Alive. Sits, then leaps forward on a beat; looks before it leaps |
+| **flier** | bird, butterfly, bee, bat, dragon, fairy | Alive. Flies level and bobbing, roaming only so far from where it was drawn; carries her |
+
+Creatures are natures, not names: a *walking* teapot walks, a *flying* pig flies. Any animal the Cat knows goes into the nature that says how it moves, and the player's own verb or adjective overrules the noun.
 
 Plus free-form **tags** the inhabitants react to — *rose*, *tart*, *queen* — see Room 5.
 

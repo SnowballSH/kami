@@ -11,6 +11,9 @@ export const NATURES = [
   "sticky",
   "grow",
   "shrink",
+  "walker",
+  "hopper",
+  "flier",
   "solid",
   "goal",
   "hazard",
@@ -18,8 +21,9 @@ export const NATURES = [
 ] as const;
 
 /**
- * What a drawing is. The first ten are spirits (spec §4). The last four are roles, for sketching
- * a new game: `solid` is ground that stays put wherever it was drawn, `goal` wins the board,
+ * What a drawing is. The first ten are spirits (spec §4). Then three creatures, which move by
+ * themselves: `walker` paces, `hopper` leaps, `flier` roams the air. The last four are roles, for
+ * sketching a new game: `solid` is ground that stays put wherever it was drawn, `goal` wins the board,
  * `hazard` sends Alice back to her checkpoint, `spawn` moves that checkpoint.
  */
 export type Nature = (typeof NATURES)[number];

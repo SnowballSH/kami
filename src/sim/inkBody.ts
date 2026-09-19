@@ -8,6 +8,7 @@ export interface InkBodyOptions {
   readonly isStatic: boolean;
   readonly material: BodyMaterial;
   readonly collisionFilter: Matter.ICollisionFilter;
+  readonly upright: boolean;
 }
 
 /** Ramer–Douglas–Peucker: fewer, longer collider segments with the same silhouette. */
@@ -73,6 +74,11 @@ export const buildInkBody = (
     collisionFilter: { ...options.collisionFilter },
     ...options.material,
   });
-  if (!options.isStatic) Matter.Body.setInertia(body, compoundInertia(body));
+  if (!options.isStatic) {
+    Matter.Body.setInertia(
+      body,
+      options.upright ? Number.POSITIVE_INFINITY : compoundInertia(body),
+    );
+  }
   return body;
 };

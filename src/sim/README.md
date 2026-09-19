@@ -41,6 +41,12 @@ She respawns at the checkpoint of the zone she **most recently arrived in**, not
 
 `goal-reached` is once per load, whichever of `board.goal` or goal ink comes first.
 
+## Creatures
+
+`walker`, `hopper` and `flier` (`creatures.ts`) are natures whose `beforeStep` hook drives the body. Each `InkEntity` carries a `Mind` — facing (seeded from the drawing id), a clock, when it last turned, how long it has rested — which `freshMind` resets on every new ruling. Creature bodies are built with infinite inertia so they never tip, and they never anchor.
+
+They feel the world through `Feelers`: `touches(ink, offset)` is the same nudge probe Alice uses (`contactsAt` against every other body), and `groundBelow(ink, foot, drop)` drops a 2 px wide probe from a point in front of the toe. A walker turns when the nudge ahead hits a wall (or Alice) or when there is no ground `CREATURE_LOOK_AHEAD` past its toe; a hopper rests `HOP_REST_TICKS` on the ground, then looks `HOP_REACH` ahead — about where one leap lands — before springing; a flier cancels gravity, bobs on a sine, and turns back once it is `FLY_ROAM_PX` from where it was drawn. Turning has a short cooldown so a creature wedged between two walls does not flicker. Walkers and fliers call `alice.ride` when she stands on them, exactly as sliding ink does. Speeds scale with the ruling's `strength`.
+
 ## World physics
 
 `setPhysics` is kept on the simulation, handed to every new `BoardWorld`, and pushed into the live bodies at once.

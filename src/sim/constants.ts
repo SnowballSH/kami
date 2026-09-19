@@ -46,3 +46,17 @@ export const HEAVY_DENSITY_FACTOR = 12;
 export const LIGHT_DENSITY_FACTOR = 0.08;
 export const LIGHT_AIR_FRICTION = 0.08;
 export const GROW_REFUSAL_COOLDOWN_MS = 1500;
+
+export const CREATURE_WALK_SPEED = 1.3;
+export const CREATURE_LOOK_AHEAD = 10;
+export const CREATURE_EDGE_DROP = 24;
+export const CREATURE_TURN_COOLDOWN_TICKS = 20;
+export const HOP_REST_TICKS = 40;
+export const HOP_UP_SPEED = 6;
+export const HOP_FORWARD_SPEED = 2.4;
+/** Roughly how far one hop carries, so a hopper looks that far before leaping. */
+export const HOP_REACH = 90;
+export const FLY_SPEED = 1.5;
+export const FLY_BOB_SPEED = 0.7;
+export const FLY_BOB_PERIOD_TICKS = 90;
+export const FLY_ROAM_PX = 320;

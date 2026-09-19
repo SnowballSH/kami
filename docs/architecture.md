@@ -63,6 +63,7 @@ matter-js 0.20. What changed from the page build:
 - **Goal.** `board.goal` overlap → `goal-reached`, once per load. So does touching ink ruled `goal`.
 - **Roles.** `solid` ink is static exactly where it was drawn, anchored or not. `goal` and `spawn` ink is static and does not collide with Alice. `hazard` ink is static; touching it respawns her (`fell`).
 - **World physics.** `setPhysics(p)` persists across `loadBoard`: `gravity` (g, either axis, zero and negative allowed) drives `engine.gravity`; `wind` is a per-body force in g on every dynamic body including Alice; `timeScale` multiplies with bullet-time; `airDrag`, `friction` and `bounciness` scale or set `frictionAir`, `friction` and `restitution` on ink and Alice. Alice's walk stays a set horizontal velocity; under sideways or zero gravity she may drift — that is the point.
+- **Creatures.** `walker`, `hopper` and `flier` are natures with a per-drawing `Mind` (facing, clock, rest) that is reset whenever the ruling changes; their bodies are kept upright (infinite inertia) and never anchor. Each tick the nature's `beforeStep` hook feels the world through `Feelers` — the same nudge probes Alice uses, plus a thin probe dropped ahead of the front foot — and sets a velocity: walkers pace and turn at walls, drops and Alice; hoppers rest, then leap about `HOP_REACH` and turn if there is no ground where they would land; fliers cancel gravity, bob, and turn back beyond `FLY_ROAM_PX` from where they were drawn. Alice standing on a walker or flier is carried (`alice.ride`). Speeds scale with the ruling's strength. The autopilot's chart leaves creatures out, since they move.
 - Everything else (ink compounds, anchoring on `marker` solids only, step-assist, slope limit, resize, natures, key, door) is unchanged. The three Wonderland puzzles must stay solvable on the continuous board — `sim/rooms.test.ts` holds that line, plus one test that moon gravity makes a bounce go higher.
 
 ## rules/
@@ -96,7 +97,7 @@ Alice walks herself; the player only draws. `game/` hands the pilot a `Scene` ev
 
 ## cat/
 
-As before, plus: role words — *ground, floor, wall, platform, block* → `solid`; *goal, finish, flag, exit, rabbit hole, home* → `goal`; *lava, spikes, fire, danger, acid* → `hazard`; *start, spawn, "alice starts here"* → `spawn`. `createCat(recognizer)`: `guess` asks the recognizer first and maps Quick, Draw! words onto names he knows ("birthday cake" → "a cake", "hot air balloon" → "a balloon"), filling up to three with the geometric hunch; with no recognizer or an empty answer it is the hunch alone.
+As before, plus: creature words — every animal (and *robot, knight, person*) is a `walker`, `hopper` or `flier` by how it moves, and *walking / hopping / flying* as adjectives put any noun there; role words — *ground, floor, wall, platform, block* → `solid`; *goal, finish, flag, exit, rabbit hole, home* → `goal`; *lava, spikes, fire, danger, acid* → `hazard`; *start, spawn, "alice starts here"* → `spawn`. `createCat(recognizer)`: `guess` asks the recognizer first and maps Quick, Draw! words onto names he knows ("birthday cake" → "a cake", "hot air balloon" → "a balloon"), filling up to three with the geometric hunch; with no recognizer or an empty answer it is the hunch alone.
 
 ## handwriting/
 

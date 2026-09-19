@@ -6,6 +6,7 @@ import type { WorldPhysics } from "../rules/types";
 import { countAnchorClusters } from "./anchoring";
 import { boundsRect } from "./bodyBounds";
 import { GHOST_TO_ALICE, SOLID_TO_ALL } from "./contacts";
+import { freshMind } from "./creatures";
 import { buildInkBody } from "./inkBody";
 import { InkEntity } from "./inkEntity";
 import { holdsStill, NATURES } from "./natures";
@@ -79,6 +80,7 @@ export class InkLayer {
     ink.nature = ruling.nature;
     ink.strength = ruling.strength;
     ink.frozen = false;
+    ink.mind = freshMind(ink.id);
     this.rebuild(ink);
   }
 
@@ -90,13 +92,13 @@ export class InkLayer {
 
   private rebuild(ink: InkEntity): void {
     const previous = ink.body;
-    const { pinned } = NATURES[ink.nature];
+    const { pinned, upright } = NATURES[ink.nature];
     const worldStrokes = pinned ? ink.drawing.strokes : ink.worldStrokes;
     const body = this.build(ink.drawing.strokes, worldStrokes, ink);
     if (body === null) return;
     if (!pinned) {
       Matter.Body.setPosition(body, previous.position);
-      Matter.Body.setAngle(body, previous.angle);
+      Matter.Body.setAngle(body, upright ? 0 : previous.angle);
     }
     if (!body.isStatic) {
       Matter.Body.setVelocity(body, Matter.Body.getVelocity(previous));
@@ -118,6 +120,7 @@ export class InkLayer {
       isStatic: state.frozen || holdsStill(strategy, anchorClusters),
       material: this.materialOf(state),
       collisionFilter: strategy.solidToAlice ? SOLID_TO_ALL : GHOST_TO_ALICE,
+      upright: strategy.upright,
     });
   }
 

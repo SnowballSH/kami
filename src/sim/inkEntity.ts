@@ -2,17 +2,21 @@ import type Matter from "matter-js";
 import type { Nature } from "../cat/types";
 import { type Pose, poseToWorld, type Stroke, type Vec } from "../core/geometry";
 import type { Drawing, DrawingId } from "../ink/types";
+import { freshMind, type Mind } from "./creatures";
 
 export class InkEntity {
   nature: Nature = "ink";
   strength = 1;
   frozen = false;
+  mind: Mind;
 
   constructor(
     readonly drawing: Drawing,
     readonly origin: Vec,
     public body: Matter.Body,
-  ) {}
+  ) {
+    this.mind = freshMind(drawing.id);
+  }
 
   get id(): DrawingId {
     return this.drawing.id;

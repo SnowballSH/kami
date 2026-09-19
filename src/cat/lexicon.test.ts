@@ -65,6 +65,14 @@ describe("the lexicon", () => {
     });
   });
 
+  it("hears animals as creatures, by what they do", () => {
+    expect(resolveNature(parsePhrase("a cat"))?.nature).toBe("walker");
+    expect(resolveNature(parsePhrase("the white rabbit"))?.nature).toBe("hopper");
+    expect(resolveNature(parsePhrase("a bird"))?.nature).toBe("flier");
+    expect(resolveNature(parsePhrase("a flying pig"))?.nature).toBe("flier");
+    expect(resolveNature(parsePhrase("a hopping dog"))?.nature).toBe("hopper");
+  });
+
   it("hears plurals", () => {
     expect(resolveNature(parsePhrase("two mushrooms"))?.nature).toBe("bouncy");
     expect(resolveNature(parsePhrase("glasses of water"))?.nature).toBe("shrink");

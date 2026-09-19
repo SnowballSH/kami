@@ -77,6 +77,21 @@ export const ACCEPTANCE: Readonly<Record<Nature, LineSet>> = {
     "It will stay exactly there. How unlike me.",
     "Something to stand on. Opinions rarely manage that.",
   ],
+  walker: [
+    "It walks. Not everything that walks knows where to.",
+    "Off it goes, up and down. Company for her, at least.",
+    "Alive, then. Do mind it doesn't wander off the edge.",
+  ],
+  hopper: [
+    "Hop, hop. It will not stay where you put it.",
+    "Late for something, I expect. They always are.",
+    "It leaps. She may leap after it, if she likes.",
+  ],
+  flier: [
+    "Wings. It won't go far, but it won't come down either.",
+    "Up it flaps. Stand on it if you dare.",
+    "A flier. It keeps to its patch of sky.",
+  ],
   goal: [
     "So that's where she's going. I did wonder.",
     "An ending! Now all she needs is a middle.",
