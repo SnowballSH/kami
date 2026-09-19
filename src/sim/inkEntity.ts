@@ -8,6 +8,8 @@ export class InkEntity {
   nature: Nature = "ink";
   strength = 1;
   frozen = false;
+  /** Excess heat soaked up so far, in °C·ms; only natures that perish in heat accumulate any. */
+  warmth = 0;
   mind: Mind;
 
   constructor(

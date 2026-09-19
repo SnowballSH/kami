@@ -20,6 +20,8 @@ export interface Scene {
   readonly doorOpen: boolean;
   /** Walking speed in px per tick at her current size, so the planner can model flight. */
   readonly walkSpeed: number;
+  /** True under a flight law: she may climb through open air as if it were a ladder. */
+  readonly canFly: boolean;
   /** The arc a bounce of the given strength throws her on under the standing physics. */
   readonly bounceArc: (strength: number) => BounceArc;
   readonly jumpArc: BounceArc;
@@ -46,7 +48,7 @@ export interface PilotStatus {
 
 /**
  * Alice's own mind. Deterministic, offline, and re-planned every few ticks: the player draws,
- * Alice finds the way. She never jumps — she only walks, climbs, falls and rides what is there.
+ * Alice finds the way. She walks, hops, climbs, falls and rides what is there — and flies only when a law says so.
  */
 export interface Autopilot {
   /** Forget the plan; called when a board opens or resets. */

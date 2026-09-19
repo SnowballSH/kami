@@ -8,7 +8,7 @@ export const OFFER_HELP = "Ask, if you like.";
 
 export const REFUSALS = {
   key: "A lovely picture of a key.",
-  alice: "She isn't yours to rewrite. Only what you draw.",
+  alice: "She isn't yours to draw on. Write it.",
   weapon: "He's only cardboard. Be kind.",
   room: "I didn't draw it. Neither did you.",
   forbidden: "None of that down here. It's only ink.",
@@ -91,6 +91,16 @@ export const ACCEPTANCE: Readonly<Record<Nature, LineSet>> = {
     "Wings. It won't go far, but it won't come down either.",
     "Up it flaps. Stand on it if you dare.",
     "A flier. It keeps to its patch of sky.",
+  ],
+  attractor: [
+    "Everything leans toward it now. Even her.",
+    "A pull. Things will gather there whether they mean to or not.",
+    "Heavy company. Mind she doesn't fall in.",
+  ],
+  lantern: [
+    "A light. Useful, come nightfall.",
+    "It glows. Write 'night' and see what it's for.",
+    "Something to see by. The dark won't like it.",
   ],
   goal: [
     "So that's where she's going. I did wonder.",

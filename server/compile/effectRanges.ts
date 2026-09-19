@@ -13,6 +13,13 @@ export const EFFECT_RANGES: Readonly<Record<Governs, Range>> = {
   airDrag: { min: 0, max: 10 },
   friction: { min: 0, max: 10 },
   bounciness: { min: 0, max: 1 },
+  temperature: { min: -100, max: 1000 },
+  daylight: { min: 0, max: 1 },
+  flight: { min: 0, max: 1 },
+  walkSpeed: { min: 0.1, max: 5 },
+  aliceSize: { min: 0.25, max: 4 },
+  attraction: { min: -3, max: 3 },
+  clones: { min: 0, max: 8 },
 };
 
 export const clampEffect = (effect: RuleEffect): RuleEffect => {

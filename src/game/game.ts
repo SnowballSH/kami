@@ -154,6 +154,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
       nowMs,
       camera: this.camera.camera,
       world,
+      daylight: this.rules.physics.daylight,
       inks: this.ledger.views(world.drawings),
       notes: this.notes.views(nowMs),
       activeStrokes: this.ink.activeStrokes,
@@ -316,6 +317,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
       keyTaken: world.keyTaken,
       doorOpen: world.doorOpen,
       walkSpeed: sim.walkSpeed(),
+      canFly: sim.canFly(),
       bounceArc: (strength) => sim.bounceArc(strength),
       jumpArc: sim.jumpArc(),
     };
@@ -355,6 +357,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers {
       case "consumed":
         this.discard(event.drawingId);
         this.stuck.progress(this.nowMs);
+        return;
+      case "perished":
+        this.discard(event.drawingId);
+        this.modules.autopilot.invalidate();
         return;
       case "grow-blocked":
         this.remark(GROW_BLOCKED_LINE);

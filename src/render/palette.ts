@@ -24,6 +24,8 @@ export const NATURE_TINTS: Readonly<Record<Nature, Rgb>> = {
   walker: [180, 83, 9],
   hopper: [190, 24, 93],
   flier: [79, 70, 229],
+  attractor: [88, 28, 135],
+  lantern: [217, 119, 6],
   solid: MARKER.black,
   goal: MARKER.green,
   hazard: MARKER.red,

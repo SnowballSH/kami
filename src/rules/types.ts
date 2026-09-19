@@ -4,9 +4,12 @@ import type { NoteId } from "../notes/types";
 export type RuleId = string & { readonly __brand: "RuleId" };
 
 /**
- * What a rule changes about the world. One mechanism in this demo — a standing world-scope
- * setting — out of the three in the original design (expression / action / constraint).
- * Gravity and wind are in g (1 = Earth, +y is down); the rest are plain multipliers or ratios.
+ * What a rule changes about the world: one dial, set to one value (see docs/laws.md).
+ * Dials on the world: gravity and wind are in g (1 = Earth, +y is down); `timeScale`, `airDrag`,
+ * `friction` and `bounciness` are multipliers or ratios; `temperature` is in °C and `daylight` is 0
+ * (midnight) to 1 (noon). Dials on Alice: `flight` is 0 or 1, `walkSpeed` and `aliceSize` multiply
+ * her own, `attraction` is the pull she exerts on ink in g, `clones` is how many copies of her walk
+ * beside her.
  */
 export type RuleEffect =
   | { readonly governs: "gravity"; readonly x: number; readonly y: number }
@@ -14,7 +17,14 @@ export type RuleEffect =
   | { readonly governs: "timeScale"; readonly value: number }
   | { readonly governs: "airDrag"; readonly value: number }
   | { readonly governs: "friction"; readonly value: number }
-  | { readonly governs: "bounciness"; readonly value: number };
+  | { readonly governs: "bounciness"; readonly value: number }
+  | { readonly governs: "temperature"; readonly value: number }
+  | { readonly governs: "daylight"; readonly value: number }
+  | { readonly governs: "flight"; readonly value: number }
+  | { readonly governs: "walkSpeed"; readonly value: number }
+  | { readonly governs: "aliceSize"; readonly value: number }
+  | { readonly governs: "attraction"; readonly value: number }
+  | { readonly governs: "clones"; readonly value: number };
 
 export type Governs = RuleEffect["governs"];
 
@@ -40,7 +50,7 @@ export interface RuleCompiler {
   compile(text: string): Promise<CompiledRule | null>;
 }
 
-/** The physics of the whole board once every standing rule is applied. */
+/** Every dial of the board — world and Alice — once every standing rule is applied. */
 export interface WorldPhysics {
   readonly gravity: Vec;
   readonly wind: Vec;
@@ -48,6 +58,13 @@ export interface WorldPhysics {
   readonly airDrag: number;
   readonly friction: number;
   readonly bounciness: number;
+  readonly temperature: number;
+  readonly daylight: number;
+  readonly flight: number;
+  readonly walkSpeed: number;
+  readonly aliceSize: number;
+  readonly attraction: number;
+  readonly clones: number;
 }
 
 export const EARTH: WorldPhysics = {
@@ -57,4 +74,11 @@ export const EARTH: WorldPhysics = {
   airDrag: 1,
   friction: 1,
   bounciness: 0,
+  temperature: 20,
+  daylight: 1,
+  flight: 0,
+  walkSpeed: 1,
+  aliceSize: 1,
+  attraction: 0,
+  clones: 0,
 };

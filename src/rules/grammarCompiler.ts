@@ -3,6 +3,7 @@ import { normalise } from "./normalise";
 import type { Recogniser } from "./recogniser";
 import { recogniseAir } from "./recognisers/air";
 import { recogniseBounciness } from "./recognisers/bounciness";
+import { recogniseDials } from "./recognisers/dials";
 import { recogniseFriction } from "./recognisers/friction";
 import { recogniseGravity } from "./recognisers/gravity";
 import { recogniseReset } from "./recognisers/resets";
@@ -18,6 +19,7 @@ const RECOGNISERS: readonly Recogniser[] = [
   recogniseBounciness,
   recogniseAir,
   recogniseWind,
+  recogniseDials,
 ];
 
 const MAX_NUMBERS = 1;

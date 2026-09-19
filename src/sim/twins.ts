@@ -1,0 +1,69 @@
+import Matter from "matter-js";
+import type { Vec } from "../core/geometry";
+import type { WorldPhysics } from "../rules/types";
+import { AliceController, type AliceSurroundings } from "./alice";
+import { bottomOf } from "./bodyBounds";
+import type { AliceSnapshot, WalkIntent } from "./types";
+
+const SPACING = 1.5;
+
+/** Where the n-th twin appears: alternating sides of Alice, further out each time. */
+const besideAlice = (alice: AliceController, index: number): Vec => {
+  const bounds = alice.bounds();
+  const side = index % 2 === 0 ? 1 : -1;
+  const rank = Math.floor(index / 2) + 1;
+  return {
+    x: bounds.x + bounds.width / 2 + side * rank * bounds.width * SPACING,
+    y: bottomOf(bounds),
+  };
+};
+
+/**
+ * Alice's copies under a `clones` law. Each is a full AliceController that hears the same intent
+ * she does, so they walk, jump and climb in step with her; they never collide with her or each other.
+ */
+export class Twins {
+  private readonly twins: AliceController[] = [];
+
+  constructor(private readonly composite: Matter.World) {}
+
+  get all(): readonly AliceController[] {
+    return this.twins;
+  }
+
+  /** Brings the head count to `count`, spawning newcomers beside Alice and dismissing extras. */
+  match(count: number, alice: AliceController, physics: WorldPhysics): void {
+    while (this.twins.length > count) {
+      const dismissed = this.twins.pop();
+      if (dismissed !== undefined) Matter.Composite.remove(this.composite, dismissed.body);
+    }
+    while (this.twins.length < count) {
+      const twin = new AliceController(besideAlice(alice, this.twins.length), physics);
+      Matter.Composite.add(this.composite, twin.body);
+      this.twins.push(twin);
+    }
+    for (const twin of this.twins) twin.applyPhysics(physics);
+  }
+
+  control(intent: WalkIntent, surroundings: AliceSurroundings, timeScale: number): void {
+    for (const twin of this.twins) twin.control(intent, surroundings, timeScale);
+  }
+
+  settle(surroundings: AliceSurroundings, intent: WalkIntent, elapsedMs: number): void {
+    for (const twin of this.twins) {
+      twin.advanceResize(elapsedMs);
+      twin.sense(surroundings, intent);
+    }
+  }
+
+  /** Any twin that has left the board rejoins Alice at her feet. */
+  recallLost(alice: AliceController, killY: number): void {
+    for (const twin of this.twins) {
+      if (twin.body.position.y > killY) twin.placeAt(besideAlice(alice, 0));
+    }
+  }
+
+  snapshots(): readonly AliceSnapshot[] {
+    return this.twins.map((twin) => twin.snapshot());
+  }
+}

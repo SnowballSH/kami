@@ -23,7 +23,7 @@ export const NATURE_THINGS: WordTable = {
   `),
   floaty: list(`
     balloon, hot air balloon, cloud, bubble, kite, airship, blimp, zeppelin, parachute, smoke,
-    steam, helium, lantern, sky lantern, magic carpet, flying carpet, broomstick, float
+    steam, helium, sky lantern, magic carpet, flying carpet, broomstick, float
   `),
   heavy: list(`
     rock, anvil, safe, boulder, stone, weight, dumbbell, barbell, kettlebell, iron, lead,
@@ -80,6 +80,14 @@ export const NATURE_THINGS: WordTable = {
     goose, flamingo, pelican, stork, hawk, falcon, vulture, ghost, angel, fairy, dragon, pegasus,
     phoenix, griffin, bluebird, ladybird, ladybug, jubjub bird, flier
   `),
+  attractor: list(`
+    black hole, blackhole, sun, vortex, whirlpool, singularity, gravity well,
+    attractor, tractor beam
+  `),
+  lantern: list(`
+    lantern, lamp, candle, torch, lightbulb, light bulb, bulb, streetlight, street lamp, lamppost,
+    flashlight, star, campfire light, glowworm, nightlight, night light
+  `),
   solid: list(`
     ground, floor, wall, platform, block, brick, shelf, ledge, pavement, road, terrain, island,
     cliff, hill
@@ -113,6 +121,8 @@ export const NATURE_DESCRIPTIONS: WordTable = {
   walker: list("walking, walks, walker, crawling, crawls, pacing, prowling, alive, living"),
   hopper: list("hopping, hops, hoppy, jumping, leaping, leaps, bounding"),
   flier: list("flying, flapping, flaps, flutters, fluttering, soaring, winged"),
+  attractor: list("magnetic, attracting, attractive, pulling, gravitational"),
+  lantern: list("glowing, glows, lit, shining, shines, luminous, radiant"),
   solid: list("solid, static, fixed, immovable, unmovable, rigid"),
   goal: [],
   hazard: list("deadly, dangerous, lethal, poisonous, spiky, burning"),

@@ -17,6 +17,7 @@ import {
   STEP_INCREMENT,
 } from "./constants";
 import {
+  ALICE_GROUP,
   blocks,
   CATEGORY,
   type Contact,
@@ -89,7 +90,7 @@ export class AliceController {
         chamfer: { radius: ALICE_CHAMFER_RADIUS },
         friction: 0,
         frictionStatic: 0,
-        collisionFilter: { category: CATEGORY.alice },
+        collisionFilter: { category: CATEGORY.alice, group: ALICE_GROUP },
       },
     );
     Matter.Body.setInertia(this.body, Number.POSITIVE_INFINITY);
@@ -113,6 +114,10 @@ export class AliceController {
     return this.footing.length > 0;
   }
 
+  get flying(): boolean {
+    return this.physics.flight > 0;
+  }
+
   get contacts(): readonly Contact[] {
     return [...this.footing, ...this.ahead, ...this.passing];
   }
@@ -121,6 +126,10 @@ export class AliceController {
     this.physics = physics;
     this.body.frictionAir = airFrictionUnder(physics, ALICE_AIR_FRICTION);
     this.body.restitution = physics.bounciness;
+    const heading = this.resize?.to ?? this.currentScale;
+    if (heading !== ALICE_SCALE[this.currentSize] * physics.aliceSize) {
+      this.beginResize(this.currentSize);
+    }
   }
 
   bounds(): Rect {
@@ -144,7 +153,7 @@ export class AliceController {
   control(intent: WalkIntent, surroundings: AliceSurroundings, timeScale: number): void {
     if (intent.x !== 0) this.facing = intent.x;
     this.walking = intent.x !== 0;
-    this.climbing = this.onClimbable && (!this.grounded || intent.y < 0);
+    this.climbing = this.flying || (this.onClimbable && (!this.grounded || intent.y < 0));
 
     const velocity = this.velocity;
     const stepped = this.updateBlocking(intent.x, surroundings, timeScale);
@@ -203,7 +212,8 @@ export class AliceController {
 
   beginResize(size: AliceSize): void {
     this.currentSize = size;
-    this.resize = { from: this.currentScale, to: ALICE_SCALE[size], elapsedMs: 0 };
+    const to = ALICE_SCALE[size] * this.physics.aliceSize;
+    this.resize = { from: this.currentScale, to, elapsedMs: 0 };
   }
 
   advanceResize(elapsedMs: number): void {
@@ -233,7 +243,7 @@ export class AliceController {
 
   private walkVelocity(current: number, direction: Axis, surroundings: AliceSurroundings): number {
     if (direction === 0 && !this.grounded && !this.climbing) return current;
-    const target = direction * walkSpeedAt(this.currentScale);
+    const target = direction * walkSpeedAt(this.currentScale, this.physics.walkSpeed);
     const onSlipperyInk = this.footing.some((contact) => surroundings.isSlippery(contact.body));
     const traction = onSlipperyInk ? 0 : Math.max(this.physics.friction, 0);
     return traction >= 1 ? target : approach(current, target, SLIDE_ACCELERATION / (1 - traction));

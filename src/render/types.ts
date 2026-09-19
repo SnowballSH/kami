@@ -38,6 +38,8 @@ export interface RenderFrame {
   readonly nowMs: number;
   readonly camera: Camera;
   readonly world: WorldSnapshot;
+  /** 1 is full day; toward 0 the board darkens and only lanterns and Alice show. */
+  readonly daylight: number;
   readonly inks: readonly InkView[];
   readonly notes: readonly NoteView[];
   readonly activeStrokes: readonly Stroke[];
