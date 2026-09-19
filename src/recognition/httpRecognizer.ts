@@ -1,12 +1,16 @@
 import type { Stroke } from "../core/geometry";
 import type { Drawing } from "../ink/types";
+import { completionOf } from "./completion";
 import { sightingsOf } from "./sightings";
-import type { LiveRecognizer, Sighting, SightOptions } from "./types";
+import type { Completion, LiveRecognizer, Sighting, SightOptions } from "./types";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 const RECOGNIZE_PATH = "/api/recognize";
+const COMPLETE_PATH = "/api/beautify";
 const RECOGNIZE_TIMEOUT_MS = 2500;
+const COMPLETE_TIMEOUT_MS = 4000;
+const JSON_TYPE = "application/json";
 
 const browserFetch: FetchLike = (input, init) => globalThis.fetch(input, init);
 
@@ -25,7 +29,7 @@ export class HttpRecognizer implements LiveRecognizer {
   }
 
   async recognize(drawing: Drawing): Promise<readonly string[]> {
-    const body = await this.#ask({ strokes: drawing.strokes });
+    const body = await this.#ask(RECOGNIZE_PATH, { strokes: drawing.strokes });
     return isGuessList(body) ? body.guesses : [];
   }
 
@@ -33,18 +37,26 @@ export class HttpRecognizer implements LiveRecognizer {
     strokes: readonly Stroke[],
     { partial = false }: SightOptions = {},
   ): Promise<readonly Sighting[]> {
-    return sightingsOf(await this.#ask(partial ? { strokes, partial } : { strokes }));
+    const request = partial ? { strokes, partial } : { strokes };
+    return sightingsOf(await this.#ask(RECOGNIZE_PATH, request));
   }
 
-  async #ask(request: object): Promise<unknown> {
+  async complete(strokes: readonly Stroke[], name?: string): Promise<Completion | null> {
+    const called = name?.trim() ?? "";
+    const request = called.length > 0 ? { strokes, name: called } : { strokes };
+    return completionOf(await this.#ask(COMPLETE_PATH, request, COMPLETE_TIMEOUT_MS));
+  }
+
+  async #ask(path: string, request: object, timeoutMs = RECOGNIZE_TIMEOUT_MS): Promise<unknown> {
     try {
-      const response = await this.#fetch(RECOGNIZE_PATH, {
+      const response = await this.#fetch(path, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": JSON_TYPE },
         body: JSON.stringify(request),
-        signal: AbortSignal.timeout(RECOGNIZE_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
-      return response.ok ? await response.json() : null;
+      const answersJson = response.headers.get("content-type")?.includes(JSON_TYPE) ?? false;
+      return response.ok && answersJson ? await response.json() : null;
     } catch {
       return null;
     }

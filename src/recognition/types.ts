@@ -27,6 +27,16 @@ export interface SightOptions {
   readonly partial?: boolean;
 }
 
+/** A clean drawing of what the player sketched, placed where they sketched it. */
+export interface Completion {
+  /** World space, fitted inside the bounds of the player's own ink. */
+  readonly strokes: readonly Stroke[];
+  /** The Quick, Draw! word it was drawn as. */
+  readonly word: string;
+  /** 0–1: how sure Kami is of the word. */
+  readonly confidence: number;
+}
+
 /** A recogniser that also says what each guess means, and can look at a drawing still under the pen. */
 export interface LiveRecognizer extends Recognizer {
   /**
@@ -34,4 +44,10 @@ export interface LiveRecognizer extends Recognizer {
    * partial look means "nothing to say yet": keep whatever was said before.
    */
   sight(strokes: readonly Stroke[], options?: SightOptions): Promise<readonly Sighting[]>;
+  /**
+   * Kami finishes the drawing: a tidy sketch of the same thing, to be drawn over (or instead of) the
+   * player's ink. `name` is what the player called it, when they have. Null when he has nothing
+   * better to offer or is offline — keep the player's ink. Never rejects.
+   */
+  complete(strokes: readonly Stroke[], name?: string): Promise<Completion | null>;
 }

@@ -120,4 +120,53 @@ describe("HttpRecognizer", () => {
     });
     expect(await recognizer.sight(drawing.strokes, { partial: true })).toEqual([]);
   });
+
+  const tidy = [
+    [
+      { x: 1, y: 2 },
+      { x: 3, y: 4 },
+    ],
+  ];
+
+  it("asks Kami to finish a drawing, by name when it has one", async () => {
+    const seen: { path: string; body: unknown }[] = [];
+    const recognizer = new HttpRecognizer(async (path, init) => {
+      seen.push({ path, body: JSON.parse(String(init?.body)) });
+      return Response.json({
+        strokes: tidy,
+        category: "mushroom",
+        confidence: 0.9,
+        similarity: 0.8,
+      });
+    });
+    expect(await recognizer.complete(drawing.strokes, " a mushroom ")).toEqual({
+      strokes: tidy,
+      word: "mushroom",
+      confidence: 0.9,
+    });
+    expect(await recognizer.complete(drawing.strokes)).not.toBeNull();
+    expect(seen).toEqual([
+      { path: "/api/beautify", body: { strokes: drawing.strokes, name: "a mushroom" } },
+      { path: "/api/beautify", body: { strokes: drawing.strokes } },
+    ]);
+  });
+
+  it.each<[string, FetchLike]>([
+    ["no model is attached", async () => Response.json({ error: "none" }, { status: 501 })],
+    [
+      "the model answers with an image",
+      async () =>
+        new Response(new Uint8Array([137, 80]), { headers: { "content-type": "image/png" } }),
+    ],
+    ["the strokes are empty", async () => Response.json({ strokes: [[]] })],
+    ["a point is not a point", async () => Response.json({ strokes: [[{ x: 1, y: "two" }]] })],
+    [
+      "the server is away",
+      async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    ],
+  ])("keeps the player's ink when %s", async (_what, fetchFn) => {
+    expect(await new HttpRecognizer(fetchFn).complete(drawing.strokes, "a mushroom")).toBeNull();
+  });
 });

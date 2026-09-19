@@ -127,7 +127,7 @@ const MAX_NAME_LENGTH = 80;
 
 export const beautifyRequestSchema = z.object({
   strokes: strokesSchema,
-  name: z.string().trim().min(1).max(MAX_NAME_LENGTH),
+  name: z.string().trim().min(1).max(MAX_NAME_LENGTH).exactOptional(),
 });
 
 export const compileRequestSchema = z.object({ text: text.min(1) });

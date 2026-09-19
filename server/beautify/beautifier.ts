@@ -4,7 +4,8 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
 export interface BeautifyRequest {
   readonly strokes: readonly Stroke[];
-  readonly name: string;
+  /** What the player called it; without one the model goes by what it sees. */
+  readonly name?: string;
 }
 
 /**
