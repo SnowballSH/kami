@@ -82,6 +82,7 @@ const ABOVE_ALICE = { x: -90, y: -120 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
 const ALREADY_AWAKE_MS = 10_000;
+const HUD_WRITING_GAP = 12;
 
 interface Recital {
   readonly at: number;
@@ -480,7 +481,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.kamiWrites(
       zone.intro,
       { x: zone.checkpoint.x + ABOVE_ALICE.x, y: zone.checkpoint.y + ABOVE_ALICE.y - 80 },
-      { lifetimeMs: HINT_LIFETIME_MS },
+      { lifetimeMs: HINT_LIFETIME_MS, minY: this.writingTop() },
     );
   }
 
@@ -810,9 +811,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       readonly action?: NoteAction;
       readonly tone?: Note["tone"];
       readonly drift?: Drift;
+      readonly minY?: number;
     } = {},
   ): Note {
-    const { lifetimeMs, anchor, action, tone = "plain", drift = "up" } = options;
+    const { lifetimeMs, anchor, action, tone = "plain", drift = "up", minY } = options;
     const note: Note = {
       id: this.ids.next<NoteId>("kami"),
       author: "kami",
@@ -829,6 +831,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       drift,
       ...(lifetimeMs === undefined ? {} : { lifetimeMs }),
       ...(anchor === undefined ? {} : { anchor }),
+      ...(minY === undefined ? {} : { minY }),
     });
   }
 
@@ -869,8 +872,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.kamiWrites(
       line,
       { x: alice.x + ABOVE_ALICE.x, y: alice.y + ABOVE_ALICE.y },
-      { lifetimeMs },
+      { lifetimeMs, minY: this.writingTop() },
     );
+  }
+
+  private writingTop(): number {
+    return this.modules.renderer.toWorld(
+      { x: 0, y: this.hud.toolbarBottom() + HUD_WRITING_GAP },
+      this.camera.camera,
+    ).y;
   }
 
   private eraseAt(point: Vec): void {
