@@ -34,7 +34,8 @@ Open the printed **Network** URL on an iPad on the same trusted Wi-Fi (landscape
 | [`docs/architecture.md`](docs/architecture.md) | **Current integration guide:** implementation, ownership, API/model contracts, security status and verification limits. |
 | [`docs/hardware.md`](docs/hardware.md) | The cabinet: parts status, what's still missing, wiring, serial protocol, bring-up steps. |
 | [`docs/engineering-notes.md`](docs/engineering-notes.md) | Pointer to archived design experiments; not a build plan. |
-| [`hardware/cabinet/cabinet.ino`](hardware/cabinet/cabinet.ino) | UNO R4 WiFi firmware; pinned compile and native tests via `scripts/checkCabinet.sh`. Physical verification outstanding. |
+| [`hardware/cabinet/cabinet.ino`](hardware/cabinet/cabinet.ino) | UNO R4 WiFi firmware; pinned compile and native tests via `scripts/checkHardware.sh`. Physical verification outstanding. |
+| [`hardware/joystick/joystick.ino`](hardware/joystick/joystick.ino) | Analog thumb joystick (x, y, push) on an UNO R4, USB to the GX10; `bun run gx10:flash` uploads it. Walks Alice on the box. |
 
 `docs/archive/` is history: the original "Paper" ideation doc, its review, plan v2, and plan v3 ("Curiouser"). **Don't build from the archive.**
 

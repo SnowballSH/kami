@@ -18,8 +18,8 @@ place. The cabinet's microswitch sketch uses a serial adapter described below.
 ## Cabinet readiness
 
 The checked-in `hardware/cabinet/cabinet.ino` uses the pins in [hardware.md](hardware.md), **not**
-the analog joystick wiring in the illustrative Wi-Fi sketch below. Its UNO R4 WiFi compile is verified
-with pinned dependencies via `scripts/checkCabinet.sh`; physical booth validation is outstanding.
+the analog joystick wiring below. Its UNO R4 WiFi compile is verified with pinned dependencies via
+`scripts/checkHardware.sh`; physical booth validation is outstanding.
 
 Its USB frames are `S,<dir>,<ink>,<cat>,<px>,<py>` at 50 Hz. The serial listener accepts them as
 `arcade`: direction mask (left 1, right 2, up 4, down 8) → ±100 axes; opposite directions cancel.
@@ -99,11 +99,44 @@ Every open game hears the same stick — fine for one table, one stick.
 Not protected: anyone on the network can send `kami arcade 100 0`. Acceptable for the demo; a shared token is
 the obvious next step.
 
-## Illustrative analog joystick sketch (separate from the cabinet)
+## The analog joystick on the box (`hardware/joystick`)
 
-This Wi-Fi example is not included in the cabinet compilation check and has not been hardware-verified.
-Use an Uno R4 WiFi; on a Minima delete the Wi-Fi lines and keep `Serial`. It sends raw buttons without
-debounce; port the cabinet's debouncer before relying on microswitch buttons.
+A thumb joystick module (x, y, push) on an Uno R4, plugged into a USB port of the GX10. This is the stick
+in use: flashed and heard by the server on the box on 20 September 2026.
+
+| Module pin | Uno R4 pin | |
+|---|---|---|
+| `VRx` | `A0` | |
+| `VRy` | `A1` | |
+| `SW` | `D2` | `INPUT_PULLUP`, pressed = `LOW`, debounced 20 ms; sent as button **`A`** = jump |
+| `+5V`, `GND` | `5V`, `GND` | |
+
+`joystick.ino` reads the pins and prints `kami arcade <x> <y> [A]` to USB serial; `stick.h` holds what can
+be tested without a board. The average of 16 readings while the board starts becomes the centre, and each
+side of it scales to its own end of travel, so an off-centre stick still reaches ±100 both ways. A start
+reading further than a quarter of the range from the middle means the stick was held: the middle is used
+instead. Lines go out by the rule under "The one message". `X_SIGN` / `Y_SIGN` at the top of the sketch
+flip an axis that runs backwards.
+
+```bash
+bun run gx10:flash              # from the Mac: compile on the box, upload to the Arduino plugged into it
+bun run gx10:flash cabinet      # the cabinet sketch instead
+scripts/checkHardware.sh        # native tests (+ pinned compile of both sketches where arduino-cli is installed)
+curl http://10.189.121.118:8787/api/controllers    # arcade, transport "serial", x/y moving with the stick
+```
+
+`scripts/gx10/flash.sh` copies `hardware/` to `~/kami-hardware/sketches` on the box, installs the pinned,
+checksum-verified Arduino CLI under `~/kami-hardware` on its first run (no sudo; the toolchain is a
+~200 MB download), compiles with the sketch's build profile and uploads to the first `/dev/ttyACM*`
+(`KAMI_FLASH_PORT` names another). The Kami server reads that port too, and a second reader would eat the
+bootloader's answers, so when the server holds the port the script stops it for the upload and runs
+`box/start.sh` after. The box's `asus` user is in `dialout` (needed by both the server and the upload).
+
+## Illustrative Wi-Fi variant (UDP, not checked in)
+
+This Wi-Fi example is not included in the compilation check and has not been hardware-verified.
+Use an Uno R4 WiFi. It sends raw buttons without debounce; use `DebouncedButton` from
+`hardware/libraries/KamiControls` before relying on it. Prefer growing `hardware/joystick` over copying this.
 
 Axes on `A0`/`A1`; buttons between their pin and **GND** (internal pull-ups, so held = `LOW`). The stick
 must be at rest while the board starts: that reading becomes the centre.
@@ -188,3 +221,5 @@ void loop() {
 | `server/http/api.ts` | the three routes above |
 | `src/controller/` | the browser side: `EventSource` → the merger's `PressedListener` |
 | `server/config.ts` | `KAMI_CONTROLLER_UDP_PORT` (8788, `off` disables), `KAMI_CONTROLLER_SERIAL` (`auto`, a device path, or `off`) |
+| `hardware/` | `joystick/` (the analog stick: `joystick.ino`, `stick.h`), `cabinet/` (the microswitch cabinet), `libraries/KamiControls` (`DebouncedButton`, shared through each `sketch.yaml`), `*.test.cpp` (native tests) |
+| `scripts/` | `checkHardware.sh` (native tests + pinned compiles), `gx10/flash.sh` (compile on the box and upload) |

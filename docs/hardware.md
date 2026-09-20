@@ -190,14 +190,18 @@ The [build profile](https://docs.arduino.cc/arduino-cli/sketch-project-file/) in
 [Arduino CLI](https://docs.arduino.cc/arduino-cli/installation/) and a C++11 compiler, then:
 
 ```bash
-scripts/checkCabinet.sh              # native tests + pinned UNO R4 WiFi compile; no upload
-scripts/checkCabinet.sh --native     # pure debounce/framing/feedback tests, no Arduino download
+scripts/checkHardware.sh             # native tests + pinned UNO R4 WiFi compile of cabinet and joystick; no upload
+scripts/checkHardware.sh --native    # pure debounce/framing/feedback/stick tests, no Arduino download
+bun run gx10:flash cabinet           # compile on the GX10 and upload to the Arduino plugged into it
 bun run test -- server/controllers src/controller
 ```
 
+`DebouncedButton` lives in `hardware/libraries/KamiControls`, shared with the analog joystick sketch
+(`hardware/joystick`, [controllers.md](controllers.md)) through a `dir:` library in each `sketch.yaml`.
+
 `ARDUINO_CLI` and `CXX` can name installed executables. The first full run downloads the toolchain
 and libraries; profile builds do not depend on globally installed Arduino library versions.
-Verified build: **56,236 bytes flash, 7,196 bytes RAM**. The native tests cover switch bounce,
+Verified build (on the GX10, 20 September): **56,228 bytes flash, 7,196 bytes RAM**. The native tests cover switch bounce,
 release and timer wraparound, split/overlong feedback frames and strict command validation.
 The TypeScript tests cover cabinet mapping, malformed frames, hub staleness, simulated SSE
 disconnect/reconnect and keyboard fallback. The JS gate does not compile firmware.
@@ -230,7 +234,7 @@ Cautions: the RC522 is a **3.3 V part** — power it from the R4's 3.3 V pin, an
 | Fails | Do |
 |---|---|
 | Pots too jittery or wrong taper (log pots feel lumpy) | More smoothing in firmware (`ALPHA` 0.1). Still bad → thumb joystick as a rate-controlled pen (A2/A3). |
-| Arcade stick can't be wired without solder and the bench is busy | Thumb joystick B for walking. |
+| Arcade stick can't be wired without solder and the bench is busy | Thumb joystick for walking: `hardware/joystick` ([controllers.md](controllers.md)), in use on the box. |
 | Strip won't light | Check direction arrow, shared ground and power with 8 px. Leave feedback disconnected; the game has no ink meter. |
 | Serial drops mid-demo | Use mouse/keyboard/touch. Inspect server logs/device permissions; replug and wait for automatic rescan. No reconnect button exists. |
 | Anything flaky at hour 20 | Cut it (spec §12). A cabinet that half-works is worse than a laptop that fully works. |

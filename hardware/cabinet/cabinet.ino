@@ -1,6 +1,6 @@
 // Kami cabinet — Arduino UNO R4 WiFi
 // Wiring + protocol: docs/hardware.md
-// Build profile: sketch.yaml; compile and native checks: scripts/checkCabinet.sh.
+// Build profile: sketch.yaml; compile and native checks: scripts/checkHardware.sh.
 
 #include <Adafruit_NeoPixel.h>
 #include "Arduino_LED_Matrix.h"

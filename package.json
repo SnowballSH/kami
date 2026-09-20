@@ -26,7 +26,8 @@
     "gx10:deploy": "scripts/gx10/deploy.sh",
     "gx10:join-wifi": "scripts/gx10/join-wifi.sh",
     "gx10:find": "scripts/gx10/find.sh",
-    "gx10:bench": "scripts/gx10/bench.sh"
+    "gx10:bench": "scripts/gx10/bench.sh",
+    "gx10:flash": "scripts/gx10/flash.sh"
   },
   "dependencies": {
     "matter-js": "^0.20.0",

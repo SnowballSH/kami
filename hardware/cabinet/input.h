@@ -4,22 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 
-class DebouncedButton {
- public:
-  bool sample(bool pressed, uint32_t now) {
-    if (pressed != candidate_) {
-      candidate_ = pressed;
-      changedAt_ = now;
-    }
-    if (now - changedAt_ >= 20) held_ = candidate_;
-    return held_;
-  }
-
- private:
-  bool held_ = false;
-  bool candidate_ = false;
-  uint32_t changedAt_ = 0;
-};
+#include <DebouncedButton.h>
 
 class FeedbackLine {
  public:
