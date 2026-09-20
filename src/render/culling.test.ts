@@ -27,8 +27,8 @@ describe("rectInView", () => {
     const box = { width: 1000, height: 800 };
     const far: Rect = { x: 1500, y: 0, width: 40, height: 40 };
     const center = { x: 0, y: 0 };
-    expect(rectInView(far, visibleWorld({ center, zoom: 1 }, box), 0)).toBe(false);
-    expect(rectInView(far, visibleWorld({ center, zoom: 0.25 }, box), 0)).toBe(true);
+    expect(rectInView(far, visibleWorld({ center, zoom: 1, angle: 0 }, box), 0)).toBe(false);
+    expect(rectInView(far, visibleWorld({ center, zoom: 0.25, angle: 0 }, box), 0)).toBe(true);
   });
 });
 

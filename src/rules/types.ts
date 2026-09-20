@@ -30,6 +30,9 @@ export type Target = { readonly kind: "all" } | { readonly kind: "named"; readon
  * (midnight) to 1 (noon). Dials on Alice: `flight` is 0 or 1, `walkSpeed` and `aliceSize` multiply
  * her own, `attraction` is the pull she exerts on ink in g, `clones` is how many copies of her walk
  * beside her. Dials on what haunts the board: `inkEater` is 0 (sealed) or 1 (the Sumikui is loose).
+ * Dials on the paper itself: `tilt` is how far the whole page is turned on screen in degrees
+ * (clockwise positive) and `worldSpin` how fast it keeps turning in degrees per second; the board
+ * is of the paper and turns with it, loose ink tumbles toward the room's down.
  */
 export type WorldEffect =
   | { readonly governs: "gravity"; readonly x: number; readonly y: number }
@@ -45,7 +48,9 @@ export type WorldEffect =
   | { readonly governs: "aliceSize"; readonly value: number }
   | { readonly governs: "attraction"; readonly value: number }
   | { readonly governs: "clones"; readonly value: number }
-  | { readonly governs: "inkEater"; readonly value: number };
+  | { readonly governs: "inkEater"; readonly value: number }
+  | { readonly governs: "tilt"; readonly value: number }
+  | { readonly governs: "worldSpin"; readonly value: number };
 
 /** A dial on the bodies a `Target` names, in the units of `Motion`. */
 export type BodyEffect =
@@ -139,6 +144,8 @@ export interface WorldPhysics {
   readonly attraction: number;
   readonly clones: number;
   readonly inkEater: number;
+  readonly tilt: number;
+  readonly worldSpin: number;
   readonly bodies: readonly BodyLaw[];
 }
 
@@ -159,5 +166,7 @@ export const EARTH: WorldPhysics = {
   attraction: 0,
   clones: 0,
   inkEater: 0,
+  tilt: 0,
+  worldSpin: 0,
   bodies: [],
 };

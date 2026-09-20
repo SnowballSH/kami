@@ -124,6 +124,8 @@ export interface Simulation {
   step(): readonly SimEvent[];
   snapshot(): WorldSnapshot;
   aliceBounds(): Rect;
+  /** How far the paper is turned on screen, in degrees clockwise, under the tilt and spin laws. */
+  paperAngle(): number;
   /** Her walking speed at her current size and under the standing pace law, px per tick. */
   walkSpeed(): number;
   /** True while a flight law stands. */

@@ -25,7 +25,10 @@ describe("dotSpacing", () => {
 
 describe("dotGridLayout", () => {
   it("pins dots to the world so they do not swim when the camera pans", () => {
-    const layout = dotGridLayout(visibleWorld({ center: { x: 1234.5, y: -77 }, zoom: 1 }, BOX), 1);
+    const layout = dotGridLayout(
+      visibleWorld({ center: { x: 1234.5, y: -77 }, zoom: 1, angle: 0 }, BOX),
+      1,
+    );
     expect(layout).not.toBeNull();
     if (layout === null) return;
     expect(layout.firstX % layout.spacing).toBeCloseTo(0);
@@ -33,7 +36,7 @@ describe("dotGridLayout", () => {
   });
 
   it("covers the view and nothing more", () => {
-    const view = visibleWorld({ center: { x: 310, y: 95 }, zoom: 0.6 }, BOX);
+    const view = visibleWorld({ center: { x: 310, y: 95 }, zoom: 0.6, angle: 0 }, BOX);
     const layout = dotGridLayout(view, 0.6);
     expect(layout).not.toBeNull();
     if (layout === null) return;

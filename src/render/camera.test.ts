@@ -17,7 +17,7 @@ const PIXEL_RATIOS = [1, 1.5, 2];
 const CENTER = { x: 2310.5, y: -140.25 };
 const POINT = { x: 1999.3, y: 610.7 };
 
-const cameraAt = (zoom: number): Camera => ({ center: CENTER, zoom });
+const cameraAt = (zoom: number): Camera => ({ center: CENTER, zoom, angle: 0 });
 
 describe("camera", () => {
   it.each(ZOOMS)("puts the camera centre in the middle of the canvas at zoom %s", (zoom) => {
@@ -70,9 +70,13 @@ describe("camera", () => {
   });
 
   it("stays finite for a canvas with no size and a camera with no zoom", () => {
-    const world = toWorld({ x: 5, y: 5 }, { center: CENTER, zoom: 0 }, { width: 0, height: 0 });
+    const world = toWorld(
+      { x: 5, y: 5 },
+      { center: CENTER, zoom: 0, angle: 0 },
+      { width: 0, height: 0 },
+    );
     expect(Number.isFinite(world.x) && Number.isFinite(world.y)).toBe(true);
-    const lost = toWorld({ x: 5, y: 5 }, { center: CENTER, zoom: Number.NaN }, BOX);
+    const lost = toWorld({ x: 5, y: 5 }, { center: CENTER, zoom: Number.NaN, angle: 0 }, BOX);
     expect(Number.isFinite(lost.x) && Number.isFinite(lost.y)).toBe(true);
   });
 });

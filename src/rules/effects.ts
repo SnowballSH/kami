@@ -87,6 +87,16 @@ const SCALAR_STYLES: Readonly<Record<ScalarGoverns, ScalarStyle>> = {
     gloss: () => "the Sumikui, the ink eater, is loose",
     glossAtZero: "the Sumikui is sealed",
   },
+  tilt: {
+    range: { min: -180, max: 180 },
+    gloss: (shown) => `the paper is turned ${shown}°`,
+    glossAtZero: "the paper is upright",
+  },
+  worldSpin: {
+    range: { min: -90, max: 90 },
+    gloss: (shown) => `the paper turns at ${shown}°/s`,
+    glossAtZero: "the paper holds still",
+  },
 };
 
 const BODY_STYLES: Readonly<Record<BodyScalarGoverns, ScalarStyle>> = {

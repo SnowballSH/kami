@@ -28,6 +28,8 @@ export const EFFECT_DOMAINS: Readonly<Record<Governs, Domain>> = {
   attraction: { min: -3, max: 3 },
   clones: { min: 0, max: 8 },
   inkEater: { min: 0, max: 1 },
+  tilt: { min: -180, max: 180 },
+  worldSpin: { min: -90, max: 90 },
   spin: { min: -5, max: 5 },
   thrust: { min: -3, max: 3 },
   mass: { min: 0.1, max: 10 },
@@ -79,6 +81,8 @@ export const validPhysics = (physics: WorldPhysics): boolean =>
   inEffectDomain("attraction", physics.attraction) &&
   inEffectDomain("clones", physics.clones) &&
   inEffectDomain("inkEater", physics.inkEater) &&
+  inEffectDomain("tilt", physics.tilt) &&
+  inEffectDomain("worldSpin", physics.worldSpin) &&
   physics.bodies.every(validBodyLaw);
 
 export const clampEffectValue = (governs: Governs, value: number): number => {

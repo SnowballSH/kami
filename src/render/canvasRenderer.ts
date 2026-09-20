@@ -5,6 +5,7 @@ import type { AliceSnapshot, SumikuiSnapshot } from "../sim/types";
 import { paintAlice } from "./alicePainter";
 import { BoardPainter } from "./boardPainter";
 import {
+  applyDeviceTransform,
   backingStoreSize,
   cappedPixelRatio,
   deviceTransform,
@@ -86,12 +87,11 @@ export class CanvasRenderer implements Renderer {
     const { camera, world, nowMs } = frame;
     const view = visibleWorld(camera, this.box);
     const transform = deviceTransform(camera, this.box, this.pixelRatio);
-    const { scale, dx, dy } = transform;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     ctx.fillStyle = BOARD_COLORS.board;
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.setTransform(scale, 0, 0, scale, dx, dy);
+    applyDeviceTransform(ctx, transform);
     paintDotGrid(ctx, view, zoomOf(camera));
     this.boardPainter.paint(ctx, view, world);
     this.inkPainter.paintInks(ctx, frame.inks, view, nowMs, chewOf(world.sumikui));
@@ -115,7 +115,7 @@ export class CanvasRenderer implements Renderer {
       transform,
     );
     if (moonlit) {
-      ctx.setTransform(scale, 0, 0, scale, dx, dy);
+      applyDeviceTransform(ctx, transform);
       this.notePainter.paintNotes(ctx, frame.notes, view, nowMs, frame.daylight);
     }
     if (frame.eraserActive) this.paintEraserCursor();

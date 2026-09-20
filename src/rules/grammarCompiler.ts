@@ -7,6 +7,7 @@ import { recogniseDials } from "./recognisers/dials";
 import { recogniseFriction } from "./recognisers/friction";
 import { recogniseGravity } from "./recognisers/gravity";
 import { recogniseMotion } from "./recognisers/motion";
+import { recognisePaper } from "./recognisers/paper";
 import { recogniseReset } from "./recognisers/resets";
 import { recogniseTime } from "./recognisers/time";
 import { recogniseWind } from "./recognisers/wind";
@@ -14,6 +15,7 @@ import type { CompiledRule, RuleCompiler } from "./types";
 
 const RECOGNISERS: readonly Recogniser[] = [
   recogniseReset,
+  recognisePaper,
   recogniseGravity,
   recogniseTime,
   recogniseFriction,
