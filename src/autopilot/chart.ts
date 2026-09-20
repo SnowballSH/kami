@@ -77,7 +77,9 @@ const flagsFor = (nature: Nature): number => {
 };
 
 const worldPoints = (ink: SceneInk): Vec[] =>
-  ink.drawing.strokes.flatMap((stroke) => stroke.map((point) => poseToWorld(point, ink.pose)));
+  bearingStrokes(ink.drawing.strokes).flatMap((stroke) =>
+    stroke.map((point) => poseToWorld(point, ink.pose)),
+  );
 
 const aliceRect = (scene: Scene): Rect => ({
   x: scene.alice.center.x - scene.alice.width / 2,

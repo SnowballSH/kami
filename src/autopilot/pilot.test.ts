@@ -121,6 +121,33 @@ describe("Pilot", () => {
     expect(beside.has(Math.floor(160 / CELL_PX), cellThroughHer.r, CellFlag.solid)).toBe(true);
   });
 
+  it("charts a vehicle deck under Alice even when its decorative cabin surrounds her", () => {
+    const deck = ink(line({ x: 50, y: 350 }, { x: 180, y: 350 }), "vehicle");
+    const vehicle: SceneInk = {
+      ...deck,
+      drawing: {
+        ...deck.drawing,
+        strokes: [
+          ...deck.drawing.strokes,
+          [
+            { x: 70, y: 350 },
+            { x: 70, y: 280 },
+            { x: 160, y: 280 },
+            { x: 160, y: 350 },
+          ],
+        ],
+      },
+    };
+    const chart = Chart.of(scene({ inks: [vehicle], alice: alice({ x: 100, y: 345 }) }));
+
+    expect(chart.has(Math.floor(100 / CELL_PX), Math.floor(350 / CELL_PX), CellFlag.solid)).toBe(
+      true,
+    );
+    expect(chart.has(Math.floor(70 / CELL_PX), Math.floor(320 / CELL_PX), CellFlag.solid)).toBe(
+      false,
+    );
+  });
+
   it("waits short of a gap it cannot cross and reports being stuck", () => {
     const pilot = createAutopilot();
     const goal: Rect = { x: 700, y: GROUND_Y - 60, width: 40, height: 60 };
