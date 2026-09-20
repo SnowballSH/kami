@@ -75,6 +75,8 @@ const line = (from: Vec, to: Vec, spacing = 8): Vec[] => {
   }));
 };
 
+const cardLineOf = ({ card }: GameMode): string => `${card.title} — ${card.tagline}`;
+
 const blob = (center: Vec, rx: number, ry: number): Vec[] =>
   Array.from({ length: 25 }, (_, i) => ({
     x: center.x + rx * Math.cos((i / 24) * Math.PI * 2),
@@ -1921,6 +1923,69 @@ describe("Game on a blank board", () => {
   });
 });
 
+describe("Game in puzzle mode", () => {
+  const spring = blob({ x: 680, y: 545 }, 35, 15);
+
+  it("opens the first room with its card, the Sumikui loose without a note, and the room's laws only", async () => {
+    const player = new Player(FIRST_PUZZLE_BOARD_ID, { mode: PUZZLE_MODE });
+    await player.arrive();
+    expect(player.hud.roomCard).toMatchObject({
+      mode: "Puzzle",
+      title: "The Wall",
+      mark: `room 1 of ${PUZZLE_ROOMS.length}`,
+    });
+    expect(player.hud.cards).toEqual([]);
+    expect(player.written).not.toContain(PUZZLE_MODE.card.opening);
+    expect(player.written).not.toContain(cardLineOf(PUZZLE_MODE));
+    expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
+    expect(player.laws.laws).toHaveLength(0);
+
+    await player.write("we are on the moon", { x: 200, y: 200 });
+    expect(player.written).toContain(LAW_OUTSIDE_MODE_LINE);
+    expect(player.laws.laws).toHaveLength(0);
+
+    await player.write("banish the ink eater", { x: 200, y: 300 });
+    expect(player.laws.laws.map((law) => law.text)).toEqual(["banish the ink eater"]);
+    expect(player.written).toContain(SUMIKUI_SEALED_LINE);
+    expect(player.renderer.lastFrame?.world.sumikui).toBeNull();
+  });
+
+  it("names ink only as the room allows, and opens the next room after the closing line", async () => {
+    const player = new Player(FIRST_PUZZLE_BOARD_ID, { mode: PUZZLE_MODE });
+    await player.arrive();
+    await player.draw(spring);
+    await player.write("a ladder", { x: 640, y: 440 });
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["ink"]);
+    await player.write("a trampoline", { x: 640, y: 400 });
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["bouncy"]);
+
+    player.game.onAutopilotToggled(true);
+    const [firstRoom, secondRoom] = PUZZLE_ROOMS;
+    if (firstRoom === undefined || secondRoom === undefined) throw new Error("no rooms");
+    expect(await player.until(() => player.written.includes(firstRoom.closing))).toBe(true);
+    expect(await player.until(() => player.hud.roomCard?.title === "The Keyhole", 6_000)).toBe(
+      true,
+    );
+    expect(player.hud.roomCard?.mark).toBe(`room 2 of ${PUZZLE_ROOMS.length}`);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
+  });
+
+  it("stages the dark hall unlit, and the ledge on Earth until the moon is written", async () => {
+    const dark = new Player("puzzle-dark-hall", { mode: PUZZLE_MODE });
+    await dark.arrive();
+    expect(dark.renderer.lastFrame?.daylight).toBe(0);
+    dark.game.onAutopilotToggled(true);
+    expect(await dark.until(() => dark.written.includes(IN_THE_DARK_LINE))).toBe(true);
+
+    const ledge = new Player("puzzle-moon-ledge", { mode: PUZZLE_MODE });
+    await ledge.arrive();
+    await ledge.write("we are on the moon", { x: 200, y: 200 });
+    expect(ledge.laws.laws.map((law) => law.text)).toEqual(["we are on the moon"]);
+    expect(ledge.renderer.lastFrame?.world.sumikui).not.toBeNull();
+  });
+});
+
 describe("Game in the Sandbox", () => {
   const sandbox = (known: readonly string[] = ["bridge", "ladder", "rabbit", "cat"]) => {
     const eyes = new Eyes([], [], known);
@@ -1931,6 +1996,7 @@ describe("Game in the Sandbox", () => {
     const { player } = sandbox();
     await player.arrive();
     expect(player.written).toContain(SANDBOX_MODE.card.opening);
+    expect(player.written).toContain(cardLineOf(SANDBOX_MODE));
     expect(player.renderer.board?.page).toBe("endless");
     expect(player.renderer.board?.goal).toBeUndefined();
   });
@@ -2162,66 +2228,6 @@ describe("Game on a shared page", () => {
   });
 });
 
-describe("Game in puzzle mode", () => {
-  const spring = blob({ x: 680, y: 545 }, 35, 15);
-
-  it("opens the first room with its card, the Sumikui loose without a note, and the room's laws only", async () => {
-    const player = new Player(FIRST_PUZZLE_BOARD_ID, { mode: PUZZLE_MODE });
-    await player.arrive();
-    expect(player.hud.roomCard).toMatchObject({
-      mode: "Puzzle",
-      title: "The Wall",
-      mark: `room 1 of ${PUZZLE_ROOMS.length}`,
-    });
-    expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
-    expect(player.laws.laws).toHaveLength(0);
-
-    await player.write("we are on the moon", { x: 200, y: 200 });
-    expect(player.written).toContain(LAW_OUTSIDE_MODE_LINE);
-    expect(player.laws.laws).toHaveLength(0);
-
-    await player.write("banish the ink eater", { x: 200, y: 300 });
-    expect(player.laws.laws.map((law) => law.text)).toEqual(["banish the ink eater"]);
-    expect(player.written).toContain(SUMIKUI_SEALED_LINE);
-    expect(player.renderer.lastFrame?.world.sumikui).toBeNull();
-  });
-
-  it("names ink only as the room allows, and opens the next room after the closing line", async () => {
-    const player = new Player(FIRST_PUZZLE_BOARD_ID, { mode: PUZZLE_MODE });
-    await player.arrive();
-    await player.draw(spring);
-    await player.write("a ladder", { x: 640, y: 440 });
-    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["ink"]);
-    await player.write("a trampoline", { x: 640, y: 400 });
-    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["bouncy"]);
-
-    player.game.onAutopilotToggled(true);
-    const [firstRoom, secondRoom] = PUZZLE_ROOMS;
-    if (firstRoom === undefined || secondRoom === undefined) throw new Error("no rooms");
-    expect(await player.until(() => player.written.includes(firstRoom.closing))).toBe(true);
-    expect(await player.until(() => player.hud.roomCard?.title === "The Keyhole", 6_000)).toBe(
-      true,
-    );
-    expect(player.hud.roomCard?.mark).toBe(`room 2 of ${PUZZLE_ROOMS.length}`);
-    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
-    expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
-  });
-
-  it("stages the dark hall unlit, and the ledge on Earth until the moon is written", async () => {
-    const dark = new Player("puzzle-dark-hall", { mode: PUZZLE_MODE });
-    await dark.arrive();
-    expect(dark.renderer.lastFrame?.daylight).toBe(0);
-    dark.game.onAutopilotToggled(true);
-    expect(await dark.until(() => dark.written.includes(IN_THE_DARK_LINE))).toBe(true);
-
-    const ledge = new Player("puzzle-moon-ledge", { mode: PUZZLE_MODE });
-    await ledge.arrive();
-    await ledge.write("we are on the moon", { x: 200, y: 200 });
-    expect(ledge.laws.laws.map((law) => law.text)).toEqual(["we are on the moon"]);
-    expect(ledge.renderer.lastFrame?.world.sumikui).not.toBeNull();
-  });
-});
-
 describe("Game in Boss mode", () => {
   const soulOf = (player: Player): Vec => {
     const soul = player.renderer.lastFrame?.world.soul;
@@ -2249,7 +2255,10 @@ describe("Game in Boss mode", () => {
     expect(player.renderer.lastFrame?.world.alice).toBeNull();
     expect(soulOf(player).x).toBeCloseTo(boardFor("wonderland").spawn.x, 0);
     expect(player.written).toContain(SOUL_WAITS_LINE);
+    expect(player.written).not.toContain(BOSS_MODE.card.opening);
+    expect(player.written).toContain(cardLineOf(BOSS_MODE));
     for (const role of BOSS_MODE.card.roles ?? []) expect(player.written).toContain(role);
+    expect(player.hud.cards).toEqual([BOSS_MODE.card]);
     player.game.onAutopilotToggled(true);
     expect(player.hud.autopilot).toBe(false);
     player.walk(1);

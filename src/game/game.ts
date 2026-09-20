@@ -306,8 +306,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.hud.setTool(this.tool);
     this.hud.setAutopilot(this.selfDriving);
     this.hud.setTidiness(this.tidiness);
-    if (this.director.mode.id !== EMBODIED_MODE_ID) this.hud.showTitleCard(this.director.mode.card);
-    return this.open(this.board.id);
+    const opened = this.open(this.board.id);
+    if (this.introducesItself) this.hud.showTitleCard(this.director.mode.card);
+    return opened;
+  }
+
+  /** A mode other than today's play introduces itself, unless the room it stages opens on a card of its own. */
+  private get introducesItself(): boolean {
+    return this.director.mode.id !== EMBODIED_MODE_ID && this.director.room === null;
   }
 
   frame(nowMs: number): void {
@@ -594,11 +600,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const [firstZone] = this.board.zones;
     if (firstZone === undefined) cat.enterRoom(BLANK_BOARD_BRIEF);
     else this.introduce(firstZone);
-    if (this.director.mode.id !== EMBODIED_MODE_ID) {
-      this.remark(this.director.mode.card.opening, HINT_LIFETIME_MS);
-    }
     this.hud.showRoomCard(this.director.room?.card ?? null);
     if (!this.embodied) this.remark(SOUL_WAITS_LINE, HINT_LIFETIME_MS);
+    else if (this.introducesItself) this.remark(this.director.mode.card.opening, HINT_LIFETIME_MS);
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
@@ -812,13 +816,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     };
   }
 
-  /** The page as the selected Alice sees it: what Kami reads when asked for an idea. */
+  /** The page as the selected Alice sees it: what Kami reads when asked for an idea. Null while nobody is on it. */
   private scene(): Scene | null {
     const { sim } = this.modules;
     const { selected } = this.party;
     const alices = sim.alices();
-    const alice = alices[selected] ?? sim.snapshot().alice;
-    if (alice === null) return null;
+    const alice = alices[selected] ?? alices[ALICE_HERSELF];
+    if (alice === undefined) return null;
     return {
       ...this.page(),
       alice,
@@ -1193,8 +1197,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.remark(REJECTION_LINES["out-of-bounds"]);
       return;
     }
-    if (this.director.mode.help === "on-request" && (isHelpRequest(text) || isIdeaRequest(text))) {
-      await this.counsel(position);
+    const around =
+      this.director.mode.help === "on-request" && (isHelpRequest(text) || isIdeaRequest(text))
+        ? this.scene()
+        : null;
+    if (around !== null) {
+      await this.counsel(around, position);
       return;
     }
     if (isHelpRequest(text)) {
@@ -1258,10 +1266,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    * writes an idea, and where a picture would help (a bridge, a ladder, a friend) sketches one of
    * his own through the summoning path and names it. Without the server he leaves it at words.
    */
-  private async counsel(position: Vec): Promise<void> {
-    const scene = this.scene();
-    if (scene === null) return;
-    const advice = counselFor(surroundingsOf(scene), this.ideasGiven++);
+  private async counsel(around: Scene, position: Vec): Promise<void> {
+    const advice = counselFor(surroundingsOf(around), this.ideasGiven++);
     this.kamiWrites(advice.line, position, { lifetimeMs: HINT_LIFETIME_MS });
     if (advice.sketch === null) return;
     const epoch = this.epoch;
@@ -1623,10 +1629,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.writeModeCard({ x: at.x, y: at.y + TAGLINE_DROP * 2 });
   }
 
-  /** Any mode but the everyday one says what it is, and who does what, under the wordmark. */
+  /** A mode that introduces itself says what it is, and who does what, under the wordmark. */
   private writeModeCard(at: Vec): void {
+    if (!this.introducesItself) return;
     const { mode } = this.director;
-    if (mode.id === EMBODIED_MODE.id) return;
     const lines = [`${mode.card.title} — ${mode.card.tagline}`, ...(mode.card.roles ?? [])];
     lines.forEach((line, index) => {
       this.kamiWrites(line, { x: at.x, y: at.y + index * MODE_CARD_LINE }, { silent: true });

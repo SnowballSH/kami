@@ -33,9 +33,9 @@ export class DomHud implements Hud {
   private readonly stick: Joystick;
   private readonly talk: TalkButton;
   private readonly tidy: TidySlider;
+  private readonly roomCard = new RoomCardView();
   private readonly share = new SharePanel(paintQr);
   private readonly card = new TitleCard();
-  private readonly roomCard = new RoomCardView();
   private readonly detachers: readonly Detach[];
 
   constructor(root: HTMLElement, handlers: HudHandlers) {

@@ -10,7 +10,6 @@ import type {
   Incarnation,
   ModeDirector,
   PlayerState,
-  RoomStaging,
 } from "./types";
 
 const spiritOf = (incarnation: Incarnation): PlayerState => ({ kind: "spirit", incarnation });
@@ -23,7 +22,7 @@ const spiritOf = (incarnation: Incarnation): PlayerState => ({ kind: "spirit", i
  */
 export class SpiritDirector implements ModeDirector {
   state: PlayerState;
-  readonly room: RoomStaging | null = null;
+  readonly room = null;
 
   constructor(
     readonly mode: GameMode,
