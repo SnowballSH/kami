@@ -2,22 +2,14 @@ import type { z } from "zod";
 import { INPUT_LIMITS } from "../../src/core/inputLimits";
 import { BodyTooLargeError, readBoundedText } from "../../src/core/readBody";
 
-const CORS_HEADERS = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, PUT, POST, DELETE, OPTIONS",
-  "access-control-allow-headers": "content-type",
-  "access-control-max-age": "86400",
-} as const;
-
-export const json = (body: unknown, status = 200): Response =>
-  Response.json(body, { status, headers: CORS_HEADERS });
+export const json = (body: unknown, status = 200): Response => Response.json(body, { status });
 
 export const ok = (): Response => json({ ok: true });
 
 export const audio = (body: ArrayBuffer, contentType = "audio/mpeg"): Response =>
-  new Response(body, { headers: { ...CORS_HEADERS, "content-type": contentType } });
+  new Response(body, { headers: { "content-type": contentType } });
 
-export const preflight = (): Response => new Response(null, { status: 204, headers: CORS_HEADERS });
+export const preflight = (): Response => new Response(null, { status: 204 });
 
 export const badRequest = (error: string, issues: readonly string[] = []): Response =>
   json({ error, issues }, 400);

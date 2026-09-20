@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n web,server -c blue,green \"vite --host\" \"bun run server\"",
+    "dev": "concurrently -k -n web,server -c blue,green \"vite\" \"bun run server\"",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
@@ -12,7 +12,7 @@
     "format": "biome check --write .",
     "test": "vitest run",
     "check": "tsc --noEmit && biome check . && vitest run",
-    "dev:web": "vite --host",
+    "dev:web": "vite",
     "server": "bun --watch server/index.ts",
     "quickdraw:ingest": "bun server/quickdraw/ingest.ts",
     "font:build": "bun scripts/buildStrokeFont.ts",

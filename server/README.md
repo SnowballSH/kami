@@ -6,7 +6,8 @@ model on the GX10 to compile physics notes the offline grammar did not understan
 
 Nothing in `src/` imports this directory. The browser reaches it through the thin clients in
 `src/persistence` and `src/recognition`, on the same origin (`/api`, proxied by Vite in dev). If the
-server is down the game still plays; it just is not remembered and Kami guesses from geometry.
+server is down, choose **Play without server** at startup; it is not remembered and Kami guesses
+from geometry.
 
 ## Run
 
@@ -23,6 +24,13 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | Env | |
 |---|---|
 | `PORT` | HTTP port, default `8787` (what `vite.config.ts` proxies `/api` to) |
+| `KAMI_ACCESS_MODE` | `demo` (default, trusted LAN only) or `shared` (scoped authentication). See [access and deployment](../docs/access.md). |
+| `KAMI_BIND_HOST` | HTTP bind address: `0.0.0.0` in demo, `127.0.0.1` in shared mode. |
+| `KAMI_WEB_HOST` | Vite development bind address, default `0.0.0.0`; use `127.0.0.1` for local-only development. |
+| `KAMI_ALLOWED_ORIGINS` | Comma-separated exact origins, no trailing slash or wildcard. Shared mode requires HTTPS origins. Demo also permits same-origin requests. |
+| `KAMI_CREDENTIALS` | Shared-only JSON credentials with `id`, `token`, `boards`, `controllers`, and `models` grants; keep outside version control. |
+| `KAMI_MODEL_REQUESTS_PER_MINUTE` | Positive integer, default `600`, shared across all model routes and callers per process. |
+| `KAMI_MODEL_CONCURRENCY` | Positive integer, default `4`, held through complete model responses. |
 | `MONGODB_URI` | Use this MongoDB instead of the embedded one, e.g. the Atlas `mongodb+srv://…` string. Database `kami`. |
 | `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile` and `/api/transcribe`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
 | `KAMI_LLM_MODEL` | Compiler model name; also the fallback handwriting model. Compilation is **off** unless both URL and model are set. |
@@ -38,6 +46,9 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 
 | Route | Answer |
 |---|---|
+| `GET /api/session` | `{ mode, authenticated, boards, controllers }`; anonymous callers receive no grants |
+| `POST /api/session` | Exchange `Authorization: Bearer …` for an eight-hour secure HTTP-only session cookie |
+| `DELETE /api/session` | Revoke the current browser session and clear its cookie |
 | `GET /api/boards` | `{ boards: BoardSummary[] }` |
 | `GET /api/boards/:board` | `{ drawings: StoredDrawing[], notes: Note[], rules: Rule[] }`, oldest first; an unknown board is empty |
 | `PUT /api/boards/:board/{drawings,notes,rules}/:id` | upsert; the body is the client's object and its id must match the path |
@@ -55,7 +66,9 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 Every body is validated with zod (`schemas.ts`, which mirrors `src/*/types.ts` and is checked
 against them at compile time). A bad payload is a `400` with `{ error, issues }`; nothing throws
 past the router. Entities are loose objects: fields the server does not know are stored and
-returned untouched. CORS is wide open, for development.
+returned untouched. Origin policy, credentials and board/controller grants are enforced before
+route handling; shared credentials restrict listings too. See [the trust model](../docs/access.md)
+before exposing a server beyond a trusted demo LAN.
 
 Collections `drawings`, `notes`, `rules` hold the client's objects as they are plus `boardId`
 (and, for drawings, a top-level `id` copied from `drawing.id`), with a unique `{ boardId, id }`
