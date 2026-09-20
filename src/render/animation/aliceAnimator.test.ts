@@ -38,6 +38,7 @@ const STANDING: AliceSnapshot = {
   climbing: false,
   hasKey: false,
   ride: null,
+  look: { kind: "alice" },
 };
 
 const her = (changes: Partial<AliceSnapshot> = {}): AliceSnapshot => ({ ...STANDING, ...changes });

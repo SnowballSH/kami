@@ -50,6 +50,7 @@ const alice = (feet: Vec): AliceSnapshot => ({
   climbing: false,
   hasKey: false,
   ride: null,
+  look: { kind: "alice" },
 });
 
 const sumikui = (

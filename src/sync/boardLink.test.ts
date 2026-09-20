@@ -31,6 +31,7 @@ const alice = (x: number): AliceSnapshot => ({
   climbing: false,
   hasKey: false,
   ride: null,
+  look: { kind: "alice" },
 });
 
 const NOTE: Note = {

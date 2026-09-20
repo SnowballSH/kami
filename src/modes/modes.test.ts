@@ -3,8 +3,9 @@ import { boardFor } from "../board";
 import type { Ruling } from "../cat/types";
 import type { DrawingId } from "../ink/types";
 import { createDirector, EmbodiedDirector } from "./embodiedDirector";
-import { EMBODIED_MODE, GAME_MODES, modeFor, SPIRIT_MODE } from "./modes";
+import { BOSS_MODE, EMBODIED_MODE, GAME_MODES, modeFor, SPIRIT_MODE } from "./modes";
 import { allowsLaw, naturesAllowed, opensWithAlice } from "./policy";
+import { SpiritDirector } from "./spiritDirector";
 import type { GameMode } from "./types";
 
 const A_RULING: Ruling = {
@@ -67,16 +68,17 @@ describe("mode policies", () => {
 });
 
 describe("the embodied director", () => {
-  it("is the director for any mode that opens with a body; spirit openings have none yet", () => {
+  it("is the director for any mode that opens with a body; spirit openings get the spirit director", () => {
     expect(createDirector(EMBODIED_MODE)).toBeInstanceOf(EmbodiedDirector);
-    expect(createDirector(SPIRIT_MODE)).toBeNull();
+    expect(createDirector(SPIRIT_MODE)).toBeInstanceOf(SpiritDirector);
+    expect(createDirector(BOSS_MODE)).toBeInstanceOf(SpiritDirector);
   });
 
   it("opens as a body, never changes it, and wins on the goal", () => {
     const director = new EmbodiedDirector(EMBODIED_MODE);
     expect(director.open(boardFor("wonderland"))).toEqual({ kind: "body" });
     expect(director.witness({ type: "fell", who: 0 })).toEqual([]);
-    expect(director.named("d1" as DrawingId, A_RULING)).toBeNull();
+    expect(director.named("d1" as DrawingId, A_RULING)).toEqual([]);
     expect(director.won({ type: "fell", who: 0 })).toBe(false);
     expect(director.won({ type: "goal-reached", who: 0 })).toBe(true);
     expect(director.state).toEqual({ kind: "body" });

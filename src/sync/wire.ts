@@ -16,7 +16,7 @@ export const PEER_ID_PATTERN = /^[a-z0-9-]{1,64}$/;
 /** One device on a shared page. Minted per tab; never an account. */
 export type PeerId = string & { readonly __brand: "PeerId" };
 
-/** Another device's Alice, as last heard of. */
+/** Another device's Alice, as last heard of. Only Kami's own sketch of her crosses the wire, never a drawn body. */
 export type Ghost = AliceSnapshot;
 
 const seqSchema = z.number().int().nonnegative();
@@ -44,6 +44,7 @@ export const ghostSchema: z.ZodType<Ghost> = z.object({
   climbing: z.boolean(),
   hasKey: z.boolean(),
   ride: rideSchema.nullable(),
+  look: z.object({ kind: z.literal("alice") }),
 });
 
 /** `POST /api/boards/:board/presence`: where this device's Alice is right now. */

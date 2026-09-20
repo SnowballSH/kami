@@ -45,7 +45,10 @@ const frame = (eraserActive: boolean, ghosts?: readonly AliceSnapshot[]): Render
       climbing: false,
       hasKey: false,
       ride: null,
+      look: { kind: "alice" },
     },
+    soul: null,
+    tear: null,
     twins: [],
     sumikui: null,
     drawings: [],
@@ -63,7 +66,11 @@ const frame = (eraserActive: boolean, ghosts?: readonly AliceSnapshot[]): Render
   ...(ghosts === undefined ? {} : { ghosts }),
 });
 
-const ghostAt = (center: Vec): AliceSnapshot => ({ ...frame(false).world.alice, center });
+const ghostAt = (center: Vec): AliceSnapshot => {
+  const { alice } = frame(false).world;
+  if (alice === null) throw new Error("Nobody is on the board");
+  return { ...alice, center };
+};
 
 const setup = () => {
   const calls: Call[] = [];

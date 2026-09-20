@@ -16,6 +16,7 @@ const standing = (x: number): AliceSnapshot => ({
   climbing: false,
   hasKey: false,
   ride: null,
+  look: { kind: "alice" },
 });
 
 describe("lightsOf", () => {

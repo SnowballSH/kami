@@ -3,7 +3,7 @@ import { boardFor } from "../board";
 import { createCat } from "../cat";
 import { createHandwriting } from "../handwriting";
 import { createInkSession, findDrawingAt } from "../ink";
-import { type GameMode, PUZZLE_MODE_ID, puzzleBoardIdFor } from "../modes";
+import { type GameMode, PUZZLE_MODE_ID } from "../modes";
 import {
   createBoardStore,
   createHandwritingReader,
@@ -69,11 +69,6 @@ const rememberTidiness = (tidiness: number): void => {
   } catch {}
 };
 
-const openingBoardFor = (mode: GameMode): string =>
-  mode.id === PUZZLE_MODE_ID
-    ? puzzleBoardIdFor(new URLSearchParams(window.location.search).get(BOARD_PARAM))
-    : boardInUrl(window.location.search, mode);
-
 const rememberBoardInUrl = (boardId: string): void => {
   const url = new URL(window.location.href);
   url.searchParams.set(BOARD_PARAM, boardId);
@@ -110,16 +105,16 @@ export function startGame(root: HTMLElement): void {
       createVoice,
       createLawsPanel: (handlers) => createLawsPanel(root, handlers),
       findDrawingAt,
-      mode,
       onBoardOpened: rememberBoardInUrl,
       link: createBoardLink(),
       shareLinkFor: (boardId) => shareLink(window.location.href, boardId, mode),
+      mode,
       selfDriving: startsSelfDriving(mode),
       onSelfDrivingChanged: rememberSelfDriving,
       tidiness: rememberedTidiness(),
       onTidinessChanged: rememberTidiness,
     },
-    openingBoardFor(mode),
+    boardInUrl(window.location.search, mode),
   );
 
   attachCanvasInput(canvas, () => game.currentTool, game);

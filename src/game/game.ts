@@ -27,15 +27,8 @@ import type {
   PlacementRejection,
   PosedDrawing,
 } from "../ink/types";
-import {
-  allowsLaw,
-  createDirector,
-  EMBODIED_MODE,
-  EMBODIED_MODE_ID,
-  EmbodiedDirector,
-  refusalLine,
-} from "../modes";
-import type { GameMode, ModeDirector } from "../modes/types";
+import { allowsLaw, createDirector, EMBODIED_MODE, EMBODIED_MODE_ID, refusalLine } from "../modes";
+import type { EmbodimentTransition, GameMode, ModeDirector } from "../modes/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore, StoredDrawing } from "../persistence/types";
 import type { PenReader } from "../reading/types";
@@ -72,6 +65,22 @@ import type {
   Tool,
 } from "../ui/types";
 import type { EarsHandlers, Voice } from "../voice/types";
+import {
+  HEART_SWALLOWED_LINE,
+  INCARNATED_LINE,
+  PART_RESTORED_LINE,
+  SERVANT_CAME_LINE,
+  SERVANT_PERISHED_LINE,
+  SERVANT_STRUCK_LINE,
+  SERVANTS_CAME_LINE,
+  SHIELDED_LINE,
+  SNIP_MISSED_LINE,
+  SNIPPED_LINE,
+  SOUL_WAITS_LINE,
+  TEAR_CLOSED_LINE,
+  TEAR_OPENS_LINES,
+  UNMADE_LINE,
+} from "./bossLines";
 import { CameraRig } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
 import { HeldInkBook } from "./heldInk";
@@ -128,9 +137,6 @@ const ERASER_TOLERANCE = 18;
 const NAMING_REACH = 190;
 const GUESS_OFFSET = { x: 30, y: -4, line: 42 } as const;
 
-const directorFor = (mode: GameMode): ModeDirector =>
-  createDirector(mode) ?? new EmbodiedDirector(EMBODIED_MODE);
-
 const guessCornerOf = (strokes: readonly Stroke[]): Vec => {
   const bounds = boundsOf(strokes.flat());
   return { x: bounds.x + bounds.width + GUESS_OFFSET.x, y: bounds.y + GUESS_OFFSET.y };
@@ -148,10 +154,13 @@ const ABOVE_ALICE = { x: -90, y: -120 } as const;
 const SPOKEN_AT = { x: -60, y: -190 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
+const MODE_CARD_LINE = 34;
 const ALREADY_AWAKE_MS = 10_000;
 /** Kami dresses a scene one prop after another, not all at once. */
 const PROP_STAGGER_MS = 450;
 const HUD_WRITING_GAP = 12;
+/** Long enough to read that the heart was taken before the room opens over. */
+const RESTART_AFTER_MS = 2_800;
 
 interface Recital {
   readonly at: number;
@@ -197,7 +206,7 @@ export interface GameModules {
   readonly link?: BoardLink | null;
   /** The link another device opens to join a page; without one the share affordance stays hidden. */
   readonly shareLinkFor?: (boardId: string) => string;
-  /** How the board is played; `EMBODIED_MODE` unless said otherwise. A mode nobody has built a director for yet plays as embodied. */
+  /** How the board is played; `EMBODIED_MODE` unless said otherwise. */
   readonly mode?: GameMode;
   /** Whether Alice starts out walking herself; the player can switch it from the HUD. */
   readonly selfDriving?: boolean;
@@ -258,6 +267,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly tidied = new Set<DrawingId>();
   private readonly tidyTurns = new Map<DrawingId, number>();
   private retidyDueAtMs: number | null = null;
+  private restartDueAtMs: number | null = null;
   private unfollow: Detach | null = null;
   private readonly ghosts = new Map<PeerId, Ghost>();
   private shown: ShareInfo | null = null;
@@ -266,7 +276,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     private readonly modules: GameModules,
     initialBoardId: string,
   ) {
-    this.director = directorFor(modules.mode ?? EMBODIED_MODE);
+    this.director = createDirector(modules.mode ?? EMBODIED_MODE);
     this.board = this.sketch(initialBoardId);
     this.party = new Party(modules.autopilot);
     this.selfDriving = (modules.selfDriving ?? true) && this.walksHerself();
@@ -296,8 +306,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.hud.setTool(this.tool);
     this.hud.setAutopilot(this.selfDriving);
     this.hud.setTidiness(this.tidiness);
-    if (this.director.mode.id !== EMBODIED_MODE_ID) this.hud.showTitleCard(this.director.mode.card);
-    return this.open(this.board.id);
+    const opened = this.open(this.board.id);
+    if (this.introducesItself) this.hud.showTitleCard(this.director.mode.card);
+    return opened;
+  }
+
+  /** A mode other than today's play introduces itself, unless the room it stages opens on a card of its own. */
+  private get introducesItself(): boolean {
+    return this.director.mode.id !== EMBODIED_MODE_ID && this.director.room === null;
   }
 
   frame(nowMs: number): void {
@@ -318,13 +334,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     this.ink.update(nowMs, {
       noInkZones: this.board.noInkZones,
-      aliceBounds: sim.aliceBounds(this.party.selected),
+      aliceBounds: this.inkKeepsOff(),
     });
     if (!this.ink.isDrawing) this.forgetGlimpse();
     this.forget(this.notes.expire(nowMs));
     this.speakDueRecital();
     if (this.retidyDueAtMs !== null && nowMs >= this.retidyDueAtMs) this.retidyTheBoard();
-    if (this.director.mode.help === "offered" && this.stuck.isStuck(nowMs)) this.offerHelp();
+    if (this.restartDueAtMs !== null && nowMs >= this.restartDueAtMs) this.restart();
+    if (this.embodied && this.director.mode.help === "offered" && this.stuck.isStuck(nowMs))
+      this.offerHelp();
     if (this.nextRoom !== null && nowMs >= this.nextRoom.atMs)
       void this.open(this.nextRoom.boardId);
     const { selected } = this.party;
@@ -336,7 +354,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.camera.turnTo(sim.paperAngle());
 
     const world = sim.snapshot();
-    if (this.unfollow !== null && !this.loading) this.modules.link?.announce(world.alice, nowMs);
+    if (this.unfollow !== null && !this.loading && world.alice !== null)
+      this.modules.link?.announce(world.alice, nowMs);
     this.showShare();
     renderer.render({
       nowMs,
@@ -553,7 +572,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.nextRoom = null;
 
     sim.loadBoard(this.board);
-    this.director.open(this.board);
+    if (this.director.open(this.board).kind === "spirit") sim.disembody();
+    this.restartDueAtMs = null;
     this.voice?.hush();
     this.party.select(ALICE_HERSELF);
     this.party.reset();
@@ -580,10 +600,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const [firstZone] = this.board.zones;
     if (firstZone === undefined) cat.enterRoom(BLANK_BOARD_BRIEF);
     else this.introduce(firstZone);
-    if (this.director.mode.id !== EMBODIED_MODE_ID) {
-      this.remark(this.director.mode.card.opening, HINT_LIFETIME_MS);
-    }
     this.hud.showRoomCard(this.director.room?.card ?? null);
+    if (!this.embodied) this.remark(SOUL_WAITS_LINE, HINT_LIFETIME_MS);
+    else if (this.introducesItself) this.remark(this.director.mode.card.opening, HINT_LIFETIME_MS);
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
@@ -797,14 +816,16 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     };
   }
 
-  /** The page as the selected Alice sees it: what Kami reads when asked for an idea. */
-  private scene(): Scene {
+  /** The page as the selected Alice sees it: what Kami reads when asked for an idea. Null while nobody is on it. */
+  private scene(): Scene | null {
     const { sim } = this.modules;
     const { selected } = this.party;
     const alices = sim.alices();
+    const alice = alices[selected] ?? alices[ALICE_HERSELF];
+    if (alice === undefined) return null;
     return {
       ...this.page(),
-      alice: alices[selected] ?? sim.snapshot().alice,
+      alice,
       others: alices.filter((_, who) => who !== selected),
       walkSpeed: sim.walkSpeed(selected),
       jumpArc: sim.jumpArc(selected),
@@ -835,6 +856,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private handle(event: SimEvent): void {
     if (this.director.won(event)) this.celebrate(event);
+    for (const transition of this.director.witness(event)) this.embody(transition);
     switch (event.type) {
       case "goal-reached":
         return;
@@ -902,10 +924,40 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       case "in-the-dark":
         this.remark(IN_THE_DARK_LINE, HINT_LIFETIME_MS);
         return;
+      case "servant-came":
+        this.remark(SERVANT_CAME_LINE, HINT_LIFETIME_MS);
+        return;
+      case "servants-came":
+        this.remark(SERVANTS_CAME_LINE(event.lessers), HINT_LIFETIME_MS);
+        return;
+      case "snipped":
+        this.remark(SNIPPED_LINE(event.part, event.lost));
+        return;
+      case "snip-missed":
+        this.remark(SNIP_MISSED_LINE);
+        return;
+      case "shielded":
+        this.discard(event.drawingId);
+        this.remark(SHIELDED_LINE);
+        return;
+      case "servant-struck":
+        this.remark(SERVANT_STRUCK_LINE(event.rank));
+        return;
+      case "servant-perished":
+        this.remark(SERVANT_PERISHED_LINE(event.rank), HINT_LIFETIME_MS);
+        return;
+      case "tear-closed":
+        return;
+      case "heart-swallowed":
+        return;
+      case "part-restored":
+        this.remark(PART_RESTORED_LINE(event.parts));
+        return;
     }
   }
 
   private goalLine(event: SimEvent): string {
+    if (event.type === "tear-closed") return TEAR_CLOSED_LINE;
     if (event.type !== "goal-reached" || this.modules.sim.alices().length === 1) return GOAL_LINE;
     return TWIN_GOAL_LINE(event.who);
   }
@@ -920,6 +972,65 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.remark(room.closing, HINT_LIFETIME_MS);
     if (room.next !== null)
       this.nextRoom = { boardId: room.next, atMs: this.nowMs + NEXT_ROOM_DELAY_MS };
+  }
+
+  /** Enacts what the director ruled about her body: a drawing becomes her, the tear opens, or she is unmade. */
+  private embody(transition: EmbodimentTransition): void {
+    const { sim } = this.modules;
+    switch (transition.kind) {
+      case "incarnated": {
+        if (transition.by === "spawn") return;
+        const { drawingId, name } = transition;
+        if (!sim.incarnate(drawingId, name)) return;
+        this.ledger.remove(drawingId);
+        this.modules.store.deleteDrawing(this.board.id, drawingId);
+        this.forget(this.notes.removeAnchoredTo({ type: "drawing", id: drawingId }));
+        this.party.resync(sim.alices().length);
+        this.camera.resumeFollowing();
+        this.stuck.reset(this.nowMs);
+        this.remark(INCARNATED_LINE(name), HINT_LIFETIME_MS);
+        return;
+      }
+      case "tear-opens":
+        sim.openTear();
+        this.recite(TEAR_OPENS_LINES);
+        return;
+      case "unmade":
+        this.lose(transition.cause);
+        return;
+    }
+  }
+
+  private lose(cause: "fell" | "devoured" | "swallowed"): void {
+    switch (this.director.mode.loss.kind) {
+      case "respawn":
+        return;
+      case "unmade":
+        this.modules.sim.disembody();
+        this.party.resync(this.modules.sim.alices().length);
+        this.remark(UNMADE_LINE, HINT_LIFETIME_MS);
+        return;
+      case "board-restarts":
+        this.remark(cause === "swallowed" ? HEART_SWALLOWED_LINE : UNMADE_LINE, HINT_LIFETIME_MS);
+        this.restartDueAtMs = this.nowMs + RESTART_AFTER_MS;
+        return;
+    }
+  }
+
+  private restart(): void {
+    this.restartDueAtMs = null;
+    void this.open(this.board.id, { remember: false });
+  }
+
+  private get embodied(): boolean {
+    return this.director.state.kind === "body";
+  }
+
+  /** Ink stays off Alice, except where she is made of it: a drawn body is drawn around, and mended by drawing on. */
+  private inkKeepsOff(): Rect | null {
+    return this.director.mode.opening.player === "spirit"
+      ? null
+      : this.modules.sim.aliceBounds(this.party.selected);
   }
 
   private enterZone(zoneId: string): void {
@@ -991,6 +1102,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private land(drawing: Drawing): void {
+    if (this.embodied && this.modules.sim.graft(drawing.strokes)) return;
     this.modules.sim.addDrawing(drawing);
     this.party.invalidate();
     this.ledger.add(drawing);
@@ -1085,8 +1197,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.remark(REJECTION_LINES["out-of-bounds"]);
       return;
     }
-    if (this.director.mode.help === "on-request" && (isHelpRequest(text) || isIdeaRequest(text))) {
-      await this.counsel(position);
+    const around =
+      this.director.mode.help === "on-request" && (isHelpRequest(text) || isIdeaRequest(text))
+        ? this.scene()
+        : null;
+    if (around !== null) {
+      await this.counsel(around, position);
       return;
     }
     if (isHelpRequest(text)) {
@@ -1150,8 +1266,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    * writes an idea, and where a picture would help (a bridge, a ladder, a friend) sketches one of
    * his own through the summoning path and names it. Without the server he leaves it at words.
    */
-  private async counsel(position: Vec): Promise<void> {
-    const advice = counselFor(surroundingsOf(this.scene()), this.ideasGiven++);
+  private async counsel(around: Scene, position: Vec): Promise<void> {
+    const advice = counselFor(surroundingsOf(around), this.ideasGiven++);
     this.kamiWrites(advice.line, position, { lifetimeMs: HINT_LIFETIME_MS });
     if (advice.sketch === null) return;
     const epoch = this.epoch;
@@ -1392,6 +1508,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
     }
     this.stuck.progress(this.nowMs);
+    for (const transition of this.director.named(id, ruling)) this.embody(transition);
+    if (this.ledger.get(id) === null) return;
     void this.tidy(id, ruling.name);
   }
 
@@ -1508,6 +1626,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     };
     this.kamiWrites(WORDMARK, at, { silent: true });
     this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP }, { silent: true });
+    this.writeModeCard({ x: at.x, y: at.y + TAGLINE_DROP * 2 });
+  }
+
+  /** A mode that introduces itself says what it is, and who does what, under the wordmark. */
+  private writeModeCard(at: Vec): void {
+    if (!this.introducesItself) return;
+    const { mode } = this.director;
+    const lines = [`${mode.card.title} — ${mode.card.tagline}`, ...(mode.card.roles ?? [])];
+    lines.forEach((line, index) => {
+      this.kamiWrites(line, { x: at.x, y: at.y + index * MODE_CARD_LINE }, { silent: true });
+    });
   }
 
   private playerWrites(text: string, position: Vec): Note {

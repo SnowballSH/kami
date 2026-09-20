@@ -848,6 +848,7 @@ describe("shared pages", () => {
     climbing: false,
     hasKey: false,
     ride: null,
+    look: { kind: "alice" },
   } as const;
 
   it("tells every device on a board what the others save, delete and clear, numbered", async () => {

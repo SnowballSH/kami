@@ -28,13 +28,13 @@ const RIBBON_NUMBER = { y: -33, font: "bold 7px sans-serif" } as const;
 const SELECTION_CARET = { y: -38, half: 4, height: 5 } as const;
 
 /** How a twin is told apart from Alice herself and from each other: a coloured, numbered ribbon. */
-export interface AliceLook {
+export interface AliceBadge {
   /** Her number among the twins (1 up); Alice herself wears no ribbon. */
   readonly ribbon: number | null;
   readonly selected: boolean;
 }
 
-export const HERSELF: AliceLook = { ribbon: null, selected: false };
+export const HERSELF: AliceBadge = { ribbon: null, selected: false };
 
 export const ribbonColour = (ribbon: number): string =>
   `hsl(${(ribbon * RIBBON_HUE_STEP) % 360} 65% 45%)`;
@@ -82,7 +82,7 @@ const paintDress = (ctx: CanvasRenderingContext2D): void => {
   ctx.stroke();
 };
 
-const paintHead = (ctx: CanvasRenderingContext2D, look: AliceLook): void => {
+const paintHead = (ctx: CanvasRenderingContext2D, badge: AliceBadge): void => {
   ctx.beginPath();
   ctx.arc(HEAD.x, HEAD.y, HEAD.radius, 0, TAU);
   ctx.fillStyle = BOARD_COLORS.board;
@@ -97,25 +97,29 @@ const paintHead = (ctx: CanvasRenderingContext2D, look: AliceLook): void => {
   ctx.beginPath();
   ctx.arc(HEAD.x, HEAD.y, HEAD.radius, HAIR_BAND.from, HAIR_BAND.to);
   ctx.lineWidth = HAIR_BAND.width;
-  if (look.ribbon !== null) ctx.strokeStyle = ribbonColour(look.ribbon);
+  if (badge.ribbon !== null) ctx.strokeStyle = ribbonColour(badge.ribbon);
   ctx.stroke();
   ctx.strokeStyle = BOARD_COLORS.marker;
   ctx.lineWidth = LINE_WIDTH;
 };
 
 /** Her number and the caret over whoever the player steers, drawn upright whichever way she faces. */
-const paintLook = (ctx: CanvasRenderingContext2D, facing: number, look: AliceLook): void => {
-  if (look.ribbon === null && !look.selected) return;
+export const paintBadge = (
+  ctx: CanvasRenderingContext2D,
+  facing: number,
+  badge: AliceBadge,
+): void => {
+  if (badge.ribbon === null && !badge.selected) return;
   ctx.save();
   ctx.scale(1 / facing, 1);
-  if (look.ribbon !== null) {
-    ctx.fillStyle = ribbonColour(look.ribbon);
+  if (badge.ribbon !== null) {
+    ctx.fillStyle = ribbonColour(badge.ribbon);
     ctx.font = RIBBON_NUMBER.font;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(String(look.ribbon + 1), HEAD.x, RIBBON_NUMBER.y);
+    ctx.fillText(String(badge.ribbon + 1), HEAD.x, RIBBON_NUMBER.y);
   }
-  if (look.selected) {
+  if (badge.selected) {
     const { y, half, height } = SELECTION_CARET;
     ctx.beginPath();
     ctx.moveTo(HEAD.x - half, y - height);
@@ -133,7 +137,7 @@ const paintBody = (
   pose: AlicePose,
   hasKey: boolean,
   keyScale: number,
-  look: AliceLook,
+  badge: AliceBadge,
 ): void => {
   const frontHand = hasKey ? KEY_HOLD : pose.frontHand;
   ctx.lineWidth = LINE_WIDTH;
@@ -142,7 +146,7 @@ const paintBody = (
   ctx.strokeStyle = BOARD_COLORS.marker;
   paintBehindDress(ctx, pose);
   paintDress(ctx);
-  paintHead(ctx, look);
+  paintHead(ctx, badge);
   paintFrontArm(ctx, frontHand);
   if (hasKey && keyScale > 0)
     paintKey(ctx, frontHand, CARRIED_KEY.length * keyScale, CARRIED_KEY.angle);
@@ -195,7 +199,7 @@ export const paintAliceFigure = (
   ctx: CanvasRenderingContext2D,
   alice: AliceSnapshot,
   figure: AliceFigure,
-  look: AliceLook = HERSELF,
+  badge: AliceBadge = HERSELF,
 ): void => {
   if (figure.ghost !== null) paintGhost(ctx, figure.ghost, figure.pose);
   ctx.save();
@@ -204,8 +208,8 @@ export const paintAliceFigure = (
   enterBody(ctx, alice.center, alice.width, alice.height, figure.facing);
   if (figure.inked < 1) clipInked(ctx, figure.inked);
   deformAboutSoles(ctx, figure.stretch, figure.lean, figure.facing);
-  paintBody(ctx, figure.pose, alice.hasKey, figure.keyScale, look);
-  paintLook(ctx, figure.facing, look);
+  paintBody(ctx, figure.pose, alice.hasKey, figure.keyScale, badge);
+  paintBadge(ctx, figure.facing, badge);
   ctx.restore();
 };
 
@@ -214,11 +218,11 @@ export const paintAlice = (
   ctx: CanvasRenderingContext2D,
   alice: AliceSnapshot,
   nowMs: number,
-  look: AliceLook = HERSELF,
+  badge: AliceBadge = HERSELF,
 ): void => {
   ctx.save();
   enterBody(ctx, alice.center, alice.width, alice.height, alice.facing);
-  paintBody(ctx, ALICE_POSES[alicePoseName(alice, nowMs)], alice.hasKey, 1, look);
-  paintLook(ctx, alice.facing, look);
+  paintBody(ctx, ALICE_POSES[alicePoseName(alice, nowMs)], alice.hasKey, 1, badge);
+  paintBadge(ctx, alice.facing, badge);
   ctx.restore();
 };

@@ -3,6 +3,7 @@ import { blankBoard } from "../board/boards/blank";
 import type { Stroke } from "../core/geometry";
 import { VEHICLE_SPEED, WALK_SPEED } from "./constants";
 import {
+  aliceOf,
   blob,
   drawingOf,
   enter,
@@ -46,7 +47,7 @@ const parkCar = (): Simulation => {
 
 const climbAboard = (sim: Simulation): void => {
   sim.setWalkIntent(RIGHT);
-  runUntil(sim, (_events, current) => current.snapshot().alice.grounded && feetOf(current).x > 60);
+  runUntil(sim, (_events, current) => aliceOf(current).grounded && feetOf(current).x > 60);
 };
 
 describe("ink ruled vehicle", () => {
@@ -88,18 +89,15 @@ describe("ink ruled vehicle", () => {
 
   it("shows in her snapshot as her ride only while she is aboard", () => {
     const sim = parkCar();
-    expect(sim.snapshot().alice.ride).toBeNull();
+    expect(aliceOf(sim).ride).toBeNull();
     climbAboard(sim);
     runSteps(sim, 2);
-    expect(sim.snapshot().alice.ride).toEqual({ id: CAR, gait: "vehicle" });
+    expect(aliceOf(sim).ride).toEqual({ id: CAR, gait: "vehicle" });
     sim.setWalkIntent(STAY);
     runSteps(sim, 60);
     sim.setWalkIntent({ x: -1, y: -1 });
-    runUntil(
-      sim,
-      (_events, current) => current.snapshot().alice.grounded && feetOf(current).x < 30,
-    );
-    expect(sim.snapshot().alice.ride).toBeNull();
+    runUntil(sim, (_events, current) => aliceOf(current).grounded && feetOf(current).x < 30);
+    expect(aliceOf(sim).ride).toBeNull();
   });
 
   it("lets her jump off the back", () => {
@@ -111,8 +109,8 @@ describe("ink ruled vehicle", () => {
     const car = centreOf(sim);
     sim.setWalkIntent({ x: -1, y: -1 });
     runSteps(sim, 2);
-    expect(sim.snapshot().alice.grounded).toBe(false);
-    runUntil(sim, (_events, current) => current.snapshot().alice.grounded);
+    expect(aliceOf(sim).grounded).toBe(false);
+    runUntil(sim, (_events, current) => aliceOf(current).grounded);
     runSteps(sim, 30);
     expect(Math.abs(centreOf(sim) - car)).toBeLessThan(2);
     expect(feetOf(sim).x).toBeLessThan(car - 45);

@@ -18,6 +18,7 @@ const at = (x: number): AliceSnapshot => ({
   climbing: false,
   hasKey: false,
   ride: null,
+  look: { kind: "alice" },
 });
 
 const settle = (troupe: AliceTroupe, alices: readonly AliceSnapshot[]): void => {

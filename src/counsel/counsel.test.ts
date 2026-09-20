@@ -28,6 +28,7 @@ const alice = (feet: Vec, facing: 1 | -1 = 1): AliceSnapshot => ({
   climbing: false,
   hasKey: false,
   ride: null,
+  look: { kind: "alice" },
 });
 
 const line = (from: Vec, to: Vec, spacing = 4): Vec[] => {

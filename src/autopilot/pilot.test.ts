@@ -5,7 +5,7 @@ import type { Rect, Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 import { EARTH } from "../rules/types";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "../sim/flight";
-import { enter, runSteps } from "../sim/testSupport";
+import { aliceOf, enter, runSteps } from "../sim/testSupport";
 import { ALICE_BASE, type AliceSize, type AliceSnapshot } from "../sim/types";
 import { CELL_PX, CellFlag, Chart, MAX_CHART_CELLS } from "./chart";
 import { createAutopilot } from "./index";
@@ -48,6 +48,7 @@ const alice = (feet: Vec, size: AliceSize = "normal", sizeMultiplier = 1): Alice
     climbing: false,
     hasKey: false,
     ride: null,
+    look: { kind: "alice" },
   };
 };
 
@@ -245,19 +246,19 @@ describe("Pilot", () => {
     sim.setPhysics({ ...EARTH, aliceSize: 2, clones: 1 });
     runSteps(sim, 60);
     const deferred = sim.snapshot();
-    for (const each of [deferred.alice, ...deferred.twins]) {
+    for (const each of [aliceOf(sim), ...deferred.twins]) {
       expect(each.height).toBeCloseTo(ALICE_BASE.height);
       expect(each.headingScale).toBe(1);
       expect(each.sizeMultiplier).toBe(2);
     }
-    expect(footprintFor(deferred.alice, "big")).toEqual({ cols: 14, rows: 30 });
+    expect(footprintFor(aliceOf(sim), "big")).toEqual({ cols: 14, rows: 30 });
 
     const pilots = [createAutopilot(), createAutopilot()];
     const currentScene = (who: number): Scene => {
       const alices = sim.alices();
       return scene({
         board: passage,
-        alice: alices[who] ?? deferred.alice,
+        alice: alices[who] ?? aliceOf(sim),
         others: alices.filter((_, index) => index !== who),
         walkSpeed: sim.walkSpeed(who),
         jumpArc: sim.jumpArc(who),
@@ -273,7 +274,7 @@ describe("Pilot", () => {
     }
     const grown = sim.snapshot();
     expect(grown.twins).toHaveLength(1);
-    for (const each of [grown.alice, ...grown.twins]) {
+    for (const each of [aliceOf(sim), ...grown.twins]) {
       expect(each.center.x).toBeGreaterThan(400);
       expect(each.width).toBeCloseTo(ALICE_BASE.width * 2);
       expect(each.height).toBeCloseTo(ALICE_BASE.height * 2);
