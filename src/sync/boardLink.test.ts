@@ -19,6 +19,7 @@ const BOARD = "our page";
 
 const alice = (x: number): AliceSnapshot => ({
   center: { x, y: -40 },
+  velocity: { x: 0, y: 0 },
   width: 28,
   height: 60,
   size: "normal",
@@ -29,6 +30,7 @@ const alice = (x: number): AliceSnapshot => ({
   grounded: true,
   climbing: false,
   hasKey: false,
+  ride: null,
 });
 
 const NOTE: Note = {

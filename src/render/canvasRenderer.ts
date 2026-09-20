@@ -2,7 +2,7 @@ import type { BoardDefinition } from "../board/types";
 import { distanceToRect, type Rect, type Vec } from "../core/geometry";
 import type { Handwriting } from "../handwriting/types";
 import { ALICE_HERSELF, type AliceSnapshot, type SumikuiSnapshot } from "../sim/types";
-import { paintAliceFigure } from "./alicePainter";
+import { paintAlice, paintAliceFigure } from "./alicePainter";
 import { AliceTroupe } from "./animation/aliceTroupe";
 import { BoardPainter } from "./boardPainter";
 import {

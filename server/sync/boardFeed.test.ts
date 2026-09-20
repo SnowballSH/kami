@@ -21,6 +21,7 @@ const note = (id: string) => ({
 
 const ghost = (x: number): Ghost => ({
   center: { x, y: 0 },
+  velocity: { x: 0, y: 0 },
   width: 24,
   height: 48,
   size: "normal",
@@ -31,6 +32,7 @@ const ghost = (x: number): Ghost => ({
   grounded: true,
   climbing: false,
   hasKey: false,
+  ride: null,
 });
 
 const heard = (feed: BoardFeed, boardId: string, since: number | null) => {

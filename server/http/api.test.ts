@@ -836,6 +836,7 @@ describe("CORS", () => {
 describe("shared pages", () => {
   const GHOST = {
     center: { x: 12, y: -30 },
+    velocity: { x: 1.5, y: 0 },
     width: 24,
     height: 48,
     size: "normal",
@@ -846,6 +847,7 @@ describe("shared pages", () => {
     grounded: true,
     climbing: false,
     hasKey: false,
+    ride: null,
   } as const;
 
   it("tells every device on a board what the others save, delete and clear, numbered", async () => {

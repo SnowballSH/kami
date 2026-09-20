@@ -9,7 +9,7 @@ import {
 } from "../persistence/schemas";
 import type { StoredDrawing } from "../persistence/types";
 import type { Rule, RuleId } from "../rules/types";
-import type { AliceSnapshot } from "../sim/types";
+import type { AliceSnapshot, Ride } from "../sim/types";
 
 export const PEER_ID_PATTERN = /^[a-z0-9-]{1,64}$/;
 
@@ -22,8 +22,17 @@ export type Ghost = AliceSnapshot;
 const seqSchema = z.number().int().nonnegative();
 export const peerIdSchema = z.string().regex(PEER_ID_PATTERN) as unknown as z.ZodType<PeerId>;
 
+const brandedId = <Id extends string>() => entityIdSchema as unknown as z.ZodType<Id>;
+const vecSchema = z.object({ x: z.number(), y: z.number() });
+
+const rideSchema: z.ZodType<Ride> = z.object({
+  id: brandedId<DrawingId>(),
+  gait: z.enum(["vehicle", "walker", "hopper", "flier"]),
+});
+
 export const ghostSchema: z.ZodType<Ghost> = z.object({
-  center: z.object({ x: z.number(), y: z.number() }),
+  center: vecSchema,
+  velocity: vecSchema,
   width: z.number().positive(),
   height: z.number().positive(),
   size: z.enum(["small", "normal", "big"]),
@@ -34,6 +43,7 @@ export const ghostSchema: z.ZodType<Ghost> = z.object({
   grounded: z.boolean(),
   climbing: z.boolean(),
   hasKey: z.boolean(),
+  ride: rideSchema.nullable(),
 });
 
 /** `POST /api/boards/:board/presence`: where this device's Alice is right now. */
@@ -86,8 +96,6 @@ export type FeedMessage =
   | { readonly type: "cursor"; readonly seq: number }
   | { readonly type: "resync"; readonly seq: number }
   | { readonly type: "presence"; readonly peer: PeerId; readonly alice: Ghost | null };
-
-const brandedId = <Id extends string>() => entityIdSchema as unknown as z.ZodType<Id>;
 
 /** A deletion by kind and id, as the server hears it: the ids are opaque to it. */
 export const deletionOf = (kind: "drawings" | "notes" | "rules", id: string): BoardEdit => {
