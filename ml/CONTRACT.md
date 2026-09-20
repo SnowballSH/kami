@@ -48,7 +48,7 @@ Listens on `127.0.0.1:8790` (`KAMI_EYE_PORT`), loads `KAMI_EYE_MODEL` (an artifa
 | `GET /health` | | `{ "ok": true, "classes": K, "model": "<name>", "exemplars": N }` — `N` is 0 when the model has no exemplar set |
 | `POST /recognize` | `{ "strokes": [[{"x":1,"y":2},...],...], "partial": false, "top": 5 }` | `{ "labels": [...], "probs": [...] }` — best first, temperature-scaled softmax, `top` entries (default 5); plus `"certainAbove": 0.80 \| null` when the model states its floors — see Regimes |
 | `POST /embed` | `{ "strokes": ... }` | `{ "embedding": [512 floats, L2-normalised] }` |
-| `POST /complete` | `{ "strokes": ..., "name": "a mushroom", "strength": 0.5 }` (`name`, `strength` optional) | `{ "tidied": [[{"x":..,"y":..},...],...], "added": [...], "category": "mushroom", "confidence": 0.93, "similarity": 0.81, "boldness": 0.9, "exemplar": "5152802093400064" }`, or `404 {"error"}` — see Completion |
+| `POST /complete` | `{ "strokes": ..., "name": "a mushroom", "strength": 0.5 }` (`name`, `strength` optional) | `{ "tidied": [[{"x":..,"y":..},...],...], "added": [...], "category": "mushroom", "confidence": 0.93, "similarity": 0.81, "boldness": 0.9, "exemplar": "5152802093400064", "pose": {"mirrored": false, "quarterTurns": 0} }`, or `404 {"error"}` — see Completion |
 
 Strokes arrive raw, in world px; the sidecar owns rendering. Bad input → `400 {"error"}`; never a crash.
 
@@ -143,46 +143,74 @@ characters; `null` and `""` mean no name.
    of the labels, or ends with one ("a bouncy mushroom" is a mushroom; the longest such ending
    wins). Otherwise the model's top-1 when its calibrated probability is ≥ 0.5.
    Otherwise no answer.
-2. **Exemplar.** Among that category's exemplars, the highest
-   `cosine(sketch, exemplar) + 0.05 × exemplar probability`.
+2. **Exemplar and pose** (`likeness.py`, `pose.py`). The model's embedding knows what kind of cat
+   a sketch is, not which way it faces, and an exemplar facing the other way tidies a drawing into
+   a mess; so likeness is judged on the ink. Every exemplar of the category, in each of **eight
+   poses** (as drawn or mirrored, turned by 0–3 quarter turns), is compared with the sketch as an
+   outline — 48 points spread evenly along the ink, centred on its bounds, diagonal 1 — by
+   `mean distance(sketch → exemplar) + 0.5 × mean distance(exemplar → sketch)`
+   `+ pose cost (0.002 mirrored, 0.008 turned) − 0.03 × cosine(sketch, exemplar)`.
+   The six lowest are fitted (below) and scored again the same way on the fitted ink at full
+   resolution; the lowest wins. The cosine only breaks ties; the pose costs keep a symmetric
+   drawing as it was drawn. The same sketch and name always choose the same exemplar and pose,
+   whatever the `strength`.
 3. **Morph** (`morph.py`) — the drawing stays the player's; nothing of theirs is replaced.
-   - *Fit.* The exemplar is laid over the player's ink at one scale for both axes (never rotated):
-     diagonals matched and centred, then the best of a small grid of scales and shifts, then a few
-     rounds of scale-and-shift least squares on nearest points. What counts is the player's ink lying
-     on the exemplar; the exemplar lying on their ink counts a tenth as much, so a half-drawn sketch
-     gets a whole exemplar of the right size around it rather than one squeezed into its bounds.
-   - *Tidy.* Every point of the player's moves toward the point of the fitted exemplar it belongs
-     to, smoothed along the stroke so lines bend rather than jitter, and not at all when the exemplar
-     has nothing within 12 % of the diagonal (ink the exemplar does not have is left alone). Where a
-     point belongs is its nearest point, chosen along the whole stroke at once: a pick that lands
-     further from the last one than the pen itself travelled pays for the difference, so a line drawn
-     between two of the exemplar's lines settles on one instead of hopping between them. **How firmly
-     depends on how sure Kami is**: `boldness` = smoothstep(confidence, 0.3 → 0.9) ×
+   - *Fit.* The posed exemplar is laid over the player's ink at one scale for both axes:
+     diagonals matched and centred, then the best of a small grid of scales and shifts, then sixteen
+     rounds of least squares on nearest points for a shift, a scale (within 0.8–1.25 of the grid's)
+     and a turn of **at most 30°**, so an exemplar leans with a drawing that leans. What counts is
+     the player's ink lying on the exemplar; the exemplar lying on their ink counts a tenth as much,
+     so a half-drawn sketch gets a whole exemplar of the right size around it rather than one
+     squeezed into its bounds.
+   - *Tidy.* Worked out at stations every 2 % of the diagonal along each stroke and read off at
+     the stroke's own points, so a pen that reports a point every pixel is tidied like one that
+     reports few. Each station moves toward the place on the fitted exemplar it belongs to:
+     - *Where it belongs* is chosen along the whole stroke at once. A line running across the
+       stroke's own direction counts as further away (up to 5 % of the diagonal), and a pick that
+       lands further from the last one than the pen itself travelled pays for the difference, so a
+       line drawn between two of the exemplar's lines settles on one instead of hopping, and a
+       line that merely crosses one is not dragged along it.
+     - *Ink the exemplar does not explain is left alone*: the share of its shift a station takes
+       fades from 1 to 0 between 6 % and 12 % of the diagonal away and between 60° and 32° across
+       the exemplar's direction, evened out over a long stretch of the stroke (a line pulled here
+       and left there comes out wavy).
+     - *A stroke is carried as one piece first* — one shift, a scale within 0.8–1.25 and a turn
+       within 15° fitted to its stations' places — and only then reshaped: fully when it already
+       lies along the exemplar (mean distance ≤ 2 %), down to a quarter when the exemplar draws it
+       differently (≥ 5 %), because a door bent to another drawing's door comes out crumpled.
+     - The reshaping is smoothed along the stroke so lines bend rather than jitter, and over a
+       long stretch wherever the stroke hops from one of the exemplar's lines to another.
+     **How firmly depends on how sure Kami is**: `boldness` = smoothstep(confidence, 0.3 → 0.9) ×
      (1 − smoothstep(misfit, 3 % → 8 % of the diagonal)), where confidence is the model's calibrated
      probability of the category and misfit the mean distance from the player's ink to the fitted
-     exemplar. At boldness 0 a point moves half of the way and never more than 6 % of the diagonal;
-     at boldness 1, nine tenths of the way and never more than 10 %. A name the model does not
-     believe, or an exemplar that lies loosely, keeps his hand light.
+     exemplar. At boldness 0 a station moves half of the way and never more than 6 % of the
+     diagonal; at boldness 1, nine tenths of the way and never more than 10 %. A name the model
+     does not believe, or an exemplar that lies loosely, keeps his hand light.
    - *Add.* Runs of the fitted exemplar farther than 10 % of the diagonal from any of the tidied ink,
      and at least 15 % of it long, become new strokes — only on a tight fit (misfit ≤ 3 %) and never
      more than one and a half times the player's own ink. A finished drawing usually gets none.
+     A run would start a cover radius away from the ink and float beside the drawing; so each one
+     grows at both ends for as long as the exemplar keeps coming closer to the ink (until it is
+     within 2 %), and starts where the two meet.
    - *The player's slider.* The request's optional `strength` (0–1, default 0.5) runs **from the
      player's drawing to the dataset's**. 0 moves nothing and adds nothing. Up to 0.5 it scales the
      tidying above; 0.5 is exactly the numbers above. Past 0.5 Kami takes over, whatever his
-     certainty: the pull goes to a full snap, the limits on a move and on reach open to the whole
+     certainty: what is left alone, carried in one piece or evened out above fades away, the pull
+     goes to a full snap, the limits on a move and on reach open to the whole
      drawing, the smoothing narrows to the point itself, the cover radius and shortest addition
-     shrink to 4 % and 3 %, and the two gates on adding open (each ÷ (1 − takeover), takeover =
+     shrink to 4 % and 4 %, and the two gates on adding open (each ÷ (1 − takeover), takeover =
      (strength − 0.5) / 0.5). At 1 every point of theirs lies on the exemplar and every part of it
-     they did not draw is added: the drawing is the dataset's, in the player's place and size, drawn
-     with the player's strokes first. Anything outside 0–1 is a `400`.
+     they did not draw is added: the drawing is the dataset's, in the player's place, size and pose, drawn
+     with the player's strokes first. Past 0.5 a hop between the exemplar's lines also costs up to
+     four times as much, so a snapped stroke does not cut across the drawing. Anything outside 0–1 is a `400`.
 
-`200 { "tidied", "added", "category", "confidence", "similarity", "boldness", "exemplar" }`. **`tidied` has exactly
+`200 { "tidied", "added", "category", "confidence", "similarity", "boldness", "exemplar", "pose" }`. **`tidied` has exactly
 the request's shape** — the same strokes in the same order, each with the same number of points — so a
 client can tween point for point from the ink to it. `added` is the missing parts, to be drawn in; they
 may lie outside the ink's bounds. Both are in the request's world space, rounded to 0.01 px.
 `confidence` is the model's calibrated probability of `category` for the player's sketch (it can be low
 when the name decided), `similarity` the cosine to the chosen exemplar, `exemplar` that drawing's
-Quick, Draw! `key_id` as a string. `404 {"error"}` when the model has no exemplar set or there is no
+Quick, Draw! `key_id` as a string, `pose` the way it was faced to match the sketch. `404 {"error"}` when the model has no exemplar set or there is no
 answer: no known name and an unsure model, a category without exemplars, or ink with a zero-size
 bounding box. The Bun server turns any non-200 into `501`, and the game keeps the player's own ink.
 

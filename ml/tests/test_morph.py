@@ -57,13 +57,16 @@ def test_half_a_circle_gets_a_whole_circle_of_the_right_size_around_it() -> None
     assert float(np.linalg.norm(centre - CENTRE)) < 0.2 * RADIUS
 
 
-def test_only_the_missing_half_is_added() -> None:
+def test_only_the_missing_half_is_added_and_it_reaches_the_ink_rather_than_floating() -> None:
     player = [arc(np.pi, 2 * np.pi)]
     result = morph(player, unit_circle())
     assert result is not None and len(result.added) >= 1
+    cover = DEFAULT.cover_radius * float(np.hypot(2 * RADIUS, RADIUS))
+    for part in result.added:
+        ends = part[[0, -1]]
+        gaps = np.linalg.norm(ends[:, None, :] - result.tidied[0][None, :, :], axis=2).min(axis=1)
+        assert gaps.max() < 0.75 * cover
     added = np.concatenate(result.added)
-    gaps = np.linalg.norm(added[:, None, :] - player[0][None, :, :], axis=2).min(axis=1)
-    assert gaps.min() > 0.9 * DEFAULT.cover_radius * float(np.hypot(2 * RADIUS, RADIUS))
     assert (added[:, 1] > CENTRE[1] - 0.3 * RADIUS).all()
 
 
@@ -148,8 +151,11 @@ def test_half_firmness_is_kamis_own_hand_none_moves_nothing_and_full_takes_over(
     none = hand_for(0.0, 1.0, DEFAULT_SETTINGS)
     assert none.strength == 0.0 and none.max_shift == 0.0
 
+    assert own.hop_weight == pytest.approx(DEFAULT_SETTINGS.hop_weight)
+
     full = hand_for(1.0, 0.0, DEFAULT_SETTINGS)
     assert full.strength == 1.0 and full.smoothing_window == 1
+    assert full.hop_weight == pytest.approx(DEFAULT_SETTINGS.exact_hop_weight)
     assert full.max_shift > 1.0 and full.reach > 1.0
     assert full.max_misfit_to_add == np.inf and full.max_added_share == np.inf
     assert hand_for(7.0, 0.0, DEFAULT_SETTINGS) == full
@@ -194,3 +200,87 @@ def test_a_line_between_two_of_the_exemplars_lines_settles_on_one_and_does_not_h
     assert result is not None
     heights = result.tidied[1][:, 1]
     assert np.ptp(heights) < 0.05 * np.ptp(player[0][:, 1])
+
+
+def test_a_leaning_drawing_gets_a_leaning_exemplar() -> None:
+    from morph import fit_exemplar
+
+    square = np.array([[0.0, 0.0], [255.0, 0.0], [255.0, 255.0], [0.0, 255.0], [0.0, 0.0]])
+    roof = np.array([[0.0, 0.0], [127.5, -120.0], [255.0, 0.0]])
+    lean = np.radians(15.0)
+    turn = np.array([[np.cos(lean), -np.sin(lean)], [np.sin(lean), np.cos(lean)]])
+    player = [resample(stroke, 8.0) @ turn.T + CENTRE for stroke in (square, roof)]
+
+    fitted = fit_exemplar([square, roof], player)
+    floor = fitted[0][1] - fitted[0][0]
+    assert np.degrees(np.arctan2(floor[1], floor[0])) == pytest.approx(15.0, abs=3.0)
+
+
+def test_the_fit_never_turns_further_than_it_is_allowed() -> None:
+    from morph import fit_exemplar
+
+    bar = [np.array([[0.0, 0.0], [255.0, 0.0]]), np.array([[0.0, 0.0], [0.0, 40.0]])]
+    steep = np.radians(70.0)
+    turn = np.array([[np.cos(steep), -np.sin(steep)], [np.sin(steep), np.cos(steep)]])
+    player = [resample(stroke, 8.0) @ turn.T + CENTRE for stroke in bar]
+
+    fitted = fit_exemplar(bar, player)
+    along = fitted[0][1] - fitted[0][0]
+    turned = abs(np.degrees(np.arctan2(along[1], along[0])))
+    assert turned <= np.degrees(DEFAULT_SETTINGS.max_turn) + 1e-6
+
+
+FRAME = np.array([[0.0, 0.0], [255.0, 0.0], [255.0, 255.0], [0.0, 255.0], [0.0, 0.0]])
+
+
+def framed(*inside: Points) -> list[Points]:
+    return [FRAME + CENTRE, *(stroke + CENTRE for stroke in inside)]
+
+
+def test_a_pen_that_reports_every_pixel_is_tidied_like_one_that_reports_few() -> None:
+    sparse = arc(0.0, 2 * np.pi, count=60, wobble=6.0)
+    dense = resample(sparse, 1.0)
+    few, many = morph([sparse], unit_circle()), morph([dense], unit_circle())
+    assert few is not None and many is not None
+    assert radial_error(many.tidied[0]) == pytest.approx(radial_error(few.tidied[0]), abs=0.6)
+
+
+def test_a_line_that_merely_crosses_the_exemplars_is_not_dragged_along_it() -> None:
+    rail = np.column_stack([np.linspace(0.0, 255.0, 60), np.full(60, 128.0)])
+    crossing = np.column_stack([np.full(40, 120.0), np.linspace(60.0, 200.0, 40)])
+    player = framed(rail + np.array([0.0, 4.0]), crossing)
+    left_alone = morph(player, [FRAME, rail], certainty=1.0)
+    taken_over = morph(player, [FRAME, rail], certainty=1.0, firmness=1.0)
+    assert left_alone is not None and taken_over is not None
+    assert np.abs(left_alone.tidied[2] - player[2]).max() < 0.01 * DIAGONAL
+    assert np.ptp(taken_over.tidied[2][:, 1]) < 0.2 * np.ptp(player[2][:, 1])
+
+
+def test_a_line_at_the_edge_of_reach_does_not_come_out_wavy() -> None:
+    rail = np.column_stack([np.linspace(0.0, 255.0, 60), np.full(60, 128.0)])
+    edge = DEFAULT_SETTINGS.reach * float(np.hypot(255.0, 255.0))
+    xs = np.linspace(10.0, 245.0, 160)
+    hovering = np.column_stack([xs, 128.0 + edge * (0.8 + 0.25 * np.sin(xs / 12.0))])
+    player = framed(hovering)
+    result = morph(player, [FRAME, rail], certainty=1.0)
+    assert result is not None
+
+    def bends(line: Points) -> float:
+        return float(np.abs(np.diff(line[:, 1], n=2)).sum())
+
+    assert bends(result.tidied[1]) <= 1.05 * bends(player[1])
+
+
+def test_a_small_shape_the_exemplar_draws_elsewhere_moves_in_one_piece() -> None:
+    def box(left: float, top: float, size: float) -> Points:
+        corners = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]])
+        return resample(corners * size + np.array([left, top]), 3.0)
+
+    player = framed(box(60.0, 150.0, 60.0))
+    result = morph(player, [FRAME, box(85.0, 165.0, 45.0)], certainty=1.0)
+    assert result is not None
+    before, after = player[1], result.tidied[1]
+    sides = np.linalg.norm(np.diff(after, axis=0), axis=1)
+    assert sides.max() < 2.0 * np.linalg.norm(np.diff(before, axis=0), axis=1).max()
+    width, height = np.ptp(after, axis=0)
+    assert width / height == pytest.approx(1.0, abs=0.2)

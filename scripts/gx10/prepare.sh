@@ -13,7 +13,7 @@ BUILD=.gx10/build
 CACHE=.gx10/cache
 EYE_BUILD=$BUILD/eye
 WHEELS=$CACHE/wheels
-EYE_SOURCES=(artifacts.py render.py recognizer.py exemplar_set.py morph.py completion.py sidecar.py validate_release.py)
+EYE_SOURCES=(artifacts.py render.py recognizer.py exemplar_set.py pose.py morph.py likeness.py completion.py sidecar.py validate_release.py)
 BOX_PYTHON=3.12
 BOX_PLATFORMS=(manylinux_2_28_aarch64 manylinux_2_17_aarch64 manylinux2014_aarch64)
 mkdir -p "$BUILD" "$CACHE"
