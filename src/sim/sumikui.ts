@@ -116,7 +116,7 @@ export class Sumikui {
   /** Advances one tick; returns what it has finished devouring, if anything. */
   tick(elapsedMs: number, ground: HuntingGround): Quarry | null {
     const [alice] = ground.alices;
-    if (this.options.bides && !ground.inks.some(edible)) {
+    if (this.options.bides && !this.woke && !ground.inks.some(edible)) {
       this.drift(this.hoverSpotBehind(alice), elapsedMs);
       return null;
     }
