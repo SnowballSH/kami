@@ -272,9 +272,11 @@
 }
 
 .kami-wordmark {
-  font-family: var(--kami-hand);
-  font-size: 24px;
-  font-weight: 700;
+  display: block;
+  height: 26px;
+  width: auto;
+  pointer-events: none;
+  user-select: none;
 }
 
 .kami-board-title {
