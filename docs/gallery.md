@@ -273,11 +273,14 @@ transitions, physics changed by presentation, stale state after respawn/room cha
 - **Observed:** The script tapped `(600,340)` while the `Alice?` chip was around `(678–736,348–383)`, so the chip was missed.
   The chip path is covered by the regression at `src/game/game.test.ts:2450-2470`; writing `alice` also incarnates successfully.
   The heart was swallowed within about 10 seconds while the body stood still, then the room restarted silently. The script never
-  wrote `alice` again, so a second incarnation was never attempted.
-- **Finding:** The chip report is withdrawn: not a bug, a scripted tap miss. Still open: an idle fresh body can be killed in under
-  10 seconds; the servant's mercy/first-circle timing needs checking for a first-time pair. Boss win (`tear-closed`) currently
-  presents only a Kami line, with no terminal card.
-- **Status:** Chip finding closed; first-time loss pacing and win presentation remain open.
+  wrote `alice` again, so a second incarnation was never attempted. The root cause of the veil, incomplete body, and later missed
+  snips was the 900 ms commit delay: the 1.8-second pauses made every stroke a separate drawing, and naming embodied only the
+  nearest one. Incarnation now absorbs neighbouring nameless ink within graft reach.
+- **Finding:** The chip report is withdrawn: not a bug, a scripted tap miss. The per-stroke drawing/partial-incarnation root cause is
+  fixed by neighbouring-ink absorption. Still open: an idle fresh body can be killed in under 10 seconds; the servant's
+  mercy/first-circle timing needs checking for a first-time pair. Boss win (`tear-closed`) currently presents only a Kami line,
+  with no terminal card.
+- **Status:** Chip finding closed; body clustering fixed; first-time loss pacing and win presentation remain open.
 - **Recommendation:** Check `mercy`/first-circle timing in `docs/boss.md` for a first-time pair, then add a “Closed” card through
   the same `again`-style hook. GX10/model/Deepgram-dependent behavior is not testable locally.
 

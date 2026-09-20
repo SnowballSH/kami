@@ -204,12 +204,12 @@ export class MatterSimulation implements Simulation {
     this.matchSumikui(this.physics.inkEater, { bides: true });
   }
 
-  incarnate(id: DrawingId, name: string): boolean {
+  incarnate(id: DrawingId, name: string, strokes?: readonly Stroke[]): boolean {
     const { inks, engine, alice, twins } = this.world;
     const ink = inks.all.find((each) => each.id === id);
     if (ink === undefined) return false;
     const seat = this.world.soul ?? alice.heart();
-    const born = incarnate(ink.worldStrokes, seat, name, engine.timing.timestamp);
+    const born = incarnate(strokes ?? ink.worldStrokes, seat, name, engine.timing.timestamp);
     this.forgetInk(id);
     Matter.Composite.remove(engine.world, alice.body);
     const embodied = new AliceController(

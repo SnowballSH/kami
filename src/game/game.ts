@@ -53,6 +53,7 @@ import type {
   SceneCompiler,
   WorldPhysics,
 } from "../rules/types";
+import { BODY_TUNING } from "../sim/boss/tuning";
 import {
   ALICE_HERSELF,
   type DrawingPose,
@@ -75,6 +76,7 @@ import type {
   Tool,
 } from "../ui/types";
 import type { EarsHandlers, Voice } from "../voice/types";
+import { type ClusterDrawing, clusterAround } from "./bossCluster";
 import {
   HEART_SWALLOWED_LINE,
   INCARNATED_LINE,
@@ -1017,10 +1019,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       case "incarnated": {
         if (transition.by === "spawn") return;
         const { drawingId, name } = transition;
-        if (!sim.incarnate(drawingId, name)) return;
+        const cluster = this.bodyCluster(drawingId);
+        if (cluster === null) return;
+        if (!sim.incarnate(drawingId, name, cluster.strokes)) return;
         this.ledger.remove(drawingId);
         this.modules.store.deleteDrawing(this.board.id, drawingId);
         this.forget(this.notes.removeAnchoredTo({ type: "drawing", id: drawingId }));
+        cluster.members
+          .filter(({ id }) => id !== drawingId)
+          .forEach(({ id }) => {
+            this.discard(id);
+          });
         this.party.resync(sim.alices().length);
         this.camera.resumeFollowing();
         this.stuck.reset(this.nowMs);
@@ -1157,6 +1166,28 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.ledger.add(drawing);
     this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
     void this.offerGuesses(drawing);
+  }
+
+  private bodyCluster(seedId: DrawingId): {
+    readonly strokes: readonly Stroke[];
+    readonly members: readonly ClusterDrawing[];
+  } | null {
+    const soul = this.modules.sim.snapshot().soul;
+    if (soul === null) return null;
+    const candidates = this.modules.sim.snapshot().drawings.flatMap((pose) => {
+      const record = this.ledger.get(pose.id);
+      if (record === null || (record.ruling !== null && pose.id !== seedId)) return [];
+      return [
+        {
+          id: pose.id,
+          strokes: record.drawing.strokes,
+        },
+      ];
+    });
+    const seed = candidates.find(({ id }) => id === seedId);
+    if (seed === undefined) return null;
+    const members = clusterAround(seed, candidates, soul.at, BODY_TUNING.graftReach);
+    return { members, strokes: members.flatMap(({ strokes }) => strokes) };
   }
 
   /** Held ink is let down into the world if it was a drawing, or fades away as the words it was. */

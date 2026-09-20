@@ -29,7 +29,7 @@ interface Abilities { walk; jump; climb; fly; see }
 
 **Snipping** (`snip`): a cut is a segment aimed at one body part, and only the strokes of that part it crosses are removed whole; other strokes it passes are spared. The heart is cut only when it is *bare* — no torso stroke left around it — and the segment passes within `heartRadius` of it; that is the loss. A cut through a heart still wrapped in a torso takes the torso, and the mercy window that follows is the drawer's chance to wrap it again.
 
-**Grafting** (`graft`): committed strokes that come within `graftReach` (36 px) of any body stroke, or of the heart, join the body, are segmented like the rest, and glow blue for `graftGlowMs` (1.4 s) so the drawer sees the graft take. A part comes back the moment it is above its alive ratio again; the ability comes back with it, in the same tick. Redrawing fast is the whole loop, so grafting has no cost but ink and no cooldown.
+**Grafting** (`graft`): committed strokes that come within `graftReach` (36 px) of any body stroke, or of the heart, join the body, are segmented like the rest, and glow blue for `graftGlowMs` (1.4 s) so the drawer sees the graft take. Naming the body also grafts every nameless drawing within graft reach, so a body drawn in several pauses is still one body. A part comes back the moment it is above its alive ratio again; the ability comes back with it, in the same tick. Redrawing fast is the whole loop, so grafting has no cost but ink and no cooldown.
 
 Movement scales with the body: the controller is built with the drawing's frame, and `aliceSize` semantics (and their clamps) do the rest — a tall body strides and jumps further, a tiny one is quick to turn and easy to miss.
 

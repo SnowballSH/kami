@@ -195,7 +195,7 @@ export interface Simulation {
   /** Takes her body away, leaving the soul where her heart was (or at the spawn). */
   disembody(): void;
   /** The drawing becomes her body around the soul; false if there is no such drawing. */
-  incarnate(id: DrawingId, name: string): boolean;
+  incarnate(id: DrawingId, name: string, strokes?: readonly Stroke[]): boolean;
   /** Strokes drawn onto a drawn body join it; false if they missed her or she has no drawn body. */
   graft(strokes: readonly Stroke[]): boolean;
   /** Opens the tear above the heart; the servant comes through after a breath. */

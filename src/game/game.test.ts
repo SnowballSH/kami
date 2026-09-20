@@ -4,7 +4,7 @@ import { boardFor } from "../board";
 import { ENDLESS_GROUND } from "../board/boards/endless";
 import { createCat } from "../cat";
 import { OFFER_HELP } from "../cat/lines";
-import { boundsOf, poseToWorld, rectsOverlap, type Vec } from "../core/geometry";
+import { boundsOf, poseToWorld, rectsOverlap, type Stroke, type Vec } from "../core/geometry";
 import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { FIXED_STEP_MS } from "../core/world";
 import { BRIDGE_LINE, DROP_LINE, IDEAS, LADDER_LINE } from "../counsel";
@@ -70,6 +70,30 @@ import {
 import { deafLine, FELL_OFF_PAGE_LINE } from "./voiceLines";
 
 const COMMIT_WAIT_MS = 1_200;
+
+const bossPaceBody = (heart: Vec): readonly Stroke[] => {
+  const line = (from: Vec, to: Vec): Stroke =>
+    Array.from({ length: 13 }, (_, i) => ({
+      x: from.x + ((to.x - from.x) * i) / 12,
+      y: from.y + ((to.y - from.y) * i) / 12,
+    }));
+  const cx = heart.x;
+  const cy = heart.y;
+  return [
+    line({ x: cx - 16, y: cy - 22 }, { x: cx + 16, y: cy - 22 }),
+    line({ x: cx + 16, y: cy - 22 }, { x: cx + 16, y: cy + 18 }),
+    line({ x: cx + 16, y: cy + 18 }, { x: cx - 16, y: cy + 18 }),
+    line({ x: cx - 16, y: cy + 18 }, { x: cx - 16, y: cy - 22 }),
+    line({ x: cx - 10, y: cy + 18 }, { x: cx - 14, y: cy + 64 }),
+    line({ x: cx + 10, y: cy + 18 }, { x: cx + 14, y: cy + 64 }),
+    line({ x: cx - 16, y: cy - 15 }, { x: cx - 45, y: cy + 5 }),
+    line({ x: cx + 16, y: cy - 15 }, { x: cx + 45, y: cy + 5 }),
+    Array.from({ length: 17 }, (_, i) => ({
+      x: cx + 13 * Math.cos((i / 16) * 2 * Math.PI),
+      y: cy - 36 + 13 * Math.sin((i / 16) * 2 * Math.PI),
+    })),
+  ];
+};
 const PATIENCE_MS = 40_000;
 
 const line = (from: Vec, to: Vec, spacing = 8): Vec[] => {
@@ -2417,6 +2441,23 @@ describe("Game in Boss mode", () => {
     await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
     expect(player.renderer.lastFrame?.world.soul).toBeNull();
     expect(drawnLook(player).body.strokes).toHaveLength(1);
+  });
+
+  it("makes a body drawn as several drawings one body when named", async () => {
+    const heart = soulOf(player);
+    const far = drawingOf("far", ringAround({ x: heart.x + 300, y: heart.y }, 20));
+    player.game.onCommit(far);
+    await player.wait(50);
+    for (const stroke of bossPaceBody(heart)) await player.draw(stroke);
+
+    await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
+
+    expect(player.sim.snapshot().alice?.look.kind).toBe("drawn");
+    const look = drawnLook(player);
+    expect(look.abilities.see).toBe(true);
+    expect(look.abilities.walk).toBe(true);
+    expect(look.abilities.climb).toBe(true);
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.drawing.id)).toEqual([far.id]);
   });
 
   it("keeps free combat remarks clear of the tear", async () => {
