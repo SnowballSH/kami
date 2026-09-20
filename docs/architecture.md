@@ -51,6 +51,17 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
  optional autopilot ──────────────────────────────────→ sim (when manual input is idle)
  persistent entities → BoardStore → Bun API → MongoDB
  each frame → render (camera, simulation, ink ledger, handwritten notes)
+ pointers/wheel ─► ui/attachCanvasInput ─► game ─┬─ draw ─► ink/InkSession ─ commit ─► sim (solid NOW)
+ autopilot.drive(scene) ─► sim.setWalkIntent ──►│              │ every pen-lift  ├─► recognition ─► cat.guess ─► Kami writes 3 tappable guesses
+                                                 │              └─► reading/PenReader ─► server /api/transcribe ─► words? ─► the funnel below (the ink lifts off)
+ arrow keys (override) ─► ui/Hud ──────────────►│
+ write tool ────► hud.promptText ─► text ────────┤
+                                                 ├─ rules.compile(text) ─► Rule ─► resolvePhysics ─► sim.setPhysics
+                                                 ├─ else "summon a rabbit" ─► server /api/exemplar ─► Kami inks it stroke by stroke ─► cat.name
+                                                 ├─ else near a drawing ─► cat.name ─► Ruling ─► sim.applyRuling
+                                                 └─ else ─► Kami shrugs, in ink
+                       every change ─► persistence/BoardStore ─► server ─► MongoDB
+                       every frame  ─► render (camera, board, inks, notes via handwriting.reveal, Alice)
 ```
 
 `game/` coordinates the modules. Shared geometry, validation and domain helpers also have runtime
@@ -255,6 +266,7 @@ The player writes with the pen like they draw with it; nothing is selected first
 - **Naming geometry:** `NAMING_REACH = 190` world px, measured as rectangle gap from the laid-out
   note bounds to bounds of the drawing's strokes transformed by its current pose, including
   rotation. This is neither a distance from Alice nor a five-second naming window.
+- **Funnel** for written text at a world point: `rules.compile` → a `Rule` (note turns green, Kami writes the gloss beneath, `sim.setPhysics(resolvePhysics(rules))`); else a summons (`game/summons.ts`: "summon a rabbit", "draw me a bridge here") → `LiveRecognizer.exemplar(word)` → Kami's own drawing, fitted to `SUMMONED_SIZE`, stood over the words and clear of Alice, solid at once (`sim.addDrawing`), inked in over `ARRIVAL_MS` (`InkLedger.conjure`) and named by the server's word through the same `cat.name` → `name` path as the player's ink, minus the tidy it does not need — or Kami asks the player to draw what he has never seen; else the nearest drawing within ~160 px → `cat.name` → `applyRuling` (Kami writes his line); else Kami writes a shrug and the note stays as plain writing. Laws come first so "summon the ink eater" stays a law.
 - **Law precedence** is captured when the player submits the note, before compilation. `createdAt` is a logical millisecond timestamp: at least wall time and strictly greater than the preceding submission or any restored note/rule. Same-millisecond submissions therefore keep their order across out-of-order responses, reload and repeal. Existing equal timestamps retain the rule-id tie-breaker.
 - **Guesses.** Prefix `cat.glimpse` calls use `partial: true`, coalesced to at most one in flight.
   An empty answer retains the current guess. Prefixes only display a suggestion; automatic naming

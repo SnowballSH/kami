@@ -7,6 +7,7 @@ import { isControllerId, parseControllerReading } from "../controllers/message";
 import { noContent } from "../controllers/responses";
 import type { ControllerHub } from "../controllers/types";
 import { type BoardRepository, type EntityKind, isEntityKind } from "../db/boardRepository";
+import type { ExemplarSource } from "../exemplar/exemplars";
 import { type NatureTable, quickdrawNatureTable } from "../natures/natureTable";
 import { isCertain } from "../recognition/certainty";
 import type { Reading } from "../recognition/types";
@@ -75,7 +76,11 @@ export interface ApiDependencies {
   /** Gives Kami a voice; null without Deepgram, and then he only writes. */
   readonly speaker?: Speaker | null;
   readonly natures?: NatureTable;
+  /** Drawings for Kami to ink himself ("summon a rabbit"); without one, every summons is 404. */
+  readonly exemplars?: ExemplarSource;
 }
+
+const NO_EXEMPLARS: ExemplarSource = { exemplar: () => Promise.resolve(null) };
 
 const INVALID_CONTROLLER_ID = "a controller id is 1–32 of a-z, 0-9 and '-'";
 const INVALID_CONTROLLER_STATE = "the body is '<x> <y> [buttons]', e.g. '100 0 A'";
@@ -142,6 +147,7 @@ export const createApi = ({
   transcriber = null,
   speaker = null,
   natures = quickdrawNatureTable,
+  exemplars = NO_EXEMPLARS,
 }: ApiDependencies): Router =>
   new Router()
     .on("GET", "/api/boards", async () => json({ boards: await boards.summaries() }))
@@ -181,6 +187,12 @@ export const createApi = ({
       const body = await parseJsonBody(request, beautifyRequestSchema);
       if (!body.ok) return body.response;
       return (await beautifier.beautify(body.value)) ?? notImplemented("no beautifier is attached");
+    })
+    .on("GET", "/api/exemplar", async ({ request }) => {
+      const word = new URL(request.url).searchParams.get("word")?.trim() ?? "";
+      if (word.length === 0) return badRequest("say what to draw: ?word=rabbit");
+      const exemplar = await exemplars.exemplar(word);
+      return exemplar === null ? json({ error: `no picture of ${word}` }, 404) : json(exemplar);
     })
     .on("POST", "/api/compile", async ({ request }) => {
       const body = await parseJsonBody(request, compileRequestSchema, INPUT_LIMITS.textBytes);

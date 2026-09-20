@@ -435,6 +435,43 @@ describe("beautify", () => {
   });
 });
 
+describe("exemplar", () => {
+  const RABBIT = {
+    word: "rabbit",
+    strokes: [
+      [
+        { x: 0, y: 0 },
+        { x: 255, y: 255 },
+      ],
+    ],
+  };
+  const drawing = () =>
+    createApi({
+      ...apiParts(),
+      beautifier,
+      exemplars: { exemplar: async (word) => (word === "rabbit" ? RABBIT : null) },
+    });
+
+  it("draws the word asked for", async () => {
+    const response = await drawing().handle(new Request(`${ORIGIN}/api/exemplar?word=rabbit`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(await response.json()).toEqual(RABBIT);
+  });
+
+  it("has no picture of a word it never learnt, and none at all without a source", async () => {
+    const unknown = await drawing().handle(new Request(`${ORIGIN}/api/exemplar?word=unicorn`));
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({ error: "no picture of unicorn" });
+    expect((await call("GET", "/api/exemplar?word=rabbit")).status).toBe(404);
+  });
+
+  it("asks for a word when given none", async () => {
+    expect((await call("GET", "/api/exemplar")).status).toBe(400);
+    expect((await call("GET", "/api/exemplar?word=%20")).status).toBe(400);
+  });
+});
+
 describe("transcribe", () => {
   const words = [
     ...lineSketch({ x: 0, y: 0 }, { x: 0, y: 40 }),

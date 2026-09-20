@@ -250,6 +250,7 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 |---|---|---|
 | `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[], names: string[], natures: Nature[], strengths: number[], lines: string[], certain: boolean }` — parallel arrays, best first, at most three, all empty when unsure. `guesses` are bare Quick, Draw! words, each with a 0–1 `confidence`; the other four say what each guess is for the game (below). `certain: true` means `guesses[0]` may be named without offering the player a choice (see "Naming without asking"); a client that ignores it keeps asking, as before |
 | `POST /api/beautify` | `{ strokes: {x,y}[][], name?: string }` | whatever the attached model answers, content-type preserved. With Kami's Eye attached (the box's default): **`application/json` `{ tidied, added, category, confidence, similarity, exemplar }`** — `tidied` is the player's own strokes, point for point, each nudged a bounded distance toward a clean drawing of the same thing; `added` is what theirs was missing (`ml/CONTRACT.md`, "Completion"). Another model may answer an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
+| `GET /api/exemplar?word=rabbit` | `word`: what to draw, as the player said it ("a rabbit", "rabbits", "the hot air balloon") | `{ word: string, strokes: {x,y}[][] }` — one clean drawing of it, a different one each time, in the Quick, Draw! frame: 0–256 px, y down, every stroke at least two points; `word` is the Quick, Draw! category it is a drawing of, which the game names it by. **`404`** `{ error }` when no category matches or none of it was ingested; **`400`** without a word. The client is `LiveRecognizer.exemplar(word)` (`src/recognition`); the game fits and places the strokes itself ("Summons" below). |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
 | `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no model is configured or its image warm-up has not passed (`KAMI_LLM_URL` and `KAMI_TRANSCRIBE_MODEL`, falling back to `KAMI_LLM_MODEL`). Stateless; the client may abort a request (the read of a prefix) freely. |
 | boards, drawings, notes, rules | see the table above | |
@@ -269,6 +270,16 @@ prefixes and reads a half-drawn sketch like any other. An empty answer to a part
 say yet" — keep the last guess on screen. The client for all of this is `src/recognition`
 (`LiveRecognizer.sight(strokes, { partial })` → `Sighting[]`).
 Strokes returned by `beautify` are in the same world space as the request.
+
+**Summons.** "Summon a rabbit" / "draw me a bridge here": Kami inks a picture himself. The game asks
+`GET /api/exemplar?word=…` and gets back one stored Quick, Draw! drawing of the closest category
+(`server/exemplar/`: articles dropped, plurals folded, the display name of an aliased category accepted, so
+"cakes" is `cake` and "birthday cake" is too). The strokes come back untouched in the 256 px dataset frame;
+the client scales them to the size of a drawing, stands them over the words that asked and inks them in over
+1.8 s while they are already solid, then names the drawing by `word` through the ordinary naming path, so a
+summoned rabbit hops like a drawn one. Vector strokes only: whatever Kami draws stays erasable, chewable and
+tidyable ink like the player's own. A model that can draw things the dataset lacks can answer the same route
+with the same shape.
 
 **Naming without asking.** When Kami is sure what a drawing is, the game names it instead of offering three
 guesses. The server decides, because only it knows which recogniser answered and how far that one's

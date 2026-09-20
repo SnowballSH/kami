@@ -4,15 +4,29 @@ import type { Drawing, DrawingId, PosedDrawing } from "../ink/types";
 import type { StoredDrawing } from "../persistence/types";
 import type { InkView } from "../render/types";
 import type { DrawingPose } from "../sim/types";
-import { type Retrace, retracedStrokes, retraceProgress } from "./retrace";
+import {
+  type Arrival,
+  arrivalProgress,
+  drawnIn,
+  type Retrace,
+  retracedStrokes,
+  retraceProgress,
+} from "./retrace";
 
 export interface InkRecord extends StoredDrawing {
   readonly awakenedAtMs: number | null;
   /** Set while the ink is still gliding into the tidied strokes `drawing` already holds. */
   readonly retrace: Retrace | null;
+  /** Set while Kami is still inking a drawing of his own; the body is whole from the start. */
+  readonly arrival: Arrival | null;
 }
 
 const shownAt = (record: InkRecord, nowMs: number): Drawing => {
+  if (record.arrival !== null) {
+    const progress = arrivalProgress(record.arrival, nowMs);
+    if (progress >= 1) return record.drawing;
+    return { ...record.drawing, strokes: drawnIn(record.drawing.strokes, progress) };
+  }
   if (record.retrace === null) return record.drawing;
   const progress = retraceProgress(record.retrace, nowMs);
   if (progress >= 1) return record.drawing;
@@ -20,12 +34,21 @@ const shownAt = (record: InkRecord, nowMs: number): Drawing => {
   return { ...record.drawing, strokes };
 };
 
+const FRESH = { ruling: null, awakenedAtMs: null, retrace: null, arrival: null } as const;
+
 /** Everything the player has drawn on the current board that is still there. */
 export class InkLedger {
   private readonly records = new Map<DrawingId, InkRecord>();
 
   add(drawing: Drawing): void {
-    this.records.set(drawing.id, { drawing, ruling: null, awakenedAtMs: null, retrace: null });
+    this.records.set(drawing.id, { ...FRESH, drawing });
+  }
+
+  /** A drawing Kami made himself: it is all there at once, but is shown being inked from `atMs`. */
+  conjure(drawing: Drawing, atMs: number): InkRecord {
+    const record: InkRecord = { ...FRESH, drawing, arrival: { startedAtMs: atMs } };
+    this.records.set(drawing.id, record);
+    return record;
   }
 
   awaken(id: DrawingId, ruling: Ruling, atMs: number): InkRecord | null {
