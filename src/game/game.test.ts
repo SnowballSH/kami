@@ -94,11 +94,11 @@ class Eyes implements LiveRecognizer {
 }
 
 /** Short vertical strokes side by side: what a scrawled word looks like to the ink session. */
-const scrawl = (at: Vec, letters: number): Vec[][] =>
+const scrawl = (at: Vec, letters: number, spacing = 14): Vec[][] =>
   Array.from({ length: letters }, (_, i) => [
-    { x: at.x + i * 14, y: at.y },
-    { x: at.x + i * 14 + 6, y: at.y + 12 },
-    { x: at.x + i * 14, y: at.y + 24 },
+    { x: at.x + i * spacing, y: at.y },
+    { x: at.x + i * spacing + 6, y: at.y + 12 },
+    { x: at.x + i * spacing, y: at.y + 24 },
   ]);
 
 /** Reads any scrawl of at least three strokes as the given words, after a delay in frames. */
@@ -373,6 +373,23 @@ describe("Game on the Wonderland board", () => {
     const unspoken = SUMIKUI_SUMMONED_LINES.slice(1);
     await player.wait(SUMIKUI_LORE_LINE_DELAY_MS * SUMIKUI_SUMMONED_LINES.length + 100);
     for (const line of unspoken) expect(player.written).not.toContain(line);
+  });
+
+  it("places the lore below the toolbar without overlapping the intro or earlier notes", async () => {
+    player.hud.toolbarBottomY = 350;
+    await player.write("summon the ink eater", { x: 200, y: 200 });
+    await player.wait(SUMIKUI_LORE_LINE_DELAY_MS * 2 + 100);
+    const notes = player.renderer.lastFrame?.notes ?? [];
+    const lore = notes.filter((note) => SUMIKUI_SUMMONED_LINES.includes(note.script.text));
+    expect(lore).toHaveLength(SUMIKUI_SUMMONED_LINES.length);
+    for (const note of lore) {
+      expect(note.script.bounds.y).toBeGreaterThan(player.hud.toolbarBottomY);
+      expect(
+        notes.some(
+          (other) => other.id !== note.id && rectsOverlap(note.script.bounds, other.script.bounds),
+        ),
+      ).toBe(false);
+    }
   });
 
   it("summons the Sumikui with its lore, keeps it while the law stands, and seals it when erased", async () => {
@@ -821,6 +838,51 @@ describe("Game with Kami's eyes on the ink", () => {
       "a mushroom?",
     ]);
   });
+
+  it.each([
+    seen("baseball bat", "ink"),
+    seen("aircraft carrier", "heavy"),
+    seen("baseball", "bouncy"),
+    seen("asparagus", "grow"),
+  ])("carries $word's offered ruling through a tap, simulation and storage", async (sighting) => {
+    const offered = { ...sighting, strength: 1.7 };
+    const player = new Player("wonderland", { eyes: new Eyes([], [offered]) });
+    await player.arrive();
+    await player.draw(blob({ x: 300, y: 430 }, 30, 20));
+    await player.wait(100);
+    const guess = player.renderer.lastFrame?.notes.find(
+      (note) => note.tappable && note.script.text === `${offered.name}?`,
+    );
+    if (guess === undefined) throw new Error("No canonical guess to tap");
+    const { x, y, width, height } = guess.script.bounds;
+    player.game.tap({ x: x + width / 2, y: y + height / 2 });
+    await player.wait(100);
+
+    const expected = {
+      name: offered.name,
+      nature: offered.nature,
+      strength: offered.strength,
+      line: offered.line,
+      tags: [],
+    };
+    const board = await player.store.load("wonderland");
+    expect(board.drawings[0]?.ruling).toEqual(expected);
+    expect(player.renderer.lastFrame?.inks[0]?.nature).toBe(offered.nature);
+    expect(board.notes.some((note) => note.action !== undefined)).toBe(false);
+    expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(0);
+  });
+
+  it("never auto-accepts a certain partial sighting", async () => {
+    const player = new Player("wonderland", {
+      eyes: new Eyes([seen("aircraft carrier", "heavy", true)], []),
+    });
+    await player.arrive();
+    await sketch(player, blob({ x: 300, y: 430 }, 30, 20));
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
+    await player.wait(COMMIT_WAIT_MS);
+    expect((await player.store.load("wonderland")).drawings[0]?.ruling).toBeNull();
+    expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(3);
+  });
 });
 
 describe("Game with a Kami who tidies", () => {
@@ -931,7 +993,7 @@ describe("Game with a pen that reads", () => {
     await player.arrive();
 
     await player.scrawl(scrawl({ x: 200, y: 200 }, 4));
-    expect(reader.asked).toEqual([1, 2, 3, 4]);
+    expect(reader.asked).toEqual([3, 4]);
     expect(player.written).toContain("no gravity");
     expect(player.renderer.lastFrame?.inks).toHaveLength(0);
     const board = await player.store.load("wonderland");
@@ -980,7 +1042,7 @@ describe("Game with a pen that reads", () => {
     const player = new Player("wonderland", { reader, eyes });
     await player.arrive();
 
-    await player.scrawl(scrawl({ x: 200, y: 200 }, 2));
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 2, 28));
     expect(player.written).not.toContain("a snake");
 
     reader.answerAll();

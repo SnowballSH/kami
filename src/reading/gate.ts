@@ -2,6 +2,7 @@ import { boundsOf, distance, type Stroke, strokeLength } from "../core/geometry"
 
 /** A written line on the board; anything taller is a drawing, whatever it says. */
 const MAX_WRITING_HEIGHT = 260;
+const MIN_WRITING_ASPECT = 1.3;
 const MAX_STROKES = 80;
 const STRAIGHT_ENOUGH = 0.97;
 
@@ -21,5 +22,6 @@ export const couldBeWriting = (strokes: readonly Stroke[]): boolean => {
   const [only] = strokes;
   if (only === undefined || strokes.length > MAX_STROKES) return false;
   if (strokes.length === 1 && isNearlyStraight(only)) return false;
-  return boundsOf(strokes.flat()).height <= MAX_WRITING_HEIGHT;
+  const { width, height } = boundsOf(strokes.flat());
+  return height <= MAX_WRITING_HEIGHT && width >= MIN_WRITING_ASPECT * height;
 };
