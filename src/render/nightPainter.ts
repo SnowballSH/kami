@@ -1,6 +1,6 @@
 import { boundsOf, poseToWorld, rectCenter, type Vec } from "../core/geometry";
 import type { AliceSnapshot } from "../sim/types";
-import type { DeviceTransform, Size } from "./camera";
+import { applyDeviceTransform, type DeviceTransform, type Size } from "./camera";
 import { context2d } from "./canvas2d";
 import type { InkView } from "./types";
 
@@ -59,7 +59,7 @@ export class NightPainter {
 
     night.globalAlpha = 1;
     night.globalCompositeOperation = "destination-out";
-    night.setTransform(transform.scale, 0, 0, transform.scale, transform.dx, transform.dy);
+    applyDeviceTransform(night, transform);
     for (const { center, radius } of lights) {
       const glow = night.createRadialGradient(center.x, center.y, 0, center.x, center.y, radius);
       glow.addColorStop(0, "rgba(0, 0, 0, 1)");

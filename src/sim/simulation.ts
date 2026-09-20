@@ -25,6 +25,7 @@ import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
 import { moveOfItself } from "./motion";
 import { NATURES, type NatureWorld } from "./natures";
+import { isLooseInk, PaperTurn } from "./paper";
 import { centreOf, Portals } from "./portals";
 import { Sumikui } from "./sumikui";
 import { Twins } from "./twins";
@@ -113,6 +114,7 @@ export class MatterSimulation implements Simulation {
   private world: BoardWorld = buildWorld(EMPTY_BOARD, EARTH);
   private intent: WalkIntent = IDLE;
   private bulletTime = 1;
+  private readonly paper = new PaperTurn();
   private events: SimEvent[] = [];
 
   loadBoard(board: BoardDefinition): void {
@@ -125,6 +127,7 @@ export class MatterSimulation implements Simulation {
     if (!validPhysics(physics)) throw new RangeError("Invalid world physics");
     const { alice, twins, inks } = this.world;
     this.physics = physics;
+    this.paper.obey(physics);
     alice.applyPhysics(physics);
     twins.match(physics.clones, alice, physics);
     inks.setPhysics(physics);
@@ -183,6 +186,10 @@ export class MatterSimulation implements Simulation {
     return this.world.alice.bounds();
   }
 
+  paperAngle(): number {
+    return this.paper.angle;
+  }
+
   walkSpeed(): number {
     return walkSpeedAt(this.world.alice.scale, this.physics.walkSpeed);
   }
@@ -215,8 +222,10 @@ export class MatterSimulation implements Simulation {
     for (const ink of inks.all) NATURES[ink.nature].beforeStep?.(ink, natureWorld);
     moveOfItself(inks.all);
     this.blowWind();
+    this.tumbleLooseInk();
     pullToward(alice.body.position, this.physics.attraction, inks.dynamicBodies);
     Matter.Engine.update(engine, FIXED_STEP_MS);
+    this.paper.advance(this.physics, elapsedMs);
     alice.advanceResize(elapsedMs);
     const settled = this.surroundings();
     alice.sense(settled, this.intent);
@@ -235,6 +244,13 @@ export class MatterSimulation implements Simulation {
     if (x === 0 && y === 0) return;
     const wind = accelerationOf(this.physics.wind);
     for (const body of [this.world.alice.body, ...this.world.inks.dynamicBodies]) push(body, wind);
+  }
+
+  private tumbleLooseInk(): void {
+    const loose = this.world.inks.all
+      .filter((ink) => !ink.body.isStatic && isLooseInk(ink.nature))
+      .map((ink) => ink.body);
+    this.paper.tumble(this.physics.gravity, loose);
   }
 
   private forgetInk(id: DrawingId): void {

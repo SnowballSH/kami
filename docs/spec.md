@@ -83,6 +83,8 @@ Adjectives scale a nature between half and double strength. A few adjectives als
 
 Any drawing's physics can also be written as a law that points at it: "the wheel spins", "the cart accelerates", "the rock is twice as heavy", "the ramp is slippery", "the ball is bouncy" — or at everything at once, "everything spins". Erase the note and it stops.
 
+The paper itself can be turned: "tilt the world 90°", "the paper is upside down", "the world is sideways", "the world spins slowly", "spin the world counterclockwise", "the world is upright". The whole page rotates on screen; Alice, creatures, vehicles and the roads they walk are of the paper and carry on as before, while loose ink feels the room's down and slides off a tilted page. Drawing, erasing and tapping work whichever way the page is turned.
+
 ### Rulings for the clever and the cheeky
 
 The Cat refuses in character. He never says "invalid."

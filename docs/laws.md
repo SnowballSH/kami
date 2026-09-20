@@ -17,6 +17,7 @@ Physics = { gravity: Vec, wind: Vec,                       -- fields on the worl
             flight (0|1), walkSpeed, aliceSize,            -- Alice's own dials
             attraction (g), clones (count),                 -- Alice's reach into the world
             inkEater (0|1),                                -- whether the Sumikui is loose
+            tilt (°, + clockwise), worldSpin (°/s),        -- how the paper is turned on screen
             bodies: [BodyLaw] }                            -- laws about drawings, oldest first (§2.1)
 ```
 
@@ -26,7 +27,7 @@ Physics = { gravity: Vec, wind: Vec,                       -- fields on the worl
 
 | Subject | What it names | Dials today |
 |---|---|---|
-| `World` | the board as a whole | gravity, wind, timeScale, airDrag, friction, bounciness, temperature, daylight, inkEater |
+| `World` | the board as a whole | gravity, wind, timeScale, airDrag, friction, bounciness, temperature, daylight, inkEater, tilt, worldSpin |
 | `Alice` | the protagonist | flight, walkSpeed, aliceSize, attraction, clones |
 | `Drawing` | one committed drawing | its *nature* and *strength* (§6); its **motion** dials spin, thrust, mass, bounce, grip (§2.1) |
 | `Kind` | every drawing sharing a nature (“all clouds”) | *reserved* — see §9 |
@@ -134,7 +135,8 @@ Every dial `d` has a closed range `[lo_d, hi_d]` (`src/rules/effects.ts`; the se
 
 Persisted values use `src/rules/effectDomains.ts`: gravity ±30 g per axis, wind ±3 g per
 axis, time 0.1–3, drag/friction 0–10, bounce/daylight/flight/inkEater 0–1, temperature
-−100–1000 °C, walking 0.1–5, size 0.25–4, attraction ±3 g, and integer clones 0–8.
+−100–1000 °C, walking 0.1–5, size 0.25–4, attraction ±3 g, integer clones 0–8, tilt ±180°
+and worldSpin ±90°/s.
 These domains include both compilers' outputs. The offline grammar deliberately retains
 its narrower vector magnitude caps (gravity 5 g, wind 2 g) and friction cap of 5.
 Both compilers round clone counts to the nearest integer after clamping. Flight and
@@ -163,6 +165,7 @@ A **system** reads the folded state each tick and produces forces or state trans
 | twins | `clones` | `n` further Alice bodies hearing the same intent, spawned beside her, never colliding with her |
 | lighting | `daylight`; `lantern` natures | a night layer cut out around Alice and every lantern — presentation only |
 | creatures | natures `walker`/`hopper`/`flier` | per-body minds; Alice rides them |
+| the paper's turn | `tilt`, `worldSpin` | `PaperTurn`: the angle the paper is turned on screen — `tilt` plus what `worldSpin` has accumulated (a new tilt restarts the count). The camera turns by it, so the whole page rotates; gravity stays the paper's, so Alice, creatures, vehicles and the autopilot are *of the paper* and keep walking on it, while loose ink is nudged toward the *room's* down (`tumble`: the difference between room-down seen on the paper and the paper's own gravity) and slides off a turned page |
 | the Sumikui | `inkEater`; Alice's touches; the board's solids | a ghost that shadows Alice, wakes at the second drawing, and eats everything on the paper that she depends on: ink she has used (never roles), the board's ground under her feet (bitten out, healing later), and Alice herself (swallowed; she respawns) — never where Kami sets her down, and never untouched scribbles until it is quick enough to sweep them up in one gulp. Doubles its pace every 20 s awake up to a cap; emits `sumikui-woke`, `devoured`, `paper-bitten`, `paper-healed`, `alice-devoured` |
 
 The autopilot is a system too: `Scene.canFly` marks every cell of air climbable, so a flight law makes “fly over the gap” a plan rather than a special case.
@@ -179,6 +182,7 @@ The autopilot is a system too: `Scene.canFly` marks every cell of air climbable,
 | `give Alice gravitational attraction` | `set(attraction, 1)` | `W.attraction := 1` | attraction pulls loose drawings toward her |
 | `summon the ink eater` then `banish the Sumikui` | `set(inkEater, 1)`, `set(inkEater, 0)` | `0` while both stand; `1` again if the banishment is erased | the Sumikui exists exactly while the fold says `1`; sealing forgets its hunger |
 | `g = moon` then `no gravity` then erase the second note | `set(gravity,(0,.165))`, `set(gravity,(0,0))` | `(0,0)` while both stand; `(0,.165)` after refold | gravity |
+| `tilt the world 90°` then `the world spins slowly` | `set(tilt, 90)`, `set(worldSpin, 5)` | `{ tilt: 90, worldSpin: 5 }` | the paper's turn: the page is drawn a quarter clockwise and keeps turning 5°/s; loose pebbles roll toward the room's floor, Alice walks on as before |
 | `the wheel spins` | `set(spin, 1) of named(wheel)` | `W.bodies ++ [{ wheel, { spin: 1 } }]` | motion: every drawing named “…wheel…” turns once a second |
 | `the cart accelerates` | `set(thrust, (0.5, 0)) of named(cart)` | `W.bodies ++ [...]` | motion: the cart pushes itself rightward at half a g |
 | `everything spins` then `the rock stops spinning` | `set(spin, 1) of all`, `set(spin, 0) of named(rock)` | both kept; `motion("rock") = { spin: 0 }`, `motion("wheel") = { spin: 1 }` | motion |

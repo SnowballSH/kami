@@ -16,6 +16,8 @@ export const GOVERNS = [
   "attraction",
   "clones",
   "inkEater",
+  "tilt",
+  "worldSpin",
 ] as const satisfies readonly WorldGoverns[];
 
 /** How the player refers to Alice; the dials on her need one of these beside the topic. */
@@ -39,4 +41,17 @@ export const SUBJECTS: Readonly<Record<WorldGoverns, Vocabulary>> = {
   attraction: vocabulary("attraction, magnetism, magnetic, pull"),
   clones: vocabulary("clone, clones, cloned, copies, copy, twin, twins, duplicate, duplicates"),
   inkEater: vocabulary("inkeater, inkeaters, sumikui, bokushoku"),
+  tilt: vocabulary(`
+    tilt, tilts, tilted, tilting, lean, leans, leaning, leant, leaned, slant, slants, slanted,
+    askew, crooked, angle, angled, rotated, turned, flipped, sideways, upright, straight, righted
+  `),
+  worldSpin: vocabulary(`
+    spin, spins, spinning, spun, rotate, rotates, rotating, rotation, revolve, revolves, revolving,
+    turning, whirl, whirls, whirling
+  `),
 };
+
+/** The page as a whole, the one thing the tilt and spin dials turn. */
+export const PAPER = vocabulary(
+  "world, paper, page, board, screen, view, camera, scene, sheet, canvas, picture, room, kami",
+);

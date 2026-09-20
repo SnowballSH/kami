@@ -29,6 +29,8 @@ const EFFECT_SHAPES: { readonly [Setting in Governs]: ShapeOf<Setting> } = {
   attraction: "world-scalar",
   clones: "world-scalar",
   inkEater: "world-scalar",
+  tilt: "world-scalar",
+  worldSpin: "world-scalar",
   spin: "body-scalar",
   thrust: "body-vector",
   mass: "body-scalar",

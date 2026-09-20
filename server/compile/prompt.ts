@@ -15,6 +15,8 @@ const {
   attraction,
   clones,
   inkEater,
+  tilt,
+  worldSpin,
   spin,
   thrust,
   mass,
@@ -43,6 +45,8 @@ If it is anything else (a name for a drawing, a remark, a question) reply {"effe
 {"governs":"attraction","value":number}  how hard Alice pulls loose drawings toward her, in g, ${attraction.min} to ${attraction.max}. 0 is not at all; negative repels.
 {"governs":"clones","value":number}  how many copies of Alice walk beside her, ${clones.min} to ${clones.max}. 0 is just her.
 {"governs":"inkEater","value":number}  whether the Sumikui, the ink eater, a monster that follows Alice and devours the drawings she uses, is loose on the board, ${inkEater.min} to ${inkEater.max}. 0 is sealed, 1 is summoned ("ink eater", "summon the sumikui"; "banish the ink eater" is 0).
+{"governs":"tilt","value":number}  how far the whole page is turned on screen, in degrees, ${tilt.min} to ${tilt.max}. Positive is clockwise. 0 is upright; "the world is sideways" is 90, "upside down" is 180. The board turns with the page; loose drawings tumble toward the room's down.
+{"governs":"worldSpin","value":number}  how fast the whole page keeps turning, in degrees per second, ${worldSpin.min} to ${worldSpin.max}. 0 holds still; "the world spins slowly" is 5, "spins" is 15, "spins fast" is 45; negative is counterclockwise.
 
 
 The last five are dials on drawings, not on the world. <target> is {"kind":"all"} when the line speaks of everything or every drawing, or {"kind":"named","name":"<one word>"} when it points at a drawing by name ("the wheel", "every rock"): the noun, singular, lowercase. Never use them for Alice.

@@ -27,7 +27,7 @@ const FAR_AWAY = 1e6;
 
 const frame = (eraserActive: boolean): RenderFrame => ({
   nowMs: 0,
-  camera: { center: { x: 20, y: 20 }, zoom: 2 },
+  camera: { center: { x: 20, y: 20 }, zoom: 2, angle: 0 },
   world: {
     alice: {
       center: { x: FAR_AWAY, y: FAR_AWAY },

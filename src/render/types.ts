@@ -11,6 +11,8 @@ export interface Camera {
   readonly center: Vec;
   /** Screen px per world px. */
   readonly zoom: number;
+  /** How far the paper is turned on screen, in degrees clockwise about `center`. */
+  readonly angle: number;
 }
 
 export interface InkView {

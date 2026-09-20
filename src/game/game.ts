@@ -275,6 +275,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (this.retidyDueAtMs !== null && nowMs >= this.retidyDueAtMs) this.retidyTheBoard();
     if (this.stuck.isStuck(nowMs)) this.offerHelp();
     this.camera.follow(sim.aliceBounds(), renderer.viewport());
+    this.camera.turnTo(sim.paperAngle());
 
     const world = sim.snapshot();
     renderer.render({

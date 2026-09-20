@@ -86,7 +86,9 @@ const scalarEffect = <
     | "aliceSize"
     | "attraction"
     | "clones"
-    | "inkEater",
+    | "inkEater"
+    | "tilt"
+    | "worldSpin",
 >(
   governs: Governs,
 ) => z.object({ governs: z.literal(governs), value: z.number() });
@@ -117,6 +119,8 @@ export const rawRuleEffectSchema = z.discriminatedUnion("governs", [
   scalarEffect("attraction"),
   scalarEffect("clones"),
   scalarEffect("inkEater"),
+  scalarEffect("tilt"),
+  scalarEffect("worldSpin"),
   bodyScalarEffect("spin"),
   bodyVectorEffect("thrust"),
   bodyScalarEffect("mass"),
