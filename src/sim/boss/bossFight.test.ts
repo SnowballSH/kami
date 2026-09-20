@@ -17,7 +17,7 @@ import {
 } from "../testSupport";
 import type { Simulation } from "../types";
 import { figureAround, legsBelow, ringAround, strokeBetween } from "./figure.testSupport";
-import { TEAR_TUNING } from "./tuning";
+import { SOUL_HOVER_PX, TEAR_TUNING } from "./tuning";
 
 const soulOf = (sim: Simulation): Vec => {
   const soul = sim.snapshot().soul;
@@ -52,12 +52,15 @@ const heartOf = (sim: Simulation): Vec => {
 
 describe("a soul with no body", () => {
   it("opens with nobody on the board and a soul where she would have stood", () => {
-    const sim = openAsSoul();
+    const sim = enter(EMPTY_BOARD);
+    const bounds = sim.aliceBounds();
+    sim.disembody();
     const world = sim.snapshot();
     expect(world.alice).toBeNull();
     expect(world.soul).not.toBeNull();
     expect(soulOf(sim).x).toBeCloseTo(EMPTY_BOARD.spawn.x, 0);
     expect(soulOf(sim).y).toBeLessThan(EMPTY_BOARD.spawn.y);
+    expect(soulOf(sim).y).toBeCloseTo(bounds.y + bounds.height / 2 - SOUL_HOVER_PX, 0);
   });
 
   it("stays a soul through time and intent, and cannot be grafted onto", () => {
@@ -110,6 +113,7 @@ describe("a soul with no body", () => {
     const sim = openAsSoul();
     incarnateFigure(sim);
     runSteps(sim, 30);
+    expect(aliceOf(sim).grounded).toBe(true);
     const parked = aliceOf(sim).center.x;
     sim.setWalkIntent(RIGHT);
     runSteps(sim, 60);

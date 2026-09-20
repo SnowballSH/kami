@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createAutopilot } from "../autopilot";
-import type { SceneInk } from "../autopilot/types";
+import type { Autopilot, PilotStatus, SceneInk } from "../autopilot/types";
 import type { BoardDefinition } from "../board/types";
 import type { Nature } from "../cat/types";
 import type { Rect } from "../core/geometry";
+import { FIXED_STEP_MS } from "../core/world";
 import type { Drawing } from "../ink/types";
 import { EARTH } from "../rules/types";
 import {
@@ -126,7 +127,7 @@ const outing = (
   const events: SimEvent[] = [];
   const stuck: AliceIndex[] = [];
   for (let step = 0; step < steps && !done(events); step++) {
-    for (const { who, kind } of party.drive(sim, table.page(board), true)) {
+    for (const { who, kind } of party.drive(sim, table.page(board), true, step * FIXED_STEP_MS)) {
       if (kind === "stuck") stuck.push(who);
     }
     events.push(...sim.step());
@@ -139,6 +140,35 @@ const goalsIn = (events: readonly SimEvent[]): readonly AliceIndex[] =>
   events.flatMap((event) => (event.type === "goal-reached" ? [event.who] : []));
 
 describe("Party", () => {
+  it("announces one flee episode until six seconds of calm have passed", () => {
+    const sim = enter(meadow);
+    let fleeing = true;
+    const pilot: Autopilot = {
+      reset: () => {},
+      invalidate: () => {},
+      drive: () => STAY,
+      get status(): PilotStatus {
+        return {
+          errand: fleeing ? { kind: "flee" } : { kind: "objective", objective: "goal" },
+          stuck: false,
+          target: null,
+        };
+      },
+    };
+    const party = new Party(() => pilot);
+    const page = new Table(sim).page(meadow);
+    const news: string[] = [];
+    for (let step = 0; step < 5000 / FIXED_STEP_MS; step++)
+      news.push(...party.drive(sim, page, true, step * FIXED_STEP_MS).map(({ kind }) => kind));
+    expect(news).toEqual(["flees"]);
+
+    fleeing = false;
+    for (let step = 0; step < 6000 / FIXED_STEP_MS; step++)
+      party.drive(sim, page, true, 5000 + step * FIXED_STEP_MS);
+    fleeing = true;
+    expect(party.drive(sim, page, true, 11_000)).toEqual([{ who: 0, kind: "flees" }]);
+  });
+
   it("lets two Alices reach one goal up different drawn ladders", () => {
     const crew = twinsOf(ladderRoom);
     const { sim, table } = crew;
@@ -220,7 +250,7 @@ describe("Party", () => {
     const before = [centreX(sim, 0), centreX(sim, 1)];
     party.steer(RIGHT);
     for (let step = 0; step < 60; step++) {
-      party.drive(sim, table.page(meadow), false);
+      party.drive(sim, table.page(meadow), false, step * FIXED_STEP_MS);
       sim.step();
     }
     expect(centreX(sim, 0) - (before[0] ?? 0)).toBeGreaterThan(50);

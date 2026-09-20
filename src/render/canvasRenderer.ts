@@ -36,7 +36,7 @@ import { NotePainter } from "./notePainter";
 import { BOARD_COLORS } from "./palette";
 import { PointerTracker } from "./pointerTracker";
 import { paintSumikui } from "./sumikuiPainter";
-import type { Camera, Chew, Renderer, RenderFrame } from "./types";
+import type { Camera, Chew, InkView, Renderer, RenderFrame } from "./types";
 
 export const GHOST_ALPHA = 0.35;
 
@@ -147,6 +147,7 @@ export class CanvasRenderer implements Renderer {
         ribbon: who,
         selected: several && frame.selectedAlice === who,
       });
+      this.paintRideOver(ctx, twin, frame.inks, view, nowMs);
       ctx.restore();
     }
     if (world.soul !== null) paintSoul(ctx, world.soul, nowMs);
@@ -159,6 +160,7 @@ export class CanvasRenderer implements Renderer {
           ribbon: null,
           selected: several && (frame.selectedAlice ?? ALICE_HERSELF) === ALICE_HERSELF,
         });
+        this.paintRideOver(ctx, world.alice, frame.inks, view, nowMs);
         ctx.restore();
       }
     }
@@ -186,6 +188,20 @@ export class CanvasRenderer implements Renderer {
     }
     this.paintOverlay(frame);
     if (frame.eraserActive) this.paintEraserCursor();
+  }
+
+  private paintRideOver(
+    ctx: CanvasRenderingContext2D,
+    alice: AliceSnapshot,
+    inks: readonly InkView[],
+    view: Rect,
+    nowMs: number,
+  ): void {
+    const ride = alice.ride;
+    if (ride?.gait !== "vehicle") return;
+    const vehicle = inks.find((ink) => ink.drawing.id === ride.id);
+    if (vehicle === undefined) return;
+    this.inkPainter.paintInks(ctx, [vehicle], view, nowMs);
   }
 
   /** Other devices' Alices on a shared page: there, but faint, so whose is whose stays clear. */

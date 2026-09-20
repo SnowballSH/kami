@@ -48,4 +48,24 @@ describe("settle", () => {
     expect(placed.y).toBeGreaterThanOrEqual(minY);
     expect(rectsOverlap({ ...LINE, ...placed }, intro)).toBe(false);
   });
+
+  it("flips to the other side rather than leaving within", () => {
+    const taken = [at(200)];
+    const within = { x: 0, y: 100, width: 500, height: 136 };
+    const placed = settle(LINE, taken, "down", Number.NEGATIVE_INFINITY, within);
+
+    expect(placed.y).toBeLessThan(200);
+    expect(placed.y + LINE.height).toBeLessThanOrEqual(within.y + within.height);
+    expect(taken.some((rect) => rectsOverlap({ ...LINE, ...placed }, rect))).toBe(false);
+  });
+
+  it("returns origin when nothing fits within", () => {
+    const taken = [at(200)];
+    const within = { x: 0, y: 200, width: 500, height: 30 };
+
+    expect(settle(LINE, taken, "down", Number.NEGATIVE_INFINITY, within)).toEqual({
+      x: LINE.x,
+      y: LINE.y,
+    });
+  });
 });

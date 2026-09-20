@@ -71,24 +71,48 @@ const encloses = (stroke: Stroke, point: Vec): boolean => {
   return inside;
 };
 
+const torsoOf = (stroke: Stroke, heart: Vec, hug: number): boolean =>
+  encloses(stroke, heart) || distanceToStroke(heart, stroke) <= hug;
+
+const bandPartOf = (stroke: Stroke, frame: BodyFrame, winged: boolean): BodyPartKind => {
+  const centroid = centroidOf(stroke);
+  if (centroid.y > BODY_TUNING.legsBelow * frame.height) return "legs";
+  if (centroid.y < -BODY_TUNING.headAbove * frame.height) {
+    const out = (winged ? BODY_TUNING.namedWingsOut : BODY_TUNING.wingsOut) * frame.width;
+    return Math.abs(centroid.x) > out ? "wings" : "head";
+  }
+  return "arms";
+};
+
+export const classifyParts = (
+  strokes: readonly Stroke[],
+  heart: Vec,
+  frame: BodyFrame,
+  winged: boolean,
+): readonly BodyPartKind[] => {
+  const hug = BODY_TUNING.torsoHug * Math.min(frame.width, frame.height);
+  const torso = strokes.map((stroke) => torsoOf(stroke, heart, hug));
+  const torsoStrokes = strokes.filter((_, index) => torso[index]);
+  const torsoBox = torsoStrokes.length > 0 ? boundsOf(torsoStrokes.flat()) : null;
+  return strokes.map((stroke, index) => {
+    if (torso[index]) return "torso";
+    if (torsoBox === null) return bandPartOf(stroke, frame, winged);
+    const centroid = centroidOf(stroke);
+    if (centroid.y > torsoBox.y + torsoBox.height) return "legs";
+    if (centroid.y < torsoBox.y) {
+      const out = (winged ? BODY_TUNING.namedWingsOut : BODY_TUNING.wingsOut) * frame.width;
+      return Math.abs(centroid.x) > out ? "wings" : "head";
+    }
+    return "arms";
+  });
+};
+
 export const partOf = (
   stroke: Stroke,
   heart: Vec,
   frame: BodyFrame,
   winged: boolean,
-): BodyPartKind => {
-  const hug = BODY_TUNING.torsoHug * Math.min(frame.width, frame.height);
-  if (encloses(stroke, heart) || distanceToStroke(heart, stroke) <= hug) return "torso";
-  const centroid = centroidOf(stroke);
-  const dx = centroid.x - heart.x;
-  const dy = centroid.y - heart.y;
-  if (dy > BODY_TUNING.legsBelow * frame.height) return "legs";
-  if (dy < -BODY_TUNING.headAbove * frame.height) {
-    const out = (winged ? BODY_TUNING.namedWingsOut : BODY_TUNING.wingsOut) * frame.width;
-    return Math.abs(dx) > out ? "wings" : "head";
-  }
-  return "arms";
-};
+): BodyPartKind => classifyParts([stroke], heart, frame, winged)[0] ?? "arms";
 
 const inkOf = (strokes: readonly BodyStroke[]): Readonly<Record<BodyPartKind, number>> => {
   const ink = { head: 0, torso: 0, arms: 0, legs: 0, wings: 0 };
@@ -176,9 +200,13 @@ export const incarnate = (
   });
   const heart = heartWithin(local(heartWorld), frame);
   const winged = namesWings(name);
-  const strokes = worldStrokes
-    .map((stroke) => stroke.map(local))
-    .map((stroke) => ({ stroke, part: partOf(stroke, heart, frame, winged), sinceMs: nowMs }));
+  const localStrokes = worldStrokes.map((stroke) => stroke.map(local));
+  const parts = classifyParts(localStrokes, heart, frame, winged);
+  const strokes = localStrokes.map((stroke, index) => ({
+    stroke,
+    part: parts[index] ?? "arms",
+    sinceMs: nowMs,
+  }));
   return {
     body: { strokes, heart, frame, fullest: fullestOf(NO_INK, strokes) },
     centre,
@@ -204,9 +232,11 @@ export const cutCrosses = (cut: Cut, stroke: Stroke): boolean => {
   });
 };
 
-/** The blades close along `cut`: every stroke they cross is gone, and the bare heart is cut too. */
-export const snip = (body: DrawnBody, cut: Cut): Snipped => {
-  const removed = body.strokes.filter(({ stroke }) => cutCrosses(cut, stroke));
+/** The blades close on the part they were aimed at; other strokes they pass are spared. */
+export const snip = (body: DrawnBody, cut: Cut, part: BodyPartKind): Snipped => {
+  const removed = body.strokes.filter(
+    ({ stroke, part: strokePart }) => strokePart === part && cutCrosses(cut, stroke),
+  );
   const remaining = body.strokes.filter((stroke) => !removed.includes(stroke));
   const after: DrawnBody = { ...body, strokes: remaining };
   const wasAlive = aliveParts(body);
@@ -246,9 +276,15 @@ export const graft = (
   winged = false,
 ): Grafted | null => {
   if (!localStrokes.some((stroke) => touchesBody(body, stroke))) return null;
-  const added = localStrokes.map((stroke) => ({
+  const parts = classifyParts(
+    [...body.strokes.map(({ stroke }) => stroke), ...localStrokes],
+    body.heart,
+    body.frame,
+    winged,
+  );
+  const added = localStrokes.map((stroke, index) => ({
     stroke,
-    part: partOf(stroke, body.heart, body.frame, winged),
+    part: parts[body.strokes.length + index] ?? "arms",
     sinceMs: nowMs,
   }));
   const strokes = [...body.strokes, ...added];

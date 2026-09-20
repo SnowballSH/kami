@@ -21,7 +21,7 @@ const CUT_WIDTH = 2.4;
 
 const RIP = { halfHeight: 62, halfWidth: 9, teeth: 7, wobble: 4.5 } as const;
 
-const HEALTH_BAR = { width: 260, height: 14, top: 16, wobble: 1.4, lineWidth: 2.4 } as const;
+const HEALTH_BAR = { width: 260, height: 14, top: 78, wobble: 1.4, lineWidth: 2.4 } as const;
 
 const PHASE_ALPHA: Readonly<Record<SnipperSnapshot["phase"], number>> = {
   arriving: 0.55,

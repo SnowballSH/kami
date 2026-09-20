@@ -11,6 +11,7 @@ import {
   heartInWorld,
   incarnate,
   namesWings,
+  partOf,
   partReach,
   snip,
   toBodySpace,
@@ -44,6 +45,18 @@ const figure = (name = "alice"): DrawnBody => incarnate(FIGURE, HEART, name, 0).
 
 const partsOf = (body: DrawnBody): readonly BodyPartKind[] => body.strokes.map((s) => s.part);
 
+const NATURAL_STICK_FIGURE: readonly Stroke[] = [
+  line({ x: 84, y: 78 }, { x: 116, y: 78 }),
+  line({ x: 116, y: 78 }, { x: 116, y: 118 }),
+  line({ x: 116, y: 118 }, { x: 84, y: 118 }),
+  line({ x: 84, y: 118 }, { x: 84, y: 78 }),
+  line({ x: 90, y: 118 }, { x: 86, y: 164 }),
+  line({ x: 110, y: 118 }, { x: 114, y: 164 }),
+  line({ x: 84, y: 85 }, { x: 55, y: 105 }),
+  line({ x: 116, y: 85 }, { x: 145, y: 105 }),
+  line({ x: 92, y: 64 }, { x: 108, y: 64 }),
+];
+
 describe("incarnating a drawing", () => {
   it("centres the body on the drawing and keeps the heart where it was drawn around", () => {
     const { body, centre } = incarnate(FIGURE, HEART, "alice", 0);
@@ -57,8 +70,58 @@ describe("incarnating a drawing", () => {
     expect(partsOf(figure())).toEqual(["head", "torso", "arms", "arms", "legs", "legs"]);
   });
 
+  it("reads a long-legged stick figure relative to its torso", () => {
+    const body = incarnate(NATURAL_STICK_FIGURE, HEART, "alice", 0).body;
+    expect(abilitiesOf(body)).toEqual({
+      walk: true,
+      jump: true,
+      climb: true,
+      fly: false,
+      see: true,
+    });
+    expect(partsOf(body)).toEqual([
+      "arms",
+      "torso",
+      "torso",
+      "torso",
+      "legs",
+      "legs",
+      "arms",
+      "arms",
+      "head",
+    ]);
+  });
+
+  it("uses frame-relative bands when the heart sits low in the body", () => {
+    const lowHeart = { x: 100, y: 75 };
+    const body = incarnate(
+      [
+        line({ x: 100, y: 0 }, { x: 100, y: 2 }),
+        ring(lowHeart, 8),
+        line({ x: 92, y: 80 }, { x: 88, y: 100 }),
+        line({ x: 108, y: 80 }, { x: 112, y: 100 }),
+      ],
+      lowHeart,
+      "alice",
+      0,
+    ).body;
+    expect(partsOf(body).slice(-2)).toEqual(["legs", "legs"]);
+    expect(abilitiesOf(body).walk).toBe(true);
+    expect(
+      partOf(
+        line({ x: 0, y: 50 }, { x: 0, y: 60 }),
+        { x: 0, y: 25 },
+        {
+          width: 100,
+          height: 100,
+        },
+        false,
+      ),
+    ).toBe("legs");
+  });
+
   it("calls a stroke sticking up and out a wing, and is quicker to when the name has wings", () => {
-    const wing = line({ x: 115, y: 80 }, { x: 160, y: 40 });
+    const wing = line({ x: 140, y: 80 }, { x: 180, y: 40 });
     const shortWing = line({ x: 112, y: 82 }, { x: 130, y: 50 });
     expect(partsOf(incarnate([...FIGURE, wing], HEART, "alice", 0).body).at(-1)).toBe("wings");
     expect(partsOf(incarnate([...FIGURE, shortWing], HEART, "alice", 0).body).at(-1)).toBe("head");
@@ -126,7 +189,7 @@ describe("snipping", () => {
   const acrossLegs = { from: { x: -30, y: 40 }, to: { x: 30, y: 40 } };
 
   it("removes the strokes the cut crosses and the ability that stood on them", () => {
-    const { body: after, removed, lost, heartCut } = snip(body, acrossLegs);
+    const { body: after, removed, lost, heartCut } = snip(body, acrossLegs, "legs");
     expect(removed.map((s) => s.part)).toEqual(["legs", "legs"]);
     expect(lost).toEqual(["legs"]);
     expect(heartCut).toBe(false);
@@ -137,29 +200,72 @@ describe("snipping", () => {
 
   it("takes only one of two legs without losing the ability while enough ink stands", () => {
     const oneLeg = { from: { x: -20, y: 40 }, to: { x: -4, y: 40 } };
-    const { removed, lost } = snip(body, oneLeg);
+    const { removed, lost } = snip(body, oneLeg, "legs");
     expect(removed).toHaveLength(1);
     expect(lost).toEqual([]);
   });
 
   it("misses when the cut passes through empty paper", () => {
-    const { removed, lost } = snip(body, { from: { x: 200, y: 200 }, to: { x: 260, y: 200 } });
+    const { removed, lost } = snip(
+      body,
+      { from: { x: 200, y: 200 }, to: { x: 260, y: 200 } },
+      "legs",
+    );
     expect(removed).toEqual([]);
     expect(lost).toEqual([]);
   });
 
   it("only reaches the heart once nothing is around it", () => {
     const throughHeart = { from: { x: -40, y: -9 }, to: { x: 40, y: -9 } };
-    const first = snip(body, throughHeart);
-    expect(first.removed.map((s) => s.part)).toEqual(["torso", "arms", "arms"]);
+    const first = snip(body, throughHeart, "torso");
+    expect(first.removed.map((s) => s.part)).toEqual(["torso"]);
     expect(first.heartCut).toBe(false);
-    const second = snip(first.body, throughHeart);
+    const second = snip(first.body, throughHeart, "arms");
     expect(second.heartCut).toBe(true);
+  });
+
+  it("takes only the wings when a cut crosses both wings and torso", () => {
+    const winged = incarnate(
+      [TORSO, line({ x: 140, y: 80 }, { x: 180, y: 40 })],
+      HEART,
+      "a bird",
+      0,
+    ).body;
+    const torso = winged.strokes.find((stroke) => stroke.part === "torso");
+    const wings = winged.strokes.find((stroke) => stroke.part === "wings");
+    if (torso === undefined || wings === undefined) throw new Error("body parts missing");
+    const from = wings.stroke[0];
+    const to = torso.stroke[0];
+    if (from === undefined || to === undefined) throw new Error("body points missing");
+
+    const result = snip(winged, { from, to }, "wings");
+    expect(result.removed.map((stroke) => stroke.part)).toEqual(["wings"]);
+    expect(result.lost).not.toContain("torso");
+    expect(result.body.strokes).toContain(torso);
+  });
+
+  it("takes only the torso when a cut crosses both torso and wings", () => {
+    const winged = incarnate(
+      [TORSO, line({ x: 140, y: 80 }, { x: 180, y: 40 })],
+      HEART,
+      "a bird",
+      0,
+    ).body;
+    const torso = winged.strokes.find((stroke) => stroke.part === "torso");
+    const wings = winged.strokes.find((stroke) => stroke.part === "wings");
+    if (torso === undefined || wings === undefined) throw new Error("body parts missing");
+    const from = wings.stroke[0];
+    const to = torso.stroke[0];
+    if (from === undefined || to === undefined) throw new Error("body points missing");
+
+    const result = snip(winged, { from, to }, "torso");
+    expect(result.removed.map((stroke) => stroke.part)).toEqual(["torso"]);
+    expect(result.body.strokes).toContain(wings);
   });
 });
 
 describe("grafting", () => {
-  const legless = snip(figure(), { from: { x: -30, y: 40 }, to: { x: 30, y: 40 } }).body;
+  const legless = snip(figure(), { from: { x: -30, y: 40 }, to: { x: 30, y: 40 } }, "legs").body;
   const space = { centre: { x: 100, y: 109 }, facing: 1 as const, scale: 1 };
   const local = (stroke: Stroke): Stroke => stroke.map((p) => toBodySpace(p, space));
 
@@ -180,7 +286,7 @@ describe("grafting", () => {
   });
 
   it("grows a part she never had: wings drawn onto her let her fly", () => {
-    const wings = local(line({ x: 115, y: 80 }, { x: 160, y: 40 }));
+    const wings = local(line({ x: 140, y: 80 }, { x: 180, y: 40 }));
     const grafted = graft(figure(), [wings], 0);
     expect(grafted?.restored).toEqual(["wings"]);
     expect(abilitiesOf(grafted?.body ?? legless).fly).toBe(true);

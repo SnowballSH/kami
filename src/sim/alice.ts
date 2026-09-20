@@ -12,7 +12,15 @@ import {
   toBodySpace,
   toWorldSpace,
 } from "./body/drawnBody";
-import type { Abilities, BodyFrame, Cut, DrawnBody, Grafted, Snipped } from "./body/types";
+import type {
+  Abilities,
+  BodyFrame,
+  BodyPartKind,
+  Cut,
+  DrawnBody,
+  Grafted,
+  Snipped,
+} from "./body/types";
 import { bottomOf, exactBounds } from "./bodyBounds";
 import {
   ALICE_AIR_FRICTION,
@@ -171,14 +179,18 @@ export class AliceController {
     this.name = name;
   }
 
-  /** The blades close along `cut` (in the world); null unless she wears a drawn body. */
-  snip(cut: Cut): Snipped | null {
+  /** The blades close on `part` along `cut` (in the world); null unless she wears a drawn body. */
+  snip(cut: Cut, part: BodyPartKind): Snipped | null {
     if (this.form === null) return null;
     const space = this.bodySpace();
-    const result = snip(this.form, {
-      from: toBodySpace(cut.from, space),
-      to: toBodySpace(cut.to, space),
-    });
+    const result = snip(
+      this.form,
+      {
+        from: toBodySpace(cut.from, space),
+        to: toBodySpace(cut.to, space),
+      },
+      part,
+    );
     this.form = result.body;
     return result;
   }

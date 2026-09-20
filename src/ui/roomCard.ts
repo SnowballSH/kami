@@ -1,8 +1,9 @@
 import type { RoomCard } from "../modes/types";
 import { el } from "./dom";
 
-const CARD_LIFETIME_MS = 5_000;
+export const ROOM_CARD_SHOWN_MS = 5_000;
 const FADE_MS = 900;
+export const roomCardShownMs = (): number => ROOM_CARD_SHOWN_MS;
 const FADING_CLASS = "is-fading";
 
 /**
@@ -43,7 +44,7 @@ export class RoomCardView {
       this.hiding = setTimeout(() => {
         this.card.hidden = true;
       }, FADE_MS);
-    }, CARD_LIFETIME_MS);
+    }, ROOM_CARD_SHOWN_MS);
   }
 
   private cancel(): void {

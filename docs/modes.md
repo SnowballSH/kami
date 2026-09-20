@@ -1,6 +1,6 @@
 # Game modes
 
-A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, which laws and natures the page will take, whether the board id names a room or an endless page, when Kami helps, and whether other devices share the page. The everyday way to play — Alice stands at the spawn and you draw for her — is written down as `EMBODIED_MODE`. `SANDBOX_MODE` (`?mode=sandbox`) is an endless page with no edges that everyone who opens it draws on together. `PUZZLE_MODE` (`?mode=puzzle`) plays seven rooms in a row, each staged so that one drawn or written idea is the way through, with the Sumikui loose from the first frame ([puzzles.md](puzzles.md)). `SPIRIT_MODE` opens the room as a spirit with no body: you draw Alice, name her, and she is yours. `BOSS_MODE` ([boss.md](boss.md)) is the spirit opening for two players, with a servant of the one under the page coming through a tear to snip the body apart.
+A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, which laws and natures the page will take, whether the board id names a room or an endless page, when Kami helps, and whether other devices share the page. The everyday way to play — Alice stands at the spawn and you draw for her — is written down as `EMBODIED_MODE`. `SANDBOX_MODE` (`?mode=sandbox`) is an endless page with no edges that everyone who opens it draws on together. `PUZZLE_MODE` (`?mode=puzzle`) plays seven rooms in a row, each staged so that one drawn or written idea is the way through, with the Sumikui loose from the first frame ([puzzles.md](puzzles.md)). `SPIRIT_MODE` opens the room as a spirit with no body: you draw Alice, name her, and she is yours. `BOSS_MODE` ([boss.md](boss.md)) is the spirit opening for two players, with a servant of the one under the page coming through a tear to snip the body apart; every opening is a fresh page that clears saved fight drawings and notes.
 
 This document is the architecture. Embodied, sandbox, puzzle, spirit and boss are all playable; the columns at the end say which seams of the spirit groundwork are built and which are not.
 
@@ -10,7 +10,7 @@ This document is the architecture. Embodied, sandbox, puzzle, spirit and boss ar
 interface GameMode {
   id: GameModeId;
   card: { title; tagline; opening; roles? }; // the title card, Kami's first line, one line per player
-  opening: Opening;                         // what the player is when the room opens
+  opening: Opening;                         // what the player is when the room opens, and whether it starts fresh
   win: WinRule;                             // reach-goal | endless | outlast(ms) | defeat-foe
   loss: LossRule;                           // respawn | unmade | board-restarts
   laws: LawPolicy;                          // all | only(dials) | except(dials)

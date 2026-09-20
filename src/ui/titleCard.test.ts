@@ -27,12 +27,31 @@ describe("TitleCard", () => {
     expect(card.showing).toBe(true);
     expect(card.element.textContent).toContain("Sandbox");
     expect(card.element.textContent).toContain(SANDBOX_MODE.card.tagline);
+    expect(card.element.querySelector<HTMLElement>(".kami-title-card-roles")?.hidden).toBe(true);
     vi.advanceTimersByTime(TITLE_CARD_SHOWN_MS - 1);
     expect(card.element.classList.contains("is-fading")).toBe(false);
     vi.advanceTimersByTime(1);
     expect(card.element.classList.contains("is-fading")).toBe(true);
     vi.advanceTimersByTime(1_000);
     expect(card.showing).toBe(false);
+  });
+
+  it("shows role lines in a list and keeps them up longer", () => {
+    const card = new TitleCard();
+    document.body.append(card.element);
+    card.show({
+      ...SANDBOX_MODE.card,
+      roles: ["Drawer: draw the body.", "Player: steer her."],
+    });
+    expect(
+      [...card.element.querySelectorAll(".kami-title-card-roles li")].map(
+        (role) => role.textContent,
+      ),
+    ).toEqual(["Drawer: draw the body.", "Player: steer her."]);
+    vi.advanceTimersByTime(TITLE_CARD_SHOWN_MS + 1_999);
+    expect(card.element.classList.contains("is-fading")).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(card.element.classList.contains("is-fading")).toBe(true);
   });
 
   it("goes away sooner when tapped", () => {
