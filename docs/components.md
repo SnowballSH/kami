@@ -161,9 +161,9 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 | Component | Files | Status | Notes |
 |---|---|---|---|
 | Chart | `src/autopilot/chart.ts` | built | grid of the world from board solids + load-bearing ink + creature positions (never a wall in Alice's own cell) |
-| Pathfinder | `src/autopilot/pathfinder.ts` | built | moves: walk, jump, climb, fly (when `flight`), drive; key → door → goal ordering |
-| Pilot | `src/autopilot/pilot.ts`, `index.ts`, `types.ts` | built | replans every few ticks or on `warped`/new ink; waits ("no way yet") when stuck; yields to manual input |
-| Sumikui awareness | — | planned | Alice does not yet dodge or race the Sumikui |
+| Pathfinder | `src/autopilot/pathfinder.ts` | built | moves: walk, jump, climb, fly (when `flight`), drive; key → door → goal ordering; `awayFrom(threat, safe)` for a way out from under the Sumikui |
+| Pilot | `src/autopilot/pilot.ts`, `index.ts`, `types.ts` | built | replans every few ticks or on `warped`/new ink; waits ("no way yet") when stuck; yields to manual input; errands `objective` / `eat` / `wait` / `flee` / `idle` |
+| Sumikui awareness | `src/autopilot/dread.ts` | built | `Scene.sumikui`; when it hunts her or her footing within `DREAD_PX` she `flee`s to footing `SAFE_PX` away (or as far as she can, and is `stuck` = cornered); routes never count on the drawing it is chewing (`afterTheMeal`), but she races across one she already stands on; Kami: "She sees it. She runs." / "Nowhere left to run." |
 
 ## 10. Player input
 

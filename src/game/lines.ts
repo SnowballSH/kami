@@ -62,6 +62,12 @@ export const SUMIKUI_ALICE_DEVOURED_LINES: readonly string[] = [
   "Gone in one swallow. It is gorged now, and slow. Run while it is.",
   "Keep her moving. It only catches what stands still.",
 ];
+export const ALICE_FLEES_LINES: readonly string[] = [
+  "She sees it. She runs. Draw her somewhere to run to.",
+  "It is on her heels. She will not stand and be eaten.",
+  "Look at her go. Fear is a fine teacher.",
+];
+export const ALICE_CORNERED_LINE = "Nowhere left to run. Draw her a way out, quickly.";
 export const WARPED_LINES: readonly string[] = [
   "In one, out the other. The paper is smaller than it looks.",
   "Through and through. She never did care for the long way round.",
