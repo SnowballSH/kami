@@ -5,7 +5,6 @@ import type { Stroke } from "../core/geometry";
 import { VEHICLE_SPEED, WALK_SPEED } from "./constants";
 import {
   aliceOf,
-  blob,
   drawingOf,
   enter,
   feetOf,
@@ -21,7 +20,10 @@ import {
 } from "./testSupport";
 import type { Simulation } from "./types";
 
-const board = blankBoard("garage");
+const board: BoardDefinition = {
+  ...blankBoard("garage"),
+  solids: [{ rect: { x: -2000, y: 0, width: 4000, height: 36 }, material: "marker" }],
+};
 const flatBoard: BoardDefinition = {
   ...blankBoard("flat"),
   solids: [{ rect: { x: -2000, y: 0, width: 4000, height: 36 }, material: "marker" }],
@@ -38,17 +40,19 @@ const centreOf = (sim: Simulation): number => {
   return pose.position.x;
 };
 
-/** A flat-roofed cart on two wheels, parked just ahead of Alice, low enough to step onto. */
+/** A flat-roofed cart parked just ahead of Alice, low enough to step onto. */
 const cart = (): readonly Stroke[] => [
   line({ x: 35, y: -14 }, { x: 125, y: -14 }),
-  blob(50, -2, 16, 12),
-  blob(110, -2, 16, 12),
+  line({ x: 125, y: -14 }, { x: 125, y: 4 }),
+  line({ x: 125, y: 4 }, { x: 35, y: 4 }),
+  line({ x: 35, y: 4 }, { x: 35, y: -14 }),
 ];
+const stableCart = (): readonly Stroke[] => [line({ x: 35, y: -4 }, { x: 125, y: -4 })];
 
-const parkCar = (definition = board): Simulation => {
+const parkCar = (definition = board, strokes = stableCart()): Simulation => {
   const sim = enter(definition);
   sim.setWalkIntent(STAY);
-  sim.addDrawing(drawingOf("car", ...cart()));
+  sim.addDrawing(drawingOf("car", ...strokes));
   sim.applyRuling(CAR, rulingOf("vehicle"));
   runSteps(sim, 60);
   return sim;
@@ -133,7 +137,7 @@ describe("ink ruled vehicle", () => {
   });
 
   it("tips and tumbles after its footing ends", () => {
-    const sim = parkCar(ledgeBoard);
+    const sim = parkCar(ledgeBoard, cart());
     climbAboard(sim);
     sim.setWalkIntent(RIGHT);
     runSteps(sim, 240);

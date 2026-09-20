@@ -75,7 +75,8 @@ export const drive = (ink: InkEntity, world: NatureWorld): void => {
       ink.body,
       Matter.Body.getAngularVelocity(ink.body) * VEHICLE_KEEL,
     );
-    Matter.Body.setAngle(ink.body, ink.body.angle * 0.5);
+    if (Math.abs(ink.body.angle) < 0.35 && ink.motion.spin === 0)
+      Matter.Body.setAngle(ink.body, ink.body.angle * 0.97);
   }
   alice.drive({ x: velocity.x, y: flying ? velocity.y : 0 });
 };
