@@ -167,6 +167,16 @@ The player writes with the pen like they draw with it; nothing is selected first
 - **Bullet-time** only while the pen is down.
 - On `goal-reached` Kami writes a closing line; play continues.
 
+**Tidying.** When a drawing gets its name (tapped, written, or Kami's own when he is `certain`),
+`Game.tidy` asks `LiveRecognizer.complete(strokes, name)` once. The answer is the player's own strokes,
+point for point, each nudged a bounded distance toward a clean drawing of the same thing, plus any parts
+theirs was missing (`ml/CONTRACT.md`, "Completion"). `InkLedger.retrace` swaps the strokes in and keeps the
+old ones as a `Retrace`; for `RETRACE_MS` `views()` shows `retracedStrokes(from, to, progress)` — the ink
+glides into place, then what was added is drawn in — and the tidied drawing is saved. No answer, a late
+answer on another board, or ink that changed meanwhile: nothing happens. The sim keeps the body it built
+from the ink as drawn (the two differ by less than a pen's width) and builds from the tidied strokes
+the next time the board opens, so an added part is solid from then on.
+
 ## Known limits of the demo
 
 - **Alice rides nothing.** The pilot plans over ink where it currently rests; she will not wait for a floating or falling drawing to line up. A blank board with no goal leaves her idle until one is drawn and named.
