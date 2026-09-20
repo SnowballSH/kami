@@ -82,7 +82,8 @@ model reads prefixes and finished drawings alike); `top` is 1–1000 and capped 
 no points, non-finite or absurd (> 1e9) coordinates, more than 50 000 points, a body over 4 MB or
 anything that is not the documented JSON is `400 {"error"}`; unknown routes are `404 {"error"}`; an
 unexpected exception is `500 {"error"}` and the process keeps serving. `/health` additionally
-reports `renderMatches` — whether `render.py` still has the sha256 the model was trained with.
+reports `artifactId` (the release manifest SHA-256) and `renderMatches: true`.
+Incompatible or incomplete releases fail startup; they never serve predictions.
 One log line per request: `POST /recognize 200 5.3 ms`.
 
 ## Kami finishes your drawing — exemplars and `/complete`
@@ -250,7 +251,20 @@ points → mushroom 0.51, circle 0.26; half a ladder → ladder 0.99. The smoke 
   `render(strokes)`; `top3` comes from the exported ONNX through the sidecar's own code path.
   Additive fields: `probs`, `label` (the truth), `fraction`.
 - `renderSha256` is the sha256 of `render.py`'s bytes — any edit to that file, even whitespace,
-  marks older models as mismatched (`renderMatches: false`, a warning at start). That is the point.
+  rejects older models at startup. Re-export a reviewed compatible model on GX10.
+
+### Publishing releases
+
+Training exports all serving files and the checkpoint in a private release directory, then atomically
+switches the artifact name's symlink. Old releases remain intact for rollback. Existing plain artifact
+directories are not replaced: use a new training name, then select it with `KAMI_EYE_MODEL_NAME`.
+`release.json` binds the model, labels, preprocessing and golden cases by SHA-256.
+`box/start.sh` validates candidates on GX10 before stopping services and remembers the last working
+resolved model directory. It falls back to that compatible release when a new candidate is invalid.
+
+Pure control-flow checks (no model dependencies or execution) may run on the editing machine:
+`PYTHONPATH=ml python3 -m unittest discover -s ml/unit -v`.
+Golden parity, ONNX validation and inference remain GX10-only.
 
 ## Checks
 
