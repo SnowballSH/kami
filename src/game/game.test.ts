@@ -2069,6 +2069,25 @@ describe("Game in the Sandbox", () => {
     expect(player.renderer.board?.goal).toBeUndefined();
   });
 
+  it("keeps Kami's reply to a name clear of the ground and Alice", async () => {
+    const { player } = sandbox(["dog"]);
+    await player.arrive();
+    const centre = player.alice.center;
+    await player.draw(ringAround({ x: centre.x - 70, y: centre.y }, 25));
+    await player.write("a dog", { x: centre.x - 30, y: centre.y });
+    await player.wait(500);
+
+    const notebook = (player.game as unknown as { notes: NoteBook }).notes;
+    const notes = (player.renderer.lastFrame?.notes ?? []).filter((note) =>
+      notebook.fleetingBy("kami").some(({ id }) => id === note.id),
+    );
+    const alice = player.sim.aliceBounds(0);
+    for (const note of notes) {
+      expect(rectsOverlap(note.script.bounds, ENDLESS_GROUND)).toBe(false);
+      expect(rectsOverlap(note.script.bounds, alice)).toBe(false);
+    }
+  });
+
   it("says when Alice falls off the endless page", async () => {
     const { player } = sandbox();
     await player.arrive();

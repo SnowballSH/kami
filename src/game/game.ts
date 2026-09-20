@@ -5,6 +5,7 @@ import type { Cat, Ruling } from "../cat/types";
 import {
   boundsOf,
   clamp,
+  expandRect,
   type PenPoint,
   poseToWorld,
   type Rect,
@@ -1780,7 +1781,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       ...(lifetimeMs === undefined ? {} : { lifetimeMs }),
       ...(anchor === undefined ? {} : { anchor }),
       ...(minY === undefined ? {} : { minY }),
-      ...(anchor === undefined && !silent ? { obstacles: this.obstacles() } : {}),
+      ...(anchor === undefined ? { obstacles: this.obstacles() } : {}),
     });
   }
 
@@ -1863,22 +1864,31 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private obstacles(): readonly Rect[] {
     const tear = this.modules.sim.snapshot().tear;
-    if (tear === null) return [];
-    const viewport = this.modules.renderer.viewport();
-    const topLeft = this.modules.renderer.toWorld({ x: 0, y: 0 }, this.camera.camera);
-    const topRight = this.modules.renderer.toWorld(
-      { x: viewport.width, y: 100 },
-      this.camera.camera,
-    );
     return [
-      { x: tear.at.x - 40, y: tear.at.y - 120, width: 80, height: 240 },
-      {
-        x: Math.min(topLeft.x, topRight.x),
-        y: Math.min(topLeft.y, topRight.y),
-        width: Math.abs(topRight.x - topLeft.x),
-        height: Math.abs(topRight.y - topLeft.y),
-      },
+      ...this.board.solids.map(({ rect }) => rect),
+      expandRect(this.modules.sim.aliceBounds(this.party.selected), 12),
+      this.viewportBandToWorld(0, 100),
+      this.viewportBandToWorld(
+        this.modules.renderer.viewport().height - 90,
+        this.modules.renderer.viewport().height,
+      ),
+      ...(tear === null ? [] : [{ x: tear.at.x - 40, y: tear.at.y - 120, width: 80, height: 240 }]),
     ];
+  }
+
+  private viewportBandToWorld(topPx: number, bottomPx: number): Rect {
+    const viewport = this.modules.renderer.viewport();
+    const corners = [
+      { x: 0, y: topPx },
+      { x: viewport.width, y: topPx },
+      { x: 0, y: bottomPx },
+      { x: viewport.width, y: bottomPx },
+    ].map((corner) => this.modules.renderer.toWorld(corner, this.camera.camera));
+    const x = Math.min(...corners.map((corner) => corner.x));
+    const y = Math.min(...corners.map((corner) => corner.y));
+    const right = Math.max(...corners.map((corner) => corner.x));
+    const bottom = Math.max(...corners.map((corner) => corner.y));
+    return { x, y, width: right - x, height: bottom - y };
   }
 
   private eraseAt(point: Vec): void {
