@@ -365,6 +365,15 @@
   color: var(--kami-ink-soft);
 }
 
+.kami-title-card-roles {
+  max-width: 34ch;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--kami-ink-soft);
+  font-size: 13px;
+  text-align: left;
+}
+
 .kami-board-toggle {
   min-height: calc(var(--kami-control) + 2 * var(--kami-island-padding) + 2px);
   gap: 8px;

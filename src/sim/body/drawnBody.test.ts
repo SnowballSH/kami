@@ -126,7 +126,7 @@ describe("snipping", () => {
   const acrossLegs = { from: { x: -30, y: 40 }, to: { x: 30, y: 40 } };
 
   it("removes the strokes the cut crosses and the ability that stood on them", () => {
-    const { body: after, removed, lost, heartCut } = snip(body, acrossLegs);
+    const { body: after, removed, lost, heartCut } = snip(body, acrossLegs, "legs");
     expect(removed.map((s) => s.part)).toEqual(["legs", "legs"]);
     expect(lost).toEqual(["legs"]);
     expect(heartCut).toBe(false);
@@ -137,29 +137,72 @@ describe("snipping", () => {
 
   it("takes only one of two legs without losing the ability while enough ink stands", () => {
     const oneLeg = { from: { x: -20, y: 40 }, to: { x: -4, y: 40 } };
-    const { removed, lost } = snip(body, oneLeg);
+    const { removed, lost } = snip(body, oneLeg, "legs");
     expect(removed).toHaveLength(1);
     expect(lost).toEqual([]);
   });
 
   it("misses when the cut passes through empty paper", () => {
-    const { removed, lost } = snip(body, { from: { x: 200, y: 200 }, to: { x: 260, y: 200 } });
+    const { removed, lost } = snip(
+      body,
+      { from: { x: 200, y: 200 }, to: { x: 260, y: 200 } },
+      "legs",
+    );
     expect(removed).toEqual([]);
     expect(lost).toEqual([]);
   });
 
   it("only reaches the heart once nothing is around it", () => {
     const throughHeart = { from: { x: -40, y: -9 }, to: { x: 40, y: -9 } };
-    const first = snip(body, throughHeart);
-    expect(first.removed.map((s) => s.part)).toEqual(["torso", "arms", "arms"]);
+    const first = snip(body, throughHeart, "torso");
+    expect(first.removed.map((s) => s.part)).toEqual(["torso"]);
     expect(first.heartCut).toBe(false);
-    const second = snip(first.body, throughHeart);
+    const second = snip(first.body, throughHeart, "arms");
     expect(second.heartCut).toBe(true);
+  });
+
+  it("takes only the wings when a cut crosses both wings and torso", () => {
+    const winged = incarnate(
+      [TORSO, line({ x: 115, y: 80 }, { x: 160, y: 40 })],
+      HEART,
+      "a bird",
+      0,
+    ).body;
+    const torso = winged.strokes.find((stroke) => stroke.part === "torso");
+    const wings = winged.strokes.find((stroke) => stroke.part === "wings");
+    if (torso === undefined || wings === undefined) throw new Error("body parts missing");
+    const from = wings.stroke[0];
+    const to = torso.stroke[0];
+    if (from === undefined || to === undefined) throw new Error("body points missing");
+
+    const result = snip(winged, { from, to }, "wings");
+    expect(result.removed.map((stroke) => stroke.part)).toEqual(["wings"]);
+    expect(result.lost).not.toContain("torso");
+    expect(result.body.strokes).toContain(torso);
+  });
+
+  it("takes only the torso when a cut crosses both torso and wings", () => {
+    const winged = incarnate(
+      [TORSO, line({ x: 115, y: 80 }, { x: 160, y: 40 })],
+      HEART,
+      "a bird",
+      0,
+    ).body;
+    const torso = winged.strokes.find((stroke) => stroke.part === "torso");
+    const wings = winged.strokes.find((stroke) => stroke.part === "wings");
+    if (torso === undefined || wings === undefined) throw new Error("body parts missing");
+    const from = wings.stroke[0];
+    const to = torso.stroke[0];
+    if (from === undefined || to === undefined) throw new Error("body points missing");
+
+    const result = snip(winged, { from, to }, "torso");
+    expect(result.removed.map((stroke) => stroke.part)).toEqual(["torso"]);
+    expect(result.body.strokes).toContain(wings);
   });
 });
 
 describe("grafting", () => {
-  const legless = snip(figure(), { from: { x: -30, y: 40 }, to: { x: 30, y: 40 } }).body;
+  const legless = snip(figure(), { from: { x: -30, y: 40 }, to: { x: 30, y: 40 } }, "legs").body;
   const space = { centre: { x: 100, y: 109 }, facing: 1 as const, scale: 1 };
   const local = (stroke: Stroke): Stroke => stroke.map((p) => toBodySpace(p, space));
 

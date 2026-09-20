@@ -204,9 +204,11 @@ export const cutCrosses = (cut: Cut, stroke: Stroke): boolean => {
   });
 };
 
-/** The blades close along `cut`: every stroke they cross is gone, and the bare heart is cut too. */
-export const snip = (body: DrawnBody, cut: Cut): Snipped => {
-  const removed = body.strokes.filter(({ stroke }) => cutCrosses(cut, stroke));
+/** The blades close on the part they were aimed at; other strokes they pass are spared. */
+export const snip = (body: DrawnBody, cut: Cut, part: BodyPartKind): Snipped => {
+  const removed = body.strokes.filter(
+    ({ stroke, part: strokePart }) => strokePart === part && cutCrosses(cut, stroke),
+  );
   const remaining = body.strokes.filter((stroke) => !removed.includes(stroke));
   const after: DrawnBody = { ...body, strokes: remaining };
   const wasAlive = aliveParts(body);

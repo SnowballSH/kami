@@ -124,7 +124,7 @@ import {
   WARPED_LINES,
   WORDMARK,
 } from "./lines";
-import { type NoteAnchor, NoteBook } from "./noteBook";
+import { NOTE_STYLE, type NoteAnchor, NoteBook } from "./noteBook";
 import type { Drift } from "./noteLayout";
 import { type Hire, type Page, Party } from "./party";
 import { groupedByNote, RuleBook } from "./ruleBook";
@@ -157,7 +157,6 @@ const ABOVE_ALICE = { x: -90, y: -120 } as const;
 const SPOKEN_AT = { x: -60, y: -190 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
-const MODE_CARD_LINE = 34;
 const ALREADY_AWAKE_MS = 10_000;
 /** Kami dresses a scene one prop after another, not all at once. */
 const PROP_STAGGER_MS = 450;
@@ -1634,23 +1633,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       x: this.board.spawn.x + WORDMARK_OFFSET.x,
       y: this.board.spawn.y + WORDMARK_OFFSET.y,
     };
-    if (this.director.mode.id !== EMBODIED_MODE_ID) {
-      this.writeModeCard({ x: at.x, y: at.y + TAGLINE_DROP * 2 });
-      return;
-    }
+    if (this.director.mode.id !== EMBODIED_MODE_ID) return;
     this.kamiWrites(WORDMARK, at, { silent: true });
     this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP }, { silent: true });
-    this.writeModeCard({ x: at.x, y: at.y + TAGLINE_DROP * 2 });
-  }
-
-  /** A mode that introduces itself says what it is, and who does what, under the wordmark. */
-  private writeModeCard(at: Vec): void {
-    if (!this.introducesItself) return;
-    const { mode } = this.director;
-    const lines = mode.card.roles ?? [];
-    lines.forEach((line, index) => {
-      this.kamiWrites(line, { x: at.x, y: at.y + index * MODE_CARD_LINE }, { silent: true });
-    });
   }
 
   private playerWrites(text: string, position: Vec): Note {
@@ -1696,11 +1681,23 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       minY,
     } = options;
     if (!silent) this.voice?.say(aloud(text));
+    const visible = this.visibleWorldRect();
+    const notePosition =
+      anchor === undefined
+        ? {
+            ...position,
+            x: clamp(
+              position.x,
+              visible.x + 24,
+              visible.x + visible.width - NOTE_STYLE.kami.maxWidth - 24,
+            ),
+          }
+        : position;
     const note: Note = {
       id: this.ids.next<NoteId>("kami"),
       author: "kami",
       text,
-      position,
+      position: notePosition,
       tone,
       createdAt: Date.now(),
       fleeting: lifetimeMs !== undefined,
@@ -1767,6 +1764,26 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       { x: 0, y: this.hud.toolbarBottom() + HUD_WRITING_GAP },
       this.camera.camera,
     ).y;
+  }
+
+  private visibleWorldRect(): Rect {
+    const viewport = this.modules.renderer.viewport();
+    const corners = [
+      { x: 0, y: 0 },
+      { x: viewport.width, y: 0 },
+      { x: 0, y: viewport.height },
+      { x: viewport.width, y: viewport.height },
+    ].map((corner) => this.modules.renderer.toWorld(corner, this.camera.camera));
+    const x = Math.min(...corners.map((corner) => corner.x));
+    const y = Math.min(...corners.map((corner) => corner.y));
+    const right = Math.max(...corners.map((corner) => corner.x));
+    const bottom = Math.max(...corners.map((corner) => corner.y));
+    return {
+      x,
+      y,
+      width: right - x,
+      height: bottom - y,
+    };
   }
 
   private eraseAt(point: Vec): void {

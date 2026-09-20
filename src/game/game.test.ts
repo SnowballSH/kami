@@ -54,7 +54,7 @@ import {
   SUMIKUI_SEALED_LINE,
   SUMIKUI_SUMMONED_LINES,
 } from "./lines";
-import type { NoteBook } from "./noteBook";
+import { NOTE_STYLE, type NoteBook } from "./noteBook";
 import { ARRIVAL_MS } from "./retrace";
 import {
   FakeHandwriting,
@@ -517,6 +517,28 @@ describe("Game on the Wonderland board", () => {
     expect(player.written).toContain("kami");
     expect(player.written).toContain("She can hop, not fly. You can draw.");
     expect(player.hud.boards.map((board) => board.id)).toContain("wonderland");
+  });
+
+  it("keeps a free Kami remark inside the visible world", () => {
+    const write = (
+      player.game as unknown as {
+        kamiWrites: (
+          text: string,
+          position: Vec,
+          options?: { lifetimeMs?: number },
+        ) => {
+          position: Vec;
+        };
+      }
+    ).kamiWrites;
+    const note = write.call(
+      player.game,
+      "right edge remark",
+      { x: 1100, y: 100 },
+      { lifetimeMs: 6_000 },
+    );
+    const right = player.renderer.viewport().width;
+    expect(note.position.x).toBeLessThanOrEqual(right - NOTE_STYLE.kami.maxWidth - 24);
   });
 
   it("deduplicates and caps fleeting Kami remarks", async () => {
@@ -2299,7 +2321,7 @@ describe("Game in Boss mode", () => {
     expect(soulOf(player).x).toBeCloseTo(boardFor("wonderland").spawn.x, 0);
     expect(player.written).toContain(SOUL_WAITS_LINE);
     expect(player.written).not.toContain(BOSS_MODE.card.opening);
-    for (const role of BOSS_MODE.card.roles ?? []) expect(player.written).toContain(role);
+    for (const role of BOSS_MODE.card.roles ?? []) expect(player.written).not.toContain(role);
     expect(player.hud.cards).toEqual([BOSS_MODE.card]);
     player.game.onAutopilotToggled(true);
     expect(player.hud.autopilot).toBe(false);

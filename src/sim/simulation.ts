@@ -414,7 +414,7 @@ export class MatterSimulation implements Simulation {
       this.events.push({ type: "shielded", drawingId: shield.id });
       return;
     }
-    const snipped = this.embodied ? this.world.alice.snip(cut) : null;
+    const snipped = this.embodied ? this.world.alice.snip(cut, part) : null;
     if (snipped === null) {
       this.events.push({ type: "snip-missed" });
       return;
