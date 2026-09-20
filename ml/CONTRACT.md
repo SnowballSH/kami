@@ -92,8 +92,9 @@ Same body limits, validation and logging as `/recognize`. `name` is optional, a 
 characters; `null` and `""` mean no name.
 
 1. **Category.** The name — lower-cased, whitespace collapsed, a leading "a", "an" or "the" dropped
-   (labels are compared the same way, so "eiffel tower" finds "The Eiffel Tower") — when it is
-   exactly one of the labels. Otherwise the model's top-1 when its calibrated probability is ≥ 0.5.
+   (labels are compared the same way, so "eiffel tower" finds "The Eiffel Tower") — when it is one
+   of the labels, or ends with one ("a bouncy mushroom" is a mushroom; the longest such ending
+   wins). Otherwise the model's top-1 when its calibrated probability is ≥ 0.5.
    Otherwise no answer.
 2. **Exemplar.** Among that category's exemplars, the highest
    `cosine(sketch, exemplar) + 0.05 × exemplar probability`.
