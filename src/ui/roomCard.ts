@@ -1,4 +1,5 @@
 import type { RoomCard } from "../modes/types";
+import { motionAllowed } from "../render/animation/motion";
 import { el } from "./dom";
 import { activateOnTap } from "./tap";
 
@@ -59,9 +60,12 @@ export class RoomCardView {
     this.card.hidden = false;
     this.fading = setTimeout(() => {
       this.card.classList.add(FADING_CLASS);
-      this.hiding = setTimeout(() => {
-        this.card.hidden = true;
-      }, ROOM_CARD_FADE_MS);
+      this.hiding = setTimeout(
+        () => {
+          this.card.hidden = true;
+        },
+        motionAllowed() ? ROOM_CARD_FADE_MS : 0,
+      );
     }, ROOM_CARD_SHOWN_MS);
   }
 
@@ -77,10 +81,13 @@ export class RoomCardView {
     if (this.card.hidden || this.card.classList.contains(FADING_CLASS)) return;
     if (this.fading !== null) clearTimeout(this.fading);
     this.card.classList.add(FADING_CLASS);
-    this.hiding = setTimeout(() => {
-      this.card.hidden = true;
-      this.card.classList.remove(FADING_CLASS);
-      this.hiding = null;
-    }, ROOM_CARD_FADE_MS);
+    this.hiding = setTimeout(
+      () => {
+        this.card.hidden = true;
+        this.card.classList.remove(FADING_CLASS);
+        this.hiding = null;
+      },
+      motionAllowed() ? ROOM_CARD_FADE_MS : 0,
+    );
   }
 }

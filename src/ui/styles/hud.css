@@ -211,6 +211,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .kami-title-card,
+  .kami-room-card {
+    transition-duration: 0ms;
+  }
+
   .kami-voice.kami-listening {
     animation: none;
   }

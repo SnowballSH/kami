@@ -1,4 +1,5 @@
 import type { ModeCard } from "../modes/types";
+import { motionAllowed } from "../render/animation/motion";
 import { el } from "./dom";
 import { activateOnTap } from "./tap";
 
@@ -62,11 +63,14 @@ export class TitleCard {
     if (this.element.hidden || this.element.classList.contains(FADING_CLASS)) return;
     this.clearTimers();
     this.element.classList.add(FADING_CLASS);
-    this.goneAt = setTimeout(() => {
-      this.element.hidden = true;
-      this.element.classList.remove(FADING_CLASS);
-      this.goneAt = null;
-    }, TITLE_CARD_FADE_MS);
+    this.goneAt = setTimeout(
+      () => {
+        this.element.hidden = true;
+        this.element.classList.remove(FADING_CLASS);
+        this.goneAt = null;
+      },
+      motionAllowed() ? TITLE_CARD_FADE_MS : 0,
+    );
   }
 
   private clearTimers(): void {
