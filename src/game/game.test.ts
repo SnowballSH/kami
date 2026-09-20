@@ -1111,7 +1111,7 @@ describe("Game with a model to think with", () => {
     await player.arrive();
     vi.spyOn(Date, "now").mockReturnValue(1_000);
     await player.write("a custom sky", { x: 200, y: 100 });
-    await player.write("night", { x: 200, y: 200 });
+    await player.write("night", { x: 200, y: -200 });
     expect(player.renderer.lastFrame?.daylight).toBe(0.1);
     pending.resolve({ effect: { governs: "daylight", value: 1 }, explanation: "daylight" });
     await player.wait(100);
@@ -1953,7 +1953,7 @@ describe("Game while a board is loading", () => {
     expect(player.written).toContain("Loading board…");
     second.resolve({ drawings: [], notes: [], rules: [] });
     await player.wait(50);
-    await player.write("night", { x: 200, y: 200 });
+    await player.write("night", { x: 200, y: -200 });
     expect((await store.load("second")).rules).toHaveLength(1);
   });
 
