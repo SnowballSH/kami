@@ -26,8 +26,9 @@ aloud and nothing is heard, and the game plays exactly as it did before.
                per utterance, and only the ones naming him are taken as said to him
 ```
 
-The Deepgram key never reaches the browser: the Bun server holds it and proxies both directions,
-which also keeps voice working on the iPad's plain-HTTP LAN origin.
+The Deepgram key never reaches the browser: the Bun server holds it and proxies both directions.
+Microphone capture requires a secure browser context: HTTPS on the iPad/LAN, or localhost for local
+development. Plain HTTP on a LAN address cannot capture the microphone.
 
 ## Ears (speech → the funnel)
 
@@ -49,6 +50,8 @@ which also keeps voice working on the iPad's plain-HTTP LAN origin.
   browser only acts on `heard`. An empty transcript is silence, and nothing is written.
 - A spoken note lands beside Alice, as if the player had written it there, and is stored like any
   other note.
+- Opening or clearing a board cancels the current utterance and switches wake listening off.
+  Voice input is available again after the board finishes loading.
 
 ## Mouth (Kami → speech)
 

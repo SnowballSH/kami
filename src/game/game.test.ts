@@ -337,6 +337,29 @@ describe("Game on the Wonderland board", () => {
     });
   });
 
+  it("cancels listening on navigation and rejects speech while the board is loading", async () => {
+    player.game.onWakeToggled(true);
+    player.game.onTalkStarted();
+    const loading = Promise.withResolvers<BoardSnapshot>();
+    const load = vi.spyOn(player.store, "load").mockReturnValueOnce(loading.promise);
+    player.game.onOpenBoard("another");
+    expect(player.voice.listening).toBe(false);
+    expect(player.voice.waking).toBe(false);
+    player.game.onTalkStarted();
+    player.game.onWakeToggled(true);
+    expect(player.voice.listening).toBe(false);
+    expect(player.voice.waking).toBe(false);
+    player.voice.heard("gravity off");
+    await player.wait(100);
+    expect(player.written).not.toContain("gravity off");
+    loading.resolve({ drawings: [], notes: [], rules: [] });
+    await player.wait(100);
+    load.mockRestore();
+    await player.speak("gravity off");
+    expect(player.written).toContain("gravity off");
+    expect((await player.store.load("another")).rules).toHaveLength(1);
+  });
+
   it("turns a written law into physics, remembers it, and repeals it when erased", async () => {
     await player.write("set g equal to the moon's gravity", { x: 200, y: 200 });
     const remembered = (await player.store.load("wonderland")).rules;
