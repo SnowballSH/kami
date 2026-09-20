@@ -34,4 +34,18 @@ describe("settle", () => {
   it("treats a note brushing against another as overlapping", () => {
     expect(settle(LINE, [at(200 + 30 + 2)], "up").y).not.toBe(200);
   });
+
+  it("clears dense writing even when both directions need more than six line heights", () => {
+    const taken = Array.from({ length: 19 }, (_, index) => at(200 + (index - 9) * 36));
+    const placed = settle(LINE, taken, "up");
+    expect(taken.some((rect) => rectsOverlap({ ...LINE, ...placed }, rect))).toBe(false);
+  });
+
+  it("keeps remarks below the toolbar and clears the intro instead of drifting above it", () => {
+    const minY = 200;
+    const intro = { ...LINE, y: 170, height: 100 };
+    const placed = settle(at(100), [intro], "up", minY);
+    expect(placed.y).toBeGreaterThanOrEqual(minY);
+    expect(rectsOverlap({ ...LINE, ...placed }, intro)).toBe(false);
+  });
 });

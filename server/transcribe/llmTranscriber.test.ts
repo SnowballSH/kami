@@ -61,6 +61,38 @@ describe("parseTranscription", () => {
 });
 
 describe("createLlmTranscriber", () => {
+  it("only enables the reader after it reads the known PNG correctly", async () => {
+    const seen: SeenRequest[] = [];
+    const transcriber = createLlmTranscriber(CONFIG, modelSaying('{"text":"HI"}', seen));
+    expect(transcriber?.ready).toBe(false);
+    expect(await transcriber?.warmUp()).toBe(true);
+    expect(transcriber?.ready).toBe(true);
+    const content = seen[0]?.body.messages.at(-1)?.content;
+    expect(Array.isArray(content) && content.some((part) => part.type === "image_url")).toBe(true);
+  });
+
+  it.each(['{"text":null}', '{"text":"cat"}', "Images are unsupported", ""])(
+    "keeps transcription unavailable after an incorrect image answer: %s",
+    async (content) => {
+      const transcriber = createLlmTranscriber(CONFIG, modelSaying(content));
+      expect(await transcriber?.warmUp()).toBe(false);
+      expect(transcriber?.ready).toBe(false);
+    },
+  );
+
+  it("revokes readiness when a later image check fails", async () => {
+    let available = true;
+    const transcriber = createLlmTranscriber(CONFIG, async () =>
+      available
+        ? Response.json({ choices: [{ message: { content: '{"text":"HI"}' } }] })
+        : new Response("no vision", { status: 400 }),
+    );
+    expect(await transcriber?.warmUp()).toBe(true);
+    available = false;
+    expect(await transcriber?.warmUp()).toBe(false);
+    expect(transcriber?.ready).toBe(false);
+  });
+
   it("shows the model the strokes as a PNG and asks for no chain of thought", async () => {
     const seen: SeenRequest[] = [];
     const transcriber = createLlmTranscriber(CONFIG, modelSaying('{"text":"hi there"}', seen));
