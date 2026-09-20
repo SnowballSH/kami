@@ -6,6 +6,8 @@ import type { InkEntity } from "./inkEntity";
 import type { NatureWorld } from "./natures";
 import type { Gait, Ride } from "./types";
 
+export const VEHICLE_KEEL = 0.9;
+
 const approach = (current: number, target: number, step: number): number =>
   Math.abs(target - current) <= step ? target : current + Math.sign(target - current) * step;
 
@@ -68,6 +70,12 @@ export const drive = (ink: InkEntity, world: NatureWorld): void => {
   const falling = Matter.Body.getVelocity(ink.body).y;
   const velocity = { x: mind.speed, y: flying ? intent.y * topSpeed : falling };
   Matter.Body.setVelocity(ink.body, velocity);
-  Matter.Body.setAngularVelocity(ink.body, 0);
+  if (footing(ink, world.feelers)) {
+    Matter.Body.setAngularVelocity(
+      ink.body,
+      Matter.Body.getAngularVelocity(ink.body) * VEHICLE_KEEL,
+    );
+    Matter.Body.setAngle(ink.body, ink.body.angle * 0.5);
+  }
   alice.drive({ x: velocity.x, y: flying ? velocity.y : 0 });
 };

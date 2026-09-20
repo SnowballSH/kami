@@ -150,7 +150,7 @@ export const NATURES: Readonly<Record<Nature, NatureStrategy>> = {
   walker: { ...CREATURE, beforeStep: walk },
   hopper: { ...CREATURE, beforeStep: hop },
   flier: { ...CREATURE, beforeStep: fly },
-  vehicle: { ...CREATURE, beforeStep: drive },
+  vehicle: { ...CREATURE, upright: false, beforeStep: drive },
   attractor: { ...ROLE, beforeStep: attract },
   lantern: PLAIN,
   portal: {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blankBoard } from "../board/boards/blank";
+import type { BoardDefinition } from "../board/types";
 import type { Stroke } from "../core/geometry";
 import { VEHICLE_SPEED, WALK_SPEED } from "./constants";
 import {
@@ -21,6 +22,14 @@ import {
 import type { Simulation } from "./types";
 
 const board = blankBoard("garage");
+const flatBoard: BoardDefinition = {
+  ...blankBoard("flat"),
+  solids: [{ rect: { x: -2000, y: 0, width: 4000, height: 36 }, material: "marker" }],
+};
+const ledgeBoard: BoardDefinition = {
+  ...blankBoard("ledge"),
+  solids: [{ rect: { x: -320, y: 0, width: 480, height: 36 }, material: "marker" }],
+};
 const CAR = idOf("car");
 
 const centreOf = (sim: Simulation): number => {
@@ -36,8 +45,8 @@ const cart = (): readonly Stroke[] => [
   blob(110, -2, 16, 12),
 ];
 
-const parkCar = (): Simulation => {
-  const sim = enter(board);
+const parkCar = (definition = board): Simulation => {
+  const sim = enter(definition);
   sim.setWalkIntent(STAY);
   sim.addDrawing(drawingOf("car", ...cart()));
   sim.applyRuling(CAR, rulingOf("vehicle"));
@@ -114,5 +123,20 @@ describe("ink ruled vehicle", () => {
     runSteps(sim, 30);
     expect(Math.abs(centreOf(sim) - car)).toBeLessThan(2);
     expect(feetOf(sim).x).toBeLessThan(car - 45);
+  });
+
+  it("keeps its angle damped while driven on flat ground", () => {
+    const sim = parkCar(flatBoard);
+    climbAboard(sim);
+    runSteps(sim, 120);
+    expect(Math.abs(poseOf(sim, "car")?.angle ?? Number.POSITIVE_INFINITY)).toBeLessThan(0.05);
+  });
+
+  it("tips and tumbles after its footing ends", () => {
+    const sim = parkCar(ledgeBoard);
+    climbAboard(sim);
+    sim.setWalkIntent(RIGHT);
+    runSteps(sim, 240);
+    expect(Math.abs(poseOf(sim, "car")?.angle ?? 0)).toBeGreaterThan(0.3);
   });
 });

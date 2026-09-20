@@ -68,7 +68,7 @@ One per drawing. The player never sees this list — they see the ink change tin
 | **walker** | cat, dog, turtle, knight, any animal that walks | Alive. Paces its ground, turns at walls, edges and Alice; carries her if she stands on it |
 | **hopper** | rabbit, frog, kangaroo, grasshopper | Alive. Sits, then leaps forward on a beat; looks before it leaps |
 | **flier** | bird, butterfly, bee, bat, dragon, fairy | Alive. Flies level and bobbing, roaming only so far from where it was drawn; carries her |
-| **vehicle** | car, cart, boat, bicycle, train, skateboard | Something to drive. Alice steps aboard and it rolls where she points, faster than she walks; she jumps off |
+| **vehicle** | car, cart, boat, bicycle, train, skateboard | Something to drive. Alice steps aboard and it rolls where she points, faster than she walks; it can rotate and tumble when its footing ends, while a driven vehicle's keel damping keeps it level on ground; she jumps off |
 | **attractor** | black hole, sun, vortex, whirlpool | Pulls Alice and every loose drawing toward itself |
 | **lantern** | lantern, lamp, candle, torch | Lights its patch of the board when it's night |
 | **portal** | portal, wormhole, warp, gate, mirror, looking glass | Step in here, out of the one drawn next. Two link; three or more go round in a ring; one alone leads nowhere (*"Draw it a twin."*). Never a wall |

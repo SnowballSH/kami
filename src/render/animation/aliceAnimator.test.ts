@@ -14,6 +14,7 @@ import {
   NO_CUES,
   POP_MS,
   REINK_MS,
+  SEAT_SINK,
   SWELL_MS,
   TURN_MS,
 } from "./aliceAnimator";
@@ -122,16 +123,16 @@ describe("boarding and leaving a vehicle", () => {
     const animator = settled();
     const standingKnee = { ...ALICE_POSES.stand.frontKnee };
     const start = animator.observe(her({ ride: CAR }), NO_CUES, 0);
-    expect(start.offset.y).toBeCloseTo(0);
+    expect(start.offset.y).toBeCloseTo(SEAT_SINK * ALICE_BASE.height);
     expect(start.pose.frontKnee).toEqual(standingKnee);
 
     const midway = animator.observe(her({ ride: CAR }), NO_CUES, HOP_MS / 2);
-    expect(midway.offset.y).toBeCloseTo(-0.35 * ALICE_BASE.height);
+    expect(midway.offset.y).toBeCloseTo((SEAT_SINK - 0.35) * ALICE_BASE.height);
     expect(midway.pose.frontKnee.x).toBeGreaterThan(standingKnee.x);
     expect(midway.pose.frontKnee.x).toBeLessThan(ALICE_POSES.seated.frontKnee.x);
 
     const seated = animator.observe(her({ ride: CAR }), NO_CUES, HOP_MS);
-    expect(seated.offset.y).toBe(0);
+    expect(seated.offset.y).toBe(SEAT_SINK * ALICE_BASE.height);
     expect(seated.pose.frontKnee).toEqual(ALICE_POSES.seated.frontKnee);
     expect(seated.pose.frontHand).toEqual(ALICE_POSES.seated.frontHand);
   });
