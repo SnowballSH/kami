@@ -1,11 +1,11 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
 import { rectsOverlap, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
-import type { HandwritingReader } from "../persistence/types";
+import type { BoardSnapshot, HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
 import type { Completion, LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, resolvePhysics } from "../rules";
@@ -44,7 +44,7 @@ const blob = (center: Vec, rx: number, ry: number): Vec[] =>
     y: center.y + ry * Math.sin((i / 24) * Math.PI * 2),
   }));
 
-type Thoughts = Readonly<Record<string, CompiledRule>>;
+type Thoughts = Readonly<Record<string, CompiledRule | Promise<CompiledRule | null>>>;
 
 interface PlayerOptions {
   readonly store?: MemoryBoardStore;
@@ -495,11 +495,53 @@ describe("Alice on her own", () => {
 });
 
 describe("Game with a model to think with", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   const RED_PLANET = "make it feel like the red planet";
   const MARS: CompiledRule = {
     effect: { governs: "gravity", x: 0, y: 0.38 },
     explanation: "gravity = 0.38 g (Mars)",
   };
+
+  it("orders same-millisecond laws by submission through late responses, reload and repeal", async () => {
+    const pending = Promise.withResolvers<CompiledRule | null>();
+    const store = new MemoryBoardStore();
+    const player = new Player("wonderland", {
+      store,
+      thoughts: { "a custom sky": pending.promise },
+    });
+    await player.arrive();
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
+    await player.write("a custom sky", { x: 200, y: 100 });
+    await player.write("night", { x: 200, y: 200 });
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    pending.resolve({ effect: { governs: "daylight", value: 1 }, explanation: "daylight" });
+    await player.wait(100);
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    const snapshot = await store.load("wonderland");
+    const ordered = snapshot.rules.toSorted((a, b) => a.createdAt - b.createdAt);
+    expect(ordered.map((rule) => rule.sourceText)).toEqual(["a custom sky", "night"]);
+    expect(ordered.map((rule) => rule.createdAt)).toEqual([1_000, 1_001]);
+    for (const rule of ordered) {
+      expect(rule.createdAt).toBe(
+        snapshot.notes.find((note) => note.id === rule.noteId)?.createdAt,
+      );
+    }
+
+    const reloaded = new Player("wonderland", { store });
+    await reloaded.arrive();
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(0.1);
+    const night = reloaded.renderer.lastFrame?.notes.find((note) => note.script.text === "night");
+    if (night === undefined) throw new Error("night note missing");
+    await reloaded.erase({ x: night.script.bounds.x + 1, y: night.script.bounds.y + 1 });
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(1);
+    await reloaded.write("night", { x: 200, y: 300 });
+    const newest = (await store.load("wonderland")).rules.find(
+      (rule) => rule.sourceText === "night",
+    );
+    expect(newest?.createdAt).toBe(1_002);
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(0.1);
+  });
 
   it("asks the model only about what nothing else understood", async () => {
     const player = new Player("wonderland", { thoughts: { [RED_PLANET]: MARS } });
@@ -781,6 +823,81 @@ describe("Game with a pen that reads", () => {
     expect(reader.asked).toEqual([1]);
     expect((await player.store.load("wonderland")).drawings).toHaveLength(2);
     expect(player.written).not.toContain("never");
+  });
+});
+
+describe("Game while a board is loading", () => {
+  it("pauses simulation and rejects drawing, naming, law and erase input until restore", async () => {
+    const store = new MemoryBoardStore();
+    const original = new Player("wonderland", { store });
+    await original.arrive();
+    await original.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await original.write("night", { x: 200, y: 200 });
+    const snapshot = await store.load("wonderland");
+    const pending = Promise.withResolvers<BoardSnapshot>();
+    vi.spyOn(store, "load").mockReturnValueOnce(pending.promise);
+    const player = new Player("wonderland", { store });
+    const arrival = player.arrive();
+    const prompt = vi.spyOn(player.hud, "promptText");
+    await player.wait(50);
+    const center = player.alice.center;
+    await player.draw(blob({ x: 400, y: 530 }, 30, 20));
+    player.use("write");
+    player.game.tap({ x: 200, y: 200 });
+    player.game.tap({ x: 300, y: 450 });
+    await player.erase({ x: 300, y: 530 });
+    expect(prompt).not.toHaveBeenCalled();
+    expect(player.alice.center).toEqual(center);
+    expect(player.written).toContain("Loading board…");
+    expect(await store.load("wonderland")).toEqual(snapshot);
+
+    pending.resolve(snapshot);
+    await arrival;
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(player.written).not.toContain("Loading board…");
+    await player.write("day", { x: 200, y: 300 });
+    expect((await store.load("wonderland")).notes.some((note) => note.text === "day")).toBe(true);
+  });
+
+  it("keeps the new board locked when an older board finishes loading", async () => {
+    const store = new MemoryBoardStore();
+    const first = Promise.withResolvers<BoardSnapshot>();
+    const second = Promise.withResolvers<BoardSnapshot>();
+    vi.spyOn(store, "load").mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const player = new Player("first", { store });
+    const arrival = player.arrive();
+    player.game.onOpenBoard("second");
+    first.resolve({ drawings: [], notes: [], rules: [] });
+    await arrival;
+    const prompt = vi.spyOn(player.hud, "promptText");
+    player.use("write");
+    player.game.tap({ x: 200, y: 200 });
+    expect(prompt).not.toHaveBeenCalled();
+    expect(player.written).toContain("Loading board…");
+    second.resolve({ drawings: [], notes: [], rules: [] });
+    await player.wait(50);
+    await player.write("night", { x: 200, y: 200 });
+    expect((await store.load("second")).rules).toHaveLength(1);
+  });
+
+  it("allows clearing during load and ignores the old snapshot after new edits", async () => {
+    const store = new MemoryBoardStore();
+    const original = new Player("wonderland", { store });
+    await original.arrive();
+    await original.draw(blob({ x: 300, y: 530 }, 30, 20));
+    const snapshot = await store.load("wonderland");
+    const pending = Promise.withResolvers<BoardSnapshot>();
+    vi.spyOn(store, "load").mockReturnValueOnce(pending.promise);
+    const player = new Player("wonderland", { store });
+    const arrival = player.arrive();
+    player.game.onClearBoard();
+    await player.write("night", { x: 200, y: 200 });
+    pending.resolve(snapshot);
+    await arrival;
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    expect((await store.load("wonderland")).rules).toHaveLength(1);
   });
 });
 
