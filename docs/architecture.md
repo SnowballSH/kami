@@ -163,7 +163,7 @@ The player writes with the pen like they draw with it; nothing is selected first
 - **Layout.** No note is written on top of another. `NoteBook.write` measures the script where it was asked for and, if that overlaps existing writing, slides it whole line-heights clear (`noteLayout.settle`): Kami's remarks above Alice drift up, replies beneath a note and guess chips drift down, and the player's own notes drift down off Kami's glosses. The placed position is what gets persisted.
 - **Camera** follows Alice loosely when she walks outside a central dead-zone; any manual pan or zoom suspends following until she walks again or ⌖ is pressed. Zoom 0.25–4.
 - **Walking.** Before every sim step: a held arrow key wins, else `autopilot.drive(scene)`. The pilot is reset on board open and invalidated on every ink or rule change (see `autopilot/`).
-- **Boards.** `?board=<id>` in the URL; default `wonderland`. On load: `store.load` → re-add drawings and rulings, notes, rules. Held walk input survives a board load.
+- **Boards.** `?board=<id>` in the URL; default `wonderland`. On load: `store.load` → re-add drawings and rulings, notes, rules. A loading note is shown while simulation and editing are paused; panning, switching boards and clearing remain available. Clearing starts an editable empty board immediately. An older load cannot restore or unlock a newer board. Held walk input survives a board load.
 - **Bullet-time** only while the pen is down.
 - On `goal-reached` Kami writes a closing line; play continues.
 
