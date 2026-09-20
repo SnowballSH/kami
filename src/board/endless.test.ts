@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { boardFor, DEMO_BOARD_ID, ENDLESS_GROUND, endlessBoard, isEndless, pageFor } from ".";
+import {
+  boardFor,
+  DEMO_BOARD_ID,
+  ENDLESS_CLEARING,
+  ENDLESS_GROUND,
+  ENDLESS_HIGH_GROUNDS,
+  endlessBoard,
+  isEndless,
+  pageFor,
+} from ".";
 
 describe("an endless page", () => {
-  it("is a strip of ground under the spawn and nothing else: no goal, key, door, zones or bottom", () => {
+  it("is a floor under the spawn with things to draw against: no goal, key, door, zones or bottom", () => {
     const page = endlessBoard("together");
     expect(page.id).toBe("together");
     expect(page.page).toBe("endless");
@@ -12,10 +21,28 @@ describe("an endless page", () => {
     expect(page.zones).toEqual([]);
     expect(page.noInkZones).toEqual([]);
     expect(page.killY).toBe(Number.POSITIVE_INFINITY);
-    expect(page.solids).toEqual([{ rect: ENDLESS_GROUND, material: "marker" }]);
+    expect(page.solids[0]).toEqual({ rect: ENDLESS_GROUND, material: "marker" });
+    expect(page.solids.every((solid) => solid.material === "marker")).toBe(true);
     expect(page.spawn.y).toBe(ENDLESS_GROUND.y);
     expect(page.spawn.x).toBeGreaterThan(ENDLESS_GROUND.x);
     expect(page.spawn.x).toBeLessThan(ENDLESS_GROUND.x + ENDLESS_GROUND.width);
+  });
+
+  it("is a very wide floor with high grounds standing on it, none of them near the spawn", () => {
+    const floorEnd = ENDLESS_GROUND.x + ENDLESS_GROUND.width;
+    expect(ENDLESS_GROUND.width).toBeGreaterThanOrEqual(10_000);
+    expect(ENDLESS_HIGH_GROUNDS.length).toBeGreaterThanOrEqual(8);
+    for (const high of ENDLESS_HIGH_GROUNDS) {
+      expect(high.y).toBeLessThan(ENDLESS_GROUND.y);
+      expect(high.y + high.height).toBeLessThanOrEqual(ENDLESS_GROUND.y);
+      expect(high.x).toBeGreaterThanOrEqual(ENDLESS_GROUND.x);
+      expect(high.x + high.width).toBeLessThanOrEqual(floorEnd);
+      expect(Math.min(Math.abs(high.x), Math.abs(high.x + high.width))).toBeGreaterThanOrEqual(
+        ENDLESS_CLEARING,
+      );
+    }
+    const bars = ENDLESS_HIGH_GROUNDS.filter((high) => high.width <= 100 && high.height >= 200);
+    expect(bars.length).toBeGreaterThanOrEqual(3);
   });
 
   it("is what any id becomes under an endless mode, even the demo room's", () => {

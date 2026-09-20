@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
-import { ENDLESS_GROUND } from "../board/boards/endless";
+import { ENDLESS_STRIP as ENDLESS_GROUND, endlessPage } from "../board/boards/endless";
 import { createCat } from "../cat";
 import { OFFER_HELP } from "../cat/lines";
 import { boundsOf, poseToWorld, rectsOverlap, type Vec } from "../core/geometry";
@@ -265,6 +265,7 @@ class Player {
         ...(mode === undefined ? {} : { mode }),
         resolvePhysics,
         boardFor,
+        endlessPageFor: (id) => endlessPage(id, [ENDLESS_GROUND]),
         createInkSession,
         createHud: (handlers) => {
           this.hudRef = new FakeHud(handlers);

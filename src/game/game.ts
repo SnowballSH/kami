@@ -193,6 +193,8 @@ export interface GameModules {
   /** Folds standing rules over `base`: EARTH, or the world a staged room lays down. */
   readonly resolvePhysics: (rules: readonly Rule[], base?: WorldPhysics) => WorldPhysics;
   readonly boardFor: (id: string) => BoardDefinition;
+  /** The page an endless mode opens under an id; the sandbox's wide floor unless said otherwise. */
+  readonly endlessPageFor?: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
   readonly createHud: (handlers: HudHandlers) => Hud;
   /** Deepgram both ways (docs/voice.md); without one Kami only reads and writes. */
@@ -1624,7 +1626,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   /** The board under an id, read as the mode reads it: the room sketched there, or an endless page. */
   private sketch(boardId: string): BoardDefinition {
     return this.director.mode.page === "endless"
-      ? endlessBoard(boardId)
+      ? (this.modules.endlessPageFor ?? endlessBoard)(boardId)
       : this.modules.boardFor(boardId);
   }
 

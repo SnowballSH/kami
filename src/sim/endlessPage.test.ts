@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENDLESS_GROUND, endlessBoard } from "../board/boards/endless";
+import { ENDLESS_STRIP as ENDLESS_GROUND, endlessPage } from "../board/boards/endless";
 import { FALL_LIMIT, LastFooting } from "./footing";
 import {
   aliceOf,
@@ -17,7 +17,7 @@ import {
   saw,
 } from "./testSupport";
 
-const page = endlessBoard("together");
+const page = endlessPage("together", [ENDLESS_GROUND]);
 const groundEnd = ENDLESS_GROUND.x + ENDLESS_GROUND.width;
 const LEDGE_TOP = 300;
 const ledge = drawingOf(

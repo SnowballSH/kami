@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Scene, SceneInk } from "../autopilot/types";
-import { ENDLESS_GROUND, endlessBoard } from "../board/boards/endless";
+import { ENDLESS_STRIP as ENDLESS_GROUND, endlessPage } from "../board/boards/endless";
 import type { Nature } from "../cat/types";
 import type { Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
@@ -47,7 +47,7 @@ const ink = (id: string, strokes: readonly Vec[][], nature: Nature = "solid"): S
 });
 
 const scene = (overrides: Partial<Scene> = {}): Scene => ({
-  board: endlessBoard("together"),
+  board: endlessPage("together", [ENDLESS_GROUND]),
   alice: alice({ x: 0, y: ENDLESS_GROUND.y }),
   others: [],
   inks: [],

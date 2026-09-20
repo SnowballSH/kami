@@ -6,6 +6,7 @@ import { BoardMenu } from "./boardMenu";
 import { el } from "./dom";
 import { Joystick } from "./joystick";
 import { KeyboardWalk } from "./keyboard";
+import { homeUrl, PageActions } from "./pageActions";
 import { PersistenceStatus } from "./persistenceStatus";
 import { paintQr } from "./qr";
 import { RoomCardView } from "./roomCard";
@@ -35,6 +36,7 @@ export class DomHud implements Hud {
   private readonly tidy: TidySlider;
   private readonly roomCard = new RoomCardView();
   private readonly share = new SharePanel(paintQr);
+  private readonly page: PageActions;
   private readonly card = new TitleCard();
   private readonly detachers: readonly Detach[];
 
@@ -50,6 +52,7 @@ export class DomHud implements Hud {
     this.toolbar = new Toolbar((tool) => this.tools.pick(tool));
     this.toolbar.show(this.tools.inForce);
     this.boards = new BoardMenu(handlers);
+    this.page = new PageActions(handlers, () => host.location.assign(homeUrl(host.location)));
     this.persistence = new PersistenceStatus(() => handlers.onRetryPersistence());
     this.boards.element.append(this.persistence.element);
     this.prompt = new TextPrompt(host);
@@ -58,7 +61,11 @@ export class DomHud implements Hud {
     this.tidy = new TidySlider((tidiness) => handlers.onTidinessChanged(tidiness));
     const remoteStick = createRemoteStick(walk.source());
     this.overlay.append(
-      el("div", { className: "kami-top-left" }, [this.boards.element, this.share.element]),
+      el("div", { className: "kami-top-left" }, [
+        this.page.element,
+        this.boards.element,
+        this.share.element,
+      ]),
       this.card.element,
       this.toolbar.element,
       this.stick.element,
@@ -79,6 +86,7 @@ export class DomHud implements Hud {
       new ToolHotkeys(this.tools).attach(host),
       this.boards.attach(owner),
       this.share.attach(owner),
+      this.page.attach(owner),
       this.prompt.attach(),
       installTouchGuards(owner),
     ];

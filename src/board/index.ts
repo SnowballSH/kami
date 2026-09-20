@@ -21,4 +21,11 @@ export const pageFor = (kind: PageKind, id: string): BoardDefinition =>
 
 export const isEndless = (board: BoardDefinition): boolean => board.page === "endless";
 
-export { ENDLESS_GROUND, endlessBoard } from "./boards/endless";
+export {
+  ENDLESS_CLEARING,
+  ENDLESS_GROUND,
+  ENDLESS_HIGH_GROUNDS,
+  ENDLESS_STRIP,
+  endlessBoard,
+  endlessPage,
+} from "./boards/endless";
