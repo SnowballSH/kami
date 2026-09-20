@@ -84,6 +84,7 @@ const ABOVE_ALICE = { x: -90, y: -120 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
 const ALREADY_AWAKE_MS = 10_000;
+const HUD_WRITING_GAP = 12;
 
 interface Recital {
   readonly at: number;
@@ -500,7 +501,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.kamiWrites(
       zone.intro,
       { x: zone.checkpoint.x + ABOVE_ALICE.x, y: zone.checkpoint.y + ABOVE_ALICE.y - 80 },
-      { lifetimeMs: HINT_LIFETIME_MS },
+      { lifetimeMs: HINT_LIFETIME_MS, minY: this.writingTop() },
     );
   }
 
@@ -589,14 +590,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private async offerGuesses(drawing: Drawing): Promise<void> {
     const epoch = this.epoch;
-    const { certain, guesses } = await this.modules.cat.look(drawing);
+    const { certain, rulings } = await this.modules.cat.look(drawing);
     if (epoch !== this.epoch || this.ledger.get(drawing.id)?.ruling !== null) return;
 
     const corner = guessCornerOf(drawing.strokes);
     if (certain !== null) {
       const label = this.kamiWrites(certain.name, corner, { drift: "down" });
       this.labelsByKami.add(label.id);
-      this.name(drawing.id, certain, label);
+      this.name(drawing.id, this.modules.cat.accept(certain), label);
       return;
     }
     const anchor: NoteAnchor = { type: "drawing", id: drawing.id };
@@ -608,14 +609,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         { lifetimeMs: GUESS_LIFETIME_MS, anchor, drift: "down" },
       );
     }
-    guesses.forEach((name, index) => {
+    rulings.forEach((ruling, index) => {
+      const { name } = ruling;
       this.kamiWrites(
         `${name}?`,
         { x: corner.x, y: corner.y + index * GUESS_OFFSET.line },
         {
           lifetimeMs: GUESS_LIFETIME_MS,
           anchor,
-          action: { type: "name-drawing", drawingId: drawing.id, name },
+          action: { type: "name-drawing", drawingId: drawing.id, name, ruling },
           drift: "down",
         },
       );
@@ -624,7 +626,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private perform(action: NoteAction, offered: Note): void {
     const label = this.playerWrites(action.name, offered.position);
-    void this.nameDrawing(action.drawingId, action.name, label);
+    if (action.ruling === undefined) {
+      void this.nameDrawing(action.drawingId, action.name, label);
+    } else {
+      this.name(action.drawingId, this.modules.cat.accept(action.ruling), label);
+    }
   }
 
   private async promptAt(client: Vec, world: Vec): Promise<void> {
@@ -721,8 +727,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.modules.autopilot.invalidate();
     this.modules.store.saveDrawing(this.board.id, { drawing: awake.drawing, ruling });
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
-    this.notes.attach(label.id, { type: "drawing", id });
+    const attached = this.notes.attachToDrawing(label.id, id);
     if (ruling.nature !== "ink") this.understood(label.id);
+    else if (attached !== null) this.modules.store.saveNote(this.board.id, attached);
     const under = this.notes.below(label.id);
     if (under !== null) {
       this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
@@ -832,9 +839,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       readonly action?: NoteAction;
       readonly tone?: Note["tone"];
       readonly drift?: Drift;
+      readonly minY?: number;
     } = {},
   ): Note {
-    const { lifetimeMs, anchor, action, tone = "plain", drift = "up" } = options;
+    const { lifetimeMs, anchor, action, tone = "plain", drift = "up", minY } = options;
     const note: Note = {
       id: this.ids.next<NoteId>("kami"),
       author: "kami",
@@ -851,6 +859,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       drift,
       ...(lifetimeMs === undefined ? {} : { lifetimeMs }),
       ...(anchor === undefined ? {} : { anchor }),
+      ...(minY === undefined ? {} : { minY }),
     });
   }
 
@@ -891,8 +900,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.kamiWrites(
       line,
       { x: alice.x + ABOVE_ALICE.x, y: alice.y + ABOVE_ALICE.y },
-      { lifetimeMs },
+      { lifetimeMs, minY: this.writingTop() },
     );
+  }
+
+  private writingTop(): number {
+    return this.modules.renderer.toWorld(
+      { x: 0, y: this.hud.toolbarBottom() + HUD_WRITING_GAP },
+      this.camera.camera,
+    ).y;
   }
 
   private eraseAt(point: Vec): void {

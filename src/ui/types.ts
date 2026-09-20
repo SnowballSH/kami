@@ -25,6 +25,7 @@ export interface HudHandlers {
 }
 
 export interface Hud {
+  toolbarBottom(): number;
   setTool(tool: Tool): void;
   setAutopilot(enabled: boolean): void;
   setBoards(boards: readonly BoardListing[], currentId: string): void;

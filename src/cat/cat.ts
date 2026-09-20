@@ -8,7 +8,7 @@ import { namesForRecognized } from "./recognizedNames";
 import { isUnknownName, ruleOn } from "./ruling";
 import { isDot } from "./shape";
 import { type Guesses, guessNames } from "./shapeGuesser";
-import { bestSighting, isCertain, namesFor, rulingOf, speaksOf } from "./sight";
+import { bestSighting, honourRuling, isCertain, offeredRulings, rulingOf, speaksOf } from "./sight";
 import type { Cat, Hint, Look, RoomBrief, Ruling } from "./types";
 
 const REMEMBERED_SIGHTINGS = 32;
@@ -55,20 +55,33 @@ export class ScriptedCat implements Cat {
     return (await this.look(drawing)).guesses;
   }
 
+  accept(ruling: Ruling): Ruling {
+    return honourRuling(ruling, this.#room.allowedNatures);
+  }
+
   async look(drawing: Drawing): Promise<Look> {
     const allowed = this.#room.allowedNatures;
     const hunch = guessNames(drawing, allowed);
+    const rule = (name: string): Ruling => ruleOn(name, { allowed, drawingIsDot: isDot(drawing) });
     if (this.#recognizer === null || !canSight(this.#recognizer)) {
       const seen = await this.#recognize(drawing);
-      return { certain: null, guesses: mergeGuesses(namesForRecognized(seen), hunch, allowed) };
+      const guesses = mergeGuesses(namesForRecognized(seen), hunch, allowed);
+      return { certain: null, guesses, rulings: guesses.map(rule) };
     }
     const sightings = await this.#sight(this.#recognizer, drawing.strokes);
     this.#remember(drawing.id, sightings);
     const [first] = sightings;
     const sure = first !== undefined && isCertain(first) ? bestSighting([first], allowed) : null;
+    const offered = offeredRulings(sightings, allowed);
+    const guesses = mergeGuesses(
+      offered.map(({ name }) => name),
+      hunch,
+      "all",
+    );
     return {
       certain: sure === null ? null : rulingOf(sure, allowed),
-      guesses: mergeGuesses(namesFor(sightings), hunch, allowed),
+      guesses,
+      rulings: guesses.map((name) => offered.find((ruling) => ruling.name === name) ?? rule(name)),
     };
   }
 

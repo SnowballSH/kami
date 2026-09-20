@@ -15,7 +15,7 @@ export const NOTE_STYLE = {
   kami: { size: 26, maxWidth: 460 },
 } as const;
 
-/** What a note hangs off: erase the anchor and the note goes with it. Not persisted. */
+/** What a note hangs off: erase the anchor and the note goes with it. */
 export type NoteAnchor =
   | { readonly type: "note"; readonly id: NoteId }
   | { readonly type: "drawing"; readonly id: DrawingId };
@@ -35,6 +35,7 @@ export interface NotePlacement {
   readonly anchor?: NoteAnchor;
   /** Slide the note clear of writing already on the board, this way first. Omit to pin it. */
   readonly drift?: Drift;
+  readonly minY?: number;
 }
 
 /** Everything written on the board, as pen scripts ready to be revealed stroke by stroke. */
@@ -45,14 +46,16 @@ export class NoteBook {
   constructor(private readonly handwriting: Handwriting) {}
 
   /** Inscribes the note and returns it as placed, which may sit above or below where it was asked for. */
-  write({ note, nowMs, lifetimeMs, anchor, drift }: NotePlacement): Note {
-    const placed = drift === undefined ? note : this.clearSpotFor(note, drift);
+  write({ note, nowMs, lifetimeMs, anchor, drift, minY }: NotePlacement): Note {
+    const placed = drift === undefined ? note : this.clearSpotFor(note, drift, minY);
     return this.inscribe(placed, nowMs, anchor ?? null, lifetimeMs).note;
   }
 
   /** A note from a previous session: already on the board, fully written. */
   restore(note: Note, nowMs: number): void {
-    this.inscribe(note, nowMs - ALREADY_WRITTEN_MS, null);
+    const anchor: NoteAnchor | null =
+      note.drawingId === undefined ? null : { type: "drawing", id: note.drawingId };
+    this.inscribe(note, nowMs - ALREADY_WRITTEN_MS, anchor);
   }
 
   get(id: NoteId): Note | null {
@@ -68,9 +71,12 @@ export class NoteBook {
     return bounds === null ? null : { x: bounds.x, y: bounds.y + bounds.height + LINE_GAP };
   }
 
-  attach(id: NoteId, anchor: NoteAnchor): void {
+  attachToDrawing(id: NoteId, drawingId: DrawingId): Note | null {
     const entry = this.entries.get(id);
-    if (entry !== undefined) this.entries.set(id, { ...entry, anchor });
+    if (entry === undefined) return null;
+    const note = { ...entry.note, drawingId };
+    this.entries.set(id, { ...entry, note, anchor: { type: "drawing", id: drawingId } });
+    return note;
   }
 
   restyle(id: NoteId, tone: Note["tone"]): Note | null {
@@ -125,10 +131,10 @@ export class NoteBook {
     }));
   }
 
-  private clearSpotFor(note: Note, drift: Drift): Note {
+  private clearSpotFor(note: Note, drift: Drift, minY?: number): Note {
     const wanted = this.scriptFor(note, this.seed + 1).bounds;
     const taken = [...this.entries.values()].map((entry) => entry.script.bounds);
-    const settled = settle(wanted, taken, drift);
+    const settled = settle(wanted, taken, drift, minY);
     const position = {
       x: note.position.x + settled.x - wanted.x,
       y: note.position.y + settled.y - wanted.y,
