@@ -4,7 +4,7 @@
 # sketches are recognised by the Eye sidecar — or by the server's own k-NN when no trained model is here.
 # The same sidecar finishes drawings (/complete) when its model has an exemplar set (ml/exemplars.py).
 set -euo pipefail
-cd ~/kami
+cd -P "$(dirname "$0")/.."
 PORT=${PORT:-8787}
 MONGO_PORT=27017
 EYE_PORT=${KAMI_EYE_PORT:-8790}
@@ -22,8 +22,14 @@ wait_for_port() {
 
 eye_model_directory() {
   local model
-  for model in "$ML_HOME/artifacts/$EYE_MODEL_NAME/" "$PWD"/app/eye/artifacts/*/; do
-    if [ -s "${model}model.onnx" ]; then echo "${model%/}"; return 0; fi
+  [ -n "$EYE_PYTHON" ] && [ -s app/eye/validate_release.py ] || return 0
+  for model in "$ML_HOME/artifacts/$EYE_MODEL_NAME/" "$PWD"/app/eye/artifacts/*/ "$(cat run/eye-model 2>/dev/null || true)"; do
+    [ -d "$model" ] || continue
+    if PYTHONPATH="$PWD/pydeps" "$EYE_PYTHON" app/eye/validate_release.py "$model" >/dev/null; then
+      realpath "$model"
+      return 0
+    fi
+    echo "  eye: rejected incompatible release $model" >&2
   done
   return 0
 }
@@ -34,7 +40,7 @@ eye_python() {
 }
 
 eye_is_healthy() {
-  python3 -c 'import sys, urllib.request; urllib.request.urlopen(sys.argv[1], timeout=2).read()' \
+  python3 -c 'import json, sys, urllib.request; health=json.load(urllib.request.urlopen(sys.argv[1], timeout=2)); sys.exit(0 if health.get("ok") is True and health.get("renderMatches") is True and health.get("artifactId") else 1)' \
     "$EYE_URL/health" 2>/dev/null
 }
 
@@ -50,6 +56,12 @@ start_eye() {
   return 1
 }
 
+EYE_PYTHON=$(eye_python)
+EYE_MODEL=$(eye_model_directory)
+if [ -s run/eye-model ] && [ -z "$EYE_MODEL" ]; then
+  echo "No compatible Eye release; leaving the running services untouched." >&2
+  exit 1
+fi
 bash box/stop.sh
 runtime/mongodb/bin/mongod --dbpath "$PWD/data" --bind_ip 127.0.0.1 --port "$MONGO_PORT" \
   --fork --logpath "$PWD/logs/mongod.log" --pidfilepath "$PWD/run/mongod.pid" >/dev/null
@@ -62,23 +74,42 @@ if [ "$(cat run/quickdraw.stamp 2>/dev/null)" != "$stamp" ]; then
   echo "$stamp" > run/quickdraw.stamp
 fi
 
-EYE_MODEL=$(eye_model_directory)
-EYE_PYTHON=$(eye_python)
 if [ -z "$EYE_MODEL" ] || [ ! -s app/eye/sidecar.py ] || [ -z "$EYE_PYTHON" ]; then
   echo "  eye: no trained model (or its Python packages) on this box — the k-NN recognises sketches"
 elif start_eye "$EYE_MODEL" "$EYE_PYTHON"; then
+  printf '%s\n' "$EYE_MODEL" > run/eye-model
   export KAMI_RECOGNIZER_URL=$EYE_URL
   export KAMI_BEAUTIFY_URL=${KAMI_BEAUTIFY_URL:-$EYE_URL/complete}
 else
   echo "  ! eye: the sidecar did not come up — the k-NN recognises sketches. Its last words:"
   tail -5 logs/eye.log | sed 's/^/    /'
   bash box/stop.sh eye
+  previous=$(cat run/eye-model 2>/dev/null || true)
+  if [ -n "$previous" ] && [ "$previous" != "$EYE_MODEL" ] &&
+      PYTHONPATH="$PWD/pydeps" "$EYE_PYTHON" app/eye/validate_release.py "$previous" >/dev/null &&
+      start_eye "$previous" "$EYE_PYTHON"; then
+    export KAMI_RECOGNIZER_URL=$EYE_URL
+    export KAMI_BEAUTIFY_URL=${KAMI_BEAUTIFY_URL:-$EYE_URL/complete}
+    echo "  eye: restored previous working release"
+  else
+    bash box/stop.sh eye
+  fi
 fi
 
 PORT=$PORT KAMI_WEB_DIR="$PWD/dist" KAMI_LLM_URL="http://127.0.0.1:11434" KAMI_LLM_MODEL="$MODEL" \
   nohup runtime/bun app/server.js > logs/server.log 2>&1 &
 echo $! > run/server.pid
 wait_for_port "$PORT" || { echo "✗ the Kami server did not start:"; tail -15 logs/server.log; exit 1; }
+ready=false
+for _ in $(seq 1 120); do
+  if python3 box/release.py ready "$PWD" "http://127.0.0.1:$PORT" 2>/dev/null; then
+    ready=true
+    break
+  fi
+  kill -0 "$(cat run/server.pid)" 2>/dev/null || break
+  sleep 0.25
+done
+[ "$ready" = true ] || { echo "Kami failed application readiness" >&2; exit 1; }
 
 sleep 1
 sed 's/^/  /' logs/server.log

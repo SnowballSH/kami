@@ -11,8 +11,8 @@ from collections.abc import Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
 
+from artifacts import validate_bundle
 from completion import SketchCompleter
 from exemplar_set import load_exemplars_of_model
 from recognizer import DEFAULT_TOP, SketchRecognizer
@@ -77,14 +77,14 @@ def _parse_coordinate(value: object) -> float:
     return float(value)
 
 
-def parse_top(payload: dict[str, Any]) -> int:
+def parse_top(payload: dict[str, object]) -> int:
     top = payload.get("top", DEFAULT_TOP)
     if not isinstance(top, int) or isinstance(top, bool) or not 1 <= top <= MAX_TOP:
         raise BadRequest(f"'top' must be an integer from 1 to {MAX_TOP}")
     return top
 
 
-def parse_partial(payload: dict[str, Any]) -> bool:
+def parse_partial(payload: dict[str, object]) -> bool:
     partial = payload.get("partial", False)
     if not isinstance(partial, bool):
         raise BadRequest("'partial' must be a boolean")
@@ -114,7 +114,10 @@ def parse_body_length(value: str | None) -> int:
 
 
 def make_handler(
-    recognizer: SketchRecognizer, completer: SketchCompleter | None = None
+    recognizer: SketchRecognizer,
+    completer: SketchCompleter | None = None,
+    *,
+    artifact_id: str,
 ) -> type[BaseHTTPRequestHandler]:
     class SidecarHandler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -135,6 +138,7 @@ def make_handler(
                 "model": recognizer.name,
                 "renderMatches": recognizer.render_matches,
                 "exemplars": completer.exemplar_count if completer is not None else 0,
+                "artifactId": artifact_id,
             }
 
         def _post(self) -> Answer:
@@ -158,7 +162,7 @@ def make_handler(
                 return HTTPStatus.NOT_FOUND, {"error": "no exemplar to finish this drawing with"}
             return HTTPStatus.OK, completion.to_json()
 
-        def _read_json(self) -> dict[str, Any]:
+        def _read_json(self) -> dict[str, object]:
             length = parse_body_length(self.headers.get("Content-Length"))
             try:
                 payload = json.loads(self.rfile.read(length))
@@ -214,9 +218,9 @@ def load_completer(recognizer: SketchRecognizer, model_dir: Path) -> SketchCompl
 
 
 def create_server(model_dir: Path, port: int) -> ThreadingHTTPServer:
+    model_dir = model_dir.resolve(strict=True)
+    artifact_id = validate_bundle(model_dir)
     recognizer = SketchRecognizer(model_dir)
-    if not recognizer.render_matches:
-        log.warning("render.py differs from the one %s was trained with", recognizer.name)
     completer = load_completer(recognizer, model_dir)
     started = time.perf_counter()
     recognizer.recognize(WARM_UP_STROKES)
@@ -225,7 +229,9 @@ def create_server(model_dir: Path, port: int) -> ThreadingHTTPServer:
     log.info(
         "%s: %d classes, warmed up in %.0f ms", recognizer.name, len(recognizer.labels), warm_up_ms
     )
-    return ThreadingHTTPServer((HOST, port), make_handler(recognizer, completer))
+    return ThreadingHTTPServer(
+        (HOST, port), make_handler(recognizer, completer, artifact_id=artifact_id)
+    )
 
 
 def main() -> None:
