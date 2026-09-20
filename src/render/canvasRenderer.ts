@@ -105,6 +105,7 @@ export class CanvasRenderer implements Renderer {
       ctx.restore();
     }
     if (world.sumikui !== null) paintSumikui(ctx, world.sumikui, nowMs);
+    this.inkPainter.paintHeld(ctx, frame.heldInks);
     this.inkPainter.paintActive(ctx, frame.activeStrokes, frame.activeVerdict);
     this.nightPainter.paint(
       ctx,
