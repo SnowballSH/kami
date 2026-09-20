@@ -204,6 +204,14 @@ export class AliceController {
     });
   }
 
+  /** Aboard something she steers: it moves, and she goes exactly with it. */
+  drive(vehicleVelocity: Vec): void {
+    Matter.Body.setVelocity(this.body, {
+      x: vehicleVelocity.x,
+      y: Math.min(this.velocity.y, vehicleVelocity.y),
+    });
+  }
+
   placeAt(feet: Vec): void {
     const { height } = this.bounds();
     Matter.Body.setPosition(this.body, { x: feet.x, y: feet.y - height / 2 });
