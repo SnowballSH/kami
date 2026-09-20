@@ -21,8 +21,8 @@ export type Incarnation =
  * only a hand that draws and writes, and nobody is on the board until the incarnation happens.
  */
 export type Opening =
-  | { readonly player: "body" }
-  | { readonly player: "spirit"; readonly incarnation: Incarnation };
+  | { readonly player: "body"; readonly freshPage: boolean }
+  | { readonly player: "spirit"; readonly incarnation: Incarnation; readonly freshPage: boolean };
 
 /**
  * `reach-goal` is the rabbit hole or a drawing named goal; `endless` never ends; `outlast` is

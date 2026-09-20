@@ -2324,6 +2324,7 @@ describe("Game in Boss mode", () => {
     expect(soulOf(player).x).toBeCloseTo(boardFor("wonderland").spawn.x, 0);
     expect(player.written).not.toContain(SOUL_WAITS_LINE);
     expect(player.written).not.toContain(BOSS_MODE.card.opening);
+    expect(player.written).not.toContain("She can hop, not fly. You can draw.");
     for (const role of BOSS_MODE.card.roles ?? []) expect(player.written).not.toContain(role);
     expect(player.hud.cards).toEqual([BOSS_MODE.card]);
     await player.wait(titleCardShownMs(BOSS_MODE.card) + 600);
@@ -2333,6 +2334,19 @@ describe("Game in Boss mode", () => {
     player.walk(1);
     await player.wait(500);
     expect(player.renderer.lastFrame?.world.alice).toBeNull();
+  });
+
+  it("opens every Boss fight on a fresh page", async () => {
+    const drawing = drawingOf("old-fight", ringAround(soulOf(player), 30));
+    player.game.onCommit(drawing);
+    await player.wait(100);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(1);
+
+    player.game.onOpenBoard("wonderland");
+    await player.wait(100);
+
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
   });
 
   it("makes the drawing her body when it is named, and tears the page open above her", async () => {
@@ -2362,6 +2376,34 @@ describe("Game in Boss mode", () => {
     await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
     expect(player.renderer.lastFrame?.world.soul).toBeNull();
     expect(drawnLook(player).body.strokes).toHaveLength(1);
+  });
+
+  it("keeps free combat remarks clear of the tear", async () => {
+    const heart = soulOf(player);
+    player.game.onCommit(drawingOf("body", ringAround(heart, 30)));
+    await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
+    const tear = tearOf(player);
+    if (tear === null) throw new Error("the tear did not open");
+
+    (
+      player.game as unknown as {
+        remark: (line: string) => void;
+      }
+    ).remark("clear of the tear");
+    await player.wait(50);
+
+    const note = player.renderer.lastFrame?.notes.find(
+      ({ script }) => script.text === "clear of the tear",
+    );
+    if (note === undefined) throw new Error("the combat remark was not written");
+    expect(
+      rectsOverlap(note.script.bounds, {
+        x: tear.at.x - 40,
+        y: tear.at.y - 120,
+        width: 80,
+        height: 240,
+      }),
+    ).toBe(false);
   });
 
   it("offers Alice instead of scenery guesses for the body nearest the soul", async () => {

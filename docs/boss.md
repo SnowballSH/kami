@@ -29,7 +29,7 @@ interface Abilities { walk; jump; climb; fly; see }
 
 **Snipping** (`snip`): a cut is a segment aimed at one body part, and only the strokes of that part it crosses are removed whole; other strokes it passes are spared. The heart is cut only when it is *bare* — no torso stroke left around it — and the segment passes within `heartRadius` of it; that is the loss. A cut through a heart still wrapped in a torso takes the torso, and the mercy window that follows is the drawer's chance to wrap it again.
 
-**Grafting** (`graft`): committed strokes that come within `graftReach` (14 px) of any body stroke, or of the heart, join the body, are segmented like the rest, and glow blue for `graftGlowMs` (1.4 s) so the drawer sees the graft take. A part comes back the moment it is above its alive ratio again; the ability comes back with it, in the same tick. Redrawing fast is the whole loop, so grafting has no cost but ink and no cooldown.
+**Grafting** (`graft`): committed strokes that come within `graftReach` (36 px) of any body stroke, or of the heart, join the body, are segmented like the rest, and glow blue for `graftGlowMs` (1.4 s) so the drawer sees the graft take. A part comes back the moment it is above its alive ratio again; the ability comes back with it, in the same tick. Redrawing fast is the whole loop, so grafting has no cost but ink and no cooldown.
 
 Movement scales with the body: the controller is built with the drawing's frame, and `aliceSize` semantics (and their clamps) do the rest — a tall body strides and jumps further, a tiny one is quick to turn and easy to miss.
 
@@ -62,9 +62,9 @@ A lunge is judged once, when the lunge ends (`Simulation.suffer`): if a drawing 
 
 ## The tear (`src/sim/boss/tear.ts`)
 
-The rip opens `aboveHeart` (220 px) over the body the moment it is named. After `entryDelayMs` (3 s — long enough for Kami's two lines and a first breath) the servant comes through. It keeps the **mercy window**: after any snip lands, no blade moves for `mercyMs` (2.6 s) — the drawer's moment to redraw. It also sends the **waves**: when the servant's health drops below 0.6, one lesser comes; below 0.3, two more. Lessers (`SNIPPER_TUNING.lesser`) are half the size, faster, shorter in the wind-up, and die in three blows; they never count toward the health bar. When the servant perishes the tear closes over `closingMs`; `tear-closed` is the `defeat-foe` win.
+The rip opens `aboveHeart` (220 px) over the body the moment it is named. After `entryDelayMs` (3 s — long enough for Kami's two lines and a first breath) the servant comes through. It keeps the **mercy window**: after any snip lands, no blade moves for `mercyMs` (3.2 s) — the drawer's moment to redraw. It also sends the **waves**: when the servant's health drops below 0.6, one lesser comes; below 0.3, two more. Lessers (`SNIPPER_TUNING.lesser`) are half the size, faster, shorter in the wind-up, and die in three blows; they never count toward the health bar. When the servant perishes the tear closes over `closingMs`; `tear-closed` is the `defeat-foe` win.
 
-Loss: a cut through the heart is `heart-swallowed`. The spirit director answers `unmade`; the mode's `board-restarts` loss rule reopens the room after a beat, with its ink where it was and the heart alone again.
+Loss: a cut through the heart is `heart-swallowed`. The spirit director answers `unmade`; the mode's `board-restarts` loss rule reopens a fresh page after a beat, with the heart alone again.
 
 ## Tuning (`src/sim/boss/tuning.ts`)
 
@@ -74,8 +74,9 @@ Every number the fight is tuned by lives in that one file. The reasoning:
 |---|---|---|
 | `windUpMs` | 1100 / 800 | A person reading a dashed line and pressing a direction needs about a second. The lesser's 0.8 s is tense but readable; below 0.7 s the snip feels unfair on a thumbstick. |
 | `lungeMs` | 260 / 200 | Fast enough to feel like a snip, long enough for the blades to visibly close. |
-| `mercyMs` | 2600 | One stroke takes 0.5–1 s to draw and commit. The mercy covers one confident stroke and more room to redraw. |
-| `circleMs` | 2600 / 1900 | The breath between snips; with `recoverMs` it gives ~4.5 s per servant snip at the start, ~2.8 s at full ramp. |
+| `firstCircleMs` | 4800 / 3200 | The first servant or lesser circle is longer, giving both players time to read the fight before the first wind-up. |
+| `mercyMs` | 3200 | One stroke takes 0.5–1 s to draw and commit. The mercy covers one confident stroke and more room to redraw. |
+| `circleMs` | 3400 / 1900 | The breath between snips; with `recoverMs` it gives ~5.3 s per servant snip at the start, ~2.8 s at full ramp. |
 | `speedRampPerSnip`, `maxSpeedRamp` | 0.06, 1.6 | Ten landed snips to reach the cap; the ramp rewards a drawer who keeps up, never a runaway. |
 | `orbitRadius` | 150 / 105 | Far enough that the telegraph starts well outside the body; near enough to be watched. |
 | `health`, `hitDamage` | 100, 12 | Nine plain blows; five heavy ones; a spinning hammer in three or four. |
@@ -83,7 +84,7 @@ Every number the fight is tuned by lives in that one file. The reasoning:
 | `waves` | 0.6 → 1, 0.3 → 2 | The first lesser arrives once the players have shown they can hurt it; the pair arrives for the finish. Three blades at once is the most two people can track. |
 | `entryDelayMs` | 3000 | Kami's two tear lines and a first look at the body before anything moves. |
 | `partAliveRatio` | 0.5 | Half the ink of a part is a part. Below that, drawing one line brings back the ability only if the part was small to begin with — which is fair: a small part is easy to redraw. |
-| `graftReach` | 14 | Twice the ink's thickness: touching is enough, aiming is not required. |
+| `graftReach` | 36 | A forgiving reach around the body: the drawer can redraw a part a little off its old stroke. |
 | `heartRadius` | 9 | The heart is a target only a cut through the middle finds, and only once the torso is gone; the torso around it takes the rest. |
 | `aboveHeart` | 220 | The tear is in view over the body at the default zoom without covering the title card. |
 

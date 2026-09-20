@@ -634,14 +634,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
+    if (this.director.mode.opening.freshPage) store.clear(boardId);
     if (!remember) {
       this.voiceReady = true;
       return;
     }
     const loadingNote = this.kamiWrites("Loading board…", this.board.spawn);
     try {
-      const snapshot = await store.load(boardId);
-      if (epoch === this.epoch) this.restore(snapshot);
+      if (!this.director.mode.opening.freshPage) {
+        const snapshot = await store.load(boardId);
+        if (epoch === this.epoch) this.restore(snapshot);
+      }
     } catch {
       // The store exposes the failure; drawing remains available.
     } finally {
@@ -1082,10 +1085,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.introduced.add(zone.id);
     this.modules.cat.enterRoom(zone);
     this.stuck.reset(this.nowMs);
-    this.remark(zone.intro, HINT_LIFETIME_MS, {
-      x: zone.checkpoint.x + ABOVE_ALICE.x,
-      y: zone.checkpoint.y + ABOVE_ALICE.y - 80,
-    });
+    if (!this.introducesItself)
+      this.remark(zone.intro, HINT_LIFETIME_MS, {
+        x: zone.checkpoint.x + ABOVE_ALICE.x,
+        y: zone.checkpoint.y + ABOVE_ALICE.y - 80,
+      });
   }
 
   private progress(line: string): void {
@@ -1772,6 +1776,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       ...(lifetimeMs === undefined ? {} : { lifetimeMs }),
       ...(anchor === undefined ? {} : { anchor }),
       ...(minY === undefined ? {} : { minY }),
+      ...(anchor === undefined && !silent ? { obstacles: this.obstacles() } : {}),
     });
   }
 
@@ -1850,6 +1855,26 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       width: right - x,
       height: bottom - y,
     };
+  }
+
+  private obstacles(): readonly Rect[] {
+    const tear = this.modules.sim.snapshot().tear;
+    if (tear === null) return [];
+    const viewport = this.modules.renderer.viewport();
+    const topLeft = this.modules.renderer.toWorld({ x: 0, y: 0 }, this.camera.camera);
+    const topRight = this.modules.renderer.toWorld(
+      { x: viewport.width, y: 100 },
+      this.camera.camera,
+    );
+    return [
+      { x: tear.at.x - 40, y: tear.at.y - 120, width: 80, height: 240 },
+      {
+        x: Math.min(topLeft.x, topRight.x),
+        y: Math.min(topLeft.y, topRight.y),
+        width: Math.abs(topRight.x - topLeft.x),
+        height: Math.abs(topRight.y - topLeft.y),
+      },
+    ];
   }
 
   private eraseAt(point: Vec): void {

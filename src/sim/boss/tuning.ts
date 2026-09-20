@@ -11,7 +11,7 @@ export const BODY_TUNING = {
   namedWingsOut: 0.15,
   armsOut: 0.12,
   partAliveRatio: 0.5,
-  graftReach: 14,
+  graftReach: 36,
   graftGlowMs: 1_400,
 } as const;
 
@@ -44,7 +44,7 @@ export const SNIPPER_TUNING: Readonly<Record<SnipperRank, SnipperTuning>> = {
     orbitSpeed: 1.1,
     approachSpeed: 0.24,
     firstCircleMs: 4_800,
-    circleMs: 2_600,
+    circleMs: 3_400,
     windUpMs: 1_100,
     lungeMs: 260,
     recoverMs: 900,
@@ -72,7 +72,7 @@ export const SNIPPER_TUNING: Readonly<Record<SnipperRank, SnipperTuning>> = {
 export const TEAR_TUNING = {
   aboveHeart: 220,
   entryDelayMs: 3_000,
-  mercyMs: 2_600,
+  mercyMs: 3_200,
   waves: [
     { belowHealth: 0.6, lessers: 1 },
     { belowHealth: 0.3, lessers: 2 },
