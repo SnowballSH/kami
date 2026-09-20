@@ -25,7 +25,6 @@ ML_DIR = Path(__file__).parent
 ALL_CATEGORIES_FILE = ML_DIR / "categories" / "all.txt"
 DOWNLOAD_BYTES_PER_DRAWING = 250
 BYTES_PER_MEGABYTE = 1_000_000
-CHECKPOINT_FILE = "model.pt"
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,8 +168,6 @@ def main() -> None:
     print(format_report("test", test))
 
     artifacts_dir = arguments.artifacts_dir / arguments.name
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), artifacts_dir / CHECKPOINT_FILE)
     trained_on = (
         f"Quick, Draw! {len(categories)} categories x {arguments.samples_per_class} recognised "
         f"drawings, {arguments.prefix_share:.0%} prefixes, {arguments.epochs} epochs"

@@ -29,6 +29,15 @@ order), which is what lets one stateless model guess while the pen is still movi
 | `labels.json` | array of K Quick, Draw! category names; index = logit index |
 | `preprocess.json` | `{ "size": 64, "canvas": 256, "margin": 12, "thickness": 6, "temperature": T, "renderSha256": "<sha of render.py>", "trainedOn": "...", "top1": x, "top3": y }` — `temperature` from temperature scaling on held-out data, so probabilities mean what they say |
 | `golden.json` | ~50 `{ "strokes": [...], "imageSha256": "...", "top3": [...] }` cases for parity tests |
+| `release.json` | version 1, `sha256` map of the four files above; its SHA-256 is the served `artifactId` |
+
+Exports build a new immutable sibling release and atomically replace the model-name symlink only
+after compatibility checks and golden generation succeed. Readers resolve the link once; previous
+releases remain available. An existing ordinary directory is never overwritten: export under a new
+name and select it with `KAMI_EYE_MODEL_NAME`. Legacy bundles require a reviewed re-export on GX10.
+The sidecar rejects incomplete/corrupt bundles, renderer mismatches, invalid temperature, duplicate
+or empty labels, and incompatible tensor types/shapes before listening. Its health adds `artifactId`
+and `renderMatches: true`; incompatible models never report healthy.
 
 ## The sidecar (`ml/sidecar.py`, Python 3.12, ONNX Runtime CPU, stdlib HTTP)
 

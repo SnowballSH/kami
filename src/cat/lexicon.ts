@@ -27,8 +27,8 @@ export const NATURE_THINGS: WordTable = {
   `),
   heavy: list(`
     rock, anvil, safe, boulder, stone, weight, dumbbell, barbell, kettlebell, iron, lead,
-    whale, piano, cannonball, bowling ball, anchor, mountain, meteor, asteroid, statue, truck,
-    tractor, bulldozer, bus, train, car, gold, gold bar, ingot, steel, metal, concrete, cement,
+    whale, piano, cannonball, bowling ball, anchor, mountain, meteor, asteroid, statue,
+    gold, gold bar, ingot, steel, metal, concrete, cement,
     hammer, fridge, paperweight, log, vault, pebble, planet, ton, tonne, lump, sandbag
   `),
   light: list(`
@@ -81,6 +81,13 @@ export const NATURE_THINGS: WordTable = {
     goose, flamingo, pelican, stork, hawk, falcon, vulture, ghost, angel, fairy, dragon, pegasus,
     phoenix, griffin, bluebird, ladybird, ladybug, jubjub bird, flier
   `),
+  vehicle: list(`
+    car, cart, wagon, truck, lorry, bus, van, train, tram, trolley, boat, ship, raft, canoe,
+    bicycle, bike, tricycle, scooter, skateboard, motorbike, motorcycle, tractor, bulldozer,
+    kart, go kart, jeep, taxi, cab, carriage, chariot, wheelbarrow, pram, buggy, tank, vehicle,
+    minecart, mine cart, rickshaw, ambulance, fire truck, firetruck, police car, race car,
+    racecar, sports car, limo, limousine, pickup, pickup truck, rocket sled, hoverboard
+  `),
   attractor: list(`
     black hole, blackhole, sun, vortex, whirlpool, singularity, gravity well,
     attractor, tractor beam
@@ -122,6 +129,7 @@ export const NATURE_DESCRIPTIONS: WordTable = {
   walker: list("walking, walks, walker, crawling, crawls, pacing, prowling, alive, living"),
   hopper: list("hopping, hops, hoppy, jumping, leaping, leaps, bounding"),
   flier: list("flying, flapping, flaps, flutters, fluttering, soaring, winged"),
+  vehicle: list("drivable, driveable, rideable, ridable, wheeled, motorised, motorized, driving"),
   attractor: list("magnetic, attracting, attractive, pulling, gravitational"),
   lantern: list("glowing, glows, lit, shining, shines, luminous, radiant"),
   solid: list("solid, static, fixed, immovable, unmovable, rigid"),
@@ -133,7 +141,7 @@ export const NATURE_DESCRIPTIONS: WordTable = {
 export const NEAR_ENOUGH_THINGS: Readonly<Partial<WordTable>> = {
   floaty: list(`
     helicopter, chopper, plane, airplane, aeroplane, aircraft, jet, rocket, drone, ufo, spaceship,
-    space ship, spacecraft, flying saucer, flying machine, glider, hovercraft, hoverboard,
+    space ship, spacecraft, flying saucer, flying machine, glider, hovercraft,
     elevator, lift, satellite
   `),
 };
