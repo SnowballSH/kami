@@ -307,6 +307,36 @@ describe("bad requests", () => {
       "rules/rule-1",
       { ...moonRule, effect: { governs: "magnetism", value: 2 } },
     ],
+    [
+      "a negative clone count",
+      "rules/rule-1",
+      { ...moonRule, effect: { governs: "clones", value: -1 } },
+    ],
+    [
+      "a fractional clone count",
+      "rules/rule-1",
+      { ...moonRule, effect: { governs: "clones", value: 1.5 } },
+    ],
+    [
+      "an excessive clone count",
+      "rules/rule-1",
+      { ...moonRule, effect: { governs: "clones", value: 1000 } },
+    ],
+    [
+      "zero Alice size",
+      "rules/rule-1",
+      { ...moonRule, effect: { governs: "aliceSize", value: 0 } },
+    ],
+    [
+      "an ink eater value outside its domain",
+      "rules/rule-1",
+      { ...moonRule, effect: { governs: "inkEater", value: 2 } },
+    ],
+    [
+      "a ruling strength outside its domain",
+      "drawings/drawing-1",
+      storedDrawing("drawing-1", { ...MUSHROOM_RULING, strength: -1 }),
+    ],
     ["an id that differs from the path", "notes/note-1", note("note-2", "x", 1)],
     ["a body that is not JSON", "notes/note-1", "{not json"],
   ])("answers 400 to %s", async (_what, path, body) => {

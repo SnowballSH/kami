@@ -4,6 +4,7 @@ import type { Ruling } from "../cat/types";
 import { distanceToRect, type Rect, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS, LOST_DISTANCE } from "../core/world";
 import type { Drawing, DrawingId } from "../ink/types";
+import { validPhysics } from "../rules/effectDomains";
 import { EARTH, type WorldPhysics } from "../rules/types";
 import { AliceController, type AliceSurroundings } from "./alice";
 import { pullToward } from "./attraction";
@@ -97,6 +98,7 @@ export class MatterSimulation implements Simulation {
   }
 
   setPhysics(physics: WorldPhysics): void {
+    if (!validPhysics(physics)) throw new RangeError("Invalid world physics");
     const { alice, twins, inks } = this.world;
     this.physics = physics;
     alice.applyPhysics(physics);

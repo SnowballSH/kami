@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { NATURES, type Ruling } from "../src/cat/types";
+import { NATURES, type Ruling, STRENGTH_RANGE } from "../src/cat/types";
 import { strokesSchema, textSchema, vecSchema } from "../src/core/input";
 import { INPUT_LIMITS } from "../src/core/inputLimits";
 import type { Drawing, DrawingId } from "../src/ink/types";
 import type { Note, NoteAction, NoteId } from "../src/notes/types";
 import type { StoredDrawing } from "../src/persistence/types";
+import { validEffect } from "../src/rules/effectDomains";
 import type { CompiledRule, Rule, RuleEffect, RuleId } from "../src/rules/types";
 
 const MAX_ID_LENGTH = 200;
@@ -31,7 +32,7 @@ export const drawingSchema = z.looseObject({
 export const rulingSchema = z.looseObject({
   name: text,
   nature: z.enum(NATURES),
-  strength: z.number(),
+  strength: z.number().min(STRENGTH_RANGE.min).max(STRENGTH_RANGE.max),
   tags: z.array(text),
   line: text,
 }) satisfies z.ZodType<Ruling>;
@@ -79,7 +80,7 @@ const scalarEffect = <
   governs: Governs,
 ) => z.object({ governs: z.literal(governs), value: z.number() });
 
-export const ruleEffectSchema = z.discriminatedUnion("governs", [
+export const rawRuleEffectSchema = z.discriminatedUnion("governs", [
   vectorEffect("gravity"),
   vectorEffect("wind"),
   scalarEffect("timeScale"),
@@ -95,6 +96,10 @@ export const ruleEffectSchema = z.discriminatedUnion("governs", [
   scalarEffect("clones"),
   scalarEffect("inkEater"),
 ]) satisfies z.ZodType<RuleEffect>;
+
+export const ruleEffectSchema = rawRuleEffectSchema.refine(validEffect, {
+  message: "effect is outside its supported domain",
+});
 
 export const compiledRuleSchema = z.object({
   effect: ruleEffectSchema,
