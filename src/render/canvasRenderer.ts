@@ -55,6 +55,7 @@ const chewOf = (sumikui: SumikuiSnapshot | null): Chew | null =>
 const swallowOf = (sumikui: SumikuiSnapshot | null, who: number): number =>
   sumikui?.quarry === "alice" && sumikui.prey === who ? sumikui.bite : 0;
 
+/** A body the player drew is their strokes, painted as they are; Kami's own Alice plays her beats. */
 const paintHer = (
   ctx: CanvasRenderingContext2D,
   alice: AliceSnapshot,
@@ -149,15 +150,17 @@ export class CanvasRenderer implements Renderer {
       ctx.restore();
     }
     if (world.soul !== null) paintSoul(ctx, world.soul, nowMs);
-    if (world.alice !== null && aliceInView(world.alice, view)) {
+    if (world.alice !== null) {
       const figure = this.troupe.figureOf(ALICE_HERSELF, world.alice, events, nowMs);
-      ctx.save();
-      ctx.globalAlpha = 1 - swallowOf(world.sumikui, ALICE_HERSELF);
-      paintHer(ctx, world.alice, figure, nowMs, {
-        ribbon: null,
-        selected: several && (frame.selectedAlice ?? ALICE_HERSELF) === ALICE_HERSELF,
-      });
-      ctx.restore();
+      if (aliceInView(world.alice, view)) {
+        ctx.save();
+        ctx.globalAlpha = 1 - swallowOf(world.sumikui, ALICE_HERSELF);
+        paintHer(ctx, world.alice, figure, nowMs, {
+          ribbon: null,
+          selected: several && (frame.selectedAlice ?? ALICE_HERSELF) === ALICE_HERSELF,
+        });
+        ctx.restore();
+      }
     }
     if (world.sumikui !== null) {
       paintFeeding(ctx, world, frame.inks, nowMs);

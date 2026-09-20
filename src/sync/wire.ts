@@ -29,11 +29,9 @@ export const peerIdSchema = z.string().regex(PEER_ID_PATTERN) as unknown as z.Zo
 
 const brandedId = <Id extends string>() => entityIdSchema as unknown as z.ZodType<Id>;
 const vecSchema = z.object({ x: z.number(), y: z.number() });
+const gaitSchema = z.enum(["vehicle", "walker", "hopper", "flier"]);
 
-const rideSchema: z.ZodType<Ride> = z.object({
-  id: brandedId<DrawingId>(),
-  gait: z.enum(["vehicle", "walker", "hopper", "flier"]),
-});
+const rideSchema: z.ZodType<Ride> = z.object({ id: brandedId<DrawingId>(), gait: gaitSchema });
 
 const lookSchema: z.ZodType<AliceLook> = z.object({ kind: z.literal("alice") });
 
