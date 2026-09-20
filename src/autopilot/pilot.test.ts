@@ -9,7 +9,7 @@ import { enter, runSteps } from "../sim/testSupport";
 import { ALICE_BASE, type AliceSize, type AliceSnapshot } from "../sim/types";
 import { CELL_PX, CellFlag, Chart, MAX_CHART_CELLS } from "./chart";
 import { createAutopilot } from "./index";
-import { footprintFor } from "./pathfinder";
+import { footprintFor, nodeOfFeet, Pathfinder } from "./pathfinder";
 import type { Scene, SceneInk } from "./types";
 
 const GROUND_Y = 400;
@@ -381,6 +381,59 @@ describe("Pilot", () => {
       stuck: false,
     });
   });
+
+  it.each([
+    { size: "big" as const, scale: 2, gravity: 1, ditch: 96 },
+    { size: "normal" as const, scale: 1, gravity: 0.165, ditch: 64 },
+  ])(
+    "keeps $size jumps under gravity $gravity above the raster clear",
+    ({ size, scale, gravity, ditch }) => {
+      const feet = { x: GAP.x - 40, y: GROUND_Y };
+      const current = scene({
+        alice: alice(feet, size),
+        board: board({
+          goal: { x: 700, y: GROUND_Y - 60, width: 40, height: 60 },
+          solids: [
+            solid({ x: 0, y: GROUND_Y, width: GAP.x, height: 40 }),
+            solid({ x: GAP.x + ditch, y: GROUND_Y, width: 500, height: 40 }),
+          ],
+        }),
+        walkSpeed: walkSpeedAt(scale),
+        jumpArc: jumpArcUnder({ ...EARTH, gravity: { x: 0, y: gravity } }, scale),
+      });
+      const chart = Chart.of(current);
+      if (chart === null) throw new Error("ordinary chart refused");
+      expect(GROUND_Y - current.jumpArc.apexPx - current.alice.height).toBeLessThan(
+        chart.range.r0 * CELL_PX,
+      );
+      const footprint = footprintFor(current.alice);
+      const finder = new Pathfinder(chart, current, footprint);
+      const path = finder.route(nodeOfFeet(feet, footprint), {
+        kind: "objective",
+        objective: "goal",
+      });
+      expect(path?.some((waypoint) => waypoint.via === "jump")).toBe(true);
+      expect(path?.every((waypoint) => finder.isFree(waypoint.node))).toBe(true);
+      const pilot = createAutopilot();
+      expect(pilot.drive(current).x).toBe(1);
+      expect(pilot.status).toMatchObject({ errand: { kind: "objective" }, stuck: false });
+
+      const ceiling = solid({
+        x: 0,
+        y: GROUND_Y - current.alice.height - current.jumpArc.apexPx - 16,
+        width: 1000,
+        height: current.jumpArc.apexPx + 8,
+      });
+      pilot.invalidate();
+      pilot.drive(
+        scene({
+          ...current,
+          board: { ...current.board, solids: [...current.board.solids, ceiling] },
+        }),
+      );
+      expect(pilot.status.errand.kind).toBe("wait");
+    },
+  );
 
   it("prefers the key, then the door, then the goal", () => {
     const pilot = createAutopilot();
