@@ -7,7 +7,9 @@
 
 *Kami* (紙) is paper. *Kami* (神) is also the spirit that lives in a thing. The game is both: a world made of paper, where anything you draw gets a spirit the moment you say what it is.
 
-This is the source of truth for **what we're making and why**. How it's built lives in `engineering-notes.md`; the cabinet lives in `hardware.md`.
+This is the source of truth for **what we're making and why**. How it's built, including demo
+differences and verification limits, lives in [architecture.md](architecture.md); the cabinet
+lives in [hardware.md](hardware.md). Historical designs are archived separately.
 
 ---
 

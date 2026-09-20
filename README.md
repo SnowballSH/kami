@@ -2,14 +2,14 @@
 
 **HackMIT 2026 · Alice in Wonderland · Entertainment track**
 
-> Alice can't jump. You can draw.
+> Alice can hop, not fly. You can draw.
 > Draw it. Name it. It wakes up.
 
-*Kami* (紙) is paper; *kami* (神) is the spirit in a thing. A hand-drawn puzzle-platformer down the rabbit hole: what you draw becomes solid ink, and becomes whatever you say it is. The Cheshire Cat listens, talks back, and helps when you're stuck. Playable on a laptop, or on the cabinet — arcade stick to walk, two Etch A Sketch knobs to draw.
+*Kami* (紙) is paper; *kami* (神) is the spirit in a thing. A hand-drawn puzzle-platformer down the rabbit hole: what you draw becomes solid ink, and becomes whatever you say it is. The Cheshire Cat listens, talks back, and helps when you're stuck. The software demo supports mouse, keyboard and touch. The cabinet remains a partial integration; knob drawing and full physical acceptance are not complete.
 
 ## Play the software demo
 
-One endless whiteboard. **Sketch** and the ink is solid. **Write a note beside a sketch** and it *is* that thing — *a bouncy mushroom*, *ground*, *goal*, *lava*. **Write a law anywhere else** — *set g equal to the moon's gravity*, *no friction*, *wind blows right*, *slow motion* — and the world obeys. Kami answers in his own handwriting, on the board. Everything is remembered in MongoDB. Built for an iPad: finger or Apple Pencil draws, two fingers pan and pinch, the d-pad walks Alice, and the write tool takes typing or Pencil Scribble.
+One endless whiteboard. **Sketch** and the ink is solid. **Write a note beside a sketch** and it *is* that thing — *a bouncy mushroom*, *ground*, *goal*, *lava*. **Write a law** — *set g equal to the moon's gravity*, *no friction*, *wind blows right*, *slow motion* — and the world obeys. Known laws take priority over nearby naming; model compilation is the last fallback. Kami answers in his own handwriting. MongoDB remembers saved drawings, notes and laws; the board menu reports unsaved edits. Touch gestures and Pencil Scribble are supported by the input code, with physical tablet verification still required.
 
 ```bash
 bun install
@@ -17,7 +17,7 @@ bun run quickdraw:ingest   # once: teaches Kami to recognise sketches from Googl
 bun run dev                # web on :5173 + API/MongoDB on :8787
 ```
 
-Open the printed **Network** URL on an iPad on the same Wi-Fi (landscape; *Share → Add to Home Screen* for full-screen). On a laptop: mouse draws, arrow keys walk, `D` `T` `E` `H` pick draw / write / erase / pan (hold Space to pan), wheel pans, pinch or ctrl-wheel zooms.
+Open the printed **Network** URL on an iPad on the same trusted Wi-Fi (landscape; *Share → Add to Home Screen* for full-screen). On a laptop: mouse draws, arrow keys walk, `D` `T` `E` `H` pick draw / write / erase / pan, Space holds CAT speech input, wheel pans, pinch or ctrl-wheel zooms. Voice requires a secure browser context and the server's Deepgram configuration. See [deployment/security status](docs/architecture.md#deployment-and-security-status) before network use.
 
 - **The Alice demo** is the `wonderland` board: bridge the ditch → get up the ledge (*a bouncy mushroom*, *a ladder*, *a cloud* — or just write *g = moon* and see what that does to a bounce) → *a cake* to grow and take the key, *drink me* to shrink through the tiny door → the rabbit hole. Stuck? Write *help*.
 - **A new game** is a blank board: board menu → *new board* (or `?board=anything`). Sketch ground and write *ground*; sketch a flag and write *goal*; add *lava*, *start here*, a few laws of physics. It saves as you go.
@@ -31,10 +31,10 @@ Open the printed **Network** URL on an iPad on the same Wi-Fi (landscape; *Share
 | Doc | What |
 |---|---|
 | [`docs/spec.md`](docs/spec.md) | **The spec. Source of truth for what Kami is** — pillars, mechanics, rulings, the Cat, the rooms, demo, scope, schedule. No code. |
-| [`docs/hardware.md`](docs/hardware.md) | The cabinet: parts status, what's still missing, wiring, serial protocol, bring-up steps. |
-| [`docs/architecture.md`](docs/architecture.md) | How the software demo is actually built: modules, contracts, the numbers that must agree. |
-| [`docs/engineering-notes.md`](docs/engineering-notes.md) | How to build it, for when we get there: architecture, tested physics snippets, level-file conventions, agent tools, eval prompts. |
-| [`hardware/cabinet/cabinet.ino`](hardware/cabinet/cabinet.ino) | UNO R4 WiFi firmware draft. Not yet compiled. |
+| [`docs/architecture.md`](docs/architecture.md) | **Current integration guide:** implementation, ownership, API/model contracts, security status and verification limits. |
+| [`docs/hardware.md`](docs/hardware.md) | Cabinet design and bring-up reference; [current path and pending R19 integration](docs/architecture.md#controllers-and-voice) take precedence over its browser Web Serial proposal. |
+| [`docs/engineering-notes.md`](docs/engineering-notes.md) | Pointer to archived design experiments; not a build plan. |
+| [`hardware/cabinet/cabinet.ino`](hardware/cabinet/cabinet.ino) | UNO R4 WiFi firmware; [R19](https://github.com/SnowballSH/kami/pull/41) adds a verified build and server adapter, without claiming physical readiness. |
 
 `docs/archive/` is history: the original "Paper" ideation doc, its review, plan v2, and plan v3 ("Curiouser"). **Don't build from the archive.**
 
