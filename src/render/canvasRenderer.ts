@@ -2,8 +2,18 @@ import type { BoardDefinition } from "../board/types";
 import { distanceToRect, type Rect, type Vec } from "../core/geometry";
 import type { Handwriting } from "../handwriting/types";
 import type { AliceSnapshot, SumikuiSnapshot } from "../sim/types";
-import { paintAlice } from "./alicePainter";
+import { type AliceBadge, paintAlice } from "./alicePainter";
 import { BoardPainter } from "./boardPainter";
+import {
+  paintCutMark,
+  paintDimVeil,
+  paintDrawnAlice,
+  paintHealthBar,
+  paintSnipper,
+  paintSoul,
+  paintTear,
+  paintTelegraph,
+} from "./bossPainter";
 import {
   applyDeviceTransform,
   backingStoreSize,
@@ -25,6 +35,8 @@ import { PointerTracker } from "./pointerTracker";
 import { paintSumikui } from "./sumikuiPainter";
 import type { Camera, Chew, Renderer, RenderFrame } from "./types";
 
+export const GHOST_ALPHA = 0.35;
+
 const aliceInView = (alice: AliceSnapshot, view: Rect): boolean =>
   distanceToRect(alice.center, view) <= Math.max(alice.width, alice.height);
 
@@ -36,6 +48,19 @@ const chewOf = (sumikui: SumikuiSnapshot | null): Chew | null =>
 /** How far Alice has gone down its throat: she fades as it closes on her. */
 const swallowOf = (sumikui: SumikuiSnapshot | null, who: number): number =>
   sumikui?.quarry === "alice" && sumikui.prey === who ? sumikui.bite : 0;
+
+const paintHer = (
+  ctx: CanvasRenderingContext2D,
+  alice: AliceSnapshot,
+  nowMs: number,
+  badge: AliceBadge,
+): void => {
+  if (alice.look.kind === "drawn") paintDrawnAlice(ctx, alice, nowMs, badge);
+  else paintAlice(ctx, alice, nowMs, badge);
+};
+
+const cannotSee = (alice: AliceSnapshot | null): boolean =>
+  alice?.look.kind === "drawn" && !alice.look.abilities.see;
 
 export class CanvasRenderer implements Renderer {
   private readonly ctx: CanvasRenderingContext2D;
@@ -97,33 +122,41 @@ export class CanvasRenderer implements Renderer {
     this.inkPainter.paintInks(ctx, frame.inks, view, nowMs, chewOf(world.sumikui));
     const moonlit = frame.daylight < 1;
     if (!moonlit) this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
+    if (world.tear !== null) paintTear(ctx, world.tear, nowMs);
+    this.paintGhosts(ctx, frame.ghosts ?? [], view, nowMs);
     const several = world.twins.length > 0;
     for (const [index, twin] of world.twins.entries()) {
       if (!aliceInView(twin, view)) continue;
       ctx.save();
       ctx.globalAlpha = 1 - swallowOf(world.sumikui, index + 1);
-      paintAlice(ctx, twin, nowMs, {
+      paintHer(ctx, twin, nowMs, {
         ribbon: index + 1,
         selected: several && frame.selectedAlice === index + 1,
       });
       ctx.restore();
     }
-    if (aliceInView(world.alice, view)) {
+    if (world.soul !== null) paintSoul(ctx, world.soul, nowMs);
+    if (world.alice !== null && aliceInView(world.alice, view)) {
       ctx.save();
       ctx.globalAlpha = 1 - swallowOf(world.sumikui, 0);
-      paintAlice(ctx, world.alice, nowMs, {
+      paintHer(ctx, world.alice, nowMs, {
         ribbon: null,
         selected: several && (frame.selectedAlice ?? 0) === 0,
       });
       ctx.restore();
     }
     if (world.sumikui !== null) paintSumikui(ctx, world.sumikui, nowMs);
+    if (world.tear !== null) {
+      for (const mark of world.tear.cuts) paintCutMark(ctx, mark);
+      for (const snipper of world.tear.snippers) paintTelegraph(ctx, snipper);
+      for (const snipper of world.tear.snippers) paintSnipper(ctx, snipper, nowMs);
+    }
     this.inkPainter.paintHeld(ctx, frame.heldInks);
     this.inkPainter.paintActive(ctx, frame.activeStrokes, frame.activeVerdict);
     this.nightPainter.paint(
       ctx,
       frame.daylight,
-      lightsOf([world.alice, ...world.twins], frame.inks),
+      lightsOf(world.alice === null ? world.twins : [world.alice, ...world.twins], frame.inks),
       { width: this.canvas.width, height: this.canvas.height },
       transform,
     );
@@ -131,7 +164,32 @@ export class CanvasRenderer implements Renderer {
       applyDeviceTransform(ctx, transform);
       this.notePainter.paintNotes(ctx, frame.notes, view, nowMs, frame.daylight);
     }
+    this.paintOverlay(frame);
     if (frame.eraserActive) this.paintEraserCursor();
+  }
+
+  /** Other devices' Alices on a shared page: there, but faint, so whose is whose stays clear. */
+  private paintGhosts(
+    ctx: CanvasRenderingContext2D,
+    ghosts: readonly AliceSnapshot[],
+    view: Rect,
+    nowMs: number,
+  ): void {
+    if (ghosts.length === 0) return;
+    ctx.save();
+    ctx.globalAlpha = GHOST_ALPHA;
+    for (const ghost of ghosts) if (aliceInView(ghost, view)) paintAlice(ctx, ghost, nowMs);
+    ctx.restore();
+  }
+
+  private paintOverlay(frame: RenderFrame): void {
+    const { ctx } = this;
+    const { world, nowMs } = frame;
+    const dim = cannotSee(world.alice);
+    if (world.tear === null && !dim) return;
+    ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+    if (dim) paintDimVeil(ctx, this.box);
+    if (world.tear !== null) paintHealthBar(ctx, world.tear, this.box.width, nowMs);
   }
 
   private paintEraserCursor(): void {

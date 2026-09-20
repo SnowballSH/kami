@@ -48,6 +48,7 @@ const alice = (feet: Vec): AliceSnapshot => ({
   grounded: true,
   climbing: false,
   hasKey: false,
+  look: { kind: "alice" },
 });
 
 const sumikui = (

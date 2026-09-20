@@ -147,6 +147,8 @@ One book, six pages, each a page deeper. The Rabbit runs the room first — his 
 | 6 | **The Trial** | Everything at once | A wall of cards. A ceiling too low to grow under. | Drop something heavy on the lever to raise the ceiling → cake → grow enormous → walk straight through. *"You're nothing but a pack of cards!"* | — |
 | ∞ | **The Mad Tea Party** | Nothing. It's a party. | No exit, endless ink, endless enchantments. | Free play — the original "say anything and it happens" toy, safely outside the puzzles. | — |
 
+**The Sandbox** (`?mode=sandbox`, [modes.md](modes.md)) is the Tea Party as built: an endless page with no rabbit hole and no edges, a strip of ground under Alice and nothing else until someone draws. Everyone who opens the same page id draws on the same paper and sees each other's ink, notes and laws as they happen; each device has its own Alice and sees the others' as faint ghosts. She wanders toward the newest ink on her own. Kami keeps quiet unless asked — *help*, *what can I do?*, *how do I get across?*, *give me an idea* — and then answers with a sketch (the start of a bridge over a gap, a ladder against a wall, a friend to name) or a law to try. Nothing hungry lives on this page: the Sumikui cannot be summoned there. The only chrome is a title card and a share button with the link and a QR.
+
 **Ending.** Alice wakes on the riverbank. The credits are a flip-through of **everything the player drew**, each captioned with what they called it. It is always funny, and it is theirs.
 
 **Teacups.** Each room awards up to three: cleared · under the ink par · no hints. Costs nothing to build and gives a reason to replay.
@@ -156,6 +158,10 @@ One book, six pages, each a page deeper. The Rabbit runs the room first — his 
 ### Puzzle mode (built)
 
 The rooms above are the book's plan; what is built and playable today is **Puzzle mode** (`?mode=puzzle`, [puzzles.md](puzzles.md)): seven small rooms in a row — the Wall, the Keyhole, the Moon Ledge, the Dark Hall, the Twin Doors, the Shaft, the Pit — each staged so that exactly one drawn or written idea is the way through (a spring, a shrinking bottle or *"alice is tiny"*, *"we are on the moon"*, lanterns, a pair of portals, *"alice can fly"*, a spring *and* the Moon). The room's zone grants one nature or none, and only the room's own dials may be written; anything else is plain ink or plain writing. The Sumikui is loose from the first frame, so ink left idle is ink lost — *"banish the ink eater"* still works, for the price of a sentence. Alice walks herself; a title card with Kami's one line opens each room, the stuck detector's hints come only after a long stall, a quiet closing line and the rabbit hole lead to the next room, and a small *room n of m* stays in the corner. Nothing is saved between visits.
+
+### Ways to play a page
+
+A **mode** is how the player *is* on a page ([modes.md](modes.md)): embodied (Alice is there; you draw for her), as a spirit (nobody is there until you draw her and name her), and **Boss** — the spirit opening for two people at one board ([boss.md](boss.md)). One draws, the other steers (keys, the on-screen stick, or the cabinet's joystick). The page opens with only a heart at the spawn; a body drawn around it and named — *alice*, *me*, *a knight*, any body noun — becomes hers, and its parts are her abilities: legs walk and jump, arms climb, wings fly, a head sees. Then the page tears and a servant of the one under the page — another shard of the thing the Sumikui broke off — comes through to *snip* the body apart one part at a time, telegraphing every cut. The drawer redraws what is snipped and it glows back into her; the player dodges and swings whatever is drawn into their hand. Hurt it and the tear closes; let it reach the heart and the page starts over. It keeps the pillars — drawing is still the verb, the body is what you say it is, the fight is telegraphed thought, not twitch — and it is the one place Kami is afraid.
 
 ## 8. Look, sound, feel
 
@@ -204,7 +210,7 @@ Still needed from the desk: a breadboard, a USB-C data cable, a way onto the sti
 |---|---|
 | **Floor** — a complete, themed, AI-load-bearing game | Rooms 1–3 · natures · the Cat in captions with the hint ladder · typed names and guess chips · ink meter, erase, bullet-time, no death |
 | **Target** — what we expect to show | Voice both ways · adjectives · Rooms 4–5 · teacups · torn-page transitions and sound · the cabinet with ink-meter LEDs · booth mode |
-| **Stretch** | Enchantments + the Mad Tea Party · Room 6 + the ending flip-through · trace-over guides · Cat stripes / fall pulse on the strip · "how others solved this page" gallery · the Queen's RFID cards |
+| **Stretch** | Enchantments + the Mad Tea Party (built as the Sandbox, §7) · Room 6 + the ending flip-through · trace-over guides · Cat stripes / fall pulse on the strip · "how others solved this page" gallery · the Queen's RFID cards |
 
 **Cut from the top of this list:** gallery → RFID → LED effects beyond the ink meter → trace-over guides → Room 6 and ending → Tea Party and enchantments → Room 5 → Room 4 → the Cat's spoken voice (captions remain) → cabinet knobs, then stick → voice input (chips and typing remain). **Never cut the floor.**
 

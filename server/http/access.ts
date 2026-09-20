@@ -56,6 +56,10 @@ export class ApiAccess {
     return this.config.mode === "demo" ? null : this.#sessions.credential(request);
   }
 
+  allowsBoard(request: Request, id: string): boolean {
+    return this.config.mode === "demo" || (this.scope(request)?.boards.includes(id) ?? false);
+  }
+
   allowsController(request: Request, id: string): boolean {
     return this.config.mode === "demo" || (this.scope(request)?.controllers.includes(id) ?? false);
   }

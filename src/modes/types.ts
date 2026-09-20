@@ -1,4 +1,4 @@
-import type { BoardDefinition } from "../board/types";
+import type { BoardDefinition, PageKind } from "../board/types";
 import type { AllowedNatures, Ruling } from "../cat/types";
 import type { DrawingId } from "../ink/types";
 import type { Governs, WorldPhysics } from "../rules/types";
@@ -24,11 +24,15 @@ export type Opening =
   | { readonly player: "body" }
   | { readonly player: "spirit"; readonly incarnation: Incarnation };
 
-/** `reach-goal` is the rabbit hole or a drawing named goal; `endless` never ends; `outlast` is surviving that long. */
+/**
+ * `reach-goal` is the rabbit hole or a drawing named goal; `endless` never ends; `outlast` is
+ * surviving that long; `defeat-foe` is closing the tear a servant of the one under the page came through.
+ */
 export type WinRule =
   | { readonly kind: "reach-goal" }
   | { readonly kind: "endless" }
-  | { readonly kind: "outlast"; readonly ms: number };
+  | { readonly kind: "outlast"; readonly ms: number }
+  | { readonly kind: "defeat-foe" };
 
 /**
  * What losing her body means. `respawn`: she is set down at her checkpoint. `unmade`: the body is
@@ -48,12 +52,26 @@ export type LawPolicy =
 /** Narrows the board's own `RoomBrief.allowedNatures`; never widens it. */
 export type NaturePolicy = AllowedNatures;
 
+/**
+ * When Kami helps unasked. `offered`: the stuck detector climbs the hint ladder when she has made
+ * no progress for a while. `on-request`: he only answers when the player writes for help.
+ */
+export type HelpPolicy = "offered" | "on-request";
+
+/**
+ * Whether the board is played alone or with everyone who has it open. `live`: other devices' ink,
+ * notes and laws arrive as they happen, and their Alices walk the page as ghosts.
+ */
+export type SharingPolicy = "alone" | "live";
+
 /** What the title card and Kami say about the mode. */
 export interface ModeCard {
   readonly title: string;
   readonly tagline: string;
   /** Kami's first line when a room opens in this mode. */
   readonly opening: string;
+  /** One line per player when the mode is for more than one pair of hands. */
+  readonly roles?: readonly string[];
 }
 
 /**
@@ -70,6 +88,12 @@ export interface GameMode {
   readonly natures: NaturePolicy;
   /** Whether she may walk herself; a spirit's drawn Alice may be meant to be steered by hand. */
   readonly autopilot: "allowed" | "forbidden";
+  /** How the board id is read: as the room sketched under it, or as an endless page. */
+  readonly page: PageKind;
+  readonly help: HelpPolicy;
+  readonly sharing: SharingPolicy;
+  /** What Kami says instead of the stock refusal when a law turns a dial this mode forbids. */
+  readonly refusals?: Readonly<Partial<Record<Governs, string>>>;
 }
 
 /** What the player is right now, as opposed to at the opening. */
@@ -80,8 +104,14 @@ export type PlayerState =
 /** A change of body, reported by the director for the game to enact and Kami to remark on. */
 export type EmbodimentTransition =
   | { readonly kind: "incarnated"; readonly by: "spawn" }
-  | { readonly kind: "incarnated"; readonly by: "drawing"; readonly drawingId: DrawingId }
-  | { readonly kind: "unmade"; readonly cause: "fell" | "devoured" };
+  | {
+      readonly kind: "incarnated";
+      readonly by: "drawing";
+      readonly drawingId: DrawingId;
+      readonly name: string;
+    }
+  | { readonly kind: "unmade"; readonly cause: "fell" | "devoured" | "swallowed" }
+  | { readonly kind: "tear-opens" };
 
 /** The title card shown as a staged room opens. */
 export interface RoomCard {
@@ -121,7 +151,7 @@ export interface ModeDirector {
   open(board: BoardDefinition): PlayerState;
   witness(event: SimEvent): readonly EmbodimentTransition[];
   /** A drawing was named. In a spirit room this is where she may be drawn into being. */
-  named(drawingId: DrawingId, ruling: Ruling): EmbodimentTransition | null;
+  named(drawingId: DrawingId, ruling: Ruling): readonly EmbodimentTransition[];
   /** True when the room has been won under this mode's `WinRule`. */
   won(event: SimEvent): boolean;
   close(): void;

@@ -3,6 +3,7 @@ import { blankBoard } from "../board/boards/blank";
 import type { BoardDefinition } from "../board/types";
 import { EARTH, type WorldPhysics } from "../rules/types";
 import {
+  aliceOf,
   blob,
   drawingOf,
   enter,
@@ -51,13 +52,13 @@ describe("laws about Alice", () => {
     sim.setPhysics({ ...EARTH, clones: 8, aliceSize: 0.25, inkEater: 1 });
     runSteps(sim, 60);
     expect(sim.snapshot().twins).toHaveLength(8);
-    expect(sim.snapshot().alice.height).toBeCloseTo(ALICE_BASE.height * 0.25);
+    expect(aliceOf(sim).height).toBeCloseTo(ALICE_BASE.height * 0.25);
     expect(sim.snapshot().sumikui).not.toBeNull();
     sim.setPhysics(EARTH);
     runSteps(sim, 60);
     expect(sim.snapshot().twins).toEqual([]);
     expect(sim.snapshot().sumikui).toBeNull();
-    expect(sim.snapshot().alice.height).toBeCloseTo(ALICE_BASE.height);
+    expect(aliceOf(sim).height).toBeCloseTo(ALICE_BASE.height);
     expect(Number.isFinite(feetOf(sim).y)).toBe(true);
   });
 
@@ -67,7 +68,7 @@ describe("laws about Alice", () => {
     sim.setWalkIntent(UP);
     runSteps(sim, 60);
     expect(feetOf(sim).y).toBeLessThan(GROUND - 100);
-    expect(sim.snapshot().alice.grounded).toBe(false);
+    expect(aliceOf(sim).grounded).toBe(false);
 
     sim.setWalkIntent({ x: 0, y: 0 });
     runSteps(sim, 60);
@@ -76,7 +77,7 @@ describe("laws about Alice", () => {
     sim.setPhysics(EARTH);
     runSteps(sim, 120);
     expect(feetOf(sim).y).toBeCloseTo(GROUND, 0);
-    expect(sim.snapshot().alice.grounded).toBe(true);
+    expect(aliceOf(sim).grounded).toBe(true);
   });
 
   it("walks her twice as far in the same time when the pace law says so", () => {
@@ -87,10 +88,10 @@ describe("laws about Alice", () => {
     const sim = enter(board);
     sim.setPhysics({ ...EARTH, aliceSize: 2 });
     runSteps(sim, 60);
-    expect(sim.snapshot().alice.height).toBeCloseTo(ALICE_BASE.height * 2, 0);
+    expect(aliceOf(sim).height).toBeCloseTo(ALICE_BASE.height * 2, 0);
     sim.setPhysics(EARTH);
     runSteps(sim, 60);
-    expect(sim.snapshot().alice.height).toBeCloseTo(ALICE_BASE.height, 0);
+    expect(aliceOf(sim).height).toBeCloseTo(ALICE_BASE.height, 0);
   });
 
   it("holds the size law back under a low ceiling, and grants it once she walks clear", () => {
@@ -105,12 +106,12 @@ describe("laws about Alice", () => {
     const sim = enter(lidded);
     sim.setPhysics({ ...EARTH, aliceSize: 2 });
     runSteps(sim, 60);
-    expect(sim.snapshot().alice.height).toBeCloseTo(ALICE_BASE.height, 0);
+    expect(aliceOf(sim).height).toBeCloseTo(ALICE_BASE.height, 0);
 
     sim.setWalkIntent(RIGHT);
-    runUntil(sim, (_events, world) => world.snapshot().alice.height > ALICE_BASE.height * 1.9);
+    runUntil(sim, (_events, world) => aliceOf(world).height > ALICE_BASE.height * 1.9);
     runSteps(sim, 30);
-    expect(sim.snapshot().alice.height).toBeCloseTo(ALICE_BASE.height * 2, 0);
+    expect(aliceOf(sim).height).toBeCloseTo(ALICE_BASE.height * 2, 0);
   });
 
   it("draws loose drawings toward her when she attracts, and pushes them off when she repels", () => {

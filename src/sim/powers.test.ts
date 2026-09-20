@@ -3,6 +3,7 @@ import { blankBoard } from "../board/boards/blank";
 import { poseToWorld, type Stroke } from "../core/geometry";
 import { type BodyLaw, EARTH, type Target } from "../rules/types";
 import {
+  aliceOf,
   blob,
   drawingOf,
   enter,
@@ -132,10 +133,7 @@ describe("wings", () => {
     sim.applyRuling(idOf("car"), { ...rulingOf("vehicle"), name: "car" });
     runSteps(sim, 60);
     sim.setWalkIntent(RIGHT);
-    runUntil(
-      sim,
-      (_events, current) => current.snapshot().alice.grounded && feetOf(current).x > 60,
-    );
+    runUntil(sim, (_events, current) => aliceOf(current).grounded && feetOf(current).x > 60);
     sim.setWalkIntent(STAY);
     const parked = centreOf(sim, "car").position.y;
     sim.setPhysics({ ...EARTH, bodies: [law(named("car"), { wings: 1 })] });

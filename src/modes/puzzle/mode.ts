@@ -20,4 +20,7 @@ export const PUZZLE_MODE: GameMode = {
   laws: { kind: "only", dials: ["inkEater"] },
   natures: "all",
   autopilot: "allowed",
+  page: "room",
+  help: "offered",
+  sharing: "alone",
 };

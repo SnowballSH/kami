@@ -1,15 +1,9 @@
 import { createAutopilot } from "../autopilot";
-import { boardFor, DEMO_BOARD_ID } from "../board";
+import { boardFor } from "../board";
 import { createCat } from "../cat";
 import { createHandwriting } from "../handwriting";
 import { createInkSession, findDrawingAt } from "../ink";
-import {
-  EMBODIED_MODE_ID,
-  type GameMode,
-  modeFor,
-  PUZZLE_MODE_ID,
-  puzzleBoardIdFor,
-} from "../modes";
+import { type GameMode, PUZZLE_MODE_ID } from "../modes";
 import {
   createBoardStore,
   createHandwritingReader,
@@ -24,13 +18,13 @@ import { createRenderer } from "../render";
 import { createRuleCompiler, createSceneCompiler, resolvePhysics } from "../rules";
 import { createSimulation } from "../sim";
 import { Summoner } from "../summoning";
+import { createBoardLink } from "../sync";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
 import { createVoice } from "../voice";
 import { ForgetfulBoardStore } from "./forgetfulStore";
 import { DEFAULT_TIDINESS, Game } from "./game";
+import { BOARD_PARAM, boardInUrl, modeInUrl, shareLink } from "./launch";
 
-const BOARD_PARAM = "board";
-const MODE_PARAM = "mode";
 const AUTOPILOT_PARAM = "autopilot";
 const AUTOPILOT_MEMORY = "kami.autopilot";
 const ON = "on";
@@ -75,18 +69,6 @@ const rememberTidiness = (tidiness: number): void => {
   } catch {}
 };
 
-const boardInUrl = (): string =>
-  new URLSearchParams(window.location.search).get(BOARD_PARAM) ?? DEMO_BOARD_ID;
-
-/** `?mode=puzzle` plays the puzzle rooms in order, from the first or from the `board` named. */
-const modeInUrl = (): GameMode =>
-  modeFor(new URLSearchParams(window.location.search).get(MODE_PARAM) ?? EMBODIED_MODE_ID);
-
-const openingBoardFor = (mode: GameMode): string =>
-  mode.id === PUZZLE_MODE_ID
-    ? puzzleBoardIdFor(new URLSearchParams(window.location.search).get(BOARD_PARAM))
-    : boardInUrl();
-
 const rememberBoardInUrl = (boardId: string): void => {
   const url = new URL(window.location.href);
   url.searchParams.set(BOARD_PARAM, boardId);
@@ -98,7 +80,7 @@ export function startGame(root: HTMLElement): void {
   root.prepend(canvas);
   const handwriting = createHandwriting();
   const renderer = createRenderer(canvas, handwriting);
-  const mode = modeInUrl();
+  const mode = modeInUrl(window.location.search);
   const store = mode.id === PUZZLE_MODE_ID ? new ForgetfulBoardStore() : createBoardStore();
   guardUnsavedChanges(window, store);
   const recognizer = createRecognizer();
@@ -123,14 +105,16 @@ export function startGame(root: HTMLElement): void {
       createVoice,
       createLawsPanel: (handlers) => createLawsPanel(root, handlers),
       findDrawingAt,
-      mode,
       onBoardOpened: rememberBoardInUrl,
+      link: createBoardLink(),
+      shareLinkFor: (boardId) => shareLink(window.location.href, boardId, mode),
+      mode,
       selfDriving: startsSelfDriving(mode),
       onSelfDrivingChanged: rememberSelfDriving,
       tidiness: rememberedTidiness(),
       onTidinessChanged: rememberTidiness,
     },
-    openingBoardFor(mode),
+    boardInUrl(window.location.search, mode),
   );
 
   attachCanvasInput(canvas, () => game.currentTool, game);

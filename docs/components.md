@@ -74,7 +74,8 @@ main.ts → game/index.ts:startGame(canvas, options)
 |---|---|---|---|
 | Board definition | `src/board/types.ts`, `src/board/index.ts` | built | `BoardDefinition`: pre-sketched solids, zones with checkpoints, spawn, goal, `killY`, no-ink zones |
 | Wonderland | `src/board/boards/wonderland.ts` | built | the demo's puzzle board: seven zones in the spec's page order — Riverbank (ditch: a bridge), Shelves (plateau: bouncy/ladder), Hall of Doors (glass table, key, tiny door: grow → key → shrink), Pool of Tears (a glass bowl nothing anchors to: spring or grow out), Croquet Ground (red no-ink lawn, ink only in the margins: grow and hop the dais, or portals), Trial (low jury box only small Alice passes, then a gap in the cards: heavy object or a jump when big), Mad Tea Party (free play; the rabbit hole is here). Built from the existing contract only — `marker`/`glass` solids, `noInkZones`, one key/door/goal |
-| Blank | `src/board/boards/blank.ts` | built | an endless empty page; sandbox starting point |
+| Blank | `src/board/boards/blank.ts` | built | a new room: a patch of ground under Alice, `killY` 4000 below it |
+| Endless page | `src/board/boards/endless.ts`, `src/sim/footing.ts` | built | `page: "endless"`: a strip of ground, no edges, `killY` infinite; a fall of `FALL_LIMIT` below her last footing puts her back on it (`LastFooting`); the sandbox's board |
 | Board props | `src/sim/boardProps.ts`, `src/sim/paper.ts` | built | the board's own solids as static bodies; `paper.ts` holds bites the Sumikui takes out of the ground and heals them |
 
 ## 5. Ink: from pen to drawing
@@ -126,7 +127,7 @@ on a product of dials; rules fold in `createdAt` order; repeal refolds the rest.
 | Remote compiler | `src/persistence/remoteRuleCompiler.ts` | external | `POST /api/compile` → validated JSON → `RuleEffect` |
 | Rule book | `src/game/ruleBook.ts` | built | standing rules, enact/repeal, refold, note ↔ rule link |
 | Laws panel | `src/ui/lawsPanel.ts` | built | top-right list of standing laws; tap twice to repeal (notes fade, laws don't) |
-| Mode policy | `src/modes/policy.ts` | built | `allowsLaw(mode, effect)` — a mode may refuse a dial (e.g. no Sumikui in sandbox) |
+| Mode policy | `src/modes/policy.ts` | built | `allowsLaw(mode, effect)` — a mode may refuse a dial (no Sumikui in sandbox); `refusalLine` is the mode's own line for it, else the stock one |
 
 ### Dials today
 
@@ -154,6 +155,8 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 | Twins | `src/sim/twins.ts`, `src/sim/independentAlices.test.ts` | built | `clones` dial keeps N extra Alices, each with her own intent (`setWalkIntent(intent, who)`), portal memory and `fell`/`goal-reached`/`alice-devoured` (events carry `who`); sideways strays are recalled to Alice |
 | Party | `src/game/party.ts` | built | one pilot per Alice sharing a chart per step; the selected Alice takes the stick, the rest drive themselves; twins wander when there is no errand |
 | Sumikui | `src/sim/sumikui.ts` | built | summoned by law; wakes at the second drawing; hunts ink Alice used, the ground under her, and Alice; speed doubles every 20 s to a cap; sweeps nameless clutter once quick; lore recital |
+| Soul and drawn body | `src/sim/body/drawnBody.ts`, `types.ts` | built | `disembody`/`incarnate`/`graft`; strokes segmented into head / torso / arms / legs / wings by place against the heart; parts → abilities (walk, jump, climb, fly, see); `snip` removes crossed strokes and the ability with them |
+| Tear and snippers | `src/sim/boss/tear.ts`, `snipper.ts`, `weapons.ts`, `tuning.ts` | built | the boss: arriving → circling → winding (telegraphed cut) → lunging → recovering; mercy window; speed ramp; hurt by moving, heavy, spinning or hazard drawings; lesser waves; tear closes on defeat ([boss.md](boss.md)) |
 | Paper | `src/sim/paper.ts` | built | the page's turn (tilt/spin laws) and bites in board solids |
 | Empty board / test support | `src/sim/emptyBoard.ts`, `testSupport.ts` | built | fixtures |
 
@@ -227,7 +230,7 @@ repeals what it enacted.
 |---|---|---|---|
 | Renderer | `src/render/canvasRenderer.ts`, `canvas2d.ts`, `index.ts` | built | Canvas 2D; whiteboard look (black ink, blue Kami, green understood, red confused, one tint per nature) |
 | Camera | `src/render/camera.ts`, `turnedCamera.test.ts` | built | centre, zoom, angle; `toWorld`/`toClient`, `visibleWorld` |
-| Painters | `boardPainter.ts`, `inkPainter.ts`, `inkPath.ts`, `alicePainter.ts`, `alicePose.ts`, `notePainter.ts`, `sumikuiPainter.ts`, `eraserRing.ts`, `keyShape.ts`, `dotGrid.ts` | built | board, ink under pose (incl. size scale), Alice pose (twins with a tinted numbered ribbon, the selected one with a caret), notes, Sumikui blot + trail, eraser ring |
+| Painters | `boardPainter.ts`, `inkPainter.ts`, `inkPath.ts`, `alicePainter.ts`, `alicePose.ts`, `notePainter.ts`, `sumikuiPainter.ts`, `bossPainter.ts`, `eraserRing.ts`, `keyShape.ts`, `dotGrid.ts` | built | board, ink under pose (incl. size scale), Alice pose (twins with a tinted numbered ribbon, the selected one with a caret), notes, Sumikui blot + trail, soul, drawn body with graft glow, snipper + telegraph + cut marks, tear, ink health bar, headless dim veil, eraser ring |
 | Night | `src/render/nightPainter.ts`, `palette.ts` | built | `daylight` dial: veil, light pools for Alice and twins, legible handwriting |
 | Culling & art | `culling.ts`, `boardArt.ts`, `awakening.ts` | built | draw only what is visible; wake-up animation when a drawing is named |
 | Brand | `src/brand/logo.ts`, `build.ts`, `assets/*.svg`, `public/kami-mark.svg` | built | the logo is Kami's own handwriting: `wordmarkSvg` writes "kami" with the stroke font and `perfect-freehand` pen (seeded, so deterministic), `markSvg` is a 64-unit paper tile with a drawn baseline, a `k` and Alice beside it (reads at 32 px), `lockupSvg` puts both together. `bun run brand:build` regenerates the committed SVGs; a test fails if they drift from the generator. The HUD wordmark (`boardMenu.ts`) and the favicon use them |
@@ -240,10 +243,10 @@ player *is* at start, win/loss, which laws and natures are allowed.
 | Mode | Files | Status | Notes |
 |---|---|---|---|
 | Embodied (today's play) | `src/modes/modes.ts`, `embodiedDirector.ts` | built | Alice from the start; Wonderland or blank board |
-| Spirit | `src/modes/modes.ts` | contract | no body; draw Alice into being |
-| Sandbox | — | in progress (child session) | infinite shared world, others can join, Kami helps on request, no Sumikui; `?mode=sandbox` |
+| Spirit | `src/modes/modes.ts`, `spiritDirector.ts`, `bodyNames.ts`, `src/sim/body/*` | built | no body; the room opens with a soul, a drawing named as a body (`alice`, `me`, any body noun) becomes her; `?mode=spirit`. Not built: persisting the body, a wandering pen as camera subject ([modes.md](modes.md)) |
+| Sandbox | `src/modes/sandboxMode.ts`, `src/board/boards/endless.ts`, `src/sim/footing.ts`, `src/autopilot/chart.ts` (`WINDOW_PX`), `src/autopilot/pilot.ts` (`explore`), `src/counsel/*`, `src/sync/*`, `src/ui/sharePanel.ts`, `src/ui/titleCard.ts`, `src/game/launch.ts` | built | `?mode=sandbox`: an endless shared page (`?board=<id>`, default `sandbox`); the chart is windowed around every Alice and the pilot explores toward the newest ink; Kami helps only when asked ("help", "give me an idea": a bridge over a gap, a ladder up a wall, an idea on open page); `inkEater` refused with "Nothing hungry lives on this page."; title card and share panel (link + QR + who is here); see [modes.md](modes.md) |
 | Puzzle | `src/modes/puzzle/{mode,rooms,puzzleDirector}.ts`, `src/modes/director.ts`, `src/board/boards/puzzles/*`, `src/game/forgetfulStore.ts`, `src/ui/roomCard.ts`, `src/sim/nightfall.ts` | built | seven staged rooms, one drawn or written idea each, Sumikui loose from the first frame, laws fold over the room's own world, room card + progress mark, goal → next room, nothing saved; `?mode=puzzle`; see [puzzles.md](puzzles.md) |
-| Boss | — | in progress (child session) | two players (drawer + controller); start as a soul/heart; a scissor-servant of the one under the page snips body parts → abilities lost, redraw to restore; `?mode=boss` |
+| Boss | `src/modes/modes.ts`, `src/sim/body/*`, `src/sim/boss/*` (`snipper.ts`, `tear.ts`, `weapons.ts`, `tuning.ts`), `src/render/bossPainter.ts`, `src/game/bossLines.ts` | built | two players (drawer + controller); start as a soul/heart; a servant of the one under the page snips body parts → abilities lost, redraw to restore; drawn weapons and hazards hurt it; lesser waves at 60 % / 30 %; win when the tear closes, heart swallowed restarts the board; `?mode=boss` ([boss.md](boss.md)) |
 | Independent clones | `src/game/party.ts`, `src/sim/twins.ts`, `src/sim/simulation.ts`, `src/sim/portals.ts`, `src/sim/sumikui.ts`, `src/autopilot/pilot.ts`, `src/autopilot/chart.ts`, `src/render/alicePainter.ts` | built | real second Alices with their own minds: own intent, pilot, route, portals and fate; tap one to steer her; any Alice wins the room and Kami names her; see [agency.md](agency.md) |
 
 ## 17. Persistence and the server
@@ -254,7 +257,7 @@ player *is* at start, win/loss, which laws and natures are allowed.
 | Schemas | `src/persistence/schemas.ts` → `server/schemas.ts` | shared | zod for every persisted shape incl. `RuleEffect` and `MotionEdit` |
 | Server | `server/index.ts`, `server/http/*`, `server/db/*` | external | Bun + MongoDB; routes in [server/README.md](../server/README.md); access model in [access.md](access.md) |
 | Model compile | `server/compile/*`, `server/llm/*` | external | prompt lists every dial incl. `heed`; output clamped by `effectRanges.ts` |
-| Shared board (live) | — | in progress (child session) | one board id, many devices, live sync |
+| Shared board (live) | `src/sync/wire.ts`, `src/sync/boardLink.ts`, `src/sync/peer.ts`, `server/sync/boardFeed.ts`, `server/sync/boardEventStream.ts`, `src/game/game.ts` (`followPage`, `receive`) | built | one board id, many devices: the server numbers every put/delete/clear per board and relays it over SSE (`GET /api/boards/:board/events`, resumable by `Last-Event-ID`, `resync` when the log does not reach back); presence (`POST /api/boards/:board/presence`, every 250 ms) paints the other devices' Alices as ghosts; remote changes land through the same seams as a load |
 
 ## 18. Verification
 

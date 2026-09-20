@@ -14,6 +14,7 @@ import { type Rect, rectContains, type Stroke } from "../core/geometry";
 import { judgePlacement } from "../ink/placement";
 import type { Drawing } from "../ink/types";
 import {
+  aliceOf,
   blob,
   drawingOf,
   enter,
@@ -116,12 +117,12 @@ const shrunk = (sim: Simulation, potion: Drawing): void => {
   rule(sim, potion, "shrink");
   sim.setWalkIntent(RIGHT);
   runUntil(sim, saw("consumed"));
-  expect(sim.snapshot().alice.size).toBe("small");
+  expect(aliceOf(sim).size).toBe("small");
 };
 
 const blockedAt = (sim: Simulation, faceX: number): boolean => {
   const { x, width } = sim.aliceBounds();
-  return sim.snapshot().alice.grounded && x + width >= faceX - 4;
+  return aliceOf(sim).grounded && x + width >= faceX - 4;
 };
 
 describe("the board", () => {
@@ -238,7 +239,7 @@ describe("the ledge", () => {
     expect(feetOf(sim).y).toBeCloseTo(GROUND_TOP, 0);
     sim.setWalkIntent(UP);
     runSteps(sim, 100);
-    expect(sim.snapshot().alice.climbing).toBe(true);
+    expect(aliceOf(sim).climbing).toBe(true);
     expect(sim.snapshot().drawings[0]?.pose.position).toEqual(drawnAt);
     runSteps(sim, 50);
 
@@ -263,18 +264,18 @@ describe("the glass table and the tiny door", () => {
     sim.setWalkIntent(RIGHT);
     const eaten = runUntil(sim, saw("consumed"));
     expect(happeningsOf(eaten)).toEqual(["consumed"]);
-    expect(sim.snapshot().alice.size).toBe("big");
+    expect(aliceOf(sim).size).toBe("big");
     expect(sim.snapshot().drawings).toHaveLength(0);
 
     expect(happeningsOf(runUntil(sim, saw("key-taken")))).toEqual(["key-taken"]);
-    expect(sim.snapshot().alice.hasKey).toBe(true);
-    expect(sim.snapshot().alice.height).toBeCloseTo(120, 0);
+    expect(aliceOf(sim).hasKey).toBe(true);
+    expect(aliceOf(sim).height).toBeCloseTo(120, 0);
     expect(feetOf(sim).y).toBeCloseTo(PLATEAU_TOP, 0);
 
     rule(sim, bottle(shift), "shrink");
     const events = runUntil(sim, enteredZone("pool-of-tears"));
     expect(happeningsOf(events)).toEqual(["consumed", "door-opened"]);
-    expect(sim.snapshot().alice.size).toBe("small");
+    expect(aliceOf(sim).size).toBe("small");
     expect(sim.snapshot().doorOpen).toBe(true);
     expect(feetOf(sim).x).toBeGreaterThan(WALL_X);
   });
@@ -363,7 +364,7 @@ describe("the pool of tears", () => {
     rule(sim, poolCake(), "grow");
     sim.setWalkIntent(RIGHT);
     runUntil(sim, saw("consumed"));
-    expect(sim.snapshot().alice.size).toBe("big");
+    expect(aliceOf(sim).size).toBe("big");
     runUntil(sim, (_events, world) => blockedAt(world, POOL.farRim.x));
     sim.setWalkIntent(JUMP_RIGHT);
     const events = runUntil(sim, standsOn(PLATEAU_TOP, POOL.farRim.x), 600);
@@ -413,7 +414,7 @@ describe("the croquet ground", () => {
     sim.setWalkIntent(RIGHT);
     const eaten = runUntil(sim, saw("consumed"));
     expect(happeningsOf(eaten)).toEqual(["consumed"]);
-    expect(sim.snapshot().alice.size).toBe("big");
+    expect(aliceOf(sim).size).toBe("big");
     runUntil(sim, (_events, world) => blockedAt(world, CROQUET.daisFaceX));
     sim.setWalkIntent(JUMP_RIGHT);
     const events = runUntil(sim, standsOn(COURT_TOP, CROQUET.daisFaceX), 600);
@@ -470,7 +471,7 @@ describe("the trial", () => {
     shrunk(sim, courtBottle());
     rule(sim, courtCake(), "grow");
     runUntil(sim, saw("consumed"));
-    expect(sim.snapshot().alice.size).toBe("big");
+    expect(aliceOf(sim).size).toBe("big");
     runUntil(sim, (_events, world) => feetOf(world).x >= TRIAL.gap.x - 60);
     sim.setWalkIntent(JUMP_RIGHT);
     const events = runUntil(sim, standsOn(COURT_TOP, rightOf(TRIAL.farRim)), 600);
