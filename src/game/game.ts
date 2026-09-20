@@ -15,6 +15,7 @@ import {
 } from "../core/geometry";
 import { INPUT_LIMITS, isInputPoint, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
+import { counselFor, isIdeaRequest, placeSketch, surroundingsOf } from "../counsel";
 import type { Handwriting } from "../handwriting/types";
 import { judgePlacement } from "../ink/placement";
 import type {
@@ -208,6 +209,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private tool: Tool = "draw";
   private manualIntent: WalkIntent = IDLE_INTENT;
   private wasStuck = false;
+  private ideasGiven = 0;
   private selfDriving: boolean;
   private tidiness: number;
   private hasAskedWhatItIs = false;
@@ -840,6 +842,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.remark(REJECTION_LINES["out-of-bounds"]);
       return;
     }
+    if (this.director.mode.help === "on-request" && (isHelpRequest(text) || isIdeaRequest(text))) {
+      await this.counsel(position);
+      return;
+    }
     if (isHelpRequest(text)) {
       this.kamiWrites(this.modules.cat.hint().line, position, { lifetimeMs: HINT_LIFETIME_MS });
       return;
@@ -890,6 +896,24 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     else if (subject !== null && ruling !== null) this.name(subject.drawing.id, ruling, note);
     else if (where !== null) this.remarkUnder(note.id, NOWHERE_LINE(where));
     else this.shrug(note.id);
+  }
+
+  /**
+   * Asked for help on an endless page, Kami reads what is around Alice — a gap, a wall, nothing —
+   * writes an idea, and where a picture would help (a bridge, a ladder, a friend) sketches one of
+   * his own through the summoning path and names it. Without the server he leaves it at words.
+   */
+  private async counsel(position: Vec): Promise<void> {
+    const advice = counselFor(surroundingsOf(this.scene()), this.ideasGiven++);
+    this.kamiWrites(advice.line, position, { lifetimeMs: HINT_LIFETIME_MS });
+    if (advice.sketch === null) return;
+    const epoch = this.epoch;
+    const exemplar = (await this.modules.summoner?.exemplar(advice.sketch.word)) ?? null;
+    if (epoch !== this.epoch || exemplar === null || exemplar.strokes.length === 0) return;
+    const strokes = placeSketch(exemplar.strokes, advice.sketch);
+    const rules = { noInkZones: this.board.noInkZones, aliceBounds: null };
+    if (judgePlacement(strokes, rules) !== "ok") return;
+    void this.label(this.conjure(strokes, this.nowMs), exemplar.word);
   }
 
   /**
