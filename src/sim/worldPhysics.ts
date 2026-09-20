@@ -38,7 +38,8 @@ export const retune = (body: Matter.Body, material: BodyMaterial): void => {
   body.friction = material.friction;
   body.frictionAir = material.frictionAir;
   body.restitution = material.restitution;
-  if (body.density !== material.density) Matter.Body.setDensity(body, material.density);
+  if (!body.isStatic && body.density !== material.density)
+    Matter.Body.setDensity(body, material.density);
 };
 
 /** Call before the engine update; matter-js clears forces after every step. */

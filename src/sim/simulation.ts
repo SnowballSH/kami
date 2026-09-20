@@ -26,6 +26,7 @@ import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
 import { moveOfItself } from "./motion";
 import { NATURES, type NatureWorld, stepOf } from "./natures";
+import { seesHerWay } from "./nightfall";
 import { isLooseInk, PaperTurn } from "./paper";
 import { centreOf, Portals } from "./portals";
 import { Sumikui } from "./sumikui";
@@ -75,6 +76,7 @@ interface BoardWorld {
   sumikui: Sumikui | null;
   readonly goalReachedBy: Set<AliceController>;
   readonly lost: Set<AliceController>;
+  benighted: boolean;
 }
 
 /** Where Kami sets Alice down: the Sumikui will not eat there. */
@@ -114,6 +116,7 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
     sumikui: physics.inkEater > 0 ? new Sumikui(alice, hallowedOf(board)) : null,
     goalReachedBy: new Set(),
     lost: new Set(),
+    benighted: false,
   };
 };
 
@@ -248,7 +251,9 @@ export class MatterSimulation implements Simulation {
 
     this.growLawfully();
     const surroundings = this.surroundings();
-    for (const alice of alices) alice.control(this.intentOf(alice), surroundings, timeScale);
+    for (const alice of alices) {
+      alice.control(this.intentSheCanFollow(alice), surroundings, timeScale);
+    }
     for (const ink of inks.all) stepOf(ink)?.(ink, this.natureWorld(this.nearestAliceTo(ink)));
     moveOfItself(inks.all);
     this.blowWind();
@@ -261,7 +266,7 @@ export class MatterSimulation implements Simulation {
     const settled = this.surroundings();
     for (const alice of alices) {
       alice.advanceResize(elapsedMs);
-      alice.sense(settled, this.intentOf(alice));
+      alice.sense(settled, this.intentSheCanFollow(alice));
     }
 
     this.resolveWeather(elapsedMs);
@@ -284,6 +289,17 @@ export class MatterSimulation implements Simulation {
       }
     }
     return nearest;
+  }
+
+  private intentSheCanFollow(alice: AliceController): WalkIntent {
+    const intent = this.intentOf(alice);
+    if (seesHerWay(this.physics, alice.body.position, this.world.inks.all)) return intent;
+    const meantToMove = intent.x !== 0 || intent.y !== 0;
+    if (meantToMove && !this.world.benighted) {
+      this.world.benighted = true;
+      this.events.push({ type: "in-the-dark" });
+    }
+    return IDLE;
   }
 
   private blowWind(): void {

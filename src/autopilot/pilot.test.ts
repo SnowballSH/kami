@@ -502,6 +502,30 @@ describe("Pilot", () => {
     });
   });
 
+  it("steps through a twinned portal to reach a goal it could not otherwise", () => {
+    const pilot = createAutopilot();
+    const goal: Rect = { x: 700, y: GROUND_Y - 60, width: 40, height: 60 };
+    const ring = (centre: Vec): Vec[] =>
+      Array.from({ length: 25 }, (_, i) => ({
+        x: centre.x + 24 * Math.cos((i / 24) * Math.PI * 2),
+        y: centre.y + 30 * Math.sin((i / 24) * Math.PI * 2),
+      }));
+    const here = ink(ring({ x: 220, y: GROUND_Y - 34 }), "portal");
+    const there = ink(ring({ x: 600, y: GROUND_Y - 34 }), "portal");
+
+    pilot.drive(scene({ board: board({ goal }), inks: [here] }));
+    expect(pilot.status.errand).toEqual({ kind: "wait", objective: "goal" });
+
+    pilot.invalidate();
+    const intent = pilot.drive(scene({ board: board({ goal }), inks: [here, there] }));
+
+    expect(intent.x).toBe(1);
+    expect(pilot.status).toMatchObject({
+      errand: { kind: "objective", objective: "goal" },
+      stuck: false,
+    });
+  });
+
   it("crosses the gap once a drawn bridge is committed", () => {
     const pilot = createAutopilot();
     const goal: Rect = { x: 700, y: GROUND_Y - 60, width: 40, height: 60 };
