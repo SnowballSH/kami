@@ -30,7 +30,13 @@ def call(url: str, body: object | None = None, raw: bytes | None = None) -> tupl
 def test_health(sidecar_url: str) -> None:
     status, body = call(f"{sidecar_url}/health")
     assert status == 200
-    assert body == {"ok": True, "classes": len(TINY_LABELS), "model": "tiny", "renderMatches": True}
+    assert body == {
+        "ok": True,
+        "classes": len(TINY_LABELS),
+        "model": "tiny",
+        "renderMatches": True,
+        "exemplars": 0,
+    }
 
 
 def test_recognize_answers_calibrated_probabilities_best_first(
