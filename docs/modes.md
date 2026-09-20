@@ -133,6 +133,7 @@ The embodied mode is exactly the game as it was.
 | Being unmade and grafted back: `unmade` on `fell` / `alice-devoured` / `heart-swallowed` of Alice herself (a twin's loss is her own); committed strokes that reach the body rejoin it (`sim.graft`) and glow while fresh | built | `SpiritDirector.witness`, `graft`, `BODY_TUNING.graftGlowMs` |
 | Kami's lines for a soul, a body, a snip, a graft | built | `src/game/bossLines.ts` |
 | Choosing the mode: `?mode=`, `modeFor`, the card written under the wordmark | built | `src/game/launch.ts` (`modeInUrl`), `Game.writeModeCard` |
+| Start screen: an address with no `?mode=` offers Sandbox / Puzzle / Boss (nothing else); one tap writes the mode into the address and opens the page | built | `src/ui/startScreen.ts` (`chooseMode`, `START_CHOICES`) |
 | The stuck detector and hint ladder stay quiet while nobody is on the board | built | `Game.frame` |
 | A spirit's hand as the camera's subject | not built | the camera follows the soul where it sits, which is where the body will be drawn; a wandering pen is not followed |
 | Persistence of the body | not built | the drawing that became her is deleted from the store; a reload opens the room as a soul again, with everything else where it was. Right for a boss fight; a longer spirit game would want the store to remember her |

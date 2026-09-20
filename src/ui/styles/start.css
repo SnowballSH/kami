@@ -1,0 +1,60 @@
+.start-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  background: #faf9f6;
+  color: #252525;
+  font:
+    1rem system-ui,
+    sans-serif;
+}
+
+.start-screen h1 {
+  margin: 0;
+  font-size: 3rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.start-choices {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0 1rem;
+}
+
+.start-choices button {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 15rem;
+  padding: 1.25rem;
+  border: 1.5px solid #252525;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.start-choices button:hover,
+.start-choices button:focus-visible {
+  background: #f1efe8;
+}
+
+.start-choices strong {
+  font-size: 1.4rem;
+}
+
+.start-choices span {
+  color: #555;
+  line-height: 1.3;
+}
