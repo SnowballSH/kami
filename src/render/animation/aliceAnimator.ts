@@ -41,7 +41,8 @@ export const LAND_MS = 150;
 export const TURN_MS = 120;
 export const SWELL_MS = RESIZE_MS;
 export const POP_MS = 220;
-export const PORTAL_ENTRY_MS = 180;
+export const PORTAL_ENTRY_MS = 100;
+export const PORTAL_EXIT_MS = 140;
 export const REINK_MS = 350;
 export const DRIP_MS = 300;
 export const KEY_MS = 350;
@@ -347,7 +348,7 @@ export class AliceAnimator {
       figure.lean = Math.PI * 2 * t;
       return;
     }
-    const t = progressOf(nowMs, this.portalAtMs + PORTAL_ENTRY_MS, POP_MS);
+    const t = progressOf(nowMs, this.portalAtMs + PORTAL_ENTRY_MS, PORTAL_EXIT_MS);
     if (t >= 1) {
       this.portalAtMs = null;
       return;

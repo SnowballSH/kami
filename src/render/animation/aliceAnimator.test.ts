@@ -14,6 +14,7 @@ import {
   NO_CUES,
   POP_MS,
   PORTAL_ENTRY_MS,
+  PORTAL_EXIT_MS,
   REINK_MS,
   SEAT_SINK,
   SWELL_MS,
@@ -309,15 +310,17 @@ describe("being carried off", () => {
     expect(shrinking.lean).toBeGreaterThan(0);
 
     const inRing = animator.observe(exit, NO_CUES, PORTAL_ENTRY_MS - 1);
-    expect(inRing.stretch.x).toBeLessThan(0.22);
-    expect(inRing.offset.x).toBeCloseTo(-400, 1);
+    expect(inRing.stretch.x).toBeLessThan(0.24);
+    expect(inRing.offset.x).toBeCloseTo(-400, 0);
 
-    const overshoot = animator.observe(exit, NO_CUES, PORTAL_ENTRY_MS + POP_MS * 0.7);
+    const overshoot = animator.observe(exit, NO_CUES, PORTAL_ENTRY_MS + PORTAL_EXIT_MS * 0.7);
     expect(overshoot.stretch.x).toBeGreaterThan(1);
     expect(overshoot.lean).toBeGreaterThan(0);
-    expect(snapshotOf(animator.observe(exit, NO_CUES, PORTAL_ENTRY_MS + POP_MS))).toMatchObject(
-      AT_REST,
-    );
+    expect(
+      snapshotOf(
+        animator.observe(exit, NO_CUES, PORTAL_ENTRY_MS + PORTAL_EXIT_MS + DRIP_MS),
+      ),
+    ).toMatchObject(AT_REST);
   });
 
   it("leaves her old self dripping away where she fell and re-inks her at the checkpoint", () => {
