@@ -15,6 +15,7 @@ export interface SceneInk {
 export interface Scene {
   readonly board: BoardDefinition;
   readonly alice: AliceSnapshot;
+  /** In the order they were drawn, oldest first. */
   readonly inks: readonly SceneInk[];
   /** Holes the Sumikui has bitten out of the board's solids: air where the sketch says ground. */
   readonly bites: readonly Rect[];
@@ -38,6 +39,8 @@ export type Errand =
   | { readonly kind: "eat"; readonly drawingId: Drawing["id"] }
   /** Nothing helps yet: walk as close to the objective as the board allows, then wait. */
   | { readonly kind: "wait"; readonly objective: Objective }
+  /** An endless page: wander towards the newest ink, or to the edge of what is drawn. */
+  | { readonly kind: "explore"; readonly toward: Vec }
   /** The board has nothing to reach for yet — no key, door or goal. */
   | { readonly kind: "idle" };
 

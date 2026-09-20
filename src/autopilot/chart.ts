@@ -29,6 +29,8 @@ const INK_RADIUS = INK_THICKNESS / 2;
 const STAMP_SPACING = CELL_PX / 2;
 /** Cells of empty margin around everything drawn, so she can stand and fall beside it. */
 const MARGIN_CELLS = 12;
+/** On an endless page she reads only this much paper around herself, in pixels each way. */
+export const WINDOW_PX = { x: 1600, y: 1000 } as const;
 export const MAX_CHART_CELLS = 1_000_000;
 const MAX_AXIS_CELLS = 4096;
 const MAX_GEOMETRY_ITEMS = 50_000;
@@ -93,6 +95,8 @@ const worldPoints = (ink: SceneInk): Vec[] =>
     stroke.map((point) => poseToWorld(point, ink.pose)),
   );
 
+export const boundsOfInk = (ink: SceneInk): Rect => boundsOf(worldPoints(ink));
+
 const aliceRect = (scene: Scene): Rect => ({
   x: scene.alice.center.x - scene.alice.width / 2,
   y: scene.alice.center.y - scene.alice.height / 2,
@@ -116,8 +120,17 @@ const cramps = (ink: SceneInk, alice: Rect): boolean =>
     height: alice.height - 2 * CRAMP_INSET,
   });
 
+const windowAround = (alice: Rect): CellRange =>
+  cellsOf({
+    x: alice.x + alice.width / 2 - WINDOW_PX.x,
+    y: alice.y + alice.height / 2 - WINDOW_PX.y,
+    width: 2 * WINDOW_PX.x,
+    height: 2 * WINDOW_PX.y,
+  });
+
 const extentOf = (scene: Scene): CellRange => {
   const { board } = scene;
+  if (board.page === "endless") return windowAround(aliceRect(scene));
   const rects: Rect[] = [
     aliceRect(scene),
     ...board.solids.map((solid) => solid.rect),
@@ -147,6 +160,13 @@ const boundedGeometry = (scene: Scene): boolean => {
   }
   return true;
 };
+
+const rectOf = ({ c0, c1, r0, r1 }: CellRange): Rect => ({
+  x: c0 * CELL_PX,
+  y: r0 * CELL_PX,
+  width: (c1 - c0) * CELL_PX,
+  height: (r1 - r0) * CELL_PX,
+});
 
 const boundedRange = ({ c0, c1, r0, r1 }: CellRange): boolean => {
   const cols = c1 - c0;
@@ -186,7 +206,9 @@ export class Chart {
     const range = extentOf(scene);
     if (!boundedRange(range)) return null;
     const chart = new Chart(range, scene.canFly);
+    const paper = rectOf(range);
     for (const solid of scene.board.solids) {
+      if (!rectsOverlap(solid.rect, paper)) continue;
       for (const piece of remainingColumns(solid.rect, scene.bites)) {
         if (!chart.stampRect(piece, CellFlag.solid | CellFlag.fixture)) return null;
       }
@@ -199,7 +221,8 @@ export class Chart {
       return null;
     const alice = aliceRect(scene);
     for (const ink of scene.inks) {
-      if (!cramps(ink, alice) && !chart.stampInk(ink, flagsFor(ink.nature))) return null;
+      if (cramps(ink, alice) || !rectsOverlap(boundsOfInk(ink), paper)) continue;
+      if (!chart.stampInk(ink, flagsFor(ink.nature))) return null;
     }
     return chart;
   }
