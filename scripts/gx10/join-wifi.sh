@@ -7,13 +7,17 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 HOST_ALIAS=gx10
-HOTSPOT_ADDRESS=10.13.37.1
-SSID=${1:-HackMIT.2026}
+SSID=${1:?"usage: join-wifi.sh <venue Wi-Fi name>"}
+HOTSPOT_ADDRESS=$(cat .gx10/box-hotspot-address 2>/dev/null || true)
+if [ -z "$HOTSPOT_ADDRESS" ]; then
+  echo "✗ Put the box's address on its own hotspot in .gx10/box-hotspot-address first (its gateway: \`ipconfig getoption en0 router\` while this Mac is on that hotspot)."
+  exit 1
+fi
 SSH=(ssh -o "HostName=$HOTSPOT_ADDRESS" "$HOST_ALIAS")
 mkdir -p .gx10
 
 if ! "${SSH[@]}" -o BatchMode=yes true 2>/dev/null; then
-  echo "✗ Can't reach the box. Join the 'gx10-4d82' Wi-Fi on this Mac first, then re-run."
+  echo "✗ Can't reach the box. Join the box's own hotspot on this Mac first, then re-run."
   exit 1
 fi
 
@@ -42,4 +46,4 @@ mac_venue_ip=$(cat .gx10/mac-venue-ip 2>/dev/null || true)
 
 echo
 echo "Next: put this Mac back on '$SSID', then run:  bun run gx10:find"
-echo "(If the box can't get online it returns to its hotspot by itself — 'gx10-4d82' will reappear.)"
+echo "(If the box can't get online it returns to its hotspot by itself, and that network will reappear.)"

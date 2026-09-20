@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Run on the Mac when it can reach the GX10. Installs Claude's SSH key (you type the box's password
 # once), then saves a probe report.
-#   bootstrap.sh                          find the box on its hotspot
-#   bootstrap.sh 10.189.4.20              the box is at this address
-#   bootstrap.sh 10.189.4.20 --new-identity [user]
+#   bootstrap.sh                          find the box on its hotspot (its name in .gx10/box-hotspot-name)
+#   bootstrap.sh <address>                the box is at this address
+#   bootstrap.sh <address> --new-identity [user]
 #       the box was set up again, reset or swapped, so its SSH identity changed: forget the old one —
 #       but only if you read the address off the box's own screen, or checked the fingerprint there
 #       (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub).
@@ -12,15 +12,15 @@ cd "$(dirname "$0")/../.."
 
 HOST_ALIAS=gx10
 IDENTITY_PIN=gx10-box
-HOTSPOT_NAME=gx10-4d82.local
+HOTSPOT_NAME=$(cat .gx10/box-hotspot-name 2>/dev/null || true)
 WIFI_DEVICE=en0
 SSH_CONFIG=$HOME/.ssh/config
 KEY="$HOME/.ssh/kami_gx10_ed25519"
 REPORT=.gx10/probe.txt
 GIVEN_ADDRESS=${1:-}
 NEW_IDENTITY=${2:-}
-BOX_USER=${3:-asus}
 mkdir -p .gx10
+BOX_USER=${3:-$(cat .gx10/box-user 2>/dev/null || echo "$USER")}
 
 answers_ssh() { nc -z -G 4 "$1" 22 >/dev/null 2>&1; }
 
@@ -28,7 +28,7 @@ find_gx10() {
   local router
   router=$(ipconfig getoption "$WIFI_DEVICE" router 2>/dev/null || true)
   if [ -n "$GIVEN_ADDRESS" ]; then answers_ssh "$GIVEN_ADDRESS" && echo "$GIVEN_ADDRESS"
-  elif answers_ssh "$HOTSPOT_NAME"; then echo "$HOTSPOT_NAME"
+  elif [ -n "$HOTSPOT_NAME" ] && answers_ssh "$HOTSPOT_NAME"; then echo "$HOTSPOT_NAME"
   elif [ -n "$router" ] && answers_ssh "$router"; then echo "$router"
   fi
 }

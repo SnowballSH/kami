@@ -132,7 +132,7 @@ checksum-verified Arduino CLI under `~/kami-hardware` on its first run (no sudo;
 ~200 MB download), compiles with the sketch's build profile and uploads to the first `/dev/ttyACM*`
 (`KAMI_FLASH_PORT` names another). The Kami server reads that port too, and a second reader would eat the
 bootloader's answers, so when the server holds the port the script stops it for the upload and runs
-`box/start.sh` after. The box's `asus` user is in `dialout` (needed by both the server and the upload).
+`box/start.sh` after. The box's user must be in `dialout` (needed by both the server and the upload).
 
 ## Illustrative Wi-Fi variant (UDP, not checked in)
 

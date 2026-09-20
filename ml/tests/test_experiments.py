@@ -249,7 +249,7 @@ def test_only_other_peoples_python_trainings_count_as_foreign(
     listing = "\n".join(
         [
             "  100 .venv/bin/python train.py --all --name kami-eye-xl",
-            "  200 /usr/bin/python3 /home/asus/kami-ml/train.py --all --dataset-only",
+            "  200 /usr/bin/python3 /home/kami/kami-ml/train.py --all --dataset-only",
             "  300 bash -c cd ~/kami-ml && .venv/bin/python train.py --all",
             "  400 .venv/bin/python experiments.py eye-next",
             "  500 tail -f logs/train.py.log",
