@@ -43,6 +43,39 @@ what was wrong, what was fixed and what still needs polish. Branch: `devin/ux-sw
 - **Shows:** grace over (20 s awake) — it bites the ground under her / swallows her. Intended stakes; fair now that the
   player had 20 s and a wake line first.
 
+## Boss
+
+Scripted the drawer's side over CDP: open `?mode=boss`, draw a stick figure around the heart, write `alice`,
+then hold the keys for the player's side while the servant comes.
+
+### boss-open-before.png / boss-named-before.png / boss-fight-before.png — as found
+- **Expected**: a quiet opening (card, heart, one hint), then a body the game accepts, then a readable fight.
+- **Observed**: both role paragraphs handwritten across the upper playfield under the mode card; the health bar
+  sitting on the toolbar; "Only a heart, so far…" clipped at the right edge; after naming, three more lines
+  stacked on top of the role text; the drawn body was offered as "a mushroom? a cake? a cloud?" unless the
+  name was written touching it; an incarnated Alice with natural legs could not walk (legs read as torso/arms);
+  by 10 s legs, arms and head were gone; one cut removed every stroke it crossed; the Wonderland zone intro
+  ("She can hop, not fly") appeared in Boss; drawings from the previous fight came back on restart.
+- **Fixed**: roles are bullets on the card, not notes; health bar below the toolbar; free notes clamp to the
+  viewport and keep clear of the tear and the top strip; the opening recital waits for the card to fade; a
+  nameless drawing near the soul is offered as `Alice?` ("Is this her? Write who she is.") and `alice` written
+  anywhere names the drawing nearest the soul; parts are read relative to the torso (arms beside, legs below,
+  head/wings above), so a stick figure walks, climbs and sees; a snip only takes the part it aimed at; first
+  circle 4.8 s, circle 3.4 s, 3.2 s mercy after a hit; Boss skips the zone intro and starts on a fresh page.
+
+### boss-01-open-after.png → boss-10-fight-35s-after.png — the fight after the fixes, one frame per beat
+- `01-open`: card + hovering heart, nothing else on the page. `03-body-drawn`/`04-named`: the figure, the
+  `Alice?` chip, incarnation, the missing-part line if any. `05-tear`/`06-servant`: the tear opens above her,
+  the recital arrives one line at a time. `07-fight-10s`: first snip ("It took her legs… draw them back,
+  quickly."), servant recovering. `08a-walking`: player steering with keys on the remaining body.
+  `08c-redrawn`: drawer's strokes graft onto the body (glow) instead of becoming "a plank?". `09-fight-25s`:
+  torso cut, dusk veil from the tear. `10-fight-35s`: heart cut → "Missed…"/restart, page clean.
+- **Still to polish** (C-items below): `09` says "Her wings, gone" for a body that never had wings — arm
+  strokes were read as wings (fixed in `f65db4c`, not yet re-shot); the redraw strokes render in the
+  highlight blue, which reads as "selected" rather than "ink becoming her"; no run has reached a win yet
+  (the weapon needs a drawn stroke to be swung through the servant — untested here); the two-player split
+  (one device draws, one steers) is not exercised by the script.
+
 ## Sweep plan — every mode × every feature × the edge cases
 
 Checked as I go; each item gets a screenshot (or a note why not). Edge cases looked for on every item:
@@ -63,10 +96,10 @@ transitions, physics changed by presentation, stale state after respawn/room cha
 - [ ] B9 Forbidden law in a room (`Not in this game…` once, not per frame) · B10 Alice eaten in a room → respawn clean
 
 ### C. Boss (two-player)
-- [ ] C1 Heart, draw body, name `alice` → incarnation, ability readout · C2 Tear + servant arrival timing/text
-- [ ] C3 Wind-up telegraph readable, dodge works with keys/thumbstick · C4 Snip → part gone, ability lost, line once
-- [ ] C5 Redraw/graft glow, ability back · C6 Shield with a drawing · C7 Weapon hit, health bar, waves
-- [ ] C8 Win: tear closes · C9 Loss: heart cut → restart clean (no stale notes/laws/servant) · C10 Camera framing
+- [x] C1 Heart, draw body, name `alice` → incarnation, ability readout · [x] C2 Tear + servant arrival timing/text
+- [x] C3 Wind-up telegraph readable, dodge works with keys · [x] C4 Snip → part gone, ability lost, line once
+- [~] C5 Redraw/graft (grafts; glow colour to revisit) · [~] C6 Shield with a drawing (one stroke blocked a cut) · [ ] C7 Weapon hit, health bar, waves
+- [ ] C8 Win: tear closes · [x] C9 Loss: heart cut → restart clean (fresh page, no zone intro) · [ ] C10 Camera framing, thumbstick dodge
 
 ### D. Drawing & ink
 - [ ] D1 Solid stroke platform · D2 Scenery (non load-bearing) strokes walk-through · D3 Erase · D4 Placement refusals
