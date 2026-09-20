@@ -8,6 +8,7 @@ import { connectDatabase } from "./db/connect";
 import { categoryOf, createExemplarSource } from "./exemplar/exemplars";
 import { ApiAccess } from "./http/access";
 import { createApi } from "./http/api";
+import { type SocketData, socketsOf } from "./http/sockets";
 import { createStaticSite } from "./http/staticSite";
 import { quickdrawNatureTable } from "./natures/natureTable";
 import { QuickdrawRecognizer } from "./quickdraw/recognizer";
@@ -15,8 +16,9 @@ import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
 import { createRecognizerChain } from "./recognition/chain";
 import { createLlmSceneCompiler } from "./scene/llmSceneCompiler";
 import { createSketchLibrary } from "./sketch";
+import { isStageSocket, stageSockets } from "./stage/socket";
 import { createLlmTranscriber } from "./transcribe/llmTranscriber";
-import { VOICE_SOCKET_PATH, type VoiceSocketData, voiceSockets } from "./voice/socket";
+import { VOICE_SOCKET_PATH, voiceSockets } from "./voice/socket";
 import { createSpeaker } from "./voice/speaker";
 
 const API_PREFIX = "/api";
@@ -45,6 +47,7 @@ const compiler = createLlmCompiler(config.llm);
 const transcriber = createLlmTranscriber(config.transcribe);
 const access = new ApiAccess(config.access);
 const voice = voiceSockets(config.voice, access);
+const stage = stageSockets(access);
 const api = createApi({
   access,
   boards,
@@ -71,14 +74,15 @@ const serving = {
   maxRequestBodySize: INPUT_LIMITS.sketchBytes,
   fetch: async (request, listening) => {
     if (isVoiceSocket(request)) return voice.upgrade(request, listening);
+    if (isStageSocket(request)) return stage.upgrade(request, listening);
     return isApiCall(request) || site === null
       ? api.handle(request)
       : ((await site(request)) ?? api.handle(request));
   },
-  websocket: voice.websocket,
-} satisfies Pick<Bun.Serve.Options<VoiceSocketData>, "fetch" | "websocket" | "maxRequestBodySize">;
+  websocket: socketsOf(voice.websocket, stage.websocket),
+} satisfies Pick<Bun.Serve.Options<SocketData>, "fetch" | "websocket" | "maxRequestBodySize">;
 
-const server = Bun.serve<VoiceSocketData>({
+const server = Bun.serve<SocketData>({
   ...serving,
   port: config.port,
   hostname: config.hostname,
@@ -86,7 +90,7 @@ const server = Bun.serve<VoiceSocketData>({
 const tlsServer =
   config.tls === null
     ? null
-    : Bun.serve<VoiceSocketData>({
+    : Bun.serve<SocketData>({
         ...serving,
         port: config.tls.port,
         hostname: config.hostname,
@@ -113,6 +117,7 @@ void eye.describe().then((line) => console.log(`  ${line}`));
 console.log(`  beautifier: ${config.beautifyUrl ?? "none attached"}`);
 console.log(`  ${sketches.describe()}`);
 console.log(`  controllers: ${controllers.description}`);
+console.log("  big screen: open /?screen on the monitor; it shows whichever device is drawing");
 console.log(
   `  voice: ${config.voice === null ? "off (set DEEPGRAM_API_KEY)" : `${config.voice.listenModel} in, ${config.voice.speakModel} out`}`,
 );

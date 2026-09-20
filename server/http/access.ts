@@ -26,6 +26,11 @@ export interface ModelStream {
   readonly release: () => void;
 }
 
+/** A long-lived socket that does no model work; `authorized` is asked again for as long as it lives. */
+export interface SocketGrant {
+  readonly authorized: () => boolean;
+}
+
 const denied = (): Response => json({ error: "access denied" }, 403);
 const unauthorized = (): Response =>
   new Response(JSON.stringify({ error: "authentication required" }), {
@@ -106,6 +111,14 @@ export class ApiAccess {
       authorized: () => this.config.mode === "demo" || (this.scope(request)?.models ?? false),
       release,
     };
+  }
+
+  /** Anyone same-origin in demo mode; any signed-in device when access is shared. */
+  openSocket(request: Request): SocketGrant | Response {
+    if (!this.#allowsOrigin(request)) return denied();
+    if (request.method !== "GET") return notFound();
+    if (this.config.mode === "shared" && this.scope(request) === null) return unauthorized();
+    return { authorized: () => this.config.mode === "demo" || this.scope(request) !== null };
   }
 
   #allowsOrigin(request: Request): boolean {

@@ -73,6 +73,7 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `POST /api/controllers/:id/state` `<x> <y> [buttons]` (plain text) | `204`; a joystick's whole state, axes -100 … 100 with y up (`docs/controllers.md`) |
 | `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
 | `GET /api/controllers` | `[{ id, x, y, held, buttons, transport, idleMs }]` |
+| `WS /api/stage/:stage?role=source\|screen` | The big screen: playing devices show what they render, a monitor on `/?screen` watches whichever is in use (`docs/screen.md`) |
 | `WS /api/voice/listen?rate=<Hz>[&wake=1]` | With `wake=1` the stream stands open and one `{type:"heard",text}` comes back per utterance, for the browser to match against the wake word. Otherwise one held utterance: the browser sends mono `linear16` frames and `{"type":"done"}` on release; the server answers `{type:"listening"}`, `{type:"hearing",text}` as Deepgram guesses, one `{type:"heard",text}` when it settles, `{type:"trouble"}` if Deepgram fails |
 | `POST /api/voice/speak` `{ text }` | `audio/mpeg` of Kami saying it (Deepgram `aura-2`, repeated lines cached in memory); `501` without a key or if Deepgram did not answer |
 | `POST /api/transcribe` `{ strokes: {x,y}[][] }` | `{ text: string \| null }` — the strokes read as handwriting, `null` for a drawing; `501` without a model |
@@ -293,6 +294,7 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 | `POST /api/controllers/:id/state` | `text/plain` `<x> <y> [buttons]`, e.g. `100 0 A`: axes -100 … 100 (y up), then the letters of the buttons held (`A` `B` `X` `Y`). `:id` is `[a-z0-9-]{1,32}` | `204`, or `400` `{ error }` |
 | `GET /api/controllers/:id/events` | — | `text/event-stream`: `retry: 1000`, then `data: {"x":-0.7,"y":0.85,"held":["left","up"],"buttons":["a"]}` on connect and on every change (`x`, `y` -1 … 1; `held` of `left` `right` `up` `down`, with `up` also while `a` is held; everything let go after 1 s without a message), and `: keep-alive` every 5 s |
 | `GET /api/controllers` | — | `[{ id, x, y, held, buttons, transport: "udp" \| "serial" \| "http", idleMs }]`, forgotten after a minute of silence |
+| `WS /api/stage/:stage?role=source\|screen` | `:stage` is `[a-z0-9-]{1,32}`. Text messages, `<kind>` or `<kind>\n<json>`: a source says `board`, `laws`, `ink`, `note`, `frame`, `active` | A source hears `go` (a screen is watching: start over from the board) and `rest`; a screen hears what the live source shows, verbatim, and `offstage`. The server never reads a body; it drops frames for a screen that is behind and nothing else (`docs/screen.md`). `400` for another role, `404` for a bad stage name, `401`/`403` as any route |
 
 The board feed (`server/sync/`) is in-memory and per process: sequence numbers restart with the server, so a
 client resuming from a cursor the log does not hold gets `resync` and reloads through `GET /api/boards/:board`.

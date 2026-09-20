@@ -1,0 +1,69 @@
+.kami-screen {
+  cursor: none;
+}
+
+.kami-screen canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.kami-screen .kami-laws {
+  width: min(26rem, 30vw);
+  font-size: clamp(15px, 1.3vw, 24px);
+}
+
+.kami-screen .kami-laws-heading {
+  font-size: clamp(18px, 1.6vw, 30px);
+}
+
+.kami-screen .kami-laws-hint {
+  display: none;
+}
+
+.kami-screen-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5vh;
+  background: var(--kami-board);
+  color: var(--kami-ink);
+  font-family: var(--kami-hand);
+}
+
+.kami-screen-curtain[hidden] {
+  display: none;
+}
+
+.kami-screen-wordmark {
+  width: min(40vw, 640px);
+}
+
+.kami-screen-line {
+  margin: 0;
+  font-size: clamp(20px, 2.4vw, 44px);
+  color: var(--kami-ink-soft);
+}
+
+.kami-screen-join {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1vh;
+  margin-top: 2vh;
+}
+
+.kami-screen-join canvas {
+  width: clamp(140px, 14vw, 260px);
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.kami-screen-address {
+  font-family: var(--kami-ui);
+  font-size: clamp(16px, 1.6vw, 30px);
+}

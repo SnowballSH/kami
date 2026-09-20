@@ -31,7 +31,7 @@ Two agents work on this repo in parallel. Stay on your side of the seam; cross i
 | Owner | Paths |
 |---|---|
 | **Client agent** | everything under `src/` — game, autopilot, sim, render, ui, ink, cat, handwriting, board, and `src/rules` (the offline grammar and its types) — except the two thin HTTP clients below |
-| **Server agent** | `server/`, `scripts/` (deploy, the GX10), `src/persistence`, `src/recognition`, the trained models, and the server sections of the docs |
+| **Server agent** | `server/`, `scripts/` (deploy, the GX10), `src/persistence`, `src/recognition`, `src/stage` (the big screen, `docs/screen.md`), the trained models, and the server sections of the docs |
 
 The seam is the HTTP API (`server/README.md` → "API contract") and `src/rules/types.ts`. The server mirrors
 `RuleEffect` with a zod schema that fails the typecheck when the two drift, on purpose: a change to

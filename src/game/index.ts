@@ -17,6 +17,7 @@ import { createRecognizer } from "../recognition";
 import { createRenderer } from "../render";
 import { createRuleCompiler, createSceneCompiler, resolvePhysics } from "../rules";
 import { createSimulation } from "../sim";
+import { createStageSource, mirroredLaws, mirroredRenderer } from "../stage";
 import { Summoner } from "../summoning";
 import { createBoardLink } from "../sync";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
@@ -79,7 +80,8 @@ export function startGame(root: HTMLElement): void {
   const canvas = document.createElement("canvas");
   root.prepend(canvas);
   const handwriting = createHandwriting();
-  const renderer = createRenderer(canvas, handwriting);
+  const stage = createStageSource();
+  const renderer = mirroredRenderer(createRenderer(canvas, handwriting), stage);
   const mode = modeInUrl(window.location.search);
   const store = mode.id === PUZZLE_MODE_ID ? new ForgetfulBoardStore() : createBoardStore();
   guardUnsavedChanges(window, store);
@@ -103,7 +105,7 @@ export function startGame(root: HTMLElement): void {
       createInkSession,
       createHud: (handlers) => createHud(root, handlers),
       createVoice,
-      createLawsPanel: (handlers) => createLawsPanel(root, handlers),
+      createLawsPanel: (handlers) => mirroredLaws(createLawsPanel(root, handlers), stage),
       findDrawingAt,
       onBoardOpened: rememberBoardInUrl,
       link: createBoardLink(),

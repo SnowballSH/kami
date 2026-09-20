@@ -28,6 +28,7 @@ over model fallback. Kami writes the gloss of what was understood.
 | Training/serving tensor, artifact and completion contract | [ml/CONTRACT.md](../ml/CONTRACT.md) |
 | Board response validation and ordering | [validation](persistence-validation.md), [ordering](persistence-ordering.md) |
 | Physical controller protocol and speech | [controllers](controllers.md), [voice](voice.md) |
+| The big screen: a monitor mirroring the device in play | [screen](screen.md), [stage/wire.ts](../src/stage/wire.ts) |
 
 Follow [AGENTS.md](../AGENTS.md): the client owns gameplay under `src/`; the server owns
 `server/`, deployment, ML and the two HTTP-client areas `src/persistence` and `src/recognition`.
@@ -357,6 +358,20 @@ The on-screen CAT button/Space and wake-word mode use browser microphone capture
 The Deepgram key stays on the server. Missing credentials/upstream failure leaves written play
 available. LAN microphone capture needs a secure context; plain HTTP LAN play does not verify
 voice. See [voice.md](voice.md).
+
+## The big screen
+
+```
+Game → mirroredRenderer / mirroredLaws → StageSource → WS /api/stage/:stage → server/stage Stage
+  → WS → StageWatcher → StageDecoder → the same CanvasRenderer on the `?screen` page
+```
+
+`src/stage` wraps the game's `Renderer` and `LawsPanel` where `game/index.ts` builds them, so the
+game does not know it is watched: whatever it shows the renderer is also encoded (`StageEncoder`:
+strokes and scripts once, poses every frame) and sent while the server says a screen is watching.
+The server keeps which source is live and relays; it never reads what it relays. `?screen` on the
+same page starts `startScreen` instead of the game: a canvas, the laws panel, and a waiting card.
+See [screen.md](screen.md).
 
 ## Deployment and security status
 

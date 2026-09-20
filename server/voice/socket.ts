@@ -12,6 +12,7 @@ const DONE = "done";
 const AUTHORIZATION_INTERVAL_MS = 15_000;
 
 export interface VoiceSocketData {
+  readonly kind: "voice";
   readonly format: AudioFormat;
   /** Listening for the wake word: one long stream of utterances, not one press. */
   readonly continuous: boolean;
@@ -89,6 +90,7 @@ export const voiceSockets = (config: VoiceConfig | null, access: ApiAccess = new
       return notImplemented("no voice is attached");
     }
     const data: VoiceSocketData = {
+      kind: "voice",
       format: { sampleRate: sampleRateOf(request.url) },
       continuous: isWaking(request.url),
       access: grant,
