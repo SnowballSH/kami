@@ -230,6 +230,7 @@ repeals what it enacted.
 | Painters | `boardPainter.ts`, `inkPainter.ts`, `inkPath.ts`, `alicePainter.ts`, `alicePose.ts`, `notePainter.ts`, `sumikuiPainter.ts`, `eraserRing.ts`, `keyShape.ts`, `dotGrid.ts` | built | board, ink under pose (incl. size scale), Alice pose (twins with a tinted numbered ribbon, the selected one with a caret), notes, Sumikui blot + trail, eraser ring |
 | Night | `src/render/nightPainter.ts`, `palette.ts` | built | `daylight` dial: veil, light pools for Alice and twins, legible handwriting |
 | Culling & art | `culling.ts`, `boardArt.ts`, `awakening.ts` | built | draw only what is visible; wake-up animation when a drawing is named |
+| Brand | `src/brand/logo.ts`, `build.ts`, `assets/*.svg`, `public/kami-mark.svg` | built | the logo is Kami's own handwriting: `wordmarkSvg` writes "kami" with the stroke font and `perfect-freehand` pen (seeded, so deterministic), `markSvg` is a 64-unit paper tile with a drawn baseline, a `k` and Alice beside it (reads at 32 px), `lockupSvg` puts both together. `bun run brand:build` regenerates the committed SVGs; a test fails if they drift from the generator. The HUD wordmark (`boardMenu.ts`) and the favicon use them |
 
 ## 16. Game modes
 
