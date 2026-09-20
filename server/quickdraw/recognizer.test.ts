@@ -111,6 +111,29 @@ describe("a drawing still under the pen", () => {
     expect(statedGuesses(torn, false)).toEqual(torn);
   });
 
+  it("may go unasked from a 0.8 vote share once finished, and never while under the pen", () => {
+    expect(DEFAULT_RECOGNIZER_OPTIONS.certainAbove).toEqual({ finished: 0.8, partial: null });
+    const recognizer = new QuickdrawRecognizer(arcAndLineSamples());
+    const circle = circleSketch({ x: 700, y: -40 }, 220, 0.02);
+    expect(recognizer.read(circle)).toEqual({
+      ranking: recognizer.rank(circle),
+      certainAbove: 0.8,
+    });
+    expect(recognizer.read(halfCircle, { partial: true })).toEqual({
+      ranking: recognizer.rank(halfCircle, { partial: true }),
+      certainAbove: null,
+    });
+  });
+
+  it("takes its certainty floors from its options", () => {
+    const trusting = new QuickdrawRecognizer(arcAndLineSamples(), {
+      ...DEFAULT_RECOGNIZER_OPTIONS,
+      certainAbove: { finished: null, partial: 0.95 },
+    });
+    expect(trusting.read(halfCircle).certainAbove).toBeNull();
+    expect(trusting.read(halfCircle, { partial: true }).certainAbove).toBe(0.95);
+  });
+
   it("does not give up on a couple of points", () => {
     const recognizer = new QuickdrawRecognizer(arcAndLineSamples());
     const twoPoints = [

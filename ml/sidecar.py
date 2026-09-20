@@ -13,6 +13,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from completion import SketchCompleter
+from exemplar_set import load_exemplars_of_model
 from recognizer import DEFAULT_TOP, SketchRecognizer
 from render import Point
 
@@ -24,6 +26,7 @@ MODEL_ENV = "KAMI_EYE_MODEL"
 MAX_BODY_BYTES = 4_000_000
 MAX_POINTS = 50_000
 MAX_TOP = 1000
+MAX_NAME_LENGTH = 200
 MAX_COORDINATE = 1e9
 WARM_UP_STROKES: list[list[Point]] = [[(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]]
 
@@ -80,9 +83,21 @@ def parse_partial(payload: dict[str, Any]) -> bool:
     return partial
 
 
-def make_handler(recognizer: SketchRecognizer) -> type[BaseHTTPRequestHandler]:
+def parse_name(payload: dict[str, Any]) -> str | None:
+    name = payload.get("name")
+    if name is None:
+        return None
+    if not isinstance(name, str) or len(name) > MAX_NAME_LENGTH:
+        raise BadRequest(f"'name' must be a string of at most {MAX_NAME_LENGTH} characters")
+    return name
+
+
+def make_handler(
+    recognizer: SketchRecognizer, completer: SketchCompleter | None = None
+) -> type[BaseHTTPRequestHandler]:
     class SidecarHandler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+        disable_nagle_algorithm = True
 
         def do_GET(self) -> None:
             self._answer(self._get)
@@ -98,18 +113,29 @@ def make_handler(recognizer: SketchRecognizer) -> type[BaseHTTPRequestHandler]:
                 "classes": len(recognizer.labels),
                 "model": recognizer.name,
                 "renderMatches": recognizer.render_matches,
+                "exemplars": completer.exemplar_count if completer is not None else 0,
             }
 
         def _post(self) -> Answer:
-            if self.path not in ("/recognize", "/embed"):
+            if self.path not in ("/recognize", "/embed", "/complete"):
                 return HTTPStatus.NOT_FOUND, {"error": f"no route POST {self.path}"}
             payload = self._read_json()
             strokes = parse_strokes(payload)
             if self.path == "/embed":
                 return HTTPStatus.OK, {"embedding": recognizer.embed(strokes)}
+            if self.path == "/complete":
+                return self._complete(strokes, parse_name(payload))
             parse_partial(payload)
             recognition = recognizer.recognize(strokes, parse_top(payload))
             return HTTPStatus.OK, {"labels": recognition.labels, "probs": recognition.probs}
+
+        def _complete(self, strokes: list[list[Point]], name: str | None) -> Answer:
+            if completer is None:
+                return HTTPStatus.NOT_FOUND, {"error": f"{recognizer.name} has no exemplar set"}
+            completion = completer.complete(strokes, name)
+            if completion is None:
+                return HTTPStatus.NOT_FOUND, {"error": "no exemplar to finish this drawing with"}
+            return HTTPStatus.OK, completion.to_json()
 
         def _read_json(self) -> dict[str, Any]:
             try:
@@ -154,10 +180,28 @@ def make_handler(recognizer: SketchRecognizer) -> type[BaseHTTPRequestHandler]:
     return SidecarHandler
 
 
+def load_completer(recognizer: SketchRecognizer, model_dir: Path) -> SketchCompleter | None:
+    """Completion is an extra: without a sound exemplar set the sidecar still recognises."""
+    started = time.perf_counter()
+    try:
+        exemplars = load_exemplars_of_model(model_dir)
+        completer = SketchCompleter(recognizer, exemplars) if exemplars is not None else None
+    except (ValueError, OSError) as error:
+        log.warning("serving without /complete: %s", error)
+        return None
+    if completer is None:
+        log.info("%s has no exemplar set: /complete answers 404", recognizer.name)
+        return None
+    load_ms = (time.perf_counter() - started) * 1000
+    log.info("%d exemplars loaded in %.0f ms", completer.exemplar_count, load_ms)
+    return completer
+
+
 def create_server(model_dir: Path, port: int) -> ThreadingHTTPServer:
     recognizer = SketchRecognizer(model_dir)
     if not recognizer.render_matches:
         log.warning("render.py differs from the one %s was trained with", recognizer.name)
+    completer = load_completer(recognizer, model_dir)
     started = time.perf_counter()
     recognizer.recognize(WARM_UP_STROKES)
     recognizer.embed(WARM_UP_STROKES)
@@ -165,7 +209,7 @@ def create_server(model_dir: Path, port: int) -> ThreadingHTTPServer:
     log.info(
         "%s: %d classes, warmed up in %.0f ms", recognizer.name, len(recognizer.labels), warm_up_ms
     )
-    return ThreadingHTTPServer((HOST, port), make_handler(recognizer))
+    return ThreadingHTTPServer((HOST, port), make_handler(recognizer, completer))
 
 
 def main() -> None:

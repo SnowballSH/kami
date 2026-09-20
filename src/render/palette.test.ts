@@ -35,6 +35,19 @@ describe("palette", () => {
     expect(noteCss("player", "confused")).toBe(rgbCss(MARKER.red));
   });
 
+  it("pales handwriting toward moonlight as the board darkens, so it stays readable at night", () => {
+    const luminance = (css: string): number =>
+      (css.match(/\d+/g) ?? []).slice(0, 3).reduce((sum, part) => sum + Number(part), 0);
+    expect(noteCss("player", "plain", 1)).toBe(rgbCss(MARKER.black));
+    expect(luminance(noteCss("player", "plain", 0.1))).toBeGreaterThan(3 * 170);
+    expect(luminance(noteCss("kami", "plain", 0.5))).toBeGreaterThan(
+      luminance(rgbCss(MARKER.blue)),
+    );
+    expect(luminance(noteCss("kami", "plain", 0.5))).toBeLessThan(
+      luminance(noteCss("kami", "plain", 0)),
+    );
+  });
+
   it("mixes from one colour to another", () => {
     expect(mixRgb([0, 0, 0], [200, 100, 50], 0)).toEqual([0, 0, 0]);
     expect(mixRgb([0, 0, 0], [200, 100, 50], 0.5)).toEqual([100, 50, 25]);

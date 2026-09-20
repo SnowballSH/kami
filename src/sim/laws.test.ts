@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blankBoard } from "../board/boards/blank";
+import type { BoardDefinition } from "../board/types";
 import { EARTH, type WorldPhysics } from "../rules/types";
 import {
   blob,
@@ -62,6 +63,26 @@ describe("laws about Alice", () => {
     sim.setPhysics(EARTH);
     runSteps(sim, 60);
     expect(sim.snapshot().alice.height).toBeCloseTo(ALICE_BASE.height, 0);
+  });
+
+  it("holds the size law back under a low ceiling, and grants it once she walks clear", () => {
+    const lidTop = GROUND - ALICE_BASE.height - 12;
+    const lidded: BoardDefinition = {
+      ...board,
+      solids: [
+        ...board.solids,
+        { rect: { x: -80, y: lidTop, width: 160, height: 10 }, material: "marker" },
+      ],
+    };
+    const sim = enter(lidded);
+    sim.setPhysics({ ...EARTH, aliceSize: 2 });
+    runSteps(sim, 60);
+    expect(sim.snapshot().alice.height).toBeCloseTo(ALICE_BASE.height, 0);
+
+    sim.setWalkIntent(RIGHT);
+    runUntil(sim, (_events, world) => world.snapshot().alice.height > ALICE_BASE.height * 1.9);
+    runSteps(sim, 30);
+    expect(sim.snapshot().alice.height).toBeCloseTo(ALICE_BASE.height * 2, 0);
   });
 
   it("draws loose drawings toward her when she attracts, and pushes them off when she repels", () => {

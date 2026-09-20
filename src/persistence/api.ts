@@ -16,4 +16,6 @@ export const entityPath = (boardId: string, kind: EntityKind, id: string): strin
 
 export const compilePath = (): string => `${API_BASE}/compile`;
 
+export const transcribePath = (): string => `${API_BASE}/transcribe`;
+
 export const JSON_HEADERS = { "content-type": "application/json" } as const;

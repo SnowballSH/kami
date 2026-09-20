@@ -73,6 +73,7 @@ describe("HttpRecognizer", () => {
         nature: "bouncy",
         strength: 1.2,
         line: "Spongy. Do try one.",
+        certain: false,
       },
       {
         word: "umbrella",
@@ -81,9 +82,29 @@ describe("HttpRecognizer", () => {
         nature: "floaty",
         strength: 1,
         line: "Up it goes.",
+        certain: false,
       },
     ]);
     expect(bodies).toEqual([{ strokes: drawing.strokes }]);
+  });
+
+  const certaintyOf = async (body: unknown): Promise<readonly boolean[]> => {
+    const recognizer = new HttpRecognizer(async () => Response.json(body));
+    return (await recognizer.sight(drawing.strokes)).map(({ certain }) => certain);
+  };
+
+  it("is certain of the first sighting alone, when the server says it is", async () => {
+    expect(await certaintyOf({ ...seenByServer, certain: true })).toEqual([true, false]);
+  });
+
+  it.each<[string, unknown]>([
+    ["says it is not", false],
+    ["is too old to say", undefined],
+    ["says so in words", "true"],
+    ["says so with a number", 1],
+    ["says null", null],
+  ])("is certain of nothing when the server %s", async (_what, certain) => {
+    expect(await certaintyOf({ ...seenByServer, certain })).toEqual([false, false]);
   });
 
   it("says so when the pen is still moving", async () => {
@@ -121,26 +142,34 @@ describe("HttpRecognizer", () => {
     expect(await recognizer.sight(drawing.strokes, { partial: true })).toEqual([]);
   });
 
-  const tidy = [
+  const tidied = [
     [
       { x: 1, y: 2 },
-      { x: 3, y: 4 },
+      { x: 9, y: 9 },
+    ],
+  ];
+  const added = [
+    [
+      { x: 20, y: 0 },
+      { x: 20, y: 10 },
     ],
   ];
 
-  it("asks Kami to finish a drawing, by name when it has one", async () => {
+  it("asks Kami to tidy and finish a drawing, by name when it has one", async () => {
     const seen: { path: string; body: unknown }[] = [];
     const recognizer = new HttpRecognizer(async (path, init) => {
       seen.push({ path, body: JSON.parse(String(init?.body)) });
       return Response.json({
-        strokes: tidy,
+        tidied,
+        added,
         category: "mushroom",
         confidence: 0.9,
         similarity: 0.8,
       });
     });
     expect(await recognizer.complete(drawing.strokes, " a mushroom ")).toEqual({
-      strokes: tidy,
+      tidied,
+      added,
       word: "mushroom",
       confidence: 0.9,
     });
@@ -158,8 +187,25 @@ describe("HttpRecognizer", () => {
       async () =>
         new Response(new Uint8Array([137, 80]), { headers: { "content-type": "image/png" } }),
     ],
-    ["the strokes are empty", async () => Response.json({ strokes: [[]] })],
-    ["a point is not a point", async () => Response.json({ strokes: [[{ x: 1, y: "two" }]] })],
+    ["the tidied strokes are empty", async () => Response.json({ tidied: [[]], added: [] })],
+    [
+      "a point is not a point",
+      async () =>
+        Response.json({
+          tidied: [
+            [
+              { x: 1, y: "two" },
+              { x: 2, y: 2 },
+            ],
+          ],
+          added: [],
+        }),
+    ],
+    [
+      "the tidied drawing is not point for point the player's",
+      async () => Response.json({ tidied: [[{ x: 1, y: 2 }]], added: [] }),
+    ],
+    ["it is the older whole-drawing answer", async () => Response.json({ strokes: tidied })],
     [
       "the server is away",
       async () => {

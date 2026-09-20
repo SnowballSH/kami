@@ -3,12 +3,17 @@ import { boardFor, DEMO_BOARD_ID } from "../board";
 import { createCat } from "../cat";
 import { createHandwriting } from "../handwriting";
 import { createInkSession, findDrawingAt } from "../ink";
-import { createBoardStore, createRemoteRuleCompiler } from "../persistence";
+import {
+  createBoardStore,
+  createHandwritingReader,
+  createRemoteRuleCompiler,
+} from "../persistence";
+import { createPenReader } from "../reading";
 import { createRecognizer } from "../recognition";
 import { createRenderer } from "../render";
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import { createSimulation } from "../sim";
-import { attachCanvasInput, createHud } from "../ui";
+import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
 import { Game } from "./game";
 
 const BOARD_PARAM = "board";
@@ -51,20 +56,24 @@ export function startGame(root: HTMLElement): void {
   root.prepend(canvas);
   const handwriting = createHandwriting();
   const renderer = createRenderer(canvas, handwriting);
+  const recognizer = createRecognizer();
   const game = new Game(
     {
       sim: createSimulation(),
       autopilot: createAutopilot(),
-      cat: createCat(createRecognizer()),
+      cat: createCat(recognizer),
+      finisher: recognizer,
       renderer,
       handwriting,
       compiler: createRuleCompiler(),
       thinker: createRemoteRuleCompiler(),
       store: createBoardStore(),
+      penReader: createPenReader(createHandwritingReader()),
       resolvePhysics,
       boardFor,
       createInkSession,
       createHud: (handlers) => createHud(root, handlers),
+      createLawsPanel: (handlers) => createLawsPanel(root, handlers),
       findDrawingAt,
       onBoardOpened: rememberBoardInUrl,
       selfDriving: startsSelfDriving(),

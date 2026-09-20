@@ -35,6 +35,7 @@ const frame = (eraserActive: boolean): RenderFrame => ({
       height: 80,
       size: "normal",
       sizeMultiplier: 1,
+      headingScale: 1,
       facing: 1,
       walking: false,
       grounded: true,

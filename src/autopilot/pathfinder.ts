@@ -55,7 +55,10 @@ const SEARCH_BUDGET = 200_000;
 const KEY_STRIDE = 1 << 20;
 
 export const footprintFor = (alice: AliceSnapshot, size: AliceSize = alice.size): Footprint => {
-  const target = aliceDimensions(size, alice.sizeMultiplier);
+  const target =
+    size === alice.size
+      ? aliceDimensions("normal", alice.headingScale)
+      : aliceDimensions(size, alice.sizeMultiplier);
   const width = size === alice.size ? Math.max(alice.width, target.width) : target.width;
   const height = size === alice.size ? Math.max(alice.height, target.height) : target.height;
   return { cols: Math.ceil(width / CELL_PX), rows: Math.ceil(height / CELL_PX) };

@@ -33,6 +33,7 @@ export interface AliceSnapshot {
   readonly height: number;
   readonly size: AliceSize;
   readonly sizeMultiplier: number;
+  readonly headingScale: number;
   readonly facing: -1 | 1;
   readonly walking: boolean;
   readonly grounded: boolean;

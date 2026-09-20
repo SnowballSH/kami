@@ -20,7 +20,7 @@ import { NATURES, type NatureWorld } from "./natures";
 import { Sumikui } from "./sumikui";
 import { Twins } from "./twins";
 import {
-  type AliceSize,
+  ALICE_SCALE,
   aliceDimensions,
   type BounceArc,
   type SimEvent,
@@ -120,8 +120,7 @@ export class MatterSimulation implements Simulation {
   }
 
   removeDrawing(id: DrawingId): void {
-    this.world.inks.remove(id);
-    this.world.touchedAt.delete(id);
+    this.forgetInk(id);
   }
 
   setWalkIntent(intent: WalkIntent): void {
@@ -181,6 +180,7 @@ export class MatterSimulation implements Simulation {
     engine.gravity.y = this.physics.gravity.y;
     engine.timing.timeScale = timeScale;
 
+    this.growLawfully();
     const surroundings = this.surroundings();
     alice.control(this.intent, surroundings, timeScale);
     twins.control(this.intent, surroundings, timeScale);
@@ -208,12 +208,17 @@ export class MatterSimulation implements Simulation {
     for (const body of [this.world.alice.body, ...this.world.inks.dynamicBodies]) push(body, wind);
   }
 
+  private forgetInk(id: DrawingId): void {
+    this.world.inks.remove(id);
+    this.world.touchedAt.delete(id);
+  }
+
   private resolveWeather(elapsedMs: number): void {
     const { inks } = this.world;
     const { perished } = weather(this.physics.temperature, inks.all, elapsedMs);
     for (const ink of perished) {
       this.events.push({ type: "perished", drawingId: ink.id, nature: ink.nature });
-      inks.remove(ink.id);
+      this.forgetInk(ink.id);
     }
   }
 
@@ -248,7 +253,7 @@ export class MatterSimulation implements Simulation {
       loseAlice: () => {
         this.world.aliceLost = true;
       },
-      consume: (ink) => inks.remove(ink.id),
+      consume: (ink) => this.forgetInk(ink.id),
       freeze: (ink) => inks.freeze(ink),
       refuseGrowth: (ink) => {
         const now = engine.timing.timestamp;
@@ -257,7 +262,8 @@ export class MatterSimulation implements Simulation {
         if (lastRefusedAt !== undefined && now - lastRefusedAt <= GROW_REFUSAL_COOLDOWN_MS) return;
         this.events.push({ type: "grow-blocked", drawingId: ink.id });
       },
-      hasHeadroomFor: (size, meal) => this.hasHeadroomFor(size, meal),
+      hasHeadroomFor: (size, meal) =>
+        this.hasHeadroomFor(alice, ALICE_SCALE[size] * this.physics.aliceSize, meal),
       pullToward: (ink, strengthInG) => {
         const loose = inks.dynamicBodies.filter((body) => body !== ink.body);
         pullToward(ink.body.position, strengthInG, [alice.body, ...loose]);
@@ -311,14 +317,19 @@ export class MatterSimulation implements Simulation {
   }
 
   private feedSumikui(elapsedMs: number): void {
-    const { sumikui, alice, inks, touchedAt, engine } = this.world;
+    const { sumikui, alice, twins, inks, touchedAt, engine } = this.world;
     if (sumikui === null) return;
     const wasAwake = sumikui.isAwake;
-    const eaten = sumikui.tick(elapsedMs, engine.timing.timestamp, alice, inks.all, touchedAt);
+    const eaten = sumikui.tick(
+      elapsedMs,
+      engine.timing.timestamp,
+      [alice, ...twins.all],
+      inks.all,
+      touchedAt,
+    );
     if (!wasAwake && sumikui.isAwake) this.events.push({ type: "sumikui-woke" });
     if (eaten === null) return;
-    inks.remove(eaten.id);
-    touchedAt.delete(eaten.id);
+    this.forgetInk(eaten.id);
     this.events.push({ type: "devoured", drawingId: eaten.id, nature: eaten.nature });
   }
 
@@ -385,10 +396,21 @@ export class MatterSimulation implements Simulation {
     return { x: bounds.x + bounds.width / 2, y: bounds.y };
   }
 
-  private hasHeadroomFor(size: AliceSize, meal: InkEntity): boolean {
-    const { alice, inks, props } = this.world;
+  /** Grants each Alice the size the laws ask for; growing waits until nothing is overhead. */
+  private growLawfully(): void {
+    const { alice, twins } = this.world;
+    for (const each of [alice, ...twins.all]) {
+      const wanted = each.lawfulScale;
+      if (wanted === each.headingScale) continue;
+      if (wanted < each.headingScale || this.hasHeadroomFor(each, wanted))
+        each.beginResize(each.size);
+    }
+  }
+
+  private hasHeadroomFor(alice: AliceController, scale: number, meal?: InkEntity): boolean {
+    const { inks, props } = this.world;
     const current = alice.bounds();
-    const target = aliceDimensions(size, this.physics.aliceSize);
+    const target = aliceDimensions("normal", scale);
     if (target.height <= current.height && target.width <= current.width) return true;
     const headroom = Matter.Bodies.rectangle(
       current.x + current.width / 2,
