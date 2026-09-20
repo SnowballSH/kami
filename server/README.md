@@ -298,6 +298,20 @@ bun run gx10:deploy                # ship, install, (re)start, health-check → 
 Then on the iPad: `http://<box address>:8787`. On the box, `~/kami/current/box/status.sh` shows what is running
 (and the Eye's health) and `stop.sh` / `start.sh` do what they say.
 
+Preparation writes `app/runtime.json` with exact Bun/MongoDB versions, archive names, Python target,
+locked requirements digest, and SHA-256 hashes for every archive and wheel. Installation verifies those
+files, probes the extracted binaries' versions, and publishes Bun, MongoDB and Python dependencies
+together through an atomic `runtime/current` symlink. Older runtime bundles remain available; multiple
+cached archive versions cannot change which one is selected. Legacy unpacked runtime directories fail
+with a migration message: deploy into a fresh staged release rather than deleting a running runtime.
+
+Eye preparation requires `uv export --locked`; export and download failures abort preparation, without
+an unpinned fallback. Downloads and installation use pip's `--require-hashes`. An offline wheel cache
+is reused only when its requirements digest, Python target and every wheel hash match. To deliberately
+prepare without Eye, set `KAMI_EYE_ENABLED=0`. Transfer repairs mismatched cache files through verified
+temporary files. Archive hashes protect cache/transfer integrity; initial archives still rely on the
+official HTTPS download sources. Validate actual Linux arm64 binaries on GX10 before rollout.
+
 Deployments upload a complete checksummed release into `~/kami/releases/<id>` and install its
 dependencies before touching running services. Only then does activation switch `~/kami/current`.
 Application readiness requires the exact client HTML and a valid board-list API response; failure
