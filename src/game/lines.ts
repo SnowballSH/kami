@@ -59,6 +59,9 @@ export const SUMIKUI_LORE_LINE_DELAY_MS = 3_200;
 
 export const glossOf = (explanation: string): string => `kami: ${explanation}`;
 
+/** Said aloud, he does not sign his own name — and would only wake himself if he did. */
+export const aloud = (text: string): string => text.replace(/^kami:\s*/i, "");
+
 const HELP_REQUEST = /^(help|hint|hints|stuck|i'?m stuck|i am stuck|\?+|what now|tell me)\b/i;
 
 export const isHelpRequest = (text: string): boolean => HELP_REQUEST.test(text.trim());

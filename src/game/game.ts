@@ -38,12 +38,14 @@ import type {
   LawsPanelHandlers,
   Tool,
 } from "../ui/types";
+import type { EarsHandlers, Voice } from "../voice/types";
 import { CameraRig } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
 import { HeldInkBook } from "./heldInk";
 import { IdMint } from "./idMint";
 import { InkLedger, type InkRecord } from "./inkLedger";
 import {
+  aloud,
   BLANK_BOARD_BRIEF,
   DOOR_OPENED_LINE,
   GOAL_LINE,
@@ -90,6 +92,8 @@ const GLIMPSE_LIFETIME_MS = 8_000;
 const REMARK_LIFETIME_MS = 6_000;
 const HINT_LIFETIME_MS = 14_000;
 const ABOVE_ALICE = { x: -90, y: -120 } as const;
+/** Where a spoken note lands: beside Alice, as if the player had written it there. */
+const SPOKEN_AT = { x: -60, y: -190 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
 const ALREADY_AWAKE_MS = 10_000;
@@ -121,6 +125,8 @@ export interface GameModules {
   readonly boardFor: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
   readonly createHud: (handlers: HudHandlers) => Hud;
+  /** Deepgram both ways (docs/voice.md); without one Kami only reads and writes. */
+  readonly createVoice?: (handlers: EarsHandlers) => Voice;
   readonly createLawsPanel: (handlers: LawsPanelHandlers) => LawsPanel;
   readonly findDrawingAt: (
     point: Vec,
@@ -140,6 +146,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly penReader: PenReader | null;
   private readonly hud: Hud;
   private readonly laws: LawsPanel;
+  private readonly voice: Voice | null;
+  private voiceReady = false;
   private readonly loop = new FixedStepLoop(FIXED_STEP_MS, MAX_STEPS_PER_FRAME);
   private readonly ledger = new InkLedger();
   private readonly notes: NoteBook;
@@ -193,6 +201,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.penReader = modules.penReader ?? null;
     this.hud = modules.createHud(this);
     this.laws = modules.createLawsPanel(this);
+    this.voice = modules.createVoice?.(this.ears()) ?? null;
   }
 
   get currentTool(): Tool {
@@ -353,6 +362,34 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     void this.open(this.ids.next("sketch"));
   }
 
+  onTalkStarted(): void {
+    if (!this.voiceReady) return;
+    this.voice?.hold();
+  }
+
+  onTalkEnded(): void {
+    this.voice?.release();
+  }
+
+  onWakeToggled(enabled: boolean): void {
+    if (enabled && !this.voiceReady) return;
+    this.voice?.wake(enabled);
+  }
+
+  /** Speech is another way of writing: what the player said goes into the one funnel, as a note. */
+  private ears(): EarsHandlers {
+    return {
+      onHearing: () => {},
+      onHeard: (text) => {
+        if (!this.voiceReady) return;
+        const alice = this.modules.sim.aliceBounds();
+        void this.interpret(text, { x: alice.x + SPOKEN_AT.x, y: alice.y + SPOKEN_AT.y });
+      },
+      onListeningChanged: (listening) => this.hud.setListening(listening),
+      onWakingChanged: (waking) => this.hud.setWaking(waking),
+    };
+  }
+
   onRepealLaw(id: RuleId): void {
     const law = this.rules.all.find((rule) => rule.id === id);
     if (law !== undefined) this.eraseNote(law.noteId);
@@ -385,10 +422,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.epoch += 1;
     const epoch = this.epoch;
     this.loading = remember;
+    this.voiceReady = false;
+    this.voice?.cancel();
     this.board = boardFor(boardId);
 
     sim.loadBoard(this.board);
     this.director.open(this.board);
+    this.voice?.hush();
     this.modules.autopilot.reset();
     this.wasStuck = false;
     renderer.setBoard(this.board);
@@ -414,7 +454,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
-    if (!remember) return;
+    if (!remember) {
+      this.voiceReady = true;
+      return;
+    }
     const loadingNote = this.kamiWrites("Loading board…", this.board.spawn);
     try {
       const snapshot = await store.load(boardId);
@@ -425,6 +468,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       if (epoch === this.epoch) {
         this.notes.remove(loadingNote.id);
         this.loading = false;
+        this.voiceReady = true;
       }
     }
   }
@@ -913,8 +957,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       x: this.board.spawn.x + WORDMARK_OFFSET.x,
       y: this.board.spawn.y + WORDMARK_OFFSET.y,
     };
-    this.kamiWrites(WORDMARK, at);
-    this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP });
+    this.kamiWrites(WORDMARK, at, { silent: true });
+    this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP }, { silent: true });
   }
 
   private playerWrites(text: string, position: Vec): Note {
@@ -945,10 +989,21 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       readonly action?: NoteAction;
       readonly tone?: Note["tone"];
       readonly drift?: Drift;
+      /** Written but not said aloud: his own wordmark, and the labels he hangs on drawings. */
+      readonly silent?: boolean;
       readonly minY?: number;
     } = {},
   ): Note {
-    const { lifetimeMs, anchor, action, tone = "plain", drift = "up", minY } = options;
+    const {
+      lifetimeMs,
+      anchor,
+      action,
+      tone = "plain",
+      drift = "up",
+      silent = false,
+      minY,
+    } = options;
+    if (!silent) this.voice?.say(aloud(text));
     const note: Note = {
       id: this.ids.next<NoteId>("kami"),
       author: "kami",

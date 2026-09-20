@@ -24,6 +24,12 @@ export interface HudHandlers {
   /** Wipe everything the player drew, wrote and ruled on this board. */
   onClearBoard(): void;
   onRetryPersistence(): void;
+  /** Hold-to-talk went down: the CAT button, or Space. */
+  onTalkStarted(): void;
+  /** …and came up; whatever was said is now Kami's to read. */
+  onTalkEnded(): void;
+  /** The ear was tapped: listen for "kami" without holding anything, or stop. */
+  onWakeToggled(enabled: boolean): void;
 }
 
 export interface Hud {
@@ -37,6 +43,10 @@ export interface Hud {
    * Apple Pencil Scribble. Resolves with the trimmed text, or null if abandoned or empty.
    */
   promptText(client: Vec): Promise<string | null>;
+  /** Light the CAT button while the microphone is open. */
+  setListening(listening: boolean): void;
+  /** Show whether the microphone is standing by for the wake word. */
+  setWaking(waking: boolean): void;
 }
 
 export interface LawListing {

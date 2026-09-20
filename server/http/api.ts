@@ -18,11 +18,14 @@ import {
   noteSchema,
   recognizeRequestSchema,
   ruleSchema,
+  speakRequestSchema,
   storedDrawingSchema,
   transcribeRequestSchema,
 } from "../schemas";
 import type { HandwritingTranscriber } from "../transcribe/llmTranscriber";
+import type { Speaker } from "../voice/types";
 import {
+  audio,
   badRequest,
   json,
   notFound,
@@ -69,6 +72,8 @@ export interface ApiDependencies {
   readonly controllers: ControllerHub;
   /** Reads the player's handwriting; null when no vision-capable model is configured. */
   readonly transcriber?: HandwritingTranscriber | null;
+  /** Gives Kami a voice; null without Deepgram, and then he only writes. */
+  readonly speaker?: Speaker | null;
   readonly natures?: NatureTable;
 }
 
@@ -135,6 +140,7 @@ export const createApi = ({
   beautifier,
   controllers,
   transcriber = null,
+  speaker = null,
   natures = quickdrawNatureTable,
 }: ApiDependencies): Router =>
   new Router()
@@ -202,4 +208,11 @@ export const createApi = ({
       if (!body.ok) return body.response;
       const text = await transcriber.transcribe(body.value.strokes, { signal: request.signal });
       return json({ text });
+    })
+    .on("POST", "/api/voice/speak", async ({ request }) => {
+      if (speaker === null) return notImplemented("no voice is attached");
+      const body = await parseJsonBody(request, speakRequestSchema);
+      if (!body.ok) return body.response;
+      const spoken = await speaker.speak(body.value.text, { signal: request.signal });
+      return spoken === null ? notImplemented("Deepgram did not answer") : audio(spoken);
     });

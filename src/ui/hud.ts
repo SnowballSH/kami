@@ -6,6 +6,7 @@ import { el } from "./dom";
 import { Joystick } from "./joystick";
 import { KeyboardWalk } from "./keyboard";
 import { PersistenceStatus } from "./persistenceStatus";
+import { TalkButton } from "./talkButton";
 import { TextPrompt } from "./textPrompt";
 import { Toolbar } from "./toolbar";
 import { ToolHotkeys } from "./toolHotkeys";
@@ -24,6 +25,7 @@ export class DomHud implements Hud {
   private readonly persistence: PersistenceStatus;
   private readonly prompt: TextPrompt;
   private readonly stick: Joystick;
+  private readonly talk: TalkButton;
   private readonly detachers: readonly Detach[];
 
   constructor(root: HTMLElement, handlers: HudHandlers) {
@@ -42,11 +44,13 @@ export class DomHud implements Hud {
     this.boards.element.append(this.persistence.element);
     this.prompt = new TextPrompt(host);
     this.stick = new Joystick(walk.source());
+    this.talk = new TalkButton(handlers);
     const remoteStick = createRemoteStick(walk.source());
     this.overlay.append(
       this.boards.element,
       this.toolbar.element,
       this.stick.element,
+      this.talk.element,
       this.zoom.element,
       this.prompt.element,
       this.prompt.feedback,
@@ -56,6 +60,7 @@ export class DomHud implements Hud {
       new KeyboardWalk(walk.source()).attach(host),
       ...(remoteStick === null ? [] : [remoteStick.attach()]),
       this.stick.attach(host),
+      this.talk.attach(host),
       new ToolHotkeys(this.tools).attach(host),
       this.boards.attach(owner),
       this.prompt.attach(),
@@ -85,6 +90,14 @@ export class DomHud implements Hud {
 
   promptText(client: Vec): Promise<string | null> {
     return this.prompt.ask(client);
+  }
+
+  setListening(listening: boolean): void {
+    this.talk.setListening(listening);
+  }
+
+  setWaking(waking: boolean): void {
+    this.talk.setWaking(waking);
   }
 
   dispose(): void {
