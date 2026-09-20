@@ -99,6 +99,21 @@ def test_an_unsure_model_and_no_known_name_is_no_answer() -> None:
     assert completer(reader).complete(SKETCH, "my best friend") is None
 
 
+@pytest.mark.parametrize(
+    "name", ["a bouncy mushroom", "big red Mushroom", "the eiffel tower mushroom"]
+)
+def test_a_name_with_adjectives_is_the_thing_it_ends_with(name: str) -> None:
+    reader = ScriptedReader([0.7, 0.1, 0.15, 0.05], axis(0))
+    completion = completer(reader).complete(SKETCH, name)
+    assert completion is not None and completion.category == "mushroom"
+
+
+def test_the_longest_ending_that_is_a_label_wins() -> None:
+    reader = ScriptedReader([0.7, 0.1, 0.15, 0.05], axis(2))
+    completion = completer(reader).complete(SKETCH, "a tall eiffel tower")
+    assert completion is not None and completion.category == "The Eiffel Tower"
+
+
 def test_a_category_without_exemplars_is_no_answer() -> None:
     reader = ScriptedReader([0.01, 0.01, 0.01, 0.97], axis(0))
     assert completer(reader).complete(SKETCH) is None
