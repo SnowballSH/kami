@@ -1037,8 +1037,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       return;
     }
     this.remark(room.closing, HINT_LIFETIME_MS);
-    if (room.next !== null)
+    if (room.next === null) {
+      const { won } = this.director.mode.card;
+      if (won !== undefined) this.hud.showTitleCard({ ...this.director.mode.card, ...won });
+    } else {
       this.nextRoom = { boardId: room.next, atMs: this.nowMs + NEXT_ROOM_DELAY_MS };
+    }
   }
 
   /** Enacts what the director ruled about her body: a drawing becomes her, the tear opens, or she is unmade. */
