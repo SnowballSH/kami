@@ -3,7 +3,8 @@
 # plugged into this box: Firefox in kiosk mode on the desktop session that is logged in, with a profile of
 # its own, held awake by an idle inhibitor for exactly as long as it runs. No settings are changed and no
 # sudo is used; on a box with no desktop session `start` says so and leaves the game headless.
-#   screen.sh start [url] | stop | status | install (come up with the desktop session) | uninstall
+#   screen.sh start [url] | reload (load the page afresh, same address) | stop | status |
+#             install (come up with the desktop session) | uninstall
 set -euo pipefail
 
 SCRIPT_DIR=$(cd -P "$(dirname "$0")" && pwd)
@@ -316,6 +317,9 @@ case "$action" in
   start)
     start_kiosk "${2:-$(default_url)}"
     ;;
+  reload)
+    start_kiosk "$(cat "$URL_FILE" 2>/dev/null || default_url)"
+    ;;
   stop)
     stop_kiosk
     ;;
@@ -329,7 +333,7 @@ case "$action" in
     uninstall_autostart
     ;;
   *)
-    echo "usage: $(basename "$SCRIPT_PATH") start [url] | stop | status | install | uninstall" >&2
+    echo "usage: $(basename "$SCRIPT_PATH") start [url] | reload | stop | status | install | uninstall" >&2
     exit 2
     ;;
 esac

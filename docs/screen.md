@@ -18,8 +18,8 @@ iPad: Game → mirroredRenderer → StageSource ──WS──▶ server/stage S
 | A player | any game address; `?stage=<name>` to play on another stage than `main` |
 | Another stage's monitor | `?screen=<name>` (`[a-z0-9-]{1,32}`) |
 
-On the GX10 the monitor plugged into the box is driven by `box/screen.sh` (`start [url]`, `stop`,
-`status`, `install`, `uninstall`): Firefox in kiosk mode with its own profile on the box's desktop
+On the GX10 the monitor plugged into the box is driven by `box/screen.sh` (`start [url]`, `reload`,
+`stop`, `status`, `install`, `uninstall`): Firefox in kiosk mode with its own profile on the box's desktop
 session, held awake by an idle inhibitor for as long as it runs. `box/start.sh` starts it after the
 game when the box has a desktop session and leaves a headless box alone.
 
