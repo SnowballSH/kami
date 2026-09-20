@@ -838,6 +838,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     else this.shrug(note.id);
   }
 
+  /** True until the board changes or the note is erased — checked after every await. */
   /**
    * Kami draws what was asked for: a finished drawing of it from the server, inked in stroke by
    * stroke above the words, solid at once and named as it would be had the player drawn it.
@@ -922,7 +923,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.name(drawing.id, ruling, label, { quietly: true });
   }
 
-  /** True until the board changes or the note is erased — checked after every await. */
   private witness(noteId: NoteId): () => boolean {
     const epoch = this.epoch;
     return () => epoch === this.epoch && this.notes.get(noteId) !== null;
