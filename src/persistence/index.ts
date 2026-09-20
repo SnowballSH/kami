@@ -6,6 +6,7 @@ import { RemoteRuleCompiler } from "./remoteRuleCompiler";
 import type { BoardStore, HandwritingReader, SketchLibrary } from "./types";
 
 export type * from "./types";
+export { guardUnsavedChanges } from "./unsavedGuard";
 
 /** Talks to the Kami server's REST API, which keeps everything in MongoDB. */
 export function createBoardStore(): BoardStore {

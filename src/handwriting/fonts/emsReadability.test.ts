@@ -10,12 +10,12 @@ import { CUBIC_SEGMENTS, parsePathData } from "../../../scripts/strokeFont/pathD
 import { decodeXmlEntities, parseSvgFont } from "../../../scripts/strokeFont/svgFont";
 import type { StrokeFontData } from "../fontData";
 
-const SVG_SOURCE = "../../../node_modules/hersheytext/svg_fonts/EMSFelix.svg";
+const SVG_SOURCE = "../../../node_modules/hersheytext/svg_fonts/EMSReadability.svg";
 
 const read = (relativePath: string): string =>
   readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
-const onDisk = read("./emsFelix.json");
+const onDisk = read("./emsReadability.json");
 const font: StrokeFontData = JSON.parse(onDisk);
 const svgFont = parseSvgFont(read(SVG_SOURCE));
 
@@ -62,7 +62,7 @@ describe("the svg font", () => {
   });
 });
 
-describe("emsFelix.json", () => {
+describe("emsReadability.json", () => {
   it("is exactly what the build script produces", () => {
     expect(onDisk).toBe(serializeStrokeFont(toStrokeFontData(svgFont, KAMI_GLYPHS)));
   });

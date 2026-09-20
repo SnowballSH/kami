@@ -1,3 +1,4 @@
+import { INPUT_LIMITS } from "../src/core/inputLimits";
 import { createBeautifier } from "./beautify/beautifier";
 import { createLlmCompiler } from "./compile/llmCompiler";
 import { readConfig } from "./config";
@@ -11,6 +12,8 @@ import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
 import { createRecognizerChain } from "./recognition/chain";
 import { createSketchLibrary } from "./sketch";
 import { createLlmTranscriber } from "./transcribe/llmTranscriber";
+import { VOICE_SOCKET_PATH, type VoiceSocketData, voiceSockets } from "./voice/socket";
+import { createSpeaker } from "./voice/speaker";
 
 const API_PREFIX = "/api";
 
@@ -32,10 +35,11 @@ const controllers = await startControllers(config.controllers, {
 });
 
 const compiler = createLlmCompiler(config.llm);
-const transcriber = createLlmTranscriber(config.llm);
+const transcriber = createLlmTranscriber(config.transcribe);
 const sketches = await createSketchLibrary(config.sketchesDirectory, {
   log: (line) => console.log(`  ${line}`),
 });
+const voice = voiceSockets(config.voice);
 const api = createApi({
   boards,
   recognizer: eye.recognizer,
@@ -44,18 +48,26 @@ const api = createApi({
   controllers: controllers.hub,
   transcriber,
   sketches,
+  speaker: createSpeaker(config.voice),
 });
 const site = config.webDirectory === null ? null : createStaticSite(config.webDirectory);
 const isApiCall = (request: Request): boolean =>
   new URL(request.url).pathname.startsWith(API_PREFIX);
 
-const server = Bun.serve({
+const isVoiceSocket = (request: Request): boolean =>
+  new URL(request.url).pathname === VOICE_SOCKET_PATH;
+
+const server = Bun.serve<VoiceSocketData>({
+  maxRequestBodySize: INPUT_LIMITS.sketchBytes,
   port: config.port,
   hostname: "0.0.0.0",
-  fetch: async (request) =>
-    isApiCall(request) || site === null
+  fetch: async (request, listening) => {
+    if (isVoiceSocket(request) && voice.upgrade(request, listening)) return undefined;
+    return isApiCall(request) || site === null
       ? api.handle(request)
-      : ((await site(request)) ?? api.handle(request)),
+      : ((await site(request)) ?? api.handle(request));
+  },
+  websocket: voice.websocket,
 });
 
 console.log(`Kami server on http://localhost:${server.port}`);
@@ -70,19 +82,24 @@ void eye.describe().then((line) => console.log(`  ${line}`));
 console.log(`  beautifier: ${config.beautifyUrl ?? "none attached"}`);
 console.log(`  ${sketches.describe()}`);
 console.log(`  controllers: ${controllers.description}`);
+console.log(
+  `  voice: ${config.voice === null ? "off (set DEEPGRAM_API_KEY)" : `${config.voice.listenModel} in, ${config.voice.speakModel} out`}`,
+);
 console.log(`  model compile: ${config.llm === null ? "off" : config.llm.model}`);
 console.log(
-  `  handwriting: ${config.llm === null ? "off" : `${config.llm.model} (as a vision model)`}`,
+  `  handwriting: ${config.transcribe === null ? "off" : `${config.transcribe.model} (checking vision)`}`,
 );
-if (transcriber !== null) {
-  void compiler
-    .warmUp()
-    .then((awake) =>
-      console.log(`  model ${awake ? "is awake" : "did not answer (is the GX10 tunnel up?)"}`),
-    )
-    .then(() => transcriber.warmUp())
-    .then((reads) => console.log(`  handwriting reader ${reads ? "is awake" : "did not answer"}`));
-}
+void compiler
+  .warmUp()
+  .then((awake) => {
+    if (config.llm !== null)
+      console.log(`  model ${awake ? "is awake" : "did not answer (is the GX10 tunnel up?)"}`);
+  })
+  .then(async () => {
+    if (transcriber === null) return;
+    const reads = await transcriber.warmUp();
+    console.log(`  handwriting reader ${reads ? "is ready" : "disabled: image check failed"}`);
+  });
 
 const once = (task: () => Promise<void>): (() => Promise<void>) => {
   let started: Promise<void> | undefined;

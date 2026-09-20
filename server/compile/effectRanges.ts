@@ -1,5 +1,5 @@
 import { clampEffectValue } from "../../src/rules/effectDomains";
-import type { RuleEffect } from "../../src/rules/types";
+import { isBodyEffect, type RuleEffect, type Target } from "../../src/rules/types";
 
 export { EFFECT_DOMAINS as EFFECT_RANGES } from "../../src/rules/effectDomains";
 
@@ -16,7 +16,13 @@ const GLOSS_DECIMALS = 2;
 
 const tidy = (value: number): string => String(Number(value.toFixed(GLOSS_DECIMALS)));
 
-export const describeEffect = (effect: RuleEffect): string =>
-  "value" in effect
-    ? `${effect.governs} = ${tidy(effect.value)}`
-    : `${effect.governs} = (${tidy(effect.x)}, ${tidy(effect.y)}) g`;
+const describeTarget = (of: Target): string =>
+  of.kind === "all" ? "everything" : `the ${of.name}`;
+
+export const describeEffect = (effect: RuleEffect): string => {
+  const dial =
+    "value" in effect
+      ? `${effect.governs} = ${tidy(effect.value)}`
+      : `${effect.governs} = (${tidy(effect.x)}, ${tidy(effect.y)}) g`;
+  return isBodyEffect(effect) ? `${describeTarget(effect.of)}: ${dial}` : dial;
+};

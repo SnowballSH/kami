@@ -24,9 +24,9 @@ class SlowReader implements HandwritingReader {
 
 const stroke = (x: number, ...ys: number[]): Stroke => ys.map((y) => ({ x, y }));
 
-const H = stroke(0, 0, 40);
-const BAR = stroke(0, 20).concat(stroke(20, 20));
-const I = stroke(20, 0, 40);
+const H = stroke(0, 0, 10);
+const BAR = stroke(0, 5).concat(stroke(20, 5));
+const I = stroke(20, 0, 10);
 
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -34,7 +34,7 @@ const settled = async <T>(promise: Promise<T>): Promise<T | "pending"> =>
   Promise.race([promise, flush().then(() => "pending" as const)]);
 
 describe("couldBeWriting", () => {
-  it("rules out a lone straight line and tall drawings, and nothing else", () => {
+  it("rules out a lone straight line and tall drawings", () => {
     expect(couldBeWriting([])).toBe(false);
     expect(couldBeWriting([stroke(0, 0, 100)])).toBe(false);
     expect(couldBeWriting([[{ x: 0, y: 0 }]])).toBe(false);
@@ -42,6 +42,13 @@ describe("couldBeWriting", () => {
     expect(couldBeWriting([stroke(0, 0, 400), stroke(10, 0, 400)])).toBe(false);
     const squiggle: Stroke = Array.from({ length: 40 }, (_, i) => ({ x: i * 3, y: (i % 2) * 30 }));
     expect(couldBeWriting([squiggle])).toBe(true);
+  });
+  it("rules out a squarish heap of many strokes, but not a short word or a long one", () => {
+    const face = [stroke(0, 0, 40), stroke(40, 0, 40), stroke(10, 10), stroke(30, 10)];
+    expect(couldBeWriting(face)).toBe(false);
+    expect(couldBeWriting(face.slice(0, 3))).toBe(true);
+    const word = [H, I, stroke(40, 0, 40), stroke(60, 0, 40)];
+    expect(couldBeWriting(word)).toBe(true);
   });
 });
 

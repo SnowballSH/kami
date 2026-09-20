@@ -23,10 +23,12 @@ DEFAULT_PORT = 8790
 DEFAULT_MODEL_DIR = Path(__file__).parent / "artifacts" / "kami-eye"
 PORT_ENV = "KAMI_EYE_PORT"
 MODEL_ENV = "KAMI_EYE_MODEL"
-MAX_BODY_BYTES = 4_000_000
-MAX_POINTS = 50_000
+MAX_BODY_BYTES = 262_144
+MAX_STROKES = 256
+MAX_POINTS_PER_STROKE = 1024
+MAX_POINTS = 2048
 MAX_TOP = 1000
-MAX_NAME_LENGTH = 200
+MAX_NAME_LENGTH = 80
 MAX_COORDINATE = 1e9
 WARM_UP_STROKES: list[list[Point]] = [[(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]]
 
@@ -42,17 +44,21 @@ class BadRequest(ValueError):
 def parse_strokes(payload: object) -> list[list[Point]]:
     if not isinstance(payload, dict) or not isinstance(payload.get("strokes"), list):
         raise BadRequest("body must be an object with a 'strokes' array")
-    strokes: list[list[Point]] = []
-    for stroke in payload["strokes"]:
+    raw_strokes = payload["strokes"]
+    if len(raw_strokes) > MAX_STROKES:
+        raise BadRequest(f"the drawing has more than {MAX_STROKES} strokes")
+    total = 0
+    for stroke in raw_strokes:
         if not isinstance(stroke, list):
             raise BadRequest("every stroke must be an array of {x, y} points")
-        strokes.append([_parse_point(point) for point in stroke])
-    total = sum(len(stroke) for stroke in strokes)
+        if len(stroke) > MAX_POINTS_PER_STROKE:
+            raise BadRequest(f"a stroke has more than {MAX_POINTS_PER_STROKE} points")
+        total += len(stroke)
+        if total > MAX_POINTS:
+            raise BadRequest(f"the drawing has more than {MAX_POINTS} points")
     if total == 0:
         raise BadRequest("the drawing has no points")
-    if total > MAX_POINTS:
-        raise BadRequest(f"the drawing has more than {MAX_POINTS} points")
-    return strokes
+    return [[_parse_point(point) for point in stroke] for stroke in raw_strokes]
 
 
 def _parse_point(point: object) -> Point:
@@ -62,10 +68,12 @@ def _parse_point(point: object) -> Point:
 
 
 def _parse_coordinate(value: object) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+    if isinstance(value, bool) or not isinstance(value, int | float):
         raise BadRequest("point coordinates must be finite numbers")
     if abs(value) > MAX_COORDINATE:
         raise BadRequest(f"point coordinates must be within +-{MAX_COORDINATE:g}")
+    if not math.isfinite(value):
+        raise BadRequest("point coordinates must be finite numbers")
     return float(value)
 
 
@@ -87,9 +95,22 @@ def parse_name(payload: dict[str, object]) -> str | None:
     name = payload.get("name")
     if name is None:
         return None
-    if not isinstance(name, str) or len(name) > MAX_NAME_LENGTH:
+    if (
+        not isinstance(name, str)
+        or len(name.encode("utf-16-le", errors="surrogatepass")) // 2 > MAX_NAME_LENGTH
+    ):
         raise BadRequest(f"'name' must be a string of at most {MAX_NAME_LENGTH} characters")
     return name
+
+
+def parse_body_length(value: str | None) -> int:
+    try:
+        length = int(value or "")
+    except ValueError as error:
+        raise BadRequest("Content-Length is required") from error
+    if not 0 < length <= MAX_BODY_BYTES:
+        raise BadRequest(f"body must be 1 to {MAX_BODY_BYTES} bytes")
+    return length
 
 
 def make_handler(
@@ -142,12 +163,7 @@ def make_handler(
             return HTTPStatus.OK, completion.to_json()
 
         def _read_json(self) -> dict[str, object]:
-            try:
-                length = int(self.headers.get("Content-Length", ""))
-            except ValueError as error:
-                raise BadRequest("Content-Length is required") from error
-            if not 0 < length <= MAX_BODY_BYTES:
-                raise BadRequest(f"body must be 1 to {MAX_BODY_BYTES} bytes")
+            length = parse_body_length(self.headers.get("Content-Length"))
             try:
                 payload = json.loads(self.rfile.read(length))
             except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:

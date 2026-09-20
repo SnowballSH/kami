@@ -3,12 +3,14 @@ import {
   ACCEPTANCE,
   ASK_WHAT_IT_IS,
   forbiddenThingLine,
+  MOVING_INK,
   NEAR_ENOUGH,
   pickLine,
   REFUSALS,
   smallestThingLine,
   TAG_LINES,
 } from "./lines";
+import { motionOf } from "./motion";
 import { type NatureMatch, resolveNature } from "./natureResolver";
 import { isAllowed } from "./natures";
 import { type Phrase, parsePhrase, stemWord } from "./phrase";
@@ -26,6 +28,13 @@ const PLAIN_STRENGTH = 1;
 
 const tagsIn = (phrase: Phrase): readonly Tag[] =>
   TAG_WORDS.filter((tag) => phrase.stems.includes(stemWord(tag)));
+
+const withMotion = (ruling: Ruling, phrase: Phrase): Ruling => {
+  const motion = motionOf(phrase, strengthOf(phrase));
+  if (motion === undefined) return ruling;
+  const line = ruling.nature === "ink" ? pickLine(MOVING_INK, phrase.text) : ruling.line;
+  return { ...ruling, motion, line };
+};
 
 const plainInk = (name: string, tags: readonly Tag[], line: string): Ruling => ({
   name,
@@ -63,14 +72,17 @@ export const ruleOn = (utterance: string, { allowed, drawingIsDot }: RulingConte
   const match = resolveNature(phrase);
   const refusal = findRefusal(phrase, match !== null);
   if (refusal !== null) return plainInk(name, tags, refusal);
-  if (match === null) return plainInk(name, tags, plainLine(phrase, tags));
+  if (match === null) return withMotion(plainInk(name, tags, plainLine(phrase, tags)), phrase);
   if (!isAllowed(match.nature, allowed)) return plainInk(name, tags, forbiddenLine(match));
 
-  return {
-    name,
-    nature: match.nature,
-    strength: strengthOf(phrase),
-    tags,
-    line: acceptanceLine(phrase, match, drawingIsDot),
-  };
+  return withMotion(
+    {
+      name,
+      nature: match.nature,
+      strength: strengthOf(phrase),
+      tags,
+      line: acceptanceLine(phrase, match, drawingIsDot),
+    },
+    phrase,
+  );
 };

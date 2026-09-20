@@ -1,4 +1,6 @@
 import type { Stroke } from "../core/geometry";
+import { INPUT_LIMITS, isInputStrokes } from "../core/inputLimits";
+import { readBoundedText } from "../core/readBody";
 import { browserFetch, type FetchLike, JSON_HEADERS, transcribePath } from "./api";
 import type { HandwritingReader, ReadOptions } from "./types";
 
@@ -23,6 +25,7 @@ export class HttpHandwritingReader implements HandwritingReader {
   }
 
   async read(strokes: readonly Stroke[], { signal }: ReadOptions = {}): Promise<string | null> {
+    if (!isInputStrokes(strokes)) return null;
     try {
       const response = await this.#fetch(transcribePath(), {
         method: "POST",
@@ -31,8 +34,13 @@ export class HttpHandwritingReader implements HandwritingReader {
         signal: withTimeout(signal),
       });
       if (!response.ok) return null;
-      const body: unknown = await response.json();
-      return isTranscription(body) && body.text !== null && body.text.length > 0 ? body.text : null;
+      const body: unknown = JSON.parse(await readBoundedText(response, INPUT_LIMITS.textBytes));
+      return isTranscription(body) &&
+        body.text !== null &&
+        body.text.length > 0 &&
+        body.text.length <= INPUT_LIMITS.text
+        ? body.text
+        : null;
     } catch {
       return null;
     }

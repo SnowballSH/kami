@@ -1,27 +1,39 @@
-import type { CompiledRule, Governs, RuleCompiler, RuleEffect } from "../rules/types";
+import { INPUT_LIMITS } from "../core/inputLimits";
+import type { CompiledRule, Governs, RuleCompiler, RuleEffect, Target } from "../rules/types";
 import { browserFetch, compilePath, type FetchLike, JSON_HEADERS } from "./api";
 
 const COMPILE_TIMEOUT_MS = 35_000;
 
-type ShapeOf<Setting extends Governs> =
-  Extract<RuleEffect, { governs: Setting }> extends { readonly x: number } ? "vector" : "scalar";
+type EffectFor<Setting extends Governs, Effect = RuleEffect> = Effect extends RuleEffect
+  ? Setting extends Effect["governs"]
+    ? Effect
+    : never
+  : never;
+type Aim<Effect> = Effect extends { readonly of: Target } ? "body" : "world";
+type Extent<Effect> = Effect extends { readonly x: number } ? "vector" : "scalar";
+type ShapeOf<Setting extends Governs> = `${Aim<EffectFor<Setting>>}-${Extent<EffectFor<Setting>>}`;
 
 /** Typed against `RuleEffect`, so a new setting fails the typecheck here until it is listed. */
 const EFFECT_SHAPES: { readonly [Setting in Governs]: ShapeOf<Setting> } = {
-  gravity: "vector",
-  wind: "vector",
-  timeScale: "scalar",
-  airDrag: "scalar",
-  friction: "scalar",
-  bounciness: "scalar",
-  temperature: "scalar",
-  daylight: "scalar",
-  flight: "scalar",
-  walkSpeed: "scalar",
-  aliceSize: "scalar",
-  attraction: "scalar",
-  clones: "scalar",
-  inkEater: "scalar",
+  gravity: "world-vector",
+  wind: "world-vector",
+  timeScale: "world-scalar",
+  airDrag: "world-scalar",
+  friction: "world-scalar",
+  bounciness: "world-scalar",
+  temperature: "world-scalar",
+  daylight: "world-scalar",
+  flight: "world-scalar",
+  walkSpeed: "world-scalar",
+  aliceSize: "world-scalar",
+  attraction: "world-scalar",
+  clones: "world-scalar",
+  inkEater: "world-scalar",
+  spin: "body-scalar",
+  thrust: "body-vector",
+  mass: "body-scalar",
+  bounce: "body-scalar",
+  grip: "body-scalar",
 };
 
 const isGoverns = (setting: string): setting is Governs => Object.hasOwn(EFFECT_SHAPES, setting);
@@ -32,11 +44,17 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
+const isTarget = (value: unknown): value is Target =>
+  isRecord(value) &&
+  (value.kind === "all" || (value.kind === "named" && typeof value.name === "string"));
+
 const isRuleEffect = (value: unknown): value is RuleEffect => {
   if (!isRecord(value) || typeof value.governs !== "string" || !isGoverns(value.governs)) {
     return false;
   }
-  return EFFECT_SHAPES[value.governs] === "vector"
+  const [aim, extent] = EFFECT_SHAPES[value.governs].split("-");
+  if (aim === "body" && !isTarget(value.of)) return false;
+  return extent === "vector"
     ? isFiniteNumber(value.x) && isFiniteNumber(value.y)
     : isFiniteNumber(value.value);
 };
@@ -52,6 +70,7 @@ export class RemoteRuleCompiler implements RuleCompiler {
   }
 
   async compile(text: string): Promise<CompiledRule | null> {
+    if (text.length > INPUT_LIMITS.text) return null;
     try {
       const response = await this.#fetch(compilePath(), {
         method: "POST",

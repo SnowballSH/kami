@@ -45,6 +45,7 @@ const frame = (eraserActive: boolean): RenderFrame => ({
     twins: [],
     sumikui: null,
     drawings: [],
+    bites: [],
     keyTaken: false,
     doorOpen: false,
   },
@@ -53,6 +54,7 @@ const frame = (eraserActive: boolean): RenderFrame => ({
   notes: [],
   activeStrokes: [],
   activeVerdict: "ok",
+  heldInks: [],
   eraserActive,
 });
 

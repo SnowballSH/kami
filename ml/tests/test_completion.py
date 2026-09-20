@@ -177,14 +177,22 @@ def test_the_drawing_stays_the_players_stroke_for_stroke_and_point_for_point() -
     diagonal = float(np.hypot(200.0, 60.0))
     for tidied, drawn in zip(completion.tidied, SKETCH, strict=True):
         moved = np.linalg.norm(tidied - np.asarray(drawn), axis=1)
-        assert moved.max() <= DEFAULT_SETTINGS.max_shift * diagonal + 1e-9
+        assert moved.max() <= DEFAULT_SETTINGS.bold_shift * diagonal + 1e-9
 
 
 def test_the_answer_serialises_to_the_routes_shape() -> None:
     completion = completer(ScriptedReader([0, 0, 1, 0], axis(0))).complete(SKETCH)
     assert completion is not None
     body = completion.to_json()
-    assert set(body) == {"tidied", "added", "category", "confidence", "similarity", "exemplar"}
+    assert set(body) == {
+        "tidied",
+        "added",
+        "category",
+        "confidence",
+        "similarity",
+        "boldness",
+        "exemplar",
+    }
     assert body["exemplar"] == str(completion.exemplar_key_id)
     assert body["tidied"] == [
         [{"x": float(x), "y": float(y)} for x, y in np.round(one, 2)] for one in completion.tidied

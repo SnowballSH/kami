@@ -1,5 +1,5 @@
 import type { Vec } from "../core/geometry";
-import type { SumikuiPhase, SumikuiSnapshot } from "../sim/types";
+import type { SumikuiPhase, SumikuiQuarry, SumikuiSnapshot } from "../sim/types";
 import { TAU } from "./canvas2d";
 import { MARKER, rgbCss } from "./palette";
 
@@ -20,13 +20,16 @@ const PHASE_ALPHA: Readonly<Record<SumikuiPhase, number>> = {
   prowling: 0.8,
   hunting: 0.95,
   feeding: 1,
+  sated: 0.55,
 };
+const QUARRY_PUPIL: Readonly<Record<SumikuiQuarry, number>> = { ink: 1, paper: 1.2, alice: 1.7 };
 
 const PHASE_EYE_SQUINT: Readonly<Record<SumikuiPhase, number>> = {
   stirring: 0.25,
   prowling: 0.7,
   hunting: 1,
   feeding: 0.45,
+  sated: 0.15,
 };
 
 const lobeRadius = (index: number, nowMs: number, bite: number): number => {
@@ -69,7 +72,8 @@ const paintDrips = (ctx: CanvasRenderingContext2D, nowMs: number, alpha: number)
   }
 };
 
-const paintEye = (ctx: CanvasRenderingContext2D, squint: number): void => {
+/** The pupil widens with what it wants: a drawing, the ground under her, or her. */
+const paintEye = (ctx: CanvasRenderingContext2D, squint: number, pupil: number): void => {
   ctx.save();
   ctx.translate(EYE.x, EYE.y);
   ctx.scale(1, Math.max(squint, 0.08));
@@ -79,7 +83,7 @@ const paintEye = (ctx: CanvasRenderingContext2D, squint: number): void => {
   ctx.fill();
   ctx.fillStyle = rgbCss(MARKER.black);
   ctx.beginPath();
-  ctx.arc(1.2, 0, EYE.pupil, 0, TAU);
+  ctx.arc(1.2, 0, EYE.pupil * pupil, 0, TAU);
   ctx.fill();
   ctx.restore();
 };
@@ -113,6 +117,7 @@ export const paintSumikui = (
   traceBlot(ctx, nowMs, sumikui.bite);
   ctx.fill();
   ctx.scale(sumikui.facing, 1);
-  paintEye(ctx, PHASE_EYE_SQUINT[sumikui.phase]);
+  const pupil = sumikui.quarry === null ? 1 : QUARRY_PUPIL[sumikui.quarry];
+  paintEye(ctx, PHASE_EYE_SQUINT[sumikui.phase], pupil);
   ctx.restore();
 };

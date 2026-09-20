@@ -11,7 +11,12 @@ export interface Rect {
   readonly height: number;
 }
 
-export type Stroke = readonly Vec[];
+/** A point the pen passed through. `pressure` is 0–1 where the hardware reports it; a mouse or a finger leaves it out. */
+export interface PenPoint extends Vec {
+  readonly pressure?: number;
+}
+
+export type Stroke = readonly PenPoint[];
 
 /**
  * Where a rigid thing is now relative to where it was made.
@@ -62,6 +67,23 @@ export const rectContains = (rect: Rect, point: Vec): boolean =>
 
 export const rectsOverlap = (a: Rect, b: Rect): boolean =>
   a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+export const remainingColumns = (solid: Rect, cuts: readonly Rect[]): Rect[] => {
+  const edges = cuts
+    .filter((cut) => rectsOverlap(cut, solid))
+    .map((cut) => [cut.x, cut.x + cut.width] as const)
+    .sort(([a], [b]) => a - b);
+  if (edges.length === 0) return [solid];
+  const remains: Rect[] = [];
+  let from = solid.x;
+  for (const [left, right] of edges) {
+    if (left > from) remains.push({ ...solid, x: from, width: left - from });
+    from = Math.max(from, right);
+  }
+  const end = solid.x + solid.width;
+  if (end > from) remains.push({ ...solid, x: from, width: end - from });
+  return remains;
+};
 
 export const distanceToRect = (point: Vec, rect: Rect): number =>
   Math.hypot(

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { INPUT_LIMITS } from "../core/inputLimits";
 import type { FetchLike } from "./api";
 import { HttpHandwritingReader } from "./httpHandwritingReader";
 
@@ -14,6 +15,19 @@ const STROKES = [
 ];
 
 describe("HttpHandwritingReader", () => {
+  it("bounds sketch requests and transcribed text before use", async () => {
+    let calls = 0;
+    const reader = new HttpHandwritingReader(async () => {
+      calls++;
+      return Response.json({ text: "x".repeat(INPUT_LIMITS.text + 1) });
+    });
+    const strokes = Array.from({ length: INPUT_LIMITS.strokes + 1 }, () => [{ x: 0, y: 0 }]);
+    expect(await reader.read(strokes)).toBeNull();
+    expect(calls).toBe(0);
+    expect(await reader.read(STROKES)).toBeNull();
+    expect(calls).toBe(1);
+  });
+
   it("posts the strokes and returns the words the server read", async () => {
     const seen: { path: string; method: string | undefined; body: unknown }[] = [];
     const reader = new HttpHandwritingReader(async (path, init) => {

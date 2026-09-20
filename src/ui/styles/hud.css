@@ -119,6 +119,36 @@
   bottom: var(--kami-safe-bottom);
 }
 
+.kami-voice {
+  position: absolute;
+  right: var(--kami-safe-right);
+  bottom: calc(
+    var(--kami-safe-bottom) +
+    var(--kami-control) +
+    2 *
+    var(--kami-island-padding) +
+    10px
+  );
+  touch-action: none;
+}
+
+.kami-voice.kami-listening {
+  border-color: var(--kami-ink);
+  animation: kami-listening 1.2s ease-in-out infinite;
+}
+
+@keyframes kami-listening {
+  50% {
+    box-shadow: 0 0 0 4px rgb(17 17 17 / 0.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kami-voice.kami-listening {
+    animation: none;
+  }
+}
+
 .kami-stick {
   --kami-stick-size: 128px;
   --kami-thumb-size: 52px;
@@ -210,6 +240,22 @@
   min-width: 220px;
   max-width: min(320px, calc(100vw - 32px));
   flex-direction: column;
+  z-index: 1;
+}
+
+.kami-persistence {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(250px, calc(100vw - 32px));
+  padding: 2px 6px;
+  border-radius: var(--kami-radius-inner);
+  background: var(--kami-board);
+  font-size: 12px;
+}
+
+.kami-persistence .kami-control {
+  flex: none;
 }
 
 .kami-board-list {
@@ -272,6 +318,15 @@
 
 .kami-prompt::placeholder {
   color: var(--kami-ink-soft);
+}
+
+.kami-prompt-limit {
+  position: absolute;
+  max-width: min(340px, calc(100vw - 24px));
+  padding: 2px 4px;
+  background: var(--kami-board);
+  color: var(--kami-ink);
+  font-size: 13px;
 }
 
 @media (max-width: 640px) {

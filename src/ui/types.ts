@@ -1,4 +1,5 @@
-import type { Vec } from "../core/geometry";
+import type { PenPoint, Vec } from "../core/geometry";
+import type { PersistenceState } from "../persistence/types";
 import type { RuleId } from "../rules/types";
 import type { WalkIntent } from "../sim/types";
 
@@ -22,17 +23,30 @@ export interface HudHandlers {
   onNewBoard(): void;
   /** Wipe everything the player drew, wrote and ruled on this board. */
   onClearBoard(): void;
+  onRetryPersistence(): void;
+  /** Hold-to-talk went down: the CAT button, or Space. */
+  onTalkStarted(): void;
+  /** …and came up; whatever was said is now Kami's to read. */
+  onTalkEnded(): void;
+  /** The ear was tapped: listen for "kami" without holding anything, or stop. */
+  onWakeToggled(enabled: boolean): void;
 }
 
 export interface Hud {
+  toolbarBottom(): number;
   setTool(tool: Tool): void;
   setAutopilot(enabled: boolean): void;
   setBoards(boards: readonly BoardListing[], currentId: string): void;
+  setPersistence(state: PersistenceState): void;
   /**
    * An inline field at `client` (CSS px) to write a note into — typed, or handwritten with
    * Apple Pencil Scribble. Resolves with the trimmed text, or null if abandoned or empty.
    */
   promptText(client: Vec): Promise<string | null>;
+  /** Light the CAT button while the microphone is open. */
+  setListening(listening: boolean): void;
+  /** Show whether the microphone is standing by for the wake word. */
+  setWaking(waking: boolean): void;
 }
 
 export interface LawListing {
@@ -58,8 +72,8 @@ export interface LawsPanel {
  * pinch-wheel / ctrl-wheel zooms.
  */
 export interface CanvasInputSink {
-  penDown(client: Vec): void;
-  penMove(client: Vec): void;
+  penDown(client: PenPoint): void;
+  penMove(client: PenPoint): void;
   penUp(): void;
   /** The stroke turned out not to be one: a second finger landed, or it never moved. */
   penCancel(): void;

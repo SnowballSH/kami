@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { INPUT_LIMITS } from "../core/inputLimits";
 import type { Drawing, DrawingId } from "../ink/types";
 import { type FetchLike, HttpRecognizer } from "./httpRecognizer";
 
@@ -14,6 +15,49 @@ const drawing: Drawing = {
 };
 
 describe("HttpRecognizer", () => {
+  it("does not send sketches over the shared budget", async () => {
+    let calls = 0;
+    const recognizer = new HttpRecognizer(async () => {
+      calls++;
+      return Response.json({ guesses: ["circle"] });
+    });
+    const stroke = Array.from({ length: INPUT_LIMITS.pointsPerStroke }, () => ({ x: 0, y: 0 }));
+    const strokes = [stroke, stroke, [{ x: 0, y: 0 }]];
+    expect(await recognizer.recognize({ ...drawing, strokes })).toEqual([]);
+    expect(await recognizer.sight(strokes)).toEqual([]);
+    expect(await recognizer.complete(strokes)).toBeNull();
+    expect(calls).toBe(0);
+  });
+
+  it("rejects a completion whose combined tidied and added points exceed the drawing budget", async () => {
+    const stroke = Array.from({ length: INPUT_LIMITS.pointsPerStroke }, (_, x) => ({ x, y: 0 }));
+    const strokes = [stroke, stroke];
+    const recognizer = new HttpRecognizer(async () =>
+      Response.json({
+        tidied: strokes,
+        added: [
+          [
+            { x: 0, y: 0 },
+            { x: 10, y: 10 },
+          ],
+        ],
+        category: "line",
+        confidence: 1,
+      }),
+    );
+    expect(await recognizer.complete(strokes)).toBeNull();
+  });
+
+  it("rejects an oversized JSON response even without Content-Length", async () => {
+    const recognizer = new HttpRecognizer(
+      async () =>
+        new Response(" ".repeat(INPUT_LIMITS.sketchBytes + 1), {
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    expect(await recognizer.complete(drawing.strokes)).toBeNull();
+  });
+
   it("posts the strokes with a deadline and returns the guesses in order", async () => {
     const seen: { path: string; body: unknown; hasDeadline: boolean }[] = [];
     const recognizer = new HttpRecognizer(async (path, init) => {

@@ -1,7 +1,8 @@
 // @vitest-environment node
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Ruling } from "../../src/cat/types";
 import type { Stroke } from "../../src/core/geometry";
+import { INPUT_LIMITS } from "../../src/core/inputLimits";
 import type { DrawingId } from "../../src/ink/types";
 import type { Note, NoteId } from "../../src/notes/types";
 import type { BoardSnapshot, StoredDrawing } from "../../src/persistence/types";
@@ -116,6 +117,7 @@ beforeAll(async () => {
     compile: async (text: string) => (text.includes("mars") ? MARS_RULE : null),
   };
   const transcriber = {
+    ready: true,
     transcribe: async (strokes: readonly Stroke[]) => (strokes.length > 1 ? "no gravity" : null),
     warmUp: async () => true,
   };
@@ -148,6 +150,76 @@ beforeEach(async () => {
   await new BoardRepository(connection.db).ensureIndexes();
 });
 
+describe("input budgets", () => {
+  const stroke = Array.from({ length: INPUT_LIMITS.pointsPerStroke }, () => ({ x: 0, y: 0 }));
+  const excess = [stroke, stroke, [{ x: 0, y: 0 }]];
+
+  it("rejects aggregate excess before recognition, transcription or beautification", async () => {
+    const read = vi.fn(async () => ({ ranking: [], certainAbove: null }));
+    const beautify = vi.fn(async () => null);
+    const transcribe = vi.fn(async () => null);
+    api = createApi({
+      ...apiParts(),
+      recognizer: { read },
+      beautifier: { beautify },
+      transcriber: { ready: true, transcribe, warmUp: async () => true },
+    });
+    for (const route of ["recognize", "transcribe", "beautify"]) {
+      const response = await call("POST", `/api/${route}`, { strokes: excess });
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain("points per drawing");
+    }
+    expect(read).not.toHaveBeenCalled();
+    expect(beautify).not.toHaveBeenCalled();
+    expect(transcribe).not.toHaveBeenCalled();
+    api = createApi({ ...apiParts(), beautifier });
+  });
+
+  it("accepts exact stored drawing/text boundaries and rejects excess without saving", async () => {
+    const stored = storedDrawing("bounded");
+    const drawing = { ...stored, drawing: { ...stored.drawing, strokes: [stroke, stroke] } };
+    expect((await call("PUT", "/api/boards/demo/drawings/bounded", drawing)).status).toBe(200);
+    expect(
+      (
+        await call("PUT", "/api/boards/demo/drawings/bounded", {
+          ...drawing,
+          drawing: { ...drawing.drawing, strokes: excess },
+        })
+      ).status,
+    ).toBe(400);
+    expect((await loadBoard("demo")).drawings[0]?.drawing.strokes).toHaveLength(2);
+    expect(
+      (
+        await call(
+          "PUT",
+          "/api/boards/demo/notes/limit",
+          note("limit", "x".repeat(INPUT_LIMITS.text), 1),
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await call(
+          "PUT",
+          "/api/boards/demo/notes/excess",
+          note("excess", "x".repeat(INPUT_LIMITS.text + 1), 1),
+        )
+      ).status,
+    ).toBe(400);
+    expect((await loadBoard("demo")).notes).toHaveLength(1);
+  });
+
+  it.each([
+    ["/api/recognize", INPUT_LIMITS.sketchBytes],
+    ["/api/beautify", INPUT_LIMITS.sketchBytes],
+    ["/api/transcribe", INPUT_LIMITS.sketchBytes],
+    ["/api/compile", INPUT_LIMITS.textBytes],
+    ["/api/controllers/pen/state", INPUT_LIMITS.controllerBytes],
+  ])("rejects excessive bytes on %s before parsing", async (path, bytes) => {
+    expect((await call("POST", path, " ".repeat(bytes + 1))).status).toBe(413);
+  });
+});
+
 describe("board memory", () => {
   it("answers an unknown board with an empty snapshot", async () => {
     expect(await loadBoard("nowhere")).toEqual({ drawings: [], notes: [], rules: [] });
@@ -177,6 +249,51 @@ describe("board memory", () => {
     expect((await loadBoard("demo")).notes).toEqual([guess]);
   });
 
+  it("round-trips drawing label associations alongside legacy notes", async () => {
+    const stored = storedDrawing("drawing-1", MUSHROOM_RULING);
+    const label: Note = {
+      ...note("label", "a bouncy mushroom", 1),
+      drawingId: stored.drawing.id,
+    };
+    const legacy = note("legacy", "old writing", 2);
+    await call("PUT", "/api/boards/demo/drawings/drawing-1", stored);
+    expect((await call("PUT", "/api/boards/demo/notes/label", label)).status).toBe(200);
+    expect((await call("PUT", "/api/boards/demo/notes/legacy", legacy)).status).toBe(200);
+    expect(await loadBoard("demo")).toEqual({
+      drawings: [stored],
+      notes: [label, legacy],
+      rules: [],
+    });
+  });
+
+  it.each(["", "x".repeat(201), null, 1, {}])(
+    "rejects an invalid drawing label association: %j",
+    async (drawingId) => {
+      const response = await call("PUT", "/api/boards/demo/notes/label", {
+        ...note("label", "a rock", 1),
+        drawingId,
+      });
+      expect(response.status).toBe(400);
+      expect((await loadBoard("demo")).notes).toEqual([]);
+    },
+  );
+
+  it("validates an optional ruling on a guess action while keeping older actions readable", async () => {
+    const action = {
+      type: "name-drawing",
+      drawingId: "drawing-1",
+      name: MUSHROOM_RULING.name,
+      ruling: MUSHROOM_RULING,
+    };
+    const guess = { ...note("note-9", "a mushroom?", 9), action };
+    expect((await call("PUT", "/api/boards/demo/notes/note-9", guess)).status).toBe(200);
+    expect((await loadBoard("demo")).notes).toEqual([guess]);
+    const invalid = {
+      ...guess,
+      action: { ...action, ruling: { ...MUSHROOM_RULING, nature: "sparkly" } },
+    };
+    expect((await call("PUT", "/api/boards/demo/notes/note-9", invalid)).status).toBe(400);
+  });
   it("overwrites on a second save of the same id", async () => {
     await call("PUT", "/api/boards/demo/drawings/drawing-1", storedDrawing("drawing-1"));
     await call(
@@ -331,6 +448,29 @@ describe("transcribe", () => {
     ...lineSketch({ x: 0, y: 0 }, { x: 0, y: 40 }),
     ...lineSketch({ x: 0, y: 20 }, { x: 20, y: 20 }),
   ];
+
+  it("fails closed before the configured reader passes its image check", async () => {
+    let reads = 0;
+    const transcriber = {
+      ready: false,
+      warmUp: async () => false,
+      transcribe: async () => {
+        reads += 1;
+        return "hi";
+      },
+    };
+    const guarded = createApi({ ...apiParts(), beautifier, transcriber });
+    const request = () =>
+      new Request("http://kami.test/api/transcribe", {
+        method: "POST",
+        body: JSON.stringify({ strokes: words }),
+      });
+    expect((await guarded.handle(request())).status).toBe(501);
+    expect(reads).toBe(0);
+    transcriber.ready = true;
+    expect((await guarded.handle(request())).status).toBe(200);
+    expect(reads).toBe(1);
+  });
 
   it("answers with the words the reader saw, or null for a drawing", async () => {
     const read = await call("POST", "/api/transcribe", { strokes: words });

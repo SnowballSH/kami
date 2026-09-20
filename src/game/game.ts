@@ -1,7 +1,16 @@
 import type { Autopilot, Scene } from "../autopilot/types";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
-import { boundsOf, poseToWorld, type Rect, rectGap, type Stroke, type Vec } from "../core/geometry";
+import {
+  boundsOf,
+  type PenPoint,
+  poseToWorld,
+  type Rect,
+  rectGap,
+  type Stroke,
+  type Vec,
+} from "../core/geometry";
+import { INPUT_LIMITS, isInputPoint, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
 import type { Handwriting } from "../handwriting/types";
 import { judgePlacement } from "../ink/placement";
@@ -13,6 +22,8 @@ import type {
   PlacementRejection,
   PosedDrawing,
 } from "../ink/types";
+import { allowsLaw, createDirector, EMBODIED_MODE, EmbodiedDirector } from "../modes";
+import type { GameMode, ModeDirector } from "../modes/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore } from "../persistence/types";
 import type { PenReader } from "../reading/types";
@@ -29,11 +40,14 @@ import type {
   LawsPanelHandlers,
   Tool,
 } from "../ui/types";
+import type { EarsHandlers, Voice } from "../voice/types";
 import { CameraRig } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
+import { HeldInkBook } from "./heldInk";
 import { IdMint } from "./idMint";
 import { InkLedger, type InkRecord } from "./inkLedger";
 import {
+  aloud,
   BLANK_BOARD_BRIEF,
   DOOR_OPENED_LINE,
   GOAL_LINE,
@@ -41,14 +55,17 @@ import {
   glossOf,
   isHelpRequest,
   KEY_TAKEN_LINE,
+  LAW_OUTSIDE_MODE_LINE,
   OFFER_HELP_HINT,
   PONDERING_LINE,
   REJECTION_LINES,
   RULE_REPEALED_LINE,
   SHRUGS,
   STUCK_LINE,
+  SUMIKUI_ALICE_DEVOURED_LINES,
   SUMIKUI_DEVOURED_LINES,
   SUMIKUI_LORE_LINE_DELAY_MS,
+  SUMIKUI_PAPER_BITTEN_LINES,
   SUMIKUI_SEALED_LINE,
   SUMIKUI_SUMMONED_LINES,
   SUMIKUI_WOKE_LINE,
@@ -65,6 +82,9 @@ const ERASER_TOLERANCE = 18;
 const NAMING_REACH = 190;
 const GUESS_OFFSET = { x: 30, y: -4, line: 42 } as const;
 
+const directorFor = (mode: GameMode): ModeDirector =>
+  createDirector(mode) ?? new EmbodiedDirector(EMBODIED_MODE);
+
 const guessCornerOf = (strokes: readonly Stroke[]): Vec => {
   const bounds = boundsOf(strokes.flat());
   return { x: bounds.x + bounds.width + GUESS_OFFSET.x, y: bounds.y + GUESS_OFFSET.y };
@@ -74,10 +94,13 @@ const GLIMPSE_LIFETIME_MS = 8_000;
 const REMARK_LIFETIME_MS = 6_000;
 const HINT_LIFETIME_MS = 14_000;
 const ABOVE_ALICE = { x: -90, y: -120 } as const;
+/** Where a spoken note lands: beside Alice, as if the player had written it there. */
+const SPOKEN_AT = { x: -60, y: -190 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
 const ALREADY_AWAKE_MS = 10_000;
 const SUMMONED_DROP = 24;
+const HUD_WRITING_GAP = 12;
 
 interface Recital {
   readonly at: number;
@@ -107,6 +130,8 @@ export interface GameModules {
   readonly boardFor: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
   readonly createHud: (handlers: HudHandlers) => Hud;
+  /** Deepgram both ways (docs/voice.md); without one Kami only reads and writes. */
+  readonly createVoice?: (handlers: EarsHandlers) => Voice;
   readonly createLawsPanel: (handlers: LawsPanelHandlers) => LawsPanel;
   readonly findDrawingAt: (
     point: Vec,
@@ -114,6 +139,8 @@ export interface GameModules {
     tolerance: number,
   ) => DrawingId | null;
   readonly onBoardOpened?: (boardId: string) => void;
+  /** How the board is played; `EMBODIED_MODE` unless said otherwise. A mode nobody has built a director for yet plays as embodied. */
+  readonly mode?: GameMode;
   /** Whether Alice starts out walking herself; the player can switch it from the HUD. */
   readonly selfDriving?: boolean;
   readonly onSelfDrivingChanged?: (enabled: boolean) => void;
@@ -124,6 +151,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly penReader: PenReader | null;
   private readonly hud: Hud;
   private readonly laws: LawsPanel;
+  private readonly voice: Voice | null;
+  private voiceReady = false;
   private readonly loop = new FixedStepLoop(FIXED_STEP_MS, MAX_STEPS_PER_FRAME);
   private readonly ledger = new InkLedger();
   private readonly notes: NoteBook;
@@ -132,9 +161,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly stuck = new StuckDetector();
   private readonly ids = new IdMint();
   private readonly introduced = new Set<string>();
+  private readonly director: ModeDirector;
 
   private board: BoardDefinition;
   private epoch = 0;
+  private retryingPersistence = false;
+  private readonly knownBoards = new Set<string>();
   private lastSubmittedAt = 0;
   private loading = false;
   private nowMs = 0;
@@ -147,9 +179,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private shrugs = 0;
   private sumikuiLoose = false;
   private meals = 0;
+  private bites = 0;
+  private swallows = 0;
   private recital: Recital[] = [];
-  /** Ink that landed while the pen reader was still reading it: Kami does not name it himself until the reader has answered. */
-  private readonly unread = new Map<DrawingId, Promise<string | null>>();
+  /** Settled ink the pen reader is still reading: weightless until it is known to be a drawing. */
+  private readonly held = new HeldInkBook();
   private glimpsing = false;
   private glimpseAgain = false;
   private glimpse: { readonly noteId: NoteId; readonly word: string } | null = null;
@@ -162,14 +196,18 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     initialBoardId: string,
   ) {
     this.board = modules.boardFor(initialBoardId);
-    this.selfDriving = modules.selfDriving ?? true;
+    this.director = directorFor(modules.mode ?? EMBODIED_MODE);
+    this.selfDriving = (modules.selfDriving ?? true) && this.walksHerself();
     this.notes = new NoteBook(modules.handwriting);
-    this.rules = new RuleBook(modules.resolvePhysics);
+    this.rules = new RuleBook((rules) =>
+      modules.resolvePhysics(rules.filter((rule) => this.allowsRule(rule))),
+    );
     this.ink = modules.createInkSession(this);
     this.penReader = modules.penReader ?? null;
     this.hud = modules.createHud(this);
     this.laws = modules.createLawsPanel(this);
     modules.summoner?.wake();
+    this.voice = modules.createVoice?.(this.ears()) ?? null;
   }
 
   get currentTool(): Tool {
@@ -185,12 +223,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   frame(nowMs: number): void {
+    this.hud.setPersistence(this.modules.store.state(this.board.id));
     const { sim, renderer } = this.modules;
     const steps = this.loop.advance(nowMs - this.lastFrameMs);
     this.nowMs = nowMs;
     this.lastFrameMs = nowMs;
 
-    sim.setTimeScale(this.ink.isDrawing ? BULLET_TIME_SCALE : 1);
+    sim.setTimeScale(this.ink.isDrawing || this.held.isHolding ? BULLET_TIME_SCALE : 1);
     for (let step = 0; !this.loading && step < steps; step++) {
       sim.setWalkIntent(this.chooseIntent());
       for (const event of sim.step()) this.handle(event);
@@ -215,20 +254,21 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       notes: this.notes.views(nowMs),
       activeStrokes: this.ink.activeStrokes,
       activeVerdict: this.ink.activeVerdict,
+      heldInks: this.held.views(nowMs),
       eraserActive: this.tool === "erase",
     });
   }
 
-  penDown(client: Vec): void {
+  penDown(client: PenPoint): void {
     if (this.loading) return;
     if (this.tool === "erase") this.eraseAt(this.toWorld(client));
-    else this.ink.penDown(this.toWorld(client));
+    else this.ink.penDown(this.penPointToWorld(client));
   }
 
-  penMove(client: Vec): void {
+  penMove(client: PenPoint): void {
     if (this.loading) return;
     if (this.tool === "erase") this.eraseAt(this.toWorld(client));
-    else this.ink.penMove(this.toWorld(client));
+    else this.ink.penMove(this.penPointToWorld(client));
   }
 
   penUp(): void {
@@ -266,18 +306,16 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     const known = this.penReader.recall(drawing.strokes);
     const reading = this.penReader.settle(drawing.strokes);
-    if (typeof known === "string") {
-      this.ink.refund(drawing.cost);
-      void this.interpret(known, writingOrigin(drawing.strokes));
+    if (known === null) {
+      this.land(drawing);
       return;
     }
-    if (known === undefined) this.unread.set(drawing.id, reading);
-    this.land(drawing);
-    if (known === undefined) void this.liftWords(drawing, reading);
+    this.held.hold(drawing.id, drawing.strokes);
+    void this.settleWords(drawing, reading);
   }
 
   onReject(reason: PlacementRejection, strokes: readonly Stroke[]): void {
-    if (this.penReader === null) {
+    if (this.penReader === null || reason === "too-detailed" || reason === "out-of-bounds") {
       this.remark(REJECTION_LINES[reason]);
       return;
     }
@@ -307,11 +345,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   onAutopilotToggled(enabled: boolean): void {
-    this.selfDriving = enabled;
+    this.selfDriving = enabled && this.walksHerself();
     this.wasStuck = false;
     this.modules.autopilot.reset();
-    this.hud.setAutopilot(enabled);
-    this.modules.onSelfDrivingChanged?.(enabled);
+    this.hud.setAutopilot(this.selfDriving);
+    this.modules.onSelfDrivingChanged?.(this.selfDriving);
+  }
+
+  private walksHerself(): boolean {
+    return this.director.mode.autopilot === "allowed";
   }
 
   onRecenter(): void {
@@ -326,6 +368,34 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     void this.open(this.ids.next("sketch"));
   }
 
+  onTalkStarted(): void {
+    if (!this.voiceReady) return;
+    this.voice?.hold();
+  }
+
+  onTalkEnded(): void {
+    this.voice?.release();
+  }
+
+  onWakeToggled(enabled: boolean): void {
+    if (enabled && !this.voiceReady) return;
+    this.voice?.wake(enabled);
+  }
+
+  /** Speech is another way of writing: what the player said goes into the one funnel, as a note. */
+  private ears(): EarsHandlers {
+    return {
+      onHearing: () => {},
+      onHeard: (text) => {
+        if (!this.voiceReady) return;
+        const alice = this.modules.sim.aliceBounds();
+        void this.interpret(text, { x: alice.x + SPOKEN_AT.x, y: alice.y + SPOKEN_AT.y });
+      },
+      onListeningChanged: (listening) => this.hud.setListening(listening),
+      onWakingChanged: (waking) => this.hud.setWaking(waking),
+    };
+  }
+
   onRepealLaw(id: RuleId): void {
     const law = this.rules.all.find((rule) => rule.id === id);
     if (law !== undefined) this.eraseNote(law.noteId);
@@ -336,20 +406,41 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     void this.open(this.board.id, { remember: false });
   }
 
+  async onRetryPersistence(): Promise<void> {
+    const { store } = this.modules;
+    const state = store.state(this.board.id);
+    if (this.retryingPersistence || state.loading || state.saving) return;
+    this.retryingPersistence = true;
+    const epoch = this.epoch;
+    const boardId = this.board.id;
+    try {
+      await store.retry(boardId);
+      if (epoch !== this.epoch) return;
+      if (state.errors.some(({ operation }) => operation === "load")) await this.open(boardId);
+      else await this.listBoards(epoch);
+    } finally {
+      this.retryingPersistence = false;
+    }
+  }
+
   private async open(boardId: string, { remember = true } = {}): Promise<void> {
     const { sim, cat, renderer, store, boardFor, onBoardOpened } = this.modules;
     this.epoch += 1;
     const epoch = this.epoch;
     this.loading = remember;
+    this.voiceReady = false;
+    this.voice?.cancel();
     this.board = boardFor(boardId);
 
     sim.loadBoard(this.board);
+    this.director.open(this.board);
+    this.voice?.hush();
     this.modules.autopilot.reset();
     this.wasStuck = false;
     renderer.setBoard(this.board);
     this.ink.reset(Number.POSITIVE_INFINITY);
     this.penReader?.forget();
-    this.unread.clear();
+    this.held.clear();
     this.tidied.clear();
     this.ledger.clear();
     this.notes.clear();
@@ -369,15 +460,21 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
-    if (!remember) return;
+    if (!remember) {
+      this.voiceReady = true;
+      return;
+    }
     const loadingNote = this.kamiWrites("Loading board…", this.board.spawn);
     try {
       const snapshot = await store.load(boardId);
       if (epoch === this.epoch) this.restore(snapshot);
+    } catch {
+      // The store exposes the failure; drawing remains available.
     } finally {
       if (epoch === this.epoch) {
         this.notes.remove(loadingNote.id);
         this.loading = false;
+        this.voiceReady = true;
       }
     }
   }
@@ -400,7 +497,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     this.rules.replaceAll(rules);
     this.showLaws();
-    for (const rule of rules) this.writeGloss(rule);
+    for (const rule of rules) {
+      if (this.allowsRule(rule)) this.writeGloss(rule);
+      else this.refuseLaw(rule);
+    }
     this.applyLaws({ silently: true });
     this.modules.autopilot.invalidate();
   }
@@ -424,6 +524,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       board: this.board,
       alice: world.alice,
       inks: this.ledger.sceneInks(world.drawings),
+      bites: world.bites,
       keyTaken: world.keyTaken,
       doorOpen: world.doorOpen,
       walkSpeed: sim.walkSpeed(),
@@ -434,20 +535,31 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private async listBoards(epoch: number): Promise<void> {
-    const remembered = await this.modules.store.listBoards();
-    if (epoch !== this.epoch) return;
     const demo = this.modules.boardFor("wonderland");
-    const ids = new Set([demo.id, this.board.id, ...remembered.map((summary) => summary.id)]);
+    this.knownBoards.add(demo.id);
+    this.knownBoards.add(this.board.id);
+    this.showBoards();
+    try {
+      const remembered = await this.modules.store.listBoards();
+      if (epoch !== this.epoch) return;
+      for (const summary of remembered) this.knownBoards.add(summary.id);
+      this.showBoards();
+    } catch {
+      // Keep the known boards available while their remote list is unavailable.
+    }
+  }
+
+  private showBoards(): void {
     this.hud.setBoards(
-      [...ids].map((id) => ({ id, title: this.modules.boardFor(id).title })),
+      [...this.knownBoards].map((id) => ({ id, title: this.modules.boardFor(id).title })),
       this.board.id,
     );
   }
 
   private handle(event: SimEvent): void {
+    if (this.director.won(event)) this.remark(GOAL_LINE, HINT_LIFETIME_MS);
     switch (event.type) {
       case "goal-reached":
-        this.remark(GOAL_LINE, HINT_LIFETIME_MS);
         return;
       case "fell":
         this.stuck.fell();
@@ -482,6 +594,22 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         this.discard(event.drawingId);
         this.remark(SUMIKUI_DEVOURED_LINES[this.meals++ % SUMIKUI_DEVOURED_LINES.length] ?? "");
         return;
+      case "paper-bitten":
+        this.modules.autopilot.invalidate();
+        this.remark(
+          SUMIKUI_PAPER_BITTEN_LINES[this.bites++ % SUMIKUI_PAPER_BITTEN_LINES.length] ?? "",
+        );
+        return;
+      case "paper-healed":
+        this.modules.autopilot.invalidate();
+        return;
+      case "alice-devoured":
+        this.modules.autopilot.invalidate();
+        this.remark(
+          SUMIKUI_ALICE_DEVOURED_LINES[this.swallows++ % SUMIKUI_ALICE_DEVOURED_LINES.length] ?? "",
+          HINT_LIFETIME_MS,
+        );
+        return;
     }
   }
 
@@ -498,7 +626,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.kamiWrites(
       zone.intro,
       { x: zone.checkpoint.x + ABOVE_ALICE.x, y: zone.checkpoint.y + ABOVE_ALICE.y - 80 },
-      { lifetimeMs: HINT_LIFETIME_MS },
+      { lifetimeMs: HINT_LIFETIME_MS, minY: this.writingTop() },
     );
   }
 
@@ -565,15 +693,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
   }
 
-  /** The ink landed before the reader answered: if it was words after all, take it back up. */
-  private async liftWords(drawing: Drawing, reading: Promise<string | null>): Promise<void> {
+  /** Held ink is let down into the world if it was a drawing, or fades away as the words it was. */
+  private async settleWords(drawing: Drawing, reading: Promise<string | null>): Promise<void> {
     const epoch = this.epoch;
     const text = await reading;
-    this.unread.delete(drawing.id);
-    if (text === null || epoch !== this.epoch) return;
-    const record = this.ledger.get(drawing.id);
-    if (record === null || record.ruling !== null) return;
-    this.discard(drawing.id);
+    if (epoch !== this.epoch) return;
+    if (text === null) {
+      this.held.release(drawing.id);
+      this.land(drawing);
+      return;
+    }
+    this.held.fade(drawing.id, drawing.strokes, this.nowMs);
     this.ink.refund(drawing.cost);
     await this.interpret(text, writingOrigin(drawing.strokes));
   }
@@ -589,15 +719,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private async offerGuesses(drawing: Drawing): Promise<void> {
     const epoch = this.epoch;
-    const { certain, guesses } = await this.modules.cat.look(drawing);
-    if (certain !== null) await this.unread.get(drawing.id);
+    const { certain, rulings } = await this.modules.cat.look(drawing);
     if (epoch !== this.epoch || this.ledger.get(drawing.id)?.ruling !== null) return;
 
     const corner = guessCornerOf(drawing.strokes);
     if (certain !== null) {
       const label = this.kamiWrites(certain.name, corner, { drift: "down" });
       this.labelsByKami.add(label.id);
-      this.name(drawing.id, certain, label);
+      this.name(drawing.id, this.modules.cat.accept(certain), label);
       return;
     }
     const anchor: NoteAnchor = { type: "drawing", id: drawing.id };
@@ -609,14 +738,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         { lifetimeMs: GUESS_LIFETIME_MS, anchor, drift: "down" },
       );
     }
-    guesses.forEach((name, index) => {
+    rulings.forEach((ruling, index) => {
+      const { name } = ruling;
       this.kamiWrites(
         `${name}?`,
         { x: corner.x, y: corner.y + index * GUESS_OFFSET.line },
         {
           lifetimeMs: GUESS_LIFETIME_MS,
           anchor,
-          action: { type: "name-drawing", drawingId: drawing.id, name },
+          action: { type: "name-drawing", drawingId: drawing.id, name, ruling },
           drift: "down",
         },
       );
@@ -625,7 +755,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private perform(action: NoteAction, offered: Note): void {
     const label = this.playerWrites(action.name, offered.position);
-    void this.nameDrawing(action.drawingId, action.name, label);
+    if (action.ruling === undefined) {
+      void this.nameDrawing(action.drawingId, action.name, label);
+    } else {
+      this.name(action.drawingId, this.modules.cat.accept(action.ruling), label);
+    }
   }
 
   private async promptAt(client: Vec, world: Vec): Promise<void> {
@@ -640,6 +774,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    * else understood. A bare name ("a rabbit") beside a drawing names it; anywhere else it summons.
    */
   private async interpret(text: string, position: Vec): Promise<void> {
+    if (text.length > INPUT_LIMITS.text) {
+      this.remark(TEXT_LIMIT_MESSAGE);
+      return;
+    }
+    if (!isInputPoint(position)) {
+      this.remark(REJECTION_LINES["out-of-bounds"]);
+      return;
+    }
     if (isHelpRequest(text)) {
       this.kamiWrites(this.modules.cat.hint().line, position, { lifetimeMs: HINT_LIFETIME_MS });
       return;
@@ -650,7 +792,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const law = await this.modules.compiler.compile(text);
     if (!stillHere()) return;
     if (law !== null) {
-      this.enact(this.ruleFrom(law, note));
+      this.enactIfAllowed(this.ruleFrom(law, note));
       return;
     }
 
@@ -675,7 +817,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
     const thought = await this.ponder(text, note.id);
     if (!stillHere()) return;
-    if (thought !== null) this.enact(this.ruleFrom(thought, note));
+    if (thought !== null) this.enactIfAllowed(this.ruleFrom(thought, note));
     else if (subject !== null && ruling !== null) this.name(subject.drawing.id, ruling, note);
     else this.shrug(note.id);
   }
@@ -744,6 +886,27 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     };
   }
 
+  private allowsRule(rule: Rule): boolean {
+    return allowsLaw(this.director.mode.laws, rule.effect.governs);
+  }
+
+  private enactIfAllowed(rule: Rule): void {
+    if (this.allowsRule(rule)) this.enact(rule);
+    else this.refuseLaw(rule);
+  }
+
+  private refuseLaw(rule: Rule): void {
+    this.notes.restyle(rule.noteId, "plain");
+    const under = this.notes.below(rule.noteId);
+    if (under !== null) {
+      this.kamiWrites(LAW_OUTSIDE_MODE_LINE, under, {
+        anchor: { type: "note", id: rule.noteId },
+        lifetimeMs: REMARK_LIFETIME_MS,
+        drift: "down",
+      });
+    }
+  }
+
   private enact(rule: Rule): void {
     this.rules.enact(rule);
     this.showLaws();
@@ -771,8 +934,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.modules.autopilot.invalidate();
     this.modules.store.saveDrawing(this.board.id, { drawing: awake.drawing, ruling });
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
-    this.notes.attach(label.id, { type: "drawing", id });
+    const attached = this.notes.attachToDrawing(label.id, id);
     if (ruling.nature !== "ink") this.understood(label.id);
+    else if (attached !== null) this.modules.store.saveNote(this.board.id, attached);
     const under = this.notes.below(label.id);
     if (under !== null) {
       this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
@@ -827,11 +991,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private showLaws(): void {
     this.laws.setLaws(
-      this.rules.all.map((rule) => ({
-        id: rule.id,
-        text: rule.sourceText,
-        gloss: rule.explanation,
-      })),
+      this.rules.all
+        .filter((rule) => this.allowsRule(rule))
+        .map((rule) => ({
+          id: rule.id,
+          text: rule.sourceText,
+          gloss: rule.explanation,
+        })),
     );
   }
 
@@ -850,8 +1016,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       x: this.board.spawn.x + WORDMARK_OFFSET.x,
       y: this.board.spawn.y + WORDMARK_OFFSET.y,
     };
-    this.kamiWrites(WORDMARK, at);
-    this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP });
+    this.kamiWrites(WORDMARK, at, { silent: true });
+    this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP }, { silent: true });
   }
 
   private playerWrites(text: string, position: Vec): Note {
@@ -882,9 +1048,21 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       readonly action?: NoteAction;
       readonly tone?: Note["tone"];
       readonly drift?: Drift;
+      /** Written but not said aloud: his own wordmark, and the labels he hangs on drawings. */
+      readonly silent?: boolean;
+      readonly minY?: number;
     } = {},
   ): Note {
-    const { lifetimeMs, anchor, action, tone = "plain", drift = "up" } = options;
+    const {
+      lifetimeMs,
+      anchor,
+      action,
+      tone = "plain",
+      drift = "up",
+      silent = false,
+      minY,
+    } = options;
+    if (!silent) this.voice?.say(aloud(text));
     const note: Note = {
       id: this.ids.next<NoteId>("kami"),
       author: "kami",
@@ -901,6 +1079,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       drift,
       ...(lifetimeMs === undefined ? {} : { lifetimeMs }),
       ...(anchor === undefined ? {} : { anchor }),
+      ...(minY === undefined ? {} : { minY }),
     });
   }
 
@@ -941,8 +1120,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.kamiWrites(
       line,
       { x: alice.x + ABOVE_ALICE.x, y: alice.y + ABOVE_ALICE.y },
-      { lifetimeMs },
+      { lifetimeMs, minY: this.writingTop() },
     );
+  }
+
+  private writingTop(): number {
+    return this.modules.renderer.toWorld(
+      { x: 0, y: this.hud.toolbarBottom() + HUD_WRITING_GAP },
+      this.camera.camera,
+    ).y;
   }
 
   private eraseAt(point: Vec): void {
@@ -1006,6 +1192,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private toWorld(client: Vec): Vec {
     return this.modules.renderer.toWorld(client, this.camera.camera);
+  }
+
+  private penPointToWorld(client: PenPoint): PenPoint {
+    const world = this.toWorld(client);
+    return client.pressure === undefined ? world : { ...world, pressure: client.pressure };
   }
 }
 

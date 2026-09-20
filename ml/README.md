@@ -5,6 +5,11 @@ One ResNet-18 that reads a 64×64 rendering of a sketch, finished or half-drawn,
 directory is the Python that honours it. Nothing here touches the game: the Bun server reaches the
 model through the sidecar and falls back to its k-NN when the sidecar is not there.
 
+All training, inference, full ML tests (including tiny test models) and heavy work run on GX10,
+as required by [AGENTS.md](../AGENTS.md). Model artifacts are not established by a passing
+TypeScript build. See the [current integration and verification guide](../docs/architecture.md#product-scope-and-verification);
+historical measurements below are not verification of the current source/artifact pair.
+
 ## The real run — on the GX10
 
 All training happens on the box (`ssh gx10`), in `~/kami-ml`. Its environment is a `uv` venv with the CUDA 13
@@ -63,24 +68,28 @@ The directory `artifacts/<name>/` (gitignored; it stays on the box, where the si
 The printed validation/test tables by prefix bucket are the live-guessing curve; they are also kept in
 `preprocess.json`.
 
-## Try a model locally
+## Exercise a model on GX10
+
+Run in a dedicated GX10 shell/check environment after operator approval, without replacing the
+live service. Keep the box's CUDA environment intact; do not run `uv sync` over it.
 
 ```sh
-cd ml
-KAMI_EYE_MODEL=artifacts/kami-eye uv run --no-dev python sidecar.py      # 127.0.0.1:8790
-curl -s localhost:8790/health
-curl -s localhost:8790/recognize -d '{"strokes":[[{"x":0,"y":0},{"x":90,"y":0},{"x":90,"y":90},{"x":0,"y":90},{"x":0,"y":0}]],"top":3}'
-KAMI_EYE_MODEL=artifacts/kami-eye uv run pytest tests/test_golden.py      # renders + top-3 match the export
+ssh gx10
+cd ~/kami-ml
+KAMI_EYE_MODEL=artifacts/kami-eye .venv/bin/python -m pytest tests/test_golden.py
 ```
 
-Then start the game's server with `KAMI_RECOGNIZER_URL=http://127.0.0.1:8790`. The sidecar needs
-only `numpy`, `opencv-python-headless` and `onnxruntime` (`uv sync --no-dev`); it never imports
+The separately managed serving sidecar uses `KAMI_RECOGNIZER_URL=http://127.0.0.1:8790` in the
+game's server. It needs `numpy`, `opencv-python-headless` and `onnxruntime`, and never imports
 torch. `KAMI_EYE_PORT` changes the port; `KAMI_EYE_MODEL` defaults to `artifacts/kami-eye`.
+Pending [R18](https://github.com/SnowballSH/kami/pull/42) adds a guarded revision/artifact check
+command; use its check guide when that implementation is integrated.
 
 Sidecar behaviour beyond the contract's table: `partial` is validated and otherwise ignored (the one
 model reads prefixes and finished drawings alike); `top` is 1–1000 and capped at K; a drawing with
-no points, non-finite or absurd (> 1e9) coordinates, more than 50 000 points, a body over 4 MB or
-anything that is not the documented JSON is `400 {"error"}`; unknown routes are `404 {"error"}`; an
+no points, non-finite or absurd (> 1e9) coordinates, more than 256 strokes, 1024 points per stroke,
+2048 points total, a body over 262,144 bytes or anything outside the documented JSON is rejected
+before model execution (`400 {"error"}`); unknown routes are `404 {"error"}`; an
 unexpected exception is `500 {"error"}` and the process keeps serving. `/health` additionally
 reports `artifactId` (the release manifest SHA-256) and `renderMatches: true`.
 Incompatible or incomplete releases fail startup; they never serve predictions.

@@ -7,7 +7,9 @@
 
 *Kami* (紙) is paper. *Kami* (神) is also the spirit that lives in a thing. The game is both: a world made of paper, where anything you draw gets a spirit the moment you say what it is.
 
-This is the source of truth for **what we're making and why**. How it's built lives in `engineering-notes.md`; the cabinet lives in `hardware.md`.
+This is the source of truth for **what we're making and why**. How it's built, including demo
+differences and verification limits, lives in [architecture.md](architecture.md); the cabinet
+lives in [hardware.md](hardware.md). Historical designs are archived separately.
 
 ---
 
@@ -74,7 +76,9 @@ Creatures are natures, not names: a *walking* teapot walks, a *flying* pig flies
 
 Plus free-form **tags** the inhabitants react to — *rose*, *tart*, *queen* — see Room 5.
 
-Adjectives scale a nature between half and double strength. That's the whole of layer 2½.
+Adjectives scale a nature between half and double strength. A few adjectives also give a drawing **motion** of its own: a *spinning* wheel turns, a *powered* or *rocket-boosted* cart pushes itself along. That's the whole of layer 2½.
+
+Any drawing's physics can also be written as a law that points at it: "the wheel spins", "the cart accelerates", "the rock is twice as heavy", "the ramp is slippery", "the ball is bouncy" — or at everything at once, "everything spins". Erase the note and it stops.
 
 ### Rulings for the clever and the cheeky
 

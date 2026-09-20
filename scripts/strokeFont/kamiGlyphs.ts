@@ -1,6 +1,6 @@
 import type { SvgGlyph } from "./svgFont";
 
-/** Glyphs drawn for Kami's wordmark, in the font's own units and y-up convention. Not part of EMS Felix. */
+/** Glyphs drawn for Kami's wordmark, in the font's own units and y-up convention. Not part of EMS Readability. */
 export const KAMI_GLYPHS: readonly SvgGlyph[] = [
   {
     unicode: "紙",

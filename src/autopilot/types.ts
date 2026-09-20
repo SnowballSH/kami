@@ -1,6 +1,6 @@
 import type { BoardDefinition } from "../board/types";
 import type { Nature } from "../cat/types";
-import type { Pose, Vec } from "../core/geometry";
+import type { Pose, Rect, Vec } from "../core/geometry";
 import type { Drawing } from "../ink/types";
 import type { AliceSnapshot, BounceArc, WalkIntent } from "../sim/types";
 
@@ -16,6 +16,8 @@ export interface Scene {
   readonly board: BoardDefinition;
   readonly alice: AliceSnapshot;
   readonly inks: readonly SceneInk[];
+  /** Holes the Sumikui has bitten out of the board's solids: air where the sketch says ground. */
+  readonly bites: readonly Rect[];
   readonly keyTaken: boolean;
   readonly doorOpen: boolean;
   /** Walking speed in px per tick at her current size, so the planner can model flight. */

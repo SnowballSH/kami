@@ -8,6 +8,7 @@ import {
   createHandwritingReader,
   createRemoteRuleCompiler,
   createSketchLibrary,
+  guardUnsavedChanges,
 } from "../persistence";
 import { createPenReader } from "../reading";
 import { createRecognizer } from "../recognition";
@@ -16,6 +17,7 @@ import { createRuleCompiler, resolvePhysics } from "../rules";
 import { createSimulation } from "../sim";
 import { Summoner } from "../summoning";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
+import { createVoice } from "../voice";
 import { Game } from "./game";
 
 const BOARD_PARAM = "board";
@@ -58,6 +60,8 @@ export function startGame(root: HTMLElement): void {
   root.prepend(canvas);
   const handwriting = createHandwriting();
   const renderer = createRenderer(canvas, handwriting);
+  const store = createBoardStore();
+  guardUnsavedChanges(window, store);
   const recognizer = createRecognizer();
   const game = new Game(
     {
@@ -69,13 +73,14 @@ export function startGame(root: HTMLElement): void {
       handwriting,
       compiler: createRuleCompiler(),
       thinker: createRemoteRuleCompiler(),
-      store: createBoardStore(),
+      store,
       penReader: createPenReader(createHandwritingReader()),
       summoner: new Summoner(createSketchLibrary()),
       resolvePhysics,
       boardFor,
       createInkSession,
       createHud: (handlers) => createHud(root, handlers),
+      createVoice,
       createLawsPanel: (handlers) => createLawsPanel(root, handlers),
       findDrawingAt,
       onBoardOpened: rememberBoardInUrl,

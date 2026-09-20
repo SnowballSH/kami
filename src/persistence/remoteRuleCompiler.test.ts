@@ -25,10 +25,27 @@ describe("RemoteRuleCompiler", () => {
     { governs: "walkSpeed", value: 2 },
     { governs: "aliceSize", value: 0.5 },
     { governs: "attraction", value: -1 },
-  ])("accepts a law on Alice or the weather from the model: $governs", async (effect) => {
-    const rule = { effect, explanation: "as the model put it" };
-    const compiler = new RemoteRuleCompiler(async () => Response.json({ rule }));
-    expect(await compiler.compile("whatever the grammar did not know")).toEqual(rule);
+    { governs: "spin", of: { kind: "named", name: "wheel" }, value: 1 },
+    { governs: "thrust", of: { kind: "all" }, x: 0, y: -1 },
+    { governs: "mass", of: { kind: "named", name: "rock" }, value: 2 },
+  ])(
+    "accepts a law on Alice, the weather or a drawing from the model: $governs",
+    async (effect) => {
+      const rule = { effect, explanation: "as the model put it" };
+      const compiler = new RemoteRuleCompiler(async () => Response.json({ rule }));
+      expect(await compiler.compile("whatever the grammar did not know")).toEqual(rule);
+    },
+  );
+
+  it.each([
+    { governs: "spin", value: 1 },
+    { governs: "thrust", of: { kind: "named" }, x: 0, y: -1 },
+    { governs: "mass", of: { kind: "alice" }, value: 2 },
+  ])("refuses a drawing law without a proper target: %j", async (effect) => {
+    const compiler = new RemoteRuleCompiler(async () =>
+      Response.json({ rule: { effect, explanation: "x" } }),
+    );
+    expect(await compiler.compile("whatever")).toBeNull();
   });
 
   it("returns null when the server has no model or does not see a rule", async () => {
