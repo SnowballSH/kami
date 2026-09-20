@@ -96,3 +96,12 @@ export const BLANK_BOARD_BRIEF: RoomBrief = {
     "Then bend the world: write 'g = moon', 'no friction', 'wind blows right', 'slow motion'.",
   ],
 };
+
+/** How Kami tells the Alices apart: Alice herself, then her twins by number. */
+export const aliceName = (who: number): string => (who === 0 ? "Alice" : `Alice ${who + 1}`);
+export const TWIN_GOAL_LINE = (who: number): string =>
+  `${aliceName(who)} found the rabbit hole. One of you was enough.`;
+export const TWIN_SELECTED_LINE = (who: number): string => `${aliceName(who)}, then. Lead on.`;
+/** Prefix a line about one Alice among several with her name, so the player knows who it was. */
+export const aboutAlice = (who: number, line: string): string =>
+  who === 0 ? line : `${aliceName(who)}: ${line}`;

@@ -126,7 +126,7 @@ describe("laws about Alice", () => {
     expect(gapAfter(-2)).toBeGreaterThan(150);
   });
 
-  it("walks her twins in step with her, and dismisses them when the law is erased", () => {
+  it("gives each twin her own walk, and dismisses them all when the law is erased", () => {
     const sim = enter(board);
     sim.setPhysics({ ...EARTH, clones: 2 });
     runSteps(sim, 30);
@@ -134,12 +134,12 @@ describe("laws about Alice", () => {
     expect(before).toHaveLength(2);
 
     sim.setWalkIntent(RIGHT);
+    sim.setWalkIntent({ x: -1, y: 0 }, 2);
     runSteps(sim, 60);
-    const after = sim.snapshot().twins;
-    for (const [index, twin] of after.entries()) {
-      expect(twin.center.x - (before[index] ?? 0)).toBeGreaterThan(50);
-      expect(twin.grounded).toBe(true);
-    }
+    const [still, walking] = sim.snapshot().twins;
+    expect(still?.center.x).toBeCloseTo(before[0] ?? 0, 0);
+    expect((walking?.center.x ?? 0) - (before[1] ?? 0)).toBeLessThan(-50);
+    expect(walking?.grounded).toBe(true);
 
     sim.setPhysics(EARTH);
     expect(sim.snapshot().twins).toEqual([]);

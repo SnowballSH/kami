@@ -168,7 +168,7 @@ A **system** reads the folded state each tick and produces forces or state trans
 | Alice movement | `walkSpeed`, `flight`, `aliceSize` | her pace, whether air holds her like a ladder, her body scale |
 | attraction | `attraction`; `attractor` natures | `pullToward(center, g, bodies)` with `1/r²` falloff, capped up close |
 | weather | `temperature` | `slippery` melts above 30 °C, `floaty` burns off above 60 °C, after a dwell; emits `perished` |
-| twins | `clones` | `n` further Alice bodies hearing the same intent, spawned beside her, never colliding with her |
+| twins | `clones` | `n` further Alice bodies spawned beside her, never colliding with her; each has an intent of her own (`setWalkIntent(intent, who)`), her own portal memory, and her own `fell` / `goal-reached` / `alice-devoured` (events carry `who`); a pilot per body lives in `game/party.ts` |
 | lighting | `daylight`; `lantern` natures | a night layer cut out around Alice and every lantern — presentation only |
 | creatures | natures `walker`/`hopper`/`flier` | per-body minds; Alice rides them |
 | the paper's turn | `tilt`, `worldSpin` | `PaperTurn`: the angle the paper is turned on screen — `tilt` plus what `worldSpin` has accumulated (a new tilt restarts the count). The camera turns by it, so the whole page rotates; gravity stays the paper's, so Alice, creatures, vehicles and the autopilot are *of the paper* and keep walking on it, while loose ink is nudged toward the *room's* down (`tumble`: the difference between room-down seen on the paper and the paper's own gravity) and slides off a turned page |
@@ -184,7 +184,7 @@ The autopilot is a system too: `Scene.canFly` marks every cell of air climbable,
 | `Alice walks twice as fast` | `set(walkSpeed, 2)` | `W.walkSpeed := 2` | Alice movement; autopilot's `walkSpeed` |
 | `it's 100 degrees` | `set(temperature, 100)` | `W.temperature := 100` | weather: ice and clouds perish, plain ink is untouched |
 | `it's night` then draw a lamp, write `lantern` | `set(daylight, 0.1)`; `ruling(lantern)` | `W.daylight := 0.1`; drawing.nature := lantern | lighting cuts a pool of light around the lamp |
-| `clone Alice` | `set(clones, 1)` | `W.clones := 1` | twins: one more Alice walking beside her |
+| `clone Alice` | `set(clones, 1)` | `W.clones := 1` | twins: one more Alice beside her, with a mind of her own — she walks her own route to the goal, or wanders when there is none |
 | `give Alice gravitational attraction` | `set(attraction, 1)` | `W.attraction := 1` | attraction pulls loose drawings toward her |
 | `summon the ink eater` then `banish the Sumikui` | `set(inkEater, 1)`, `set(inkEater, 0)` | `0` while both stand; `1` again if the banishment is erased | the Sumikui exists exactly while the fold says `1`; sealing forgets its hunger |
 | `g = moon` then `no gravity` then erase the second note | `set(gravity,(0,.165))`, `set(gravity,(0,0))` | `(0,0)` while both stand; `(0,.165)` after refold | gravity |
@@ -207,7 +207,7 @@ What each of the remaining ideas is, in this vocabulary, and what it costs:
 - **Portals** (“a portal”, twice) — *built*: a `portal` role whose touch hook calls `NatureWorld.warp`; `sim/portals.ts` pairs them in drawing order as a ring and bars the exit until Alice steps clear. One nature, one capability, one hook.
 - **Kinds** (“all clouds are heavy”): a third `Target` variant, `kind(Nature)`, matched in `speaksOf` against the drawing's nature instead of its name. One variant, one line in `speaksOf`; the fold, the compiler chain and the motion system are untouched.
 - **More motion dials** (“the rock is dragless”, “the wheel is glued down”): a field on `Motion`, a default in `STILL`, a row in the body ranges and the server prompt, and a line in `materialMoved` or the motion system.
-- **Independent clones**: twins that own an autopilot each; the `Scene` would take an `alice` per pilot.
+- **Independent clones** — *built*: the dial and its fold are untouched; what changed is who hears the intent. `Simulation` keeps one `WalkIntent` per Alice, `Scene` takes an `alice` per pilot (and `others` for the rest, never stamped solid), and `game/party.ts` hires one `Pilot` per body; tapping an Alice makes her the one the stick steers. See `docs/agency.md`.
 - **Arbitrary characters**: the Cat's lexicon already maps any noun to a nature; the `/api/name` contract lets a model choose the nature for words the lexicon lacks — choosing among presets, never writing behaviour.
 
 None of these require touching the fold, the compiler chain, or the way rules are stored: the framework is closed under adding dials, natures and systems.

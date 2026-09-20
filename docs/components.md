@@ -63,7 +63,7 @@ main.ts → game/index.ts:startGame(canvas, options)
 | Entry & wiring | `src/main.ts`, `src/game/index.ts` | built | resolves options (board id, mode, API base), builds every module, attaches DOM |
 | Fixed-step loop | `src/game/fixedStepLoop.ts` | built | accumulates real time, steps the sim in 1/60 s, caps catch-up |
 | The game | `src/game/game.ts` | built | the orchestrator: the text funnel (`interpret`), rule enactment and repeal, notes, camera, sim events → Kami lines, autopilot hand-off, persistence |
-| Camera rig | `src/game/cameraRig.ts`, `src/render/camera.ts` | built | follows Alice outside a dead-zone; manual pan/zoom suspends following; angle = the paper's turn (world-rotation law) |
+| Camera rig | `src/game/cameraRig.ts`, `src/render/camera.ts` | built | follows the selected Alice outside a dead-zone, leaning toward other Alices close by; manual pan/zoom suspends following; angle = the paper's turn (world-rotation law) |
 | Id mint | `src/game/idMint.ts` | built | branded ids without `crypto.randomUUID` (plain-HTTP LAN) |
 | Stuck detector | `src/game/stuckDetector.ts` | built | notices Alice not progressing → hint ladder / replan |
 | Lines | `src/game/lines.ts`, `src/cat/lines.ts` | built | Kami's dialogue tables (warp, devoured, lore, refusals…) |
@@ -151,7 +151,8 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 | Powers | `src/sim/powers.test.ts` (+ in `creatures.ts`, `vehicles.ts`, `inkLayer.ts`) | built | `pace` scales self-motion; `wings` lifts walkers/hoppers/vehicles/plain ink; `size` rescales strokes+body about the centre |
 | Vehicles | `src/sim/vehicles.ts` | built | Alice boards when both feet are on it; stick/autopilot drive it; jump dismounts; winged vehicles take off once rolling |
 | Portals | `src/sim/portals.ts` | built | drawings named "portal" link in drawing order; exit refuses re-entry until she leaves it |
-| Twins | `src/sim/twins.ts` | built (mirrored) | `clones` dial keeps N extra Alices driven by the same intent; **independent** minds are in progress (child session) |
+| Twins | `src/sim/twins.ts`, `src/sim/independentAlices.test.ts` | built | `clones` dial keeps N extra Alices, each with her own intent (`setWalkIntent(intent, who)`), portal memory and `fell`/`goal-reached`/`alice-devoured` (events carry `who`); sideways strays are recalled to Alice |
+| Party | `src/game/party.ts` | built | one pilot per Alice sharing a chart per step; the selected Alice takes the stick, the rest drive themselves; twins wander when there is no errand |
 | Sumikui | `src/sim/sumikui.ts` | built | summoned by law; wakes at the second drawing; hunts ink Alice used, the ground under her, and Alice; speed doubles every 20 s to a cap; sweeps nameless clutter once quick; lore recital |
 | Paper | `src/sim/paper.ts` | built | the page's turn (tilt/spin laws) and bites in board solids |
 | Empty board / test support | `src/sim/emptyBoard.ts`, `testSupport.ts` | built | fixtures |
@@ -160,10 +161,10 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 
 | Component | Files | Status | Notes |
 |---|---|---|---|
-| Chart | `src/autopilot/chart.ts` | built | grid of the world from board solids + load-bearing ink + creature positions (never a wall in Alice's own cell) |
+| Chart | `src/autopilot/chart.ts` | built | grid of the world from board solids + load-bearing ink + creature positions (never a wall in Alice's own cell; other Alices widen the extent but are never solid) |
 | Pathfinder | `src/autopilot/pathfinder.ts` | built | moves: walk, jump, climb, fly (when `flight`), drive; key → door → goal ordering; `awayFrom(threat, safe)` for a way out from under the Sumikui |
-| Pilot | `src/autopilot/pilot.ts`, `index.ts`, `types.ts` | built | replans every few ticks or on `warped`/new ink; waits ("no way yet") when stuck; yields to manual input; errands `objective` / `eat` / `wait` / `flee` / `idle` |
-| Sumikui awareness | `src/autopilot/dread.ts` | built | `Scene.sumikui`; when it hunts her or her footing within `DREAD_PX` she `flee`s to footing `SAFE_PX` away (or as far as she can, and is `stuck` = cornered); routes never count on the drawing it is chewing (`afterTheMeal`), but she races across one she already stands on; Kami: "She sees it. She runs." / "Nowhere left to run." |
+| Pilot | `src/autopilot/pilot.ts`, `index.ts`, `types.ts` | built | one per Alice (`PilotOptions`: seed, wanders, shared charter); replans every few ticks or on `warped`/new ink; waits ("no way yet") when stuck, or wanders deterministically if a twin; yields to manual input; errands `objective` / `eat` / `wait` / `flee` / `wander` / `idle` |
+| Sumikui awareness | `src/autopilot/dread.ts` | built | `Scene.sumikui`; when it hunts her or her footing within `DREAD_PX` she `flee`s to footing `SAFE_PX` away (or as far as she can, and is `stuck` = cornered); routes never count on the drawing it is chewing (`afterTheMeal`), but she races across one she already stands on; each Alice fears it for herself, and Kami names a twin who runs: "She sees it. She runs." / "Nowhere left to run." |
 
 ## 10. Player input
 
@@ -174,7 +175,7 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 | Text prompt | `src/ui/textPrompt.ts` | built | typed text → the same funnel |
 | Keyboard | `src/ui/keyboard.ts` | built | arrows/WASD override, space jump |
 | Virtual thumbstick | `src/ui/joystick.ts` | built | bottom-left stick, manual override |
-| Walk intent merger | `src/ui/walkIntent.ts` | built | keyboard + stick + controller + autopilot → one `intent` |
+| Walk intent merger | `src/ui/walkIntent.ts` | built | keyboard + stick + controller → one `intent`, steering the selected Alice (`Party.steer`) |
 | Arduino / cabinet | `src/controller/*`, `server/controllers/*` | external | `kami arcade <x> <y> [buttons]` over UDP/serial/HTTP → SSE → `createRemoteStick` ([controllers.md](controllers.md), [hardware.md](hardware.md)) |
 | Voice | `src/voice/*`, `server/voice/*`, `src/ui/talkButton.ts` | external | hold-to-talk / wake word → Deepgram proxy → funnel; Kami speaks back ([voice.md](voice.md)) |
 | HUD | `src/ui/hud.ts`, `controls.ts`, `persistenceStatus.ts`, `accessGate.ts` | built | autopilot switch, laws panel, save status, access gate |
@@ -226,7 +227,7 @@ repeals what it enacted.
 |---|---|---|---|
 | Renderer | `src/render/canvasRenderer.ts`, `canvas2d.ts`, `index.ts` | built | Canvas 2D; whiteboard look (black ink, blue Kami, green understood, red confused, one tint per nature) |
 | Camera | `src/render/camera.ts`, `turnedCamera.test.ts` | built | centre, zoom, angle; `toWorld`/`toClient`, `visibleWorld` |
-| Painters | `boardPainter.ts`, `inkPainter.ts`, `inkPath.ts`, `alicePainter.ts`, `alicePose.ts`, `notePainter.ts`, `sumikuiPainter.ts`, `eraserRing.ts`, `keyShape.ts`, `dotGrid.ts` | built | board, ink under pose (incl. size scale), Alice pose, notes, Sumikui blot + trail, eraser ring |
+| Painters | `boardPainter.ts`, `inkPainter.ts`, `inkPath.ts`, `alicePainter.ts`, `alicePose.ts`, `notePainter.ts`, `sumikuiPainter.ts`, `eraserRing.ts`, `keyShape.ts`, `dotGrid.ts` | built | board, ink under pose (incl. size scale), Alice pose (twins with a tinted numbered ribbon, the selected one with a caret), notes, Sumikui blot + trail, eraser ring |
 | Night | `src/render/nightPainter.ts`, `palette.ts` | built | `daylight` dial: veil, light pools for Alice and twins, legible handwriting |
 | Culling & art | `culling.ts`, `boardArt.ts`, `awakening.ts` | built | draw only what is visible; wake-up animation when a drawing is named |
 
@@ -242,7 +243,7 @@ player *is* at start, win/loss, which laws and natures are allowed.
 | Sandbox | — | in progress (child session) | infinite shared world, others can join, Kami helps on request, no Sumikui; `?mode=sandbox` |
 | Puzzle | — | in progress (child session) | immersive drawn-solution levels, Sumikui on by default; `?mode=puzzle` |
 | Boss | — | in progress (child session) | two players (drawer + controller); start as a soul/heart; a scissor-servant of the one under the page snips body parts → abilities lost, redraw to restore; `?mode=boss` |
-| Independent clones | `src/sim/twins.ts` | in progress (child session) | real second Alices with their own minds |
+| Independent clones | `src/game/party.ts`, `src/sim/twins.ts`, `src/sim/simulation.ts`, `src/sim/portals.ts`, `src/sim/sumikui.ts`, `src/autopilot/pilot.ts`, `src/autopilot/chart.ts`, `src/render/alicePainter.ts` | built | real second Alices with their own minds: own intent, pilot, route, portals and fate; tap one to steer her; any Alice wins the room and Kami names her; see [agency.md](agency.md) |
 
 ## 17. Persistence and the server
 
@@ -277,7 +278,7 @@ pen ──► InkSession ──► Drawing ──► ledger + sim body (load-bea
                                                                                          (nature, temper→heed, own motion)
 text ─► funnel: grammar ─► scene ─► summons ─► naming ─► model ─► Rule ─► RuleBook.fold ─► sim.setPhysics
                                                                                               │
-autopilot / stick / keyboard / cabinet / voice ─► intent ─► Alice ◄── creatures (urgeOf: heed) ◄─┘
+party (a pilot per Alice) / stick / keyboard / cabinet / voice ─► intent per Alice ─► Alices ◄── creatures (urgeOf: heed) ◄─┘
                                                                   ◄── vehicles, portals, Sumikui, twins
 each frame: camera(angle = paper turn) ─► renderer(board, ink@pose, notes, Alice, Sumikui, night)
 persistent: drawings, notes, rules ─► BoardStore ─► Bun API ─► MongoDB

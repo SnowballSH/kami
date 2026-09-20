@@ -199,7 +199,7 @@ class Player {
     this.game = new Game(
       {
         sim: this.sim,
-        autopilot: createAutopilot(),
+        autopilot: createAutopilot,
         cat: createCat(eyes),
         ...(eyes === undefined ? {} : { finisher: eyes, summoner: new Summoner(eyes, eyes) }),
         renderer: this.renderer,
@@ -1783,5 +1783,33 @@ describe("Game on a blank board", () => {
     expect(
       await player.until(() => player.written.some((text) => text.includes("rabbit hole"))),
     ).toBe(true);
+  });
+
+  it("hands the controls to a tapped twin, and says which Alice found the rabbit hole", async () => {
+    const player = new Player("my-first-game");
+    await player.arrive();
+    await player.write("clone alice", { x: -200, y: -200 });
+    const twin = () => player.renderer.lastFrame?.world.twins[0];
+    expect(await player.until(() => twin() !== undefined)).toBe(true);
+    const tapped = twin();
+    if (tapped === undefined) throw new Error("no twin to tap");
+    expect(player.renderer.lastFrame?.selectedAlice).toBe(0);
+
+    player.use("draw");
+    player.game.tap(tapped.center);
+    await player.wait(100);
+    expect(player.renderer.lastFrame?.selectedAlice).toBe(1);
+    expect(player.written).toContain("Alice 2, then. Lead on.");
+
+    player.game.onAutopilotToggled(false);
+    await player.draw(blob({ x: 250, y: -20 }, 16, 16));
+    await player.write("goal", { x: 240, y: -110 });
+    const herself = player.alice.center.x;
+    player.walk(1);
+    const found = () => player.written.filter((text) => text.includes("found the rabbit hole"));
+    expect(await player.until(() => found().length > 0)).toBe(true);
+    expect(found()).toEqual(["Alice 2 found the rabbit hole. One of you was enough."]);
+    expect(player.alice.center.x).toBeCloseTo(herself, 0);
+    expect(player.renderer.lastFrame?.selectedAlice).toBe(1);
   });
 });

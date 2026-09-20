@@ -267,6 +267,25 @@ describe("everything on the paper is ink to it", () => {
     expect(sumikuiOf(sim).phase).toBe("sated");
     expect(sumikuiOf(sim).awakeMs).toBeLessThan(1000);
   });
+
+  it("devours only the twin it catches, and names her; Alice keeps her footing", () => {
+    const sim = summonOver(["one", "two"]);
+    sim.setPhysics({ ...LOOSE, flight: 1, clones: 1 });
+    sim.addDrawing(drawingOf("a ledge", blob(400, GROUND - 40, 200, 24)));
+    sim.applyRuling(idOf("a ledge"), rulingOf("solid"));
+    runSteps(sim, 30);
+    sim.setWalkIntent({ x: 1, y: -1 }, 1);
+    runUntil(sim, () => sim.aliceBounds(1).x > 380, A_MINUTE);
+    sim.setWalkIntent(STAY, 1);
+    const herself = feetOf(sim).x;
+    runUntil(sim, () => sumikuiOf(sim).prey === 1, A_MINUTE);
+    expect(sumikuiOf(sim).prey).toBe(1);
+    const events = runUntil(sim, saw("alice-devoured"), A_MINUTE);
+    expect(events).toContainEqual({ type: "alice-devoured", who: 1 });
+    expect(events).toContainEqual({ type: "fell", who: 1 });
+    expect(events.filter((event) => event.type === "fell")).toHaveLength(1);
+    expect(feetOf(sim).x).toBeCloseTo(herself, 0);
+  });
 });
 
 describe("its pace", () => {

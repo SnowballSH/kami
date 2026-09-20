@@ -60,6 +60,7 @@ const sumikui = (
   facing: 1,
   phase,
   quarry,
+  prey: quarry === "alice" ? 0 : null,
   chewing,
   bite: 0,
   awakeMs: 30_000,
@@ -84,6 +85,7 @@ const bridge = (id: string): SceneInk => ({
 const scene = (overrides: Partial<Scene> = {}): Scene => ({
   board: board(),
   alice: alice({ x: 200, y: GROUND_Y }),
+  others: [],
   inks: [],
   bites: [],
   sumikui: null,

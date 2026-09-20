@@ -75,15 +75,15 @@ describe("the embodied director", () => {
   it("opens as a body, never changes it, and wins on the goal", () => {
     const director = new EmbodiedDirector(EMBODIED_MODE);
     expect(director.open(boardFor("wonderland"))).toEqual({ kind: "body" });
-    expect(director.witness({ type: "fell" })).toEqual([]);
+    expect(director.witness({ type: "fell", who: 0 })).toEqual([]);
     expect(director.named("d1" as DrawingId, A_RULING)).toBeNull();
-    expect(director.won({ type: "fell" })).toBe(false);
-    expect(director.won({ type: "goal-reached" })).toBe(true);
+    expect(director.won({ type: "fell", who: 0 })).toBe(false);
+    expect(director.won({ type: "goal-reached", who: 0 })).toBe(true);
     expect(director.state).toEqual({ kind: "body" });
   });
 
   it("does not call an endless game won at the rabbit hole", () => {
     const sandbox = new EmbodiedDirector({ ...EMBODIED_MODE, win: { kind: "endless" } });
-    expect(sandbox.won({ type: "goal-reached" })).toBe(false);
+    expect(sandbox.won({ type: "goal-reached", who: 0 })).toBe(false);
   });
 });

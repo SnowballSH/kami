@@ -2,7 +2,7 @@ import type { Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 import { PORTAL_LONELY_COOLDOWN_MS } from "./constants";
 import type { InkEntity } from "./inkEntity";
-import type { SimEvent } from "./types";
+import type { AliceIndex, SimEvent } from "./types";
 
 /** Portals let out into the next portal drawn after them, and the last one back into the first. */
 export const exitOf = (portal: InkEntity, inks: readonly InkEntity[]): InkEntity | null => {
@@ -18,12 +18,14 @@ export const centreOf = (ink: InkEntity): Vec => {
 };
 
 /**
- * Keeps Alice from being swallowed straight back by the portal she just stepped out of: that one
- * refuses her until she has left it once.
+ * Keeps one Alice from being swallowed straight back by the portal she just stepped out of: that
+ * one refuses her until she has left it once. Each Alice has her own.
  */
 export class Portals {
   private steppedOutOf: DrawingId | null = null;
   private lonelyAt = Number.NEGATIVE_INFINITY;
+
+  constructor(private readonly who: AliceIndex) {}
 
   /** The portal to bar this tick, decided before any touch is resolved. */
   barred(): DrawingId | null {
@@ -47,7 +49,7 @@ export class Portals {
       return null;
     }
     this.steppedOutOf = exit.id;
-    emit({ type: "warped", from: portal.id, to: exit.id });
+    emit({ type: "warped", who: this.who, from: portal.id, to: exit.id });
     return exit;
   }
 
