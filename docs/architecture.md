@@ -16,6 +16,8 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
                                                  │              └─► reading/PenReader ─► server /api/transcribe ─► words? ─► the funnel below (the ink lifts off)
  arrow keys (override) ─► ui/Hud ──────────────►│
  write tool ────► hud.promptText ─► text ────────┤
+ hold to talk ──► voice/Ears ─► server /api/voice/listen ─► Deepgram ─► what you said ─┤ (docs/voice.md)
+ or say "kami …" ─► the same ears, kept open, taking only the utterances that name him ─┤
                                                  ├─ rules.compile(text) ─► Rule ─► resolvePhysics ─► sim.setPhysics
                                                  ├─ else near a drawing ─► cat.name ─► Ruling ─► sim.applyRuling
                                                  └─ else ─► Kami shrugs, in ink
@@ -41,9 +43,10 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
 | `persistence/` | Client for the board store, the remote rule compiler and the handwriting reader | `createBoardStore`, `createRemoteRuleCompiler`, `createHandwritingReader` |
 | `reading/` | Pen strokes → words while the player is still writing: a read per pen-lift, newest strokes win | `createPenReader`, `couldBeWriting` |
 | `render/` | Canvas 2D: camera, board, ink, notes, Alice, props | `createRenderer` |
-| `ui/` | Toolbar, zoom, board menu, text prompt; pointers → pen/tap/pan/zoom | `createHud`, `attachCanvasInput` |
+| `ui/` | Toolbar, zoom, board menu, text prompt, hold-to-talk; pointers → pen/tap/pan/zoom | `createHud`, `attachCanvasInput` |
+| `voice/` | Hold-to-talk or wake-word mic → the server's Deepgram proxy → words for the funnel; Kami's lines spoken back (`docs/voice.md`) | `createVoice` |
 | `game/` | The frame loop, the funnel, the camera, all wiring | `startGame` |
-| `server/` | Bun HTTP API, MongoDB, Quick, Draw! k-NN, model-backed compile and handwriting reading | `bun run server` |
+| `server/` | Bun HTTP API, MongoDB, Quick, Draw! k-NN, model-backed compile and handwriting reading, the Deepgram voice proxy | `bun run server` |
 
 ## Conventions
 

@@ -119,6 +119,36 @@
   bottom: var(--kami-safe-bottom);
 }
 
+.kami-voice {
+  position: absolute;
+  right: var(--kami-safe-right);
+  bottom: calc(
+    var(--kami-safe-bottom) +
+    var(--kami-control) +
+    2 *
+    var(--kami-island-padding) +
+    10px
+  );
+  touch-action: none;
+}
+
+.kami-voice.kami-listening {
+  border-color: var(--kami-ink);
+  animation: kami-listening 1.2s ease-in-out infinite;
+}
+
+@keyframes kami-listening {
+  50% {
+    box-shadow: 0 0 0 4px rgb(17 17 17 / 0.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kami-voice.kami-listening {
+    animation: none;
+  }
+}
+
 .kami-stick {
   --kami-stick-size: 128px;
   --kami-thumb-size: 52px;
