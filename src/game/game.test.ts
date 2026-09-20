@@ -2451,6 +2451,13 @@ describe("Game in Boss mode", () => {
     expect(player.renderer.lastFrame?.world.alice).toBeNull();
   });
 
+  it("keeps the soul when the arena is rebuilt on resize", async () => {
+    expect(soulOf(player)).toBeDefined();
+    player.game.onResize();
+    expect(soulOf(player)).toBeDefined();
+    expect(player.renderer.lastFrame?.world.alice).toBeNull();
+  });
+
   it("clears player ink and laws while keeping the Boss soul", async () => {
     const heart = soulOf(player);
     player.game.onCommit(drawingOf("old ink", ringAround({ x: heart.x + 80, y: heart.y }, 20)));
