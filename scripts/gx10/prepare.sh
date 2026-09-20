@@ -2,7 +2,7 @@
 # Run on the Mac. Gathers everything the GX10 runs: the built game, the server as one file, the
 # Quick, Draw! snapshot, Bun + MongoDB for Linux arm64, and Kami's Eye: the sidecar and its Python wheels.
 # The Eye's model is trained on the box itself (~/kami-ml/artifacts/kami-eye) and start.sh finds it there;
-# a model under ml/artifacts here is shipped too, for a box that has none of its own.
+# a model under ml/artifacts here is shipped too (with its exemplars/, if built), for a box that has none.
 #   KAMI_EYE_MODEL_NAME=<dir under ml/artifacts>   ship this model instead of the newest one
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -13,7 +13,7 @@ BUILD=.gx10/build
 CACHE=.gx10/cache
 EYE_BUILD=$BUILD/eye
 WHEELS=$CACHE/wheels
-EYE_SOURCES=(render.py recognizer.py sidecar.py)
+EYE_SOURCES=(artifacts.py render.py recognizer.py exemplar_set.py morph.py completion.py sidecar.py validate_release.py)
 BOX_PYTHON=3.12
 BOX_PLATFORMS=(manylinux_2_28_aarch64 manylinux_2_17_aarch64 manylinux2014_aarch64)
 mkdir -p "$BUILD" "$CACHE"
@@ -35,13 +35,14 @@ copy_eye_model() {
   local model
   model=$(eye_model_directory)
   model=${model%/}
-  if [ -z "$model" ] || [ ! -s "$model/model.onnx" ] || [ ! -s "$model/labels.json" ]; then
+  if [ -z "$model" ]; then
     if [ -n "${KAMI_EYE_MODEL_NAME:-}" ]; then echo "✗ $model has no model.onnx + labels.json"; exit 1; fi
     echo "  – no model under ml/artifacts to ship; the box uses the one it trained, or the k-NN"
     return
   fi
+  PYTHONPATH=ml python3 -c 'import sys; from pathlib import Path; from artifacts import validate_bundle; validate_bundle(Path(sys.argv[1]))' "$model"
   mkdir -p "$EYE_BUILD/artifacts"
-  cp -R "$model" "$EYE_BUILD/artifacts/"
+  cp -RL "$model" "$EYE_BUILD/artifacts/"
   echo "  ✓ model $(basename "$model")"
 }
 

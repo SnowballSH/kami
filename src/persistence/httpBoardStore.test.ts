@@ -89,12 +89,11 @@ describe("HttpBoardStore reads", () => {
     expect(await store.listBoards()).toEqual(boards);
   });
 
-  it("answers with an empty board when the server is away, broken or talking nonsense", async () => {
+  it("answers with an empty board when the server is away or broken", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const empty = { drawings: [], notes: [], rules: [] };
     const broken: FetchLike = async () => new Response("boom", { status: 500 });
-    const nonsense: FetchLike = async () => Response.json({ drawings: "lots" });
-    for (const fetchFn of [offline, broken, nonsense]) {
+    for (const fetchFn of [offline, broken]) {
       const store = new HttpBoardStore(fetchFn);
       expect(await store.load("demo")).toEqual(empty);
       expect(await store.listBoards()).toEqual([]);

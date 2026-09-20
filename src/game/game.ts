@@ -1,14 +1,7 @@
 import type { Autopilot, Scene } from "../autopilot/types";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
-import {
-  boundsOf,
-  type Rect,
-  rectGap,
-  type Stroke,
-  translateRect,
-  type Vec,
-} from "../core/geometry";
+import { boundsOf, poseToWorld, type Rect, rectGap, type Stroke, type Vec } from "../core/geometry";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
 import type { Handwriting } from "../handwriting/types";
 import type {
@@ -22,7 +15,7 @@ import type {
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore } from "../persistence/types";
 import type { PenReader } from "../reading/types";
-import type { Sighting } from "../recognition/types";
+import type { LiveRecognizer, Sighting } from "../recognition/types";
 import type { Renderer } from "../render/types";
 import type { CompiledRule, Rule, RuleCompiler, RuleId, WorldPhysics } from "../rules/types";
 import type { DrawingPose, SimEvent, Simulation, WalkIntent } from "../sim/types";
@@ -103,6 +96,8 @@ export interface GameModules {
   readonly store: BoardStore;
   /** Reads pen strokes as words (a vision model behind the server); without one, ink is only ink. */
   readonly penReader?: PenReader;
+  /** Tidies a drawing once it has a name; without one the player's ink stays exactly as drawn. */
+  readonly finisher?: Pick<LiveRecognizer, "complete">;
   readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
   readonly boardFor: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
@@ -135,6 +130,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private board: BoardDefinition;
   private epoch = 0;
+  private lastSubmittedAt = 0;
+  private loading = false;
   private nowMs = 0;
   private lastFrameMs = 0;
   private tool: Tool = "draw";
@@ -153,6 +150,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private glimpse: { readonly noteId: NoteId; readonly word: string } | null = null;
   /** Labels Kami wrote for drawings he was sure of: the one kind of note of his that is kept. */
   private readonly labelsByKami = new Set<NoteId>();
+  private readonly tidied = new Set<DrawingId>();
 
   constructor(
     private readonly modules: GameModules,
@@ -187,7 +185,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.lastFrameMs = nowMs;
 
     sim.setTimeScale(this.ink.isDrawing ? BULLET_TIME_SCALE : 1);
-    for (let step = 0; step < steps; step++) {
+    for (let step = 0; !this.loading && step < steps; step++) {
       sim.setWalkIntent(this.chooseIntent());
       for (const event of sim.step()) this.handle(event);
     }
@@ -207,7 +205,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       camera: this.camera.camera,
       world,
       daylight: this.rules.physics.daylight,
-      inks: this.ledger.views(world.drawings),
+      inks: this.ledger.views(world.drawings, nowMs),
       notes: this.notes.views(nowMs),
       activeStrokes: this.ink.activeStrokes,
       activeVerdict: this.ink.activeVerdict,
@@ -216,16 +214,19 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   penDown(client: Vec): void {
+    if (this.loading) return;
     if (this.tool === "erase") this.eraseAt(this.toWorld(client));
     else this.ink.penDown(this.toWorld(client));
   }
 
   penMove(client: Vec): void {
+    if (this.loading) return;
     if (this.tool === "erase") this.eraseAt(this.toWorld(client));
     else this.ink.penMove(this.toWorld(client));
   }
 
   penUp(): void {
+    if (this.loading) return;
     this.ink.penUp();
     if (this.ink.isDrawing) void this.glimpseInk();
     this.penReader?.glimpse([...this.ink.activeStrokes]);
@@ -236,6 +237,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   tap(client: Vec): void {
+    if (this.loading) return;
     const world = this.toWorld(client);
     const offered = this.notes.at(world, (note) => note.action !== undefined);
     if (offered?.action !== undefined) this.perform(offered.action, offered);
@@ -251,6 +253,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   onCommit(drawing: Drawing): void {
+    if (this.loading) return;
     if (this.penReader === null) {
       this.land(drawing);
       return;
@@ -331,6 +334,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const { sim, cat, renderer, store, boardFor, onBoardOpened } = this.modules;
     this.epoch += 1;
     const epoch = this.epoch;
+    this.loading = remember;
     this.board = boardFor(boardId);
 
     sim.loadBoard(this.board);
@@ -340,6 +344,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.ink.reset(Number.POSITIVE_INFINITY);
     this.penReader?.forget();
     this.unread.clear();
+    this.tidied.clear();
     this.ledger.clear();
     this.notes.clear();
     this.labelsByKami.clear();
@@ -359,12 +364,23 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     void this.listBoards(epoch);
 
     if (!remember) return;
-    const snapshot = await store.load(boardId);
-    if (epoch === this.epoch) this.restore(snapshot);
+    const loadingNote = this.kamiWrites("Loading board…", this.board.spawn);
+    try {
+      const snapshot = await store.load(boardId);
+      if (epoch === this.epoch) this.restore(snapshot);
+    } finally {
+      if (epoch === this.epoch) {
+        this.notes.remove(loadingNote.id);
+        this.loading = false;
+      }
+    }
   }
 
   private restore({ drawings, notes, rules }: BoardSnapshot): void {
     const { sim } = this.modules;
+    for (const entry of [...notes, ...rules]) {
+      this.lastSubmittedAt = Math.max(this.lastSubmittedAt, entry.createdAt);
+    }
     for (const { drawing, ruling } of drawings) {
       sim.addDrawing(drawing);
       this.ledger.add(drawing);
@@ -665,7 +681,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       sourceText: note.text,
       noteId: note.id,
       position: note.position,
-      createdAt: Date.now(),
+      createdAt: note.createdAt,
     };
   }
 
@@ -703,6 +719,37 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
     }
     this.stuck.progress(this.nowMs);
+    void this.tidy(id, ruling.name);
+  }
+
+  /**
+   * Kami tidies what has just been named: the ink glides into the player's own strokes, steadied,
+   * and whatever a finished drawing of it was missing is drawn in. Once per drawing. The body Alice
+   * stands on stays as drawn until the board is next opened; the tidied strokes differ from it by
+   * less than a pen's width.
+   */
+  private async tidy(id: DrawingId, name: string): Promise<void> {
+    const before = this.ledger.get(id);
+    if (this.modules.finisher === undefined || before === null || this.tidied.has(id)) return;
+    this.tidied.add(id);
+    const epoch = this.epoch;
+    const completion = await this.modules.finisher.complete(before.drawing.strokes, name);
+    const current = this.ledger.get(id);
+    if (epoch !== this.epoch || current?.drawing !== before.drawing) return;
+    if (current.ruling !== before.ruling) {
+      this.tidied.delete(id);
+      if (current.ruling !== null) await this.tidy(id, current.ruling.name);
+      return;
+    }
+    if (completion === null) return;
+    const strokes = [...completion.tidied, ...completion.added];
+    const retraced = this.ledger.retrace(id, strokes, this.nowMs);
+    if (retraced === null) return;
+    this.modules.autopilot.invalidate();
+    this.modules.store.saveDrawing(this.board.id, {
+      drawing: retraced.drawing,
+      ruling: retraced.ruling,
+    });
   }
 
   private shrug(noteId: NoteId): void {
@@ -749,6 +796,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private playerWrites(text: string, position: Vec): Note {
+    this.lastSubmittedAt = Math.max(Date.now(), this.lastSubmittedAt + 1);
     const note = this.notes.write({
       note: {
         id: this.ids.next<NoteId>("note"),
@@ -756,7 +804,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         text,
         position,
         tone: "plain",
-        createdAt: Date.now(),
+        createdAt: this.lastSubmittedAt,
         fleeting: false,
       },
       nowMs: this.nowMs,
@@ -912,7 +960,4 @@ const writingOrigin = (strokes: readonly Stroke[]): Vec => {
 };
 
 const currentBounds = (drawing: Drawing, { pose }: DrawingPose): Rect =>
-  translateRect(boundsOf(drawing.strokes.flat()), {
-    x: pose.position.x - pose.origin.x,
-    y: pose.position.y - pose.origin.y,
-  });
+  boundsOf(drawing.strokes.flatMap((stroke) => stroke.map((point) => poseToWorld(point, pose))));
