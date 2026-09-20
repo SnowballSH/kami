@@ -11,7 +11,7 @@ export const PUZZLE_MODE: GameMode = {
   id: PUZZLE_MODE_ID,
   card: {
     title: "Puzzle",
-    tagline: "Seven rooms. One idea each. Something under the page is hungry.",
+    tagline: "Six rooms. One idea each. Something under the page is hungry.",
     opening: "Ink is precious here. Draw only what you mean.",
   },
   opening: { player: "body", freshPage: false },

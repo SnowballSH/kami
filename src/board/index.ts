@@ -21,7 +21,7 @@ export const pageFor = (kind: PageKind, id: string): BoardDefinition =>
 
 export const isEndless = (board: BoardDefinition): boolean => board.page === "endless";
 
-export { arenaBoard } from "./boards/arena";
+export { ARENA_OVERHANG, arenaBoard, arenaHeight } from "./boards/arena";
 export {
   ENDLESS_CLEARING,
   ENDLESS_GROUND,

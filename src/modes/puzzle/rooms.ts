@@ -29,12 +29,6 @@ export const PUZZLE_ROOMS: readonly PuzzleRoom[] = [
     closing: "Lighter. She'll miss that.",
   },
   {
-    boardId: "puzzle-dark-hall",
-    dials: [],
-    world: { daylight: 0 },
-    closing: "Out of the dark. Leave the lanterns; they'll go out on their own.",
-  },
-  {
     boardId: "puzzle-twin-doors",
     dials: [],
     world: {},

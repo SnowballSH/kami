@@ -1,5 +1,5 @@
 import type { Scene } from "../autopilot/types";
-import { arenaBoard, endlessBoard } from "../board";
+import { arenaBoard, arenaHeight, endlessBoard } from "../board";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
 import {
@@ -1767,7 +1767,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private pinArena(viewport: { readonly width: number; readonly height: number }): void {
     const zoom = framingZoom(viewport);
-    const height = this.board.killY - 200;
+    const height = arenaHeight(this.board);
     this.camera.pin({ x: 0, y: -height / 2 + 18 }, zoom);
   }
 

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { arenaBoard } from "./arena";
+import { ARENA_OVERHANG, arenaBoard, arenaHeight } from "./arena";
 
 describe("arenaBoard", () => {
   it("fills the screen with a floor and edge walls", () => {
     const board = arenaBoard("arena", { width: 1000, height: 800 });
+    expect(ARENA_OVERHANG).toBe(200);
+    expect(arenaHeight(board)).toBe(800);
     expect(board.spawn).toEqual({ x: 0, y: 0 });
     expect(board.killY).toBe(1000);
     expect(board.solids).toEqual([

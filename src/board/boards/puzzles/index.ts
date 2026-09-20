@@ -1,5 +1,4 @@
 import type { BoardDefinition } from "../../types";
-import { theDarkHall } from "./theDarkHall";
 import { theKeyhole } from "./theKeyhole";
 import { theMoonLedge } from "./theMoonLedge";
 import { thePit } from "./thePit";
@@ -12,7 +11,6 @@ export const PUZZLE_BOARDS: readonly BoardDefinition[] = [
   theWall,
   theKeyhole,
   theMoonLedge,
-  theDarkHall,
   theTwinDoors,
   theShaft,
   thePit,

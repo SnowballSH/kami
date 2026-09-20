@@ -48,16 +48,12 @@ describe("puzzle mode", () => {
 
 describe("the puzzle director", () => {
   it("stages each room with the Sumikui loose over the room's world, and only the room's dials writable", () => {
-    const { room } = opened("puzzle-dark-hall");
+    const { room } = opened("puzzle-moon-ledge");
     if (room === null) throw new Error("not staged");
-    expect(room.world).toEqual({ ...EARTH, daylight: 0, inkEater: 1 });
+    expect(room.world).toEqual({ ...EARTH, inkEater: 1 });
     expect(allowsLaw(room.laws, "inkEater")).toBe(true);
+    expect(allowsLaw(room.laws, "gravity")).toBe(true);
     expect(allowsLaw(room.laws, "daylight")).toBe(false);
-    expect(allowsLaw(room.laws, "gravity")).toBe(false);
-
-    const ledge = opened("puzzle-moon-ledge").room;
-    expect(ledge?.world).toEqual({ ...EARTH, inkEater: 1 });
-    expect(ledge === null ? false : allowsLaw(ledge.laws, "gravity")).toBe(true);
   });
 
   it("cards each room with its title, intro and place in the run, and chains to the next", () => {

@@ -49,7 +49,6 @@ import { Game, MAX_REMARKS } from "./game";
 import { HELD_INK_FADE_MS } from "./heldInk";
 import {
   CANNOT_DRAW_LINE,
-  IN_THE_DARK_LINE,
   LAW_OUTSIDE_MODE_LINE,
   NOWHERE_LINE,
   PONDERING_LINE,
@@ -818,7 +817,7 @@ describe("Game on the Wonderland board", () => {
     });
   });
 
-  it("is completable start to goal through all seven rooms", async () => {
+  it("is completable start to goal through all six rooms", async () => {
     await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
     await player.draw(blob({ x: 1430, y: 540 }, 30, 18));
     await player.write("a bouncy mushroom", { x: 1380, y: 440 });
@@ -2090,13 +2089,7 @@ describe("Game in puzzle mode", () => {
     expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
   });
 
-  it("stages the dark hall unlit, and the ledge on Earth until the moon is written", async () => {
-    const dark = new Player("puzzle-dark-hall", { mode: PUZZLE_MODE });
-    await dark.arrive();
-    expect(dark.renderer.lastFrame?.daylight).toBe(0);
-    dark.game.onAutopilotToggled(true);
-    expect(await dark.until(() => dark.written.includes(IN_THE_DARK_LINE))).toBe(true);
-
+  it("stages the ledge on Earth until the moon is written", async () => {
     const ledge = new Player("puzzle-moon-ledge", { mode: PUZZLE_MODE });
     await ledge.arrive();
     await ledge.write("we are on the moon", { x: 200, y: 200 });

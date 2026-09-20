@@ -1,6 +1,6 @@
 # Puzzle mode — the rooms
 
-`?mode=puzzle` plays seven rooms in a row. Each is a board like any other (`src/board/boards/puzzles/`), staged by `PuzzleDirector` (`src/modes/puzzle/`) so that one drawn or written idea is the way through and nothing else will take. The Sumikui is loose in every room from the first frame: ink is precious, and a drawing left idle is a drawing that gets eaten. Reaching the rabbit hole writes Kami's closing line and, four seconds later, opens the next room. Nothing is saved: a room opens blank every time (`ForgetfulBoardStore`).
+`?mode=puzzle` plays six rooms in a row. Each is a board like any other (`src/board/boards/puzzles/`), staged by `PuzzleDirector` (`src/modes/puzzle/`) so that one drawn or written idea is the way through and nothing else will take. The Sumikui is loose in every room from the first frame: ink is precious, and a drawing left idle is a drawing that gets eaten. Reaching the rabbit hole writes Kami's closing line and, four seconds later, opens the next room. Nothing is saved: a room opens blank every time (`ForgetfulBoardStore`).
 
 The design rule for every room: **the fun is the "aha"**, so the room must make the lazy answer impossible and the intended one obvious *in hindsight*. Two levers do that:
 
@@ -16,10 +16,9 @@ Autopilot is on by default: Alice walks toward the goal herself, so the player's
 | 1 | The Wall | `theWall.ts` | `bouncy` | — | a spring at the foot of a wall too tall to climb |
 | 2 | The Keyhole | `theKeyhole.ts` | `shrink` | `aliceSize` | make *her* smaller, not the gap bigger |
 | 3 | The Moon Ledge | `theMoonLedge.ts` | none | `gravity` | a ledge only reachable if the page pulled less |
-| 4 | The Dark Hall | `theDarkHall.ts` | `lantern` | — | she will not walk where she cannot see |
-| 5 | The Twin Doors | `theTwinDoors.ts` | `portal` | — | boxed in; a door that is not in a wall, and its twin outside |
-| 6 | The Shaft | `theShaft.ts` | none | `flight` | a shaft with no stairs, walls that take no ink |
-| 7 | The Pit | `thePit.ts` | `bouncy` | `gravity` | two ideas at once: a spring *and* the Moon |
+| 4 | The Twin Doors | `theTwinDoors.ts` | `portal` | — | boxed in; a door that is not in a wall, and its twin outside |
+| 5 | The Shaft | `theShaft.ts` | none | `flight` | a shaft with no stairs, walls that take no ink |
+| 6 | The Pit | `thePit.ts` | `bouncy` | `gravity` | two ideas at once: a spring *and* the Moon |
 
 ### 1. The Wall — *"Too tall to climb. She could fall up, if something threw her."*
 
@@ -33,19 +32,15 @@ A lintel from the sky to a gap too low for Alice. Only `shrink` is granted and o
 
 The floor stops; a ledge stands higher than her jump and farther than her stride, and a `noInkZone` fills the gap so nothing can be built across. No nature is granted — every drawing is plain ink — and only `gravity` is writable. Write *"we are on the moon"* (or *"low gravity"*, *"gravity is half"*) and her ordinary hop clears it. Teaches: the room itself is a thing you can write about.
 
-### 4. The Dark Hall — *"She won't take a step she can't see."*
-
-A long corridor staged at `daylight: 0`. In pitch dark (`sim/nightfall.ts`, below `PITCH_DARK_BELOW`) Alice refuses every step outside a lantern's light (`LANTERN_LIGHT_PX`, the same radius the night painter draws) and Kami says so once. Only `lantern` is granted and `daylight` is *not* writable, so the sun cannot be written back on. The hall is longer than one pool of light: hang a lantern, walk to its edge, hang the next. Teaches: a drawing can change what she is willing to do, not only where she can stand.
-
-### 5. The Twin Doors — *"No door in, no door out. So draw one. Doors come in pairs."*
+### 4. The Twin Doors — *"No door in, no door out. So draw one. Doors come in pairs."*
 
 Alice opens inside a closed box; the goal is outside. Only `portal` is granted. One ring is a lonely portal and leads nowhere (the pilot waits beside it); a second ring drawn outside the box pairs with it, the pathfinder charts a `warp` edge between them (`autopilot/chart.ts` gateways, `pathfinder.ts`), and she walks into one and out of the other. Teaches: some ideas take two drawings.
 
-### 6. The Shaft — *"The Rabbit fell down here. He was in no hurry to fall back up."*
+### 5. The Shaft — *"The Rabbit fell down here. He was in no hurry to fall back up."*
 
 A tall shaft; the goal is at the top; a `noInkZone` fills the shaft from 160 px above the floor to its mouth, so no ladder or step can be stuck to the walls; no nature is granted. Only `flight` is writable. *"alice can fly"* and she flies up. Teaches: when nothing can be drawn, something can still be written.
 
-### 7. The Pit — *"Deeper than any spring can throw her. Unless she weighed less."*
+### 6. The Pit — *"Deeper than any spring can throw her. Unless she weighed less."*
 
 Alice opens at the bottom of a pit deeper than a spring's throw under Earth gravity. `bouncy` is granted and `gravity` is writable; either alone fails (tested), together they clear it: a spring *and* *"we are on the moon"*. Teaches the whole game in one room — a drawing and a law compose.
 
@@ -55,7 +50,7 @@ Alice opens at the bottom of a pit deeper than a spring's throw under Earth grav
 
 ## Deliberately not built (yet)
 
-The task's list of room ideas is longer than seven. Left out of this first set, with the reason:
+The task's list of room ideas is longer than six. Left out of this first set, with the reason:
 
 - **The heavy door / counterweight** — there is no lever or counterweighted door prop in the board format; it would be a new `BoardProp`, not data.
 - **"Gravity points left" and a wall to walk on** — sideways gravity is a single law, but Alice's controller (`AliceController`) stands on down-facing surfaces only; walking a wall is a controller change.
