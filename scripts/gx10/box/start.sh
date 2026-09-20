@@ -2,7 +2,8 @@
 # On the GX10: (re)start MongoDB, Kami's Eye and the Kami server. Everything Kami computes happens on
 # this box: the game is served from here, memory is this MongoDB, rules are compiled by this Ollama, and
 # sketches are recognised by the Eye sidecar — or by the server's own k-NN when no trained model is here.
-# The same sidecar finishes drawings (/complete) when its model has an exemplar set (ml/exemplars.py).
+# The same sidecar finishes drawings (/complete) when its model has an exemplar set (ml/exemplars.py),
+# and the server summons drawings by name from that set (KAMI_SKETCHES), all 345 categories.
 set -euo pipefail
 cd -P "$(dirname "$0")/.."
 PORT=${PORT:-8787}
@@ -94,6 +95,10 @@ else
   else
     bash box/stop.sh eye
   fi
+fi
+
+if [ -z "${KAMI_SKETCHES:-}" ] && [ -n "$EYE_MODEL" ] && [ -s "$EYE_MODEL/exemplars/meta.json" ]; then
+  export KAMI_SKETCHES="$EYE_MODEL/exemplars"
 fi
 
 PORT=$PORT KAMI_WEB_DIR="$PWD/dist" KAMI_LLM_URL="http://127.0.0.1:11434" KAMI_LLM_MODEL="$MODEL" \
