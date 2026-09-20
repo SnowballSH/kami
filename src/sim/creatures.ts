@@ -6,14 +6,18 @@ import {
   CREATURE_LOOK_AHEAD,
   CREATURE_TURN_COOLDOWN_TICKS,
   CREATURE_WALK_SPEED,
+  FLEE_HASTE,
+  FLEE_RADIUS_PX,
   FLY_BOB_PERIOD_TICKS,
   FLY_BOB_SPEED,
   FLY_ROAM_PX,
   FLY_SPEED,
+  HEEL_PX,
   HOP_FORWARD_SPEED,
   HOP_REACH,
   HOP_REST_TICKS,
   HOP_UP_SPEED,
+  PERCH_ABOVE_PX,
   PROBE_AHEAD,
   PROBE_BELOW,
 } from "./constants";
@@ -75,6 +79,10 @@ const turnAround = (ink: InkEntity): void => {
   mind.turnedAt = mind.clock;
 };
 
+const face = (ink: InkEntity, direction: number): void => {
+  if (direction !== 0) ink.mind.facing = direction > 0 ? 1 : -1;
+};
+
 const setVelocity = (ink: InkEntity, velocity: Vec): void => {
   Matter.Body.setVelocity(ink.body, velocity);
   Matter.Body.setAngularVelocity(ink.body, 0);
@@ -84,23 +92,60 @@ const carryAlice = (ink: InkEntity, world: NatureWorld, velocity: Vec): void => 
   if (world.alice.standsOn(ink.body)) world.alice.ride(velocity);
 };
 
-/** Paces its ground, turning at walls, at drops and at Alice. */
+/**
+ * What a creature's temper asks of it this tick: `heel` — it has caught up with Alice and waits;
+ * `toward` — she is off and it goes after her; `away` — she is too close and it bolts; `roam` —
+ * it has no temper, or she is far enough that a shy thing forgets her.
+ */
+export type Urge = "heel" | "toward" | "away" | "roam";
+
+const aliceCentre = (world: NatureWorld): Vec => {
+  const bounds = world.alice.bounds();
+  return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+};
+
+export const urgeOf = (ink: InkEntity, world: NatureWorld): Urge => {
+  if (ink.temper === null) return "roam";
+  const gap = aliceCentre(world).x - ink.body.position.x;
+  if (ink.temper === "follows") {
+    if (Math.abs(gap) <= HEEL_PX) return "heel";
+    face(ink, gap);
+    return "toward";
+  }
+  if (Math.abs(gap) > FLEE_RADIUS_PX) return "roam";
+  face(ink, -gap);
+  return "away";
+};
+
+const haste = (urge: Urge): number => (urge === "away" ? FLEE_HASTE : 1);
+
+/**
+ * Paces its ground, turning at walls and at drops. A follower stops short of a drop and waits
+ * there for Alice rather than turn its back on her; a fleer turns, and so can be cornered.
+ */
 export const walk = (ink: InkEntity, world: NatureWorld): void => {
   const { mind } = ink;
   mind.clock++;
   if (!footing(ink, world.feelers)) return;
-  if (wallAhead(ink, world.feelers) || edgeAhead(ink, world.feelers, CREATURE_LOOK_AHEAD)) {
-    turnAround(ink);
+  const urge = urgeOf(ink, world);
+  const fall = Matter.Body.getVelocity(ink.body).y;
+  const blocked =
+    wallAhead(ink, world.feelers) || edgeAhead(ink, world.feelers, CREATURE_LOOK_AHEAD);
+  if (urge === "heel" || (urge === "toward" && blocked)) {
+    setVelocity(ink, { x: 0, y: fall });
+    carryAlice(ink, world, { x: 0, y: 0 });
+    return;
   }
-  const velocity = {
-    x: mind.facing * CREATURE_WALK_SPEED * ink.strength,
-    y: Matter.Body.getVelocity(ink.body).y,
-  };
+  if (blocked) turnAround(ink);
+  const velocity = { x: mind.facing * CREATURE_WALK_SPEED * ink.strength * haste(urge), y: fall };
   setVelocity(ink, velocity);
   carryAlice(ink, world, { x: velocity.x, y: 0 });
 };
 
-/** Sits, then springs forward on a beat; looks before each leap. */
+/**
+ * Sits, then springs forward on a beat; looks before each leap. A follower leaps after Alice
+ * without looking, gaps and all; a fleer rests half as long.
+ */
 export const hop = (ink: InkEntity, world: NatureWorld): void => {
   const { mind } = ink;
   mind.clock++;
@@ -109,31 +154,60 @@ export const hop = (ink: InkEntity, world: NatureWorld): void => {
     return;
   }
   mind.rested++;
-  if (mind.rested < HOP_REST_TICKS) {
+  const urge = urgeOf(ink, world);
+  const rest = urge === "away" ? HOP_REST_TICKS / 2 : HOP_REST_TICKS;
+  if (urge === "heel" || mind.rested < rest) {
     setVelocity(ink, { x: 0, y: Matter.Body.getVelocity(ink.body).y });
     return;
   }
-  if (wallAhead(ink, world.feelers) || edgeAhead(ink, world.feelers, HOP_REACH)) turnAround(ink);
+  if (
+    urge !== "toward" &&
+    (wallAhead(ink, world.feelers) || edgeAhead(ink, world.feelers, HOP_REACH))
+  ) {
+    turnAround(ink);
+  }
   setVelocity(ink, {
-    x: mind.facing * HOP_FORWARD_SPEED * Math.sqrt(ink.strength),
+    x: mind.facing * HOP_FORWARD_SPEED * Math.sqrt(ink.strength) * haste(urge),
     y: -HOP_UP_SPEED * Math.sqrt(ink.strength),
   });
 };
 
-/** Flies level, bobbing, and roams only so far from where it was drawn before turning back. */
+const bob = (mind: Mind): number =>
+  FLY_BOB_SPEED * Math.sin((mind.clock / FLY_BOB_PERIOD_TICKS) * Math.PI * 2);
+
+/** Makes for a perch just above Alice's head, and hovers there once it arrives. */
+const flyToAlice = (ink: InkEntity, world: NatureWorld): Vec => {
+  const alice = world.alice.bounds();
+  const perch = { x: alice.x + alice.width / 2, y: alice.y - PERCH_ABOVE_PX };
+  const dx = perch.x - ink.body.position.x;
+  const dy = perch.y - ink.body.position.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance <= HEEL_PX) return { x: 0, y: bob(ink.mind) };
+  const speed = FLY_SPEED * ink.strength;
+  return { x: (dx / distance) * speed, y: (dy / distance) * speed + bob(ink.mind) };
+};
+
+/**
+ * Flies level, bobbing, and roams only so far from where it was drawn before turning back. A
+ * follower forgets its patch and keeps a perch above Alice; a fleer forgets it too, while she is
+ * near.
+ */
 export const fly = (ink: InkEntity, world: NatureWorld): void => {
   const { mind, body } = ink;
   mind.clock++;
-  const strayed = body.position.x - ink.origin.x;
-  const heading = mind.facing;
-  if (wallAhead(ink, world.feelers) || (Math.abs(strayed) > FLY_ROAM_PX && strayed * heading > 0)) {
-    turnAround(ink);
-  }
-  const velocity = {
-    x: mind.facing * FLY_SPEED * ink.strength,
-    y: FLY_BOB_SPEED * Math.sin((mind.clock / FLY_BOB_PERIOD_TICKS) * Math.PI * 2),
-  };
   cancelGravity(body, world.gravity);
+  const urge = urgeOf(ink, world);
+  if (urge === "toward") {
+    const velocity = flyToAlice(ink, world);
+    face(ink, velocity.x);
+    setVelocity(ink, velocity);
+    carryAlice(ink, world, velocity);
+    return;
+  }
+  const strayed = body.position.x - ink.origin.x;
+  const wandered = urge === "roam" && Math.abs(strayed) > FLY_ROAM_PX && strayed * mind.facing > 0;
+  if (wallAhead(ink, world.feelers) || wandered) turnAround(ink);
+  const velocity = { x: mind.facing * FLY_SPEED * ink.strength * haste(urge), y: bob(mind) };
   setVelocity(ink, velocity);
   carryAlice(ink, world, velocity);
 };

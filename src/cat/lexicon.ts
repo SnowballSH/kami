@@ -96,12 +96,17 @@ export const NATURE_THINGS: WordTable = {
     lantern, lamp, candle, torch, lightbulb, light bulb, bulb, streetlight, street lamp, lamppost,
     flashlight, star, campfire light, glowworm, nightlight, night light
   `),
+  portal: list(`
+    portal, wormhole, warp, warp gate, warp pad, gateway, gate, teleporter, teleport pad, rift,
+    magic door, magic mirror, mirror, looking glass, doorway, stargate, hole in the world, tear,
+    secret passage, tunnel
+  `),
   solid: list(`
     ground, floor, wall, platform, block, brick, shelf, ledge, pavement, road, terrain, island,
     cliff, hill
   `),
   goal: list(`
-    goal, finish, finish line, flag, exit, rabbit hole, home, win, trophy, portal, destination
+    goal, finish, finish line, flag, exit, rabbit hole, home, win, trophy, destination
   `),
   hazard: list(`
     lava, magma, spike, fire, campfire, bonfire, flame, danger, acid, trap, poison, thorn, skull,
@@ -132,6 +137,7 @@ export const NATURE_DESCRIPTIONS: WordTable = {
   vehicle: list("drivable, driveable, rideable, ridable, wheeled, motorised, motorized, driving"),
   attractor: list("magnetic, attracting, attractive, pulling, gravitational"),
   lantern: list("glowing, glows, lit, shining, shines, luminous, radiant"),
+  portal: list("teleporting, warping"),
   solid: list("solid, static, fixed, immovable, unmovable, rigid"),
   goal: [],
   hazard: list("deadly, dangerous, lethal, poisonous, spiky, burning"),
@@ -168,6 +174,29 @@ export const WIDDERSHINS_WORDS = list("counterclockwise, anticlockwise, widdersh
 export const PROPELLED_WORDS = list(`
   accelerating, propelled, powered, motorised, motorized, thrusting, boosted, zooming, jetpack,
   thruster, thrusters
+`);
+
+export const FOLLOWING_WORDS = list(`
+  follows, following, follow, followed, loyal, faithful, friendly, tame, obedient, devoted,
+  clingy, trusty, heel, heels, sidekick, companion, guardian, bodyguard, escort, chases, chasing,
+  haunts, haunting
+`);
+
+export const FLEEING_WORDS = list(`
+  flees, fleeing, flee, runs away, run away, running away, shy, timid, scared, skittish, nervous,
+  wild, cowardly, fearful, frightened, afraid, elusive, escaping, escapes, hides, hiding, evasive
+`);
+
+/** Creatures whose name alone says how they take to Alice. */
+export const FOLLOWERS = list(`
+  dog, puppy, kitten, pet, duck, duckling, cheshire cat, robot, knight, soldier, sidekick,
+  companion, ghost, pony, gryphon, dodo, penguin, monkey, bodyguard
+`);
+
+export const FLEERS = list(`
+  mouse, rat, hare, white rabbit, march hare, deer, gazelle, impala, springbok, squirrel,
+  butterfly, moth, sparrow, pigeon, dove, seagull, gull, crab, lizard, chicken, hen, hedgehog,
+  cockroach, grasshopper, cricket, flea, mosquito, fly, worm
 `);
 
 export const KEY_WORDS = list("key");

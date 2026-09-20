@@ -1,5 +1,5 @@
 import type { Tag } from "./lexicon";
-import type { Nature } from "./types";
+import type { Nature, Temper } from "./types";
 
 export type LineSet = readonly [string, ...string[]];
 
@@ -26,6 +26,19 @@ export const MOVING_INK: LineSet = [
   "It moves by itself now. Don't say I didn't warn you.",
   "Restless ink. Mind where it ends up.",
 ];
+
+export const TEMPER_LINES: Readonly<Record<Temper, LineSet>> = {
+  follows: [
+    "It has taken to her. Wherever she goes, it goes.",
+    "A shadow with legs. She'll never be alone now.",
+    "Loyal, that one. Try and lose it.",
+  ],
+  flees: [
+    "Shy. It will run the moment she comes near.",
+    "You'll have to be quick. It certainly will be.",
+    "It wants nothing to do with her. Corner it, if you can.",
+  ],
+};
 
 export const ACCEPTANCE: Readonly<Record<Nature, LineSet>> = {
   ink: [
@@ -112,6 +125,11 @@ export const ACCEPTANCE: Readonly<Record<Nature, LineSet>> = {
     "A light. Useful, come nightfall.",
     "It glows. Write 'night' and see what it's for.",
     "Something to see by. The dark won't like it.",
+  ],
+  portal: [
+    "Step in here, step out there. Draw a second one, or it's only a hole.",
+    "Through the looking-glass. Where it lets out depends on what you draw next.",
+    "A short cut through the paper. It wants a twin.",
   ],
   goal: [
     "So that's where she's going. I did wonder.",

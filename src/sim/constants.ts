@@ -62,6 +62,15 @@ export const VEHICLE_ACCELERATION = 0.25;
 export const FLY_BOB_SPEED = 0.7;
 export const FLY_BOB_PERIOD_TICKS = 90;
 export const FLY_ROAM_PX = 320;
+/** A follower stops chasing once Alice is this close, sideways or as the crow flies. */
+export const HEEL_PX = 70;
+/** A follower on the wing keeps a perch this far above Alice's head. */
+export const PERCH_ABOVE_PX = 60;
+/** A fleer bolts while Alice is within this; farther off it forgets her and roams. */
+export const FLEE_RADIUS_PX = 220;
+export const FLEE_HASTE = 1.7;
+/** How often Kami remarks on a portal with no twin while Alice keeps stepping into it. */
+export const PORTAL_LONELY_COOLDOWN_MS = 4000;
 
 /** The Sumikui stirs once the board holds this many drawings. */
 export const SUMIKUI_WAKES_AT_DRAWINGS = 2;

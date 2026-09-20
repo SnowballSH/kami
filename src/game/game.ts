@@ -58,6 +58,7 @@ import {
   LAW_OUTSIDE_MODE_LINE,
   OFFER_HELP_HINT,
   PONDERING_LINE,
+  PORTAL_LONELY_LINE,
   REJECTION_LINES,
   RULE_REPEALED_LINE,
   SHRUGS,
@@ -70,6 +71,7 @@ import {
   SUMIKUI_SUMMONED_LINES,
   SUMIKUI_WOKE_LINE,
   TAGLINE,
+  WARPED_LINES,
   WORDMARK,
 } from "./lines";
 import { type NoteAnchor, NoteBook } from "./noteBook";
@@ -181,6 +183,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private meals = 0;
   private bites = 0;
   private swallows = 0;
+  private warps = 0;
   private recital: Recital[] = [];
   /** Settled ink the pen reader is still reading: weightless until it is known to be a drawing. */
   private readonly held = new HeldInkBook();
@@ -608,6 +611,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
           SUMIKUI_ALICE_DEVOURED_LINES[this.swallows++ % SUMIKUI_ALICE_DEVOURED_LINES.length] ?? "",
           HINT_LIFETIME_MS,
         );
+        return;
+      case "warped":
+        this.modules.autopilot.invalidate();
+        this.stuck.progress(this.nowMs);
+        this.remark(WARPED_LINES[this.warps++ % WARPED_LINES.length] ?? "");
+        return;
+      case "portal-lonely":
+        this.remark(PORTAL_LONELY_LINE);
         return;
     }
   }

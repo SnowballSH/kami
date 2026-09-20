@@ -25,6 +25,7 @@ import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
 import { moveOfItself } from "./motion";
 import { NATURES, type NatureWorld } from "./natures";
+import { centreOf, Portals } from "./portals";
 import { Sumikui } from "./sumikui";
 import { Twins } from "./twins";
 import {
@@ -61,6 +62,7 @@ interface BoardWorld {
   readonly activePairs: Matter.Pair[];
   readonly growthRefusedAt: Map<DrawingId, number>;
   readonly touchedAt: Map<DrawingId, number>;
+  readonly portals: Portals;
   sumikui: Sumikui | null;
   goalReached: boolean;
   aliceLost: boolean;
@@ -99,6 +101,7 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
     activePairs,
     growthRefusedAt: new Map(),
     touchedAt: new Map(),
+    portals: new Portals(),
     sumikui: physics.inkEater > 0 ? new Sumikui(alice, hallowedOf(board)) : null,
     goalReached: false,
     aliceLost: false,
@@ -237,6 +240,7 @@ export class MatterSimulation implements Simulation {
   private forgetInk(id: DrawingId): void {
     this.world.inks.remove(id);
     this.world.touchedAt.delete(id);
+    this.world.portals.forget(id);
   }
 
   private resolveWeather(elapsedMs: number): void {
@@ -295,6 +299,12 @@ export class MatterSimulation implements Simulation {
         const loose = inks.dynamicBodies.filter((body) => body !== ink.body);
         pullToward(ink.body.position, strengthInG, [alice.body, ...loose]);
       },
+      warp: (ink) => {
+        const exit = this.world.portals.through(ink, inks.all, engine.timing.timestamp, (event) =>
+          this.events.push(event),
+        );
+        if (exit !== null) alice.warpTo(centreOf(exit));
+      },
     };
   }
 
@@ -327,7 +337,8 @@ export class MatterSimulation implements Simulation {
   }
 
   private resolveAliceTouches(natureWorld: NatureWorld): void {
-    const { alice, inks, props } = this.world;
+    const { alice, inks, props, portals } = this.world;
+    const barred = portals.barred();
     const touched = new Map<InkEntity, Contact>();
     for (const contact of this.aliceContacts()) {
       if (props.isDoor(contact.body) && alice.hasKey) {
@@ -341,6 +352,7 @@ export class MatterSimulation implements Simulation {
       this.world.touchedAt.set(ink.id, this.world.engine.timing.timestamp);
       NATURES[ink.nature].onAliceTouch?.(ink, contact, natureWorld);
     }
+    portals.settle(barred, new Set([...touched.keys()].map((ink) => ink.id)));
   }
 
   private feedSumikui(elapsedMs: number): void {

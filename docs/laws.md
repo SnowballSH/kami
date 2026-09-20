@@ -182,8 +182,8 @@ The autopilot is a system too: `Scene.canFly` marks every cell of air climbable,
 What each of the remaining ideas is, in this vocabulary, and what it costs:
 
 - **Vehicles** (“a car”) — *built*: a `vehicle` nature whose `beforeStep` (`sim/vehicles.ts`) reads the new `NatureWorld.intent` capability and rolls the body toward `intent.x × VEHICLE_SPEED × strength` while Alice is aboard; `alice.drive` makes her movement yield to it, and jumping dismounts. One nature record, one capability, exactly as costed.
-- **Follow / flee** (“a dog”, “a mouse”): creature natures whose mind reads `world.alice` and turns toward or away. Two nature records over the existing `Feelers`.
-- **Portals**: a `portal` nature; the system pairs portal bodies and teleports whatever touches one to its partner. One nature, one hook.
+- **Follow / flee** (“a dog”, “a mouse”) — *built*: not new natures but a `temper` on the ruling, orthogonal to how the creature moves, so every walker, hopper and flier can follow or flee. `urgeOf` (`sim/creatures.ts`) reads `world.alice` and returns the creature's urge; the three strategies take their facing from it. One field, one function, no new nature records.
+- **Portals** (“a portal”, twice) — *built*: a `portal` role whose touch hook calls `NatureWorld.warp`; `sim/portals.ts` pairs them in drawing order as a ring and bars the exit until Alice steps clear. One nature, one capability, one hook.
 - **Kinds** (“all clouds are heavy”): a third `Target` variant, `kind(Nature)`, matched in `speaksOf` against the drawing's nature instead of its name. One variant, one line in `speaksOf`; the fold, the compiler chain and the motion system are untouched.
 - **More motion dials** (“the rock is dragless”, “the wheel is glued down”): a field on `Motion`, a default in `STILL`, a row in the body ranges and the server prompt, and a line in `materialMoved` or the motion system.
 - **Independent clones**: twins that own an autopilot each; the `Scene` would take an `alice` per pilot.

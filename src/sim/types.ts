@@ -102,7 +102,11 @@ export type SimEvent =
   | { readonly type: "paper-bitten"; readonly hole: Rect }
   | { readonly type: "paper-healed" }
   /** It caught Alice; she is returned to her checkpoint (a `fell` follows in the same step). */
-  | { readonly type: "alice-devoured" };
+  | { readonly type: "alice-devoured" }
+  /** Alice stepped into one portal and out of another. */
+  | { readonly type: "warped"; readonly from: DrawingId; readonly to: DrawingId }
+  /** Alice stepped into the only portal on the board; it leads nowhere yet. */
+  | { readonly type: "portal-lonely"; readonly drawingId: DrawingId };
 
 export interface Simulation {
   /** Discards the whole world and rebuilds it with Alice standing at `board.spawn`. */

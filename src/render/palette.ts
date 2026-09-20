@@ -27,6 +27,7 @@ export const NATURE_TINTS: Readonly<Record<Nature, Rgb>> = {
   vehicle: [185, 28, 28],
   attractor: [88, 28, 135],
   lantern: [217, 119, 6],
+  portal: [124, 58, 237],
   solid: MARKER.black,
   goal: MARKER.green,
   hazard: MARKER.red,
