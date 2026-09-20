@@ -2,6 +2,7 @@ import type { Drawable, OpSet } from "roughjs/bin/core";
 import type { BoardDefinition } from "../board/types";
 import type { Rect, Vec } from "../core/geometry";
 import type { WorldSnapshot } from "../sim/types";
+import { easeInCubic, progressOf } from "./animation/easing";
 import { type ArtPiece, composeBoardArt } from "./boardArt";
 import { TAU } from "./canvas2d";
 import { rectInView } from "./culling";
@@ -27,6 +28,10 @@ interface Props {
 
 const NO_PAINT = "none";
 const WAITING_KEY = { length: 38, angle: -Math.PI / 5 } as const;
+/** The door swings away on its hinge and the key is snatched up, rather than just being gone. */
+export const DOOR_SWING_MS = 400;
+export const KEY_SNATCH_MS = 200;
+const SETTLED = 1;
 const KEYHOLE = { radiusRatio: 0.09, skirtRatio: 0.22, heightRatio: 0.5 } as const;
 
 const tracePath = (set: OpSet): Path2D => {
@@ -120,11 +125,41 @@ const paintKeyhole = (ctx: CanvasRenderingContext2D, door: Rect): void => {
   ctx.fill();
 };
 
+/** Hinged on the side away from the room's start, the door swings edge-on to the page and thins away. */
+const paintDoor = (
+  ctx: CanvasRenderingContext2D,
+  piece: CachedPiece,
+  rect: Rect,
+  swung: number,
+): void => {
+  if (swung <= 0) {
+    paintPiece(ctx, piece);
+    paintKeyhole(ctx, rect);
+    return;
+  }
+  ctx.save();
+  ctx.globalAlpha *= SETTLED - swung;
+  ctx.translate(rect.x, 0);
+  ctx.scale(SETTLED - swung, 1);
+  ctx.translate(-rect.x, 0);
+  paintPiece(ctx, piece);
+  paintKeyhole(ctx, rect);
+  ctx.restore();
+};
+
 export class BoardPainter {
   private scenery: readonly CachedPiece[] = [];
   private props: Props = { door: null, key: null };
+  private doorOpenedAtMs: number | null = null;
+  private keyTakenAtMs: number | null = null;
+  private wasOpen = false;
+  private wasTaken = false;
 
   setBoard(board: BoardDefinition): void {
+    this.doorOpenedAtMs = null;
+    this.keyTakenAtMs = null;
+    this.wasOpen = false;
+    this.wasTaken = false;
     const art = composeBoardArt(board);
     this.scenery = art.scenery.map(cachePiece);
     this.props = {
@@ -139,7 +174,8 @@ export class BoardPainter {
     };
   }
 
-  paint(ctx: CanvasRenderingContext2D, view: Rect, world: WorldSnapshot): void {
+  paint(ctx: CanvasRenderingContext2D, view: Rect, world: WorldSnapshot, nowMs: number): void {
+    this.notice(world, nowMs);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     for (const piece of this.scenery) {
@@ -147,12 +183,36 @@ export class BoardPainter {
     }
     for (const hole of world.bites) if (rectInView(hole, view, 0)) paintBite(ctx, hole);
     const { door, key } = this.props;
-    if (door !== null && !world.doorOpen && rectInView(door.piece.bounds, view, 0)) {
-      paintPiece(ctx, door.piece);
-      paintKeyhole(ctx, door.rect);
+    const swung = this.doorSwing(world, nowMs);
+    if (door !== null && swung < SETTLED && rectInView(door.piece.bounds, view, 0)) {
+      paintDoor(ctx, door.piece, door.rect, swung);
     }
-    if (key !== null && !world.keyTaken && rectInView(key.bounds, view, 0)) {
-      paintKey(ctx, key.center, WAITING_KEY.length, WAITING_KEY.angle);
+    const snatched = this.keySnatch(world, nowMs);
+    if (key !== null && snatched < SETTLED && rectInView(key.bounds, view, 0)) {
+      paintKey(ctx, key.center, WAITING_KEY.length * (SETTLED - snatched), WAITING_KEY.angle);
     }
+  }
+
+  private notice(world: WorldSnapshot, nowMs: number): void {
+    if (world.doorOpen && !this.wasOpen) this.doorOpenedAtMs = nowMs;
+    if (world.keyTaken && !this.wasTaken) this.keyTakenAtMs = nowMs;
+    this.wasOpen = world.doorOpen;
+    this.wasTaken = world.keyTaken;
+  }
+
+  /** 0 while shut, 1 once it has swung out of sight. */
+  private doorSwing(world: WorldSnapshot, nowMs: number): number {
+    if (!world.doorOpen) return 0;
+    return this.doorOpenedAtMs === null
+      ? SETTLED
+      : easeInCubic(progressOf(nowMs, this.doorOpenedAtMs, DOOR_SWING_MS));
+  }
+
+  /** 0 while it waits on its hook, 1 once it is in her hand. */
+  private keySnatch(world: WorldSnapshot, nowMs: number): number {
+    if (!world.keyTaken) return 0;
+    return this.keyTakenAtMs === null
+      ? SETTLED
+      : easeInCubic(progressOf(nowMs, this.keyTakenAtMs, KEY_SNATCH_MS));
   }
 }

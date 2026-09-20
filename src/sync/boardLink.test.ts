@@ -29,6 +29,8 @@ const alice = (x: number): AliceSnapshot => ({
   grounded: true,
   climbing: false,
   hasKey: false,
+  velocity: { x: 0, y: 0 },
+  ride: null,
   look: { kind: "alice" },
 });
 

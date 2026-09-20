@@ -31,6 +31,8 @@ const ghost = (x: number): Ghost => ({
   grounded: true,
   climbing: false,
   hasKey: false,
+  velocity: { x: 0, y: 0 },
+  ride: null,
   look: { kind: "alice" },
 });
 

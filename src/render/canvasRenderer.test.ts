@@ -33,6 +33,7 @@ const frame = (eraserActive: boolean, ghosts?: readonly AliceSnapshot[]): Render
   world: {
     alice: {
       center: { x: FAR_AWAY, y: FAR_AWAY },
+      velocity: { x: 0, y: 0 },
       width: 40,
       height: 80,
       size: "normal",
@@ -44,6 +45,7 @@ const frame = (eraserActive: boolean, ghosts?: readonly AliceSnapshot[]): Render
       climbing: false,
       hasKey: false,
       look: { kind: "alice" },
+      ride: null,
     },
     soul: null,
     tear: null,

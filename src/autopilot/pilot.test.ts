@@ -36,6 +36,7 @@ const alice = (feet: Vec, size: AliceSize = "normal", sizeMultiplier = 1): Alice
   const height = ALICE_BASE.height * scale;
   return {
     center: { x: feet.x, y: feet.y - height / 2 },
+    velocity: { x: 0, y: 0 },
     width: ALICE_BASE.width * scale,
     height,
     size,
@@ -47,6 +48,7 @@ const alice = (feet: Vec, size: AliceSize = "normal", sizeMultiplier = 1): Alice
     climbing: false,
     hasKey: false,
     look: { kind: "alice" },
+    ride: null,
   };
 };
 

@@ -20,10 +20,13 @@ export type PeerId = string & { readonly __brand: "PeerId" };
 export type Ghost = AliceSnapshot;
 
 const seqSchema = z.number().int().nonnegative();
+const brandedId = <Id extends string>() => entityIdSchema as unknown as z.ZodType<Id>;
+const gaitSchema = z.enum(["vehicle", "walker", "hopper", "flier"]);
 export const peerIdSchema = z.string().regex(PEER_ID_PATTERN) as unknown as z.ZodType<PeerId>;
 
 export const ghostSchema: z.ZodType<Ghost> = z.object({
   center: z.object({ x: z.number(), y: z.number() }),
+  velocity: z.object({ x: z.number(), y: z.number() }),
   width: z.number().positive(),
   height: z.number().positive(),
   size: z.enum(["small", "normal", "big"]),
@@ -34,6 +37,7 @@ export const ghostSchema: z.ZodType<Ghost> = z.object({
   grounded: z.boolean(),
   climbing: z.boolean(),
   hasKey: z.boolean(),
+  ride: z.object({ id: brandedId<DrawingId>(), gait: gaitSchema }).nullable(),
   look: z.object({ kind: z.literal("alice") }),
 });
 
@@ -87,8 +91,6 @@ export type FeedMessage =
   | { readonly type: "cursor"; readonly seq: number }
   | { readonly type: "resync"; readonly seq: number }
   | { readonly type: "presence"; readonly peer: PeerId; readonly alice: Ghost | null };
-
-const brandedId = <Id extends string>() => entityIdSchema as unknown as z.ZodType<Id>;
 
 /** A deletion by kind and id, as the server hears it: the ids are opaque to it. */
 export const deletionOf = (kind: "drawings" | "notes" | "rules", id: string): BoardEdit => {

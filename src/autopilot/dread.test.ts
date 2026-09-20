@@ -38,6 +38,7 @@ const board = (overrides: Partial<BoardDefinition> = {}): BoardDefinition => ({
 
 const alice = (feet: Vec): AliceSnapshot => ({
   center: { x: feet.x, y: feet.y - ALICE_BASE.height / 2 },
+  velocity: { x: 0, y: 0 },
   width: ALICE_BASE.width,
   height: ALICE_BASE.height,
   size: "normal",
@@ -49,6 +50,7 @@ const alice = (feet: Vec): AliceSnapshot => ({
   climbing: false,
   hasKey: false,
   look: { kind: "alice" },
+  ride: null,
 });
 
 const sumikui = (

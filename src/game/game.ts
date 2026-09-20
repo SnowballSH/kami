@@ -242,6 +242,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private loading = false;
   private nowMs = 0;
   private lastFrameMs = 0;
+  private readonly frameEvents: SimEvent[] = [];
   private tool: Tool = "draw";
   private flights = 0;
   private ideasGiven = 0;
@@ -323,9 +324,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.lastFrameMs = nowMs;
 
     sim.setTimeScale(this.ink.isDrawing || this.held.isHolding ? BULLET_TIME_SCALE : 1);
+    this.frameEvents.length = 0;
     for (let step = 0; !this.loading && step < steps; step++) {
       this.chooseIntents();
-      for (const event of sim.step()) this.handle(event);
+      for (const event of sim.step()) {
+        this.frameEvents.push(event);
+        this.handle(event);
+      }
     }
     this.ink.update(nowMs, {
       noInkZones: this.board.noInkZones,
@@ -365,6 +370,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       heldInks: this.held.views(nowMs),
       eraserActive: this.tool === "erase",
       ghosts: [...this.ghosts.values()],
+      events: this.frameEvents,
     });
   }
 

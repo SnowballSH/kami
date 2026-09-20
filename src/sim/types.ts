@@ -34,8 +34,19 @@ export interface WalkIntent {
   readonly y: Axis;
 }
 
+/** How what she stands on moves, so the picture of her riding it can move the same way. */
+export type Gait = "vehicle" | "walker" | "hopper" | "flier";
+
+/** The drawing she is riding: a vehicle she drives or a creature carrying her. */
+export interface Ride {
+  readonly id: DrawingId;
+  readonly gait: Gait;
+}
+
 export interface AliceSnapshot {
   readonly center: Vec;
+  /** Px per tick; positive y is down. */
+  readonly velocity: Vec;
   /** Current body size, mid-tween while she is growing or shrinking. */
   readonly width: number;
   readonly height: number;
@@ -47,6 +58,7 @@ export interface AliceSnapshot {
   readonly grounded: boolean;
   readonly climbing: boolean;
   readonly hasKey: boolean;
+  readonly ride: Ride | null;
   readonly look: AliceLook;
 }
 

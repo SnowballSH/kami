@@ -4,6 +4,7 @@ import { VEHICLE_ACCELERATION, VEHICLE_SPEED } from "./constants";
 import { type Feelers, footing } from "./creatures";
 import type { InkEntity } from "./inkEntity";
 import type { NatureWorld } from "./natures";
+import type { Gait, Ride } from "./types";
 
 const approach = (current: number, target: number, step: number): number =>
   Math.abs(target - current) <= step ? target : current + Math.sign(target - current) * step;
@@ -31,6 +32,26 @@ const driverOf = (ink: InkEntity, world: NatureWorld): AliceController | null =>
  */
 export const liftsHer = (ink: InkEntity, feelers: Feelers): boolean =>
   ink.motion.wings > 0 && ink.mind.aboard && (ink.mind.speed !== 0 || !footing(ink, feelers));
+
+const gaitOf = (ink: InkEntity): Gait | null => {
+  switch (ink.nature) {
+    case "vehicle":
+      return ink.mind.aboard ? "vehicle" : null;
+    case "walker":
+    case "hopper":
+      return ink.motion.wings > 0 ? "flier" : ink.nature;
+    case "flier":
+      return "flier";
+    default:
+      return null;
+  }
+};
+
+/** What an Alice with her feet on `ink` is riding: a vehicle only once she is its driver. */
+export const rideOn = (ink: InkEntity): Ride | null => {
+  const gait = gaitOf(ink);
+  return gait === null ? null : { id: ink.id, gait };
+};
 
 /** Rolls where its driver points while an Alice is aboard; with nobody aboard it is just a body. */
 export const drive = (ink: InkEntity, world: NatureWorld): void => {
