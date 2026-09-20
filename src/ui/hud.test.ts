@@ -578,4 +578,34 @@ describe("DomHud", () => {
       expect(handlers.onClearBoard).not.toHaveBeenCalled();
     });
   });
+
+  describe("shared pages", () => {
+    const SHARE = { boardId: "together", link: "http://kami.test/?board=together", company: 2 };
+
+    it("swaps the board menu for the share affordance while the page is shared", () => {
+      const { root, hud } = setup();
+      const share = find<HTMLElement>(root, ".kami-share");
+      const boards = find<HTMLElement>(root, ".kami-board-menu");
+      expect(share.hidden).toBe(true);
+      expect(boards.hidden).toBe(false);
+      hud.setShare(SHARE);
+      expect(share.hidden).toBe(false);
+      expect(boards.hidden).toBe(true);
+      expect(find(share, ".kami-share-page").textContent).toBe("together");
+      hud.setShare(null);
+      expect(share.hidden).toBe(true);
+      expect(boards.hidden).toBe(false);
+    });
+
+    it("shows the mode's card over the page", () => {
+      const { root, hud } = setup();
+      const card = find<HTMLElement>(root, ".kami-title-card");
+      expect(card.hidden).toBe(true);
+      hud.showTitleCard({ title: "Sandbox", tagline: "Draw together.", opening: "Go on." });
+      expect(card.hidden).toBe(false);
+      expect(card.textContent).toContain("Sandbox");
+      expect(card.textContent).toContain("Draw together.");
+      expect(card.textContent).not.toContain("Go on.");
+    });
+  });
 });

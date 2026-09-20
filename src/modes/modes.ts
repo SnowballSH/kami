@@ -1,4 +1,5 @@
 import { PUZZLE_MODE } from "./puzzle/mode";
+import { SANDBOX_MODE } from "./sandboxMode";
 import type { GameMode, GameModeId } from "./types";
 
 export const EMBODIED_MODE_ID = "embodied" as GameModeId;
@@ -18,6 +19,9 @@ export const EMBODIED_MODE: GameMode = {
   laws: { kind: "all" },
   natures: "all",
   autopilot: "allowed",
+  page: "room",
+  help: "offered",
+  sharing: "alone",
 };
 
 /**
@@ -37,9 +41,17 @@ export const SPIRIT_MODE: GameMode = {
   laws: { kind: "except", dials: ["clones"] },
   natures: "all",
   autopilot: "forbidden",
+  page: "room",
+  help: "offered",
+  sharing: "alone",
 };
 
-export const GAME_MODES: readonly GameMode[] = [EMBODIED_MODE, SPIRIT_MODE, PUZZLE_MODE];
+export const GAME_MODES: readonly GameMode[] = [
+  EMBODIED_MODE,
+  SPIRIT_MODE,
+  SANDBOX_MODE,
+  PUZZLE_MODE,
+];
 
 export const modeFor = (id: string): GameMode =>
   GAME_MODES.find((mode) => mode.id === id) ?? EMBODIED_MODE;

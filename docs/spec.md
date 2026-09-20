@@ -147,6 +147,8 @@ One book, six pages, each a page deeper. The Rabbit runs the room first — his 
 | 6 | **The Trial** | Everything at once | A wall of cards. A ceiling too low to grow under. | Drop something heavy on the lever to raise the ceiling → cake → grow enormous → walk straight through. *"You're nothing but a pack of cards!"* | — |
 | ∞ | **The Mad Tea Party** | Nothing. It's a party. | No exit, endless ink, endless enchantments. | Free play — the original "say anything and it happens" toy, safely outside the puzzles. | — |
 
+**The Sandbox** (`?mode=sandbox`, [modes.md](modes.md)) is the Tea Party as built: an endless page with no rabbit hole and no edges, a strip of ground under Alice and nothing else until someone draws. Everyone who opens the same page id draws on the same paper and sees each other's ink, notes and laws as they happen; each device has its own Alice and sees the others' as faint ghosts. She wanders toward the newest ink on her own. Kami keeps quiet unless asked — *help*, *what can I do?*, *how do I get across?*, *give me an idea* — and then answers with a sketch (the start of a bridge over a gap, a ladder against a wall, a friend to name) or a law to try. Nothing hungry lives on this page: the Sumikui cannot be summoned there. The only chrome is a title card and a share button with the link and a QR.
+
 **Ending.** Alice wakes on the riverbank. The credits are a flip-through of **everything the player drew**, each captioned with what they called it. It is always funny, and it is theirs.
 
 **Teacups.** Each room awards up to three: cleared · under the ink par · no hints. Costs nothing to build and gives a reason to replay.
@@ -205,7 +207,7 @@ Still needed from the desk: a breadboard, a USB-C data cable, a way onto the sti
 |---|---|
 | **Floor** — a complete, themed, AI-load-bearing game | Rooms 1–3 · natures · the Cat in captions with the hint ladder · typed names and guess chips · ink meter, erase, bullet-time, no death |
 | **Target** — what we expect to show | Voice both ways · adjectives · Rooms 4–5 · teacups · torn-page transitions and sound · the cabinet with ink-meter LEDs · booth mode |
-| **Stretch** | Enchantments + the Mad Tea Party · Room 6 + the ending flip-through · trace-over guides · Cat stripes / fall pulse on the strip · "how others solved this page" gallery · the Queen's RFID cards |
+| **Stretch** | Enchantments + the Mad Tea Party (built as the Sandbox, §7) · Room 6 + the ending flip-through · trace-over guides · Cat stripes / fall pulse on the strip · "how others solved this page" gallery · the Queen's RFID cards |
 
 **Cut from the top of this list:** gallery → RFID → LED effects beyond the ink meter → trace-over guides → Room 6 and ending → Tea Party and enchantments → Room 5 → Room 4 → the Cat's spoken voice (captions remain) → cabinet knobs, then stick → voice input (chips and typing remain). **Never cut the floor.**
 

@@ -255,10 +255,114 @@
   transition: none;
 }
 
-.kami-board-menu {
+.kami-top-left {
   position: absolute;
   top: var(--kami-safe-top);
   left: var(--kami-safe-left);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.kami-board-menu {
+  position: relative;
+}
+
+.kami-share {
+  position: relative;
+}
+
+.kami-share-toggle {
+  min-height: calc(var(--kami-control) + 2 * var(--kami-island-padding) + 2px);
+  min-width: calc(var(--kami-control) + 2 * var(--kami-island-padding) + 2px);
+  border: var(--kami-line);
+  border-radius: var(--kami-radius);
+  background: var(--kami-board);
+  box-shadow: var(--kami-hairline);
+}
+
+.kami-share-toggle .kami-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.kami-share-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 32px));
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  z-index: 1;
+}
+
+.kami-share-qr {
+  width: 176px;
+  height: 176px;
+  border-radius: var(--kami-radius-inner);
+}
+
+.kami-share-page {
+  font-family: var(--kami-hand);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.kami-share-link {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  color: var(--kami-ink-soft);
+  text-align: center;
+}
+
+.kami-share-company {
+  font-size: 13px;
+  color: var(--kami-ink-soft);
+}
+
+.kami-share-copy {
+  align-self: stretch;
+  padding: 0 12px;
+}
+
+.kami-title-card {
+  position: absolute;
+  top: 24%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 20px 36px;
+  border: var(--kami-line);
+  border-radius: var(--kami-radius);
+  background: var(--kami-board);
+  box-shadow: var(--kami-hairline);
+  pointer-events: auto;
+  text-align: center;
+  cursor: pointer;
+  opacity: 1;
+  transition: opacity 0.6s ease;
+}
+
+.kami-title-card.is-fading {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.kami-title-card-title {
+  margin: 0;
+  font-family: var(--kami-hand);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.kami-title-card-tagline {
+  margin: 6px 0 0;
+  font-size: 16px;
+  color: var(--kami-ink-soft);
 }
 
 .kami-board-toggle {

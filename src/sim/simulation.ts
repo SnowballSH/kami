@@ -22,6 +22,7 @@ import { type Contact, contactsAt, contactsWith, toContact } from "./contacts";
 import type { Feelers } from "./creatures";
 import { EMPTY_BOARD } from "./emptyBoard";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "./flight";
+import { LastFooting } from "./footing";
 import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
 import { moveOfItself } from "./motion";
@@ -69,6 +70,7 @@ interface BoardWorld {
   readonly alice: AliceController;
   readonly twins: Twins;
   readonly checkpoints: Checkpoints;
+  readonly footing: LastFooting;
   readonly activePairs: Matter.Pair[];
   readonly growthRefusedAt: Map<DrawingId, number>;
   readonly touchedAt: Map<DrawingId, number>;
@@ -109,6 +111,7 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
     alice,
     twins,
     checkpoints: new Checkpoints(board),
+    footing: new LastFooting(board.spawn),
     activePairs,
     growthRefusedAt: new Map(),
     touchedAt: new Map(),
@@ -528,7 +531,9 @@ export class MatterSimulation implements Simulation {
   }
 
   private resolveWhereabouts(): void {
-    const { alice, twins, checkpoints, lost } = this.world;
+    const { alice, twins, checkpoints, lost, footing } = this.world;
+    const stood = alice.footingPoint();
+    if (stood !== null) footing.stood(stood);
     const alices = this.everyAlice();
     for (const [who, each] of alices.entries()) {
       if (lost.has(each) || this.isOffTheBoard(each)) {
@@ -550,17 +555,20 @@ export class MatterSimulation implements Simulation {
   }
 
   private isOffTheBoard(alice: AliceController): boolean {
-    const { board, inks, props } = this.world;
+    const { board, inks, props, footing } = this.world;
     const { position } = alice.body;
     if (position.y > board.killY) return true;
+    if (board.page === "endless" && footing.fallen(position)) return true;
     const isNear = (rect: Rect): boolean => distanceToRect(position, rect) <= LOST_DISTANCE;
     return !props.solidRects.some(isNear) && !inks.heldBounds.some(isNear);
   }
 
   private respawnPoint(): Vec {
-    const { checkpoints, inks } = this.world;
+    const { board, checkpoints, footing, inks } = this.world;
     const marker = inks.spawnMarker;
-    if (marker === undefined) return checkpoints.respawn;
+    if (marker === undefined) {
+      return board.page === "endless" ? footing.respawn() : checkpoints.respawn;
+    }
     const bounds = exactBounds(marker.body);
     return { x: bounds.x + bounds.width / 2, y: bounds.y };
   }

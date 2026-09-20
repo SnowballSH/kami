@@ -1,12 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
+import { ENDLESS_GROUND } from "../board/boards/endless";
 import { createCat } from "../cat";
+import { OFFER_HELP } from "../cat/lines";
 import { boundsOf, poseToWorld, rectsOverlap, type Vec } from "../core/geometry";
 import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { FIXED_STEP_MS } from "../core/world";
+import { BRIDGE_LINE, DROP_LINE, IDEAS, LADDER_LINE } from "../counsel";
 import { createInkSession, findDrawingAt } from "../ink";
-import { EMBODIED_MODE, FIRST_PUZZLE_BOARD_ID, PUZZLE_MODE, PUZZLE_ROOMS } from "../modes";
+import {
+  EMBODIED_MODE,
+  FIRST_PUZZLE_BOARD_ID,
+  NOTHING_HUNGRY_LINE,
+  PUZZLE_MODE,
+  PUZZLE_ROOMS,
+  SANDBOX_MODE,
+} from "../modes";
 import type { GameMode } from "../modes/types";
 import { HttpBoardStore } from "../persistence/httpBoardStore";
 import type { BoardSnapshot, BoardStore, HandwritingReader } from "../persistence/types";
@@ -17,6 +27,9 @@ import type { CompiledRule, Scene } from "../rules/types";
 import { createSimulation } from "../sim";
 import { drawingOf } from "../sim/testSupport";
 import { type SketchCatalogue, SUMMONED_SIZE, Summoner } from "../summoning";
+import type { BoardLink } from "../sync/boardLink";
+import { SharedPage } from "../sync/testing/sharedPage";
+import type { PeerId } from "../sync/wire";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
 import { HELD_INK_FADE_MS } from "./heldInk";
@@ -79,6 +92,8 @@ interface PlayerOptions {
   readonly eyes?: Eyes;
   readonly reader?: HandwritingReader;
   readonly farPlaces?: Readonly<Record<string, Scene>>;
+  readonly link?: BoardLink;
+  readonly shareLinkFor?: (boardId: string) => string;
 }
 
 const seen = (word: string, nature: Sighting["nature"], certain = false): Sighting => ({
@@ -206,6 +221,8 @@ class Player {
       reader,
       mode,
       farPlaces = {},
+      link,
+      shareLinkFor,
     }: PlayerOptions = {},
   ) {
     this.store = store;
@@ -249,6 +266,8 @@ class Player {
           return this.voiceRef;
         },
         findDrawingAt,
+        ...(link === undefined ? {} : { link }),
+        ...(shareLinkFor === undefined ? {} : { shareLinkFor }),
       },
       boardId,
     );
@@ -1888,6 +1907,247 @@ describe("Game on a blank board", () => {
     expect(found()).toEqual(["Alice 2 found the rabbit hole. One of you was enough."]);
     expect(player.alice.center.x).toBeCloseTo(herself, 0);
     expect(player.renderer.lastFrame?.selectedAlice).toBe(1);
+  });
+});
+
+describe("Game in the Sandbox", () => {
+  const sandbox = (known: readonly string[] = ["bridge", "ladder", "rabbit", "cat"]) => {
+    const eyes = new Eyes([], [], known);
+    return { eyes, player: new Player("together", { mode: SANDBOX_MODE, eyes }) };
+  };
+
+  it("opens on an endless page with the mode's own opening line, and no rabbit hole to reach", async () => {
+    const { player } = sandbox();
+    await player.arrive();
+    expect(player.written).toContain(SANDBOX_MODE.card.opening);
+    expect(player.renderer.board?.page).toBe("endless");
+    expect(player.renderer.board?.goal).toBeUndefined();
+  });
+
+  it("tells the player the page ends where the ground does, when asked for help at the edge", async () => {
+    const { player, eyes } = sandbox();
+    await player.arrive();
+    await player.write("help", { x: 60, y: -160 });
+    expect(player.written).toContain(DROP_LINE);
+    expect(eyes.summoned).toEqual([]);
+  });
+
+  it("starts a bridge across a gap when asked how to get across", async () => {
+    const { player, eyes } = sandbox();
+    await player.arrive();
+    await player.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await player.write("ground", { x: 760, y: -120 });
+    await player.write("how do I get across?", { x: 60, y: -160 });
+    expect(player.written).toContain(BRIDGE_LINE);
+    expect(eyes.summoned).toEqual(["bridge"]);
+    await player.wait(2_000);
+    const bridge = player.renderer.lastFrame?.inks.at(-1);
+    expect(bridge).toBeDefined();
+    const span =
+      bridge === undefined
+        ? null
+        : boundsOf(bridge.drawing.strokes.flat().map((point) => poseToWorld(point, bridge.pose)));
+    expect(span?.x).toBeLessThan(ENDLESS_GROUND.x + ENDLESS_GROUND.width);
+    expect((span?.x ?? 0) + (span?.width ?? 0)).toBeGreaterThan(620);
+  });
+
+  it("leans a ladder against a wall too tall to jump", async () => {
+    const { player, eyes } = sandbox();
+    await player.arrive();
+    await player.scrawl([
+      line({ x: 200, y: 0 }, { x: 200, y: -320 }),
+      line({ x: 200, y: -320 }, { x: 260, y: -320 }),
+      line({ x: 260, y: -320 }, { x: 260, y: 0 }),
+    ]);
+    await player.write("wall", { x: 300, y: -400 });
+    await player.write("what can I do?", { x: 60, y: -160 });
+    expect(player.written).toContain(LADDER_LINE);
+    expect(eyes.summoned).toEqual(["ladder"]);
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toContain("climbable");
+  });
+
+  it("sketches a friend beside her on an open stretch, when asked for an idea", async () => {
+    const { player, eyes } = sandbox();
+    await player.arrive();
+    await player.draw(line({ x: -1500, y: 20 }, { x: 1500, y: 20 }));
+    await player.write("ground", { x: 1000, y: -120 });
+    await player.write("give me an idea", { x: 60, y: -160 });
+    expect(player.written).toContain(IDEAS[0]?.line);
+    expect(eyes.summoned).toEqual(["rabbit"]);
+    await player.wait(2_000);
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["solid", "hopper"]);
+  });
+
+  it("offers ideas in turn when there is nothing to draw them with", async () => {
+    const { player, eyes } = sandbox([]);
+    await player.arrive();
+    await player.draw(line({ x: -1500, y: 20 }, { x: 1500, y: 20 }));
+    await player.write("ground", { x: 1000, y: -120 });
+    await player.write("give me an idea", { x: 60, y: -160 });
+    expect(player.written).toContain(IDEAS[0]?.line);
+    await player.write("any ideas?", { x: 60, y: -260 });
+    expect(player.written).toContain(IDEAS[1]?.line);
+    expect(eyes.summoned).toEqual(["rabbit"]);
+  });
+
+  it("leaves words alone without the server's pictures", async () => {
+    const { player, eyes } = sandbox([]);
+    await player.arrive();
+    await player.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await player.write("ground", { x: 760, y: -120 });
+    const before = player.renderer.lastFrame?.inks.length ?? 0;
+    await player.write("help", { x: 60, y: -160 });
+    expect(player.written).toContain(BRIDGE_LINE);
+    expect(eyes.summoned).toEqual(["bridge"]);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(before);
+  });
+
+  it("never offers help unasked, however long she idles, while a room still does", async () => {
+    const { player } = sandbox();
+    await player.arrive();
+    await player.wait(50_000);
+    expect(player.written.some((text) => text.includes(OFFER_HELP))).toBe(false);
+
+    const roomed = new Player("wonderland");
+    await roomed.arrive();
+    await roomed.wait(50_000);
+    expect(roomed.written.some((text) => text.includes(OFFER_HELP))).toBe(true);
+  });
+
+  it("has nothing hungry on the page: the ink eater is refused in lore", async () => {
+    const { player } = sandbox();
+    await player.arrive();
+    await player.write("summon the ink eater", { x: 200, y: -200 });
+    expect(player.written).toContain(NOTHING_HUNGRY_LINE);
+    expect(player.written).not.toContain(SUMIKUI_SUMMONED_LINES[0]);
+    expect(player.renderer.lastFrame?.world.sumikui ?? null).toBeNull();
+    expect(player.laws.laws).toHaveLength(0);
+  });
+
+  it("puts her back on the last ink she stood on when she walks off it", async () => {
+    const { player } = sandbox();
+    await player.arrive();
+    player.walk(1);
+    expect(await player.until(() => player.alice.center.y > 1_000, 20_000)).toBe(true);
+    player.walk(0);
+    expect(await player.until(() => player.alice.center.y < 0, 20_000)).toBe(true);
+    expect(player.alice.center.x).toBeLessThan(ENDLESS_GROUND.x + ENDLESS_GROUND.width);
+    expect(player.alice.center.x).toBeGreaterThan(0);
+  });
+});
+
+describe("Game on a shared page", () => {
+  const ALICE = "peer-alice" as PeerId;
+  const BOB = "peer-bob" as PeerId;
+  const shareLinkFor = (boardId: string) => `http://kami.test/?board=${boardId}&mode=sandbox`;
+
+  const together = async () => {
+    const page = new SharedPage();
+    const mine = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(ALICE, 0),
+      shareLinkFor,
+    });
+    const theirs = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(BOB, 0),
+      shareLinkFor,
+    });
+    await mine.arrive();
+    await theirs.arrive();
+    return { page, mine, theirs };
+  };
+
+  it("shows what another device draws, names, writes and erases, the moment it happens", async () => {
+    const { mine, theirs } = await together();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(mine.renderer.lastFrame?.inks.length ?? 0);
+    await mine.write("ground", { x: 760, y: -120 });
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["solid"]);
+    expect(theirs.written).toContain("ground");
+    await mine.erase({ x: 760, y: 0 });
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(theirs.written).not.toContain("ground");
+  });
+
+  it("folds another device's laws into its own world, and refolds when they are erased", async () => {
+    const { mine, theirs } = await together();
+    const day = theirs.renderer.lastFrame?.daylight;
+    await mine.write("it is night", { x: 200, y: -200 });
+    await theirs.wait(50);
+    expect(theirs.laws.laws.map((law) => law.text)).toEqual(["it is night"]);
+    expect(theirs.renderer.lastFrame?.daylight).toBeLessThan(day ?? 1);
+    expect(theirs.written.some((text) => text.startsWith("kami:"))).toBe(true);
+    expect(mine.laws.laws).toHaveLength(1);
+
+    await mine.erase({ x: 210, y: -185 });
+    await theirs.wait(50);
+    expect(theirs.laws.laws).toHaveLength(0);
+    expect(theirs.renderer.lastFrame?.daylight).toBe(day);
+    expect(theirs.written).not.toContain("it is night");
+  });
+
+  it("hears its own changes echoed back without doubling them", async () => {
+    const { mine } = await together();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await mine.write("ground", { x: 760, y: -120 });
+    await mine.write("it is night", { x: 200, y: -200 });
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(mine.laws.laws).toHaveLength(1);
+    expect(mine.written.filter((text) => text === "ground")).toHaveLength(1);
+    expect(mine.written.filter((text) => text.startsWith("kami:"))).toHaveLength(1);
+  });
+
+  it("shows the other device's Alice as a ghost, and counts her in the share affordance", async () => {
+    const { mine, theirs } = await together();
+    await mine.wait(500);
+    await theirs.wait(50);
+    const ghosts = theirs.renderer.lastFrame?.ghosts ?? [];
+    expect(ghosts).toHaveLength(1);
+    expect(ghosts[0]?.center).toEqual(mine.alice.center);
+    expect(theirs.hud.share).toEqual({
+      boardId: "together",
+      link: "http://kami.test/?board=together&mode=sandbox",
+      company: 1,
+    });
+    expect(theirs.hud.cards).toEqual([SANDBOX_MODE.card]);
+  });
+
+  it("lets a ghost go when its device leaves the page", async () => {
+    const { page, mine, theirs } = await together();
+    await mine.wait(500);
+    expect(theirs.game.company).toHaveLength(1);
+    page.drop(ALICE);
+    await theirs.wait(50);
+    expect(theirs.game.company).toHaveLength(0);
+    expect(theirs.hud.share?.company).toBe(0);
+  });
+
+  it("wipes its own page when another device clears the board", async () => {
+    const { mine, theirs } = await together();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
+    mine.game.onClearBoard();
+    await theirs.wait(200);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  it("plays alone, with no share affordance, in a room", async () => {
+    const page = new SharedPage();
+    const roomed = new Player("wonderland", { store: page, link: page.link(BOB), shareLinkFor });
+    await roomed.arrive();
+    await roomed.wait(500);
+    expect(page.peersOn("wonderland")).toEqual([]);
+    expect(page.presences).toEqual([]);
+    expect(roomed.hud.share).toBeNull();
+    expect(roomed.hud.cards).toEqual([]);
   });
 });
 

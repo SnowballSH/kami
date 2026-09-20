@@ -156,6 +156,25 @@ export class AliceController {
     return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height };
   }
 
+  /** Where she stands, pulled onto the widest thing under her so she can be set down there again. */
+  footingPoint(): Vec | null {
+    const widest = this.footing
+      .map((contact) => exactBounds(contact.body))
+      .reduce<Rect | null>(
+        (best, rest) => (best !== null && best.width >= rest.width ? best : rest),
+        null,
+      );
+    if (widest === null) return null;
+    const feet = this.feet();
+    const halfWidth = this.bounds().width / 2;
+    const left = widest.x + halfWidth;
+    const right = widest.x + widest.width - halfWidth;
+    return {
+      x: left > right ? widest.x + widest.width / 2 : clamp(feet.x, left, right),
+      y: feet.y,
+    };
+  }
+
   standsOn(body: Matter.Body): boolean {
     return this.footing.some((contact) => contact.body === body);
   }

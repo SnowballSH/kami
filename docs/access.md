@@ -62,6 +62,15 @@ Sign out revokes the cookie session; existing controller streams recheck before 
 five-second heartbeat and close when authorization expires. Previously delivered board data
 cannot be recalled.
 
+Shared pages (sandbox mode, [modes.md](modes.md)) use the same board grant: a board's event
+stream (`GET /api/boards/:board/events`) and presence reports (`POST /api/boards/:board/presence`)
+are board routes, so in shared mode they need a credential that lists that board id, and the
+stream rechecks the grant before each message and keep-alive and closes when it expires. In demo
+mode any reachable peer can watch and join any page — which is the point of a shared LAN
+whiteboard — and the `?board=<id>&mode=sandbox` link the share panel shows carries no secret. The
+`peer` query is a name for a tab, minted by the browser and forgotten when it closes; it is not an
+identity and grants nothing.
+
 Voice listening (`/api/voice/listen`) checks the same origin, session and `models` grant before
 the WebSocket upgrade or any upstream connection. It rechecks before forwarding audio or
 transcripts and every 15 seconds while idle; expired or signed-out sessions close both ends.
