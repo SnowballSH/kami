@@ -317,9 +317,7 @@ describe("being carried off", () => {
     expect(overshoot.stretch.x).toBeGreaterThan(1);
     expect(overshoot.lean).toBeGreaterThan(0);
     expect(
-      snapshotOf(
-        animator.observe(exit, NO_CUES, PORTAL_ENTRY_MS + PORTAL_EXIT_MS + DRIP_MS),
-      ),
+      snapshotOf(animator.observe(exit, NO_CUES, PORTAL_ENTRY_MS + PORTAL_EXIT_MS + DRIP_MS)),
     ).toMatchObject(AT_REST);
   });
 
