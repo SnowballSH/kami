@@ -39,11 +39,7 @@ def verify(directory: Path) -> None:
     if not isinstance(hashes, dict) or not set(REQUIRED).issubset(hashes):
         raise ValueError("incomplete release")
     for name, expected in hashes.items():
-        if (
-            not isinstance(name, str)
-            or Path(name).is_absolute()
-            or ".." in Path(name).parts
-        ):
+        if not isinstance(name, str) or Path(name).is_absolute() or ".." in Path(name).parts:
             raise ValueError("invalid release path")
         if digest(directory / name) != expected:
             raise ValueError(f"corrupt release file: {name}")
