@@ -15,3 +15,4 @@ python3 -c 'import sys, urllib.request; print(urllib.request.urlopen(sys.argv[1]
 echo "--- eye log"; tail -5 logs/eye.log 2>/dev/null
 echo "--- server log"; tail -15 logs/server.log 2>/dev/null
 echo "--- models loaded in Ollama"; ollama ps 2>/dev/null
+echo "--- the big screen"; bash box/screen.sh status 2>/dev/null

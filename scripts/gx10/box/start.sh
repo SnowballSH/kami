@@ -147,3 +147,4 @@ done
 sleep 1
 sed 's/^/  /' logs/server.log
 echo "✓ running on this box, ports $PORT (http) and $TLS_PORT (https) (model: $MODEL, eye: ${KAMI_RECOGNIZER_URL:-k-NN only}, finishes drawings: ${KAMI_BEAUTIFY_URL:-no})"
+PORT=$PORT bash box/screen.sh start || echo "  – the big screen did not come up (box/screen.sh status)"
