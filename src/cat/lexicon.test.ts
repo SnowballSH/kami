@@ -73,6 +73,12 @@ describe("the lexicon", () => {
     expect(resolveNature(parsePhrase("a hopping dog"))?.nature).toBe("hopper");
   });
 
+  it("hears things with wheels or hulls as vehicles", () => {
+    expect(resolveNature(parsePhrase("a car"))?.nature).toBe("vehicle");
+    expect(resolveNature(parsePhrase("a little red cart"))?.nature).toBe("vehicle");
+    expect(resolveNature(parsePhrase("the boat"))?.nature).toBe("vehicle");
+  });
+
   it("hears plurals", () => {
     expect(resolveNature(parsePhrase("two mushrooms"))?.nature).toBe("bouncy");
     expect(resolveNature(parsePhrase("glasses of water"))?.nature).toBe("shrink");

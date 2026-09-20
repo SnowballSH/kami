@@ -19,7 +19,8 @@ import {
 import { type Contact, supports } from "./contacts";
 import { type Feelers, fly, hop, walk } from "./creatures";
 import type { InkEntity } from "./inkEntity";
-import type { AliceSize, SimEvent } from "./types";
+import type { AliceSize, SimEvent, WalkIntent } from "./types";
+import { drive } from "./vehicles";
 import { type BodyMaterial, cancelGravity } from "./worldPhysics";
 
 /** What a nature is allowed to do to the board it lives on. */
@@ -27,13 +28,14 @@ export interface NatureWorld {
   readonly alice: AliceController;
   readonly gravity: Vec;
   readonly feelers: Feelers;
+  readonly intent: WalkIntent;
   emit(event: SimEvent): void;
   reachGoal(): void;
   loseAlice(): void;
   consume(ink: InkEntity): void;
   freeze(ink: InkEntity): void;
   refuseGrowth(ink: InkEntity): void;
-  hasHeadroomFor(size: AliceSize): boolean;
+  hasHeadroomFor(size: AliceSize, meal: InkEntity): boolean;
   /** Pulls Alice and every loose drawing but `ink` itself toward `ink`, at `strengthInG` up close. */
   pullToward(ink: InkEntity, strengthInG: number): void;
 }
@@ -106,7 +108,7 @@ const rise: InkHook = (ink, world) => {
 const resizeTo =
   (size: AliceSize): AliceTouchHook =>
   (ink, _contact, world) => {
-    if (!world.hasHeadroomFor(size)) {
+    if (!world.hasHeadroomFor(size, ink)) {
       world.refuseGrowth(ink);
       return;
     }
@@ -142,6 +144,7 @@ export const NATURES: Readonly<Record<Nature, NatureStrategy>> = {
   walker: { ...CREATURE, beforeStep: walk },
   hopper: { ...CREATURE, beforeStep: hop },
   flier: { ...CREATURE, beforeStep: fly },
+  vehicle: { ...CREATURE, beforeStep: drive },
   attractor: { ...ROLE, beforeStep: attract },
   lantern: PLAIN,
   solid: ROLE,

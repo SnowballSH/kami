@@ -24,9 +24,9 @@ class SlowReader implements HandwritingReader {
 
 const stroke = (x: number, ...ys: number[]): Stroke => ys.map((y) => ({ x, y }));
 
-const H = stroke(0, 0, 40);
-const BAR = stroke(0, 20).concat(stroke(20, 20));
-const I = stroke(20, 0, 40);
+const H = stroke(0, 0, 10);
+const BAR = stroke(0, 5).concat(stroke(20, 5));
+const I = stroke(20, 0, 10);
 
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -34,7 +34,7 @@ const settled = async <T>(promise: Promise<T>): Promise<T | "pending"> =>
   Promise.race([promise, flush().then(() => "pending" as const)]);
 
 describe("couldBeWriting", () => {
-  it("rules out a lone straight line and tall drawings, and nothing else", () => {
+  it("rules out a lone straight line and tall drawings", () => {
     expect(couldBeWriting([])).toBe(false);
     expect(couldBeWriting([stroke(0, 0, 100)])).toBe(false);
     expect(couldBeWriting([[{ x: 0, y: 0 }]])).toBe(false);
@@ -43,9 +43,30 @@ describe("couldBeWriting", () => {
     const squiggle: Stroke = Array.from({ length: 40 }, (_, i) => ({ x: i * 3, y: (i % 2) * 30 }));
     expect(couldBeWriting([squiggle])).toBe(true);
   });
+
+  it.each([
+    [20, false],
+    [40, false],
+    [51, false],
+    [52, true],
+    [80, true],
+  ] as const)("requires enough horizontal space for writing at width %s", (width, expected) => {
+    expect(couldBeWriting([stroke(0, 0, 40), stroke(width, 0, 40)])).toBe(expected);
+  });
 });
 
 describe("PrefixPenReader", () => {
+  it("does not send compact doodles to the reader at pen lifts or settlement", async () => {
+    const reader = new SlowReader();
+    const pen = new PrefixPenReader(reader);
+    const doodle = [stroke(0, 0, 40), stroke(20, 0, 40), stroke(40, 0, 40)];
+    for (let count = 1; count <= doodle.length; count += 1) {
+      pen.glimpse(doodle.slice(0, count));
+    }
+    expect(await pen.settle(doodle)).toBeNull();
+    expect(reader.asked).toHaveLength(0);
+  });
+
   it("reads at every pen-lift, dropping the read of the strokes before", async () => {
     const reader = new SlowReader();
     const pen = new PrefixPenReader(reader);

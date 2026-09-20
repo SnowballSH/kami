@@ -4,24 +4,35 @@ import { expandRect, type Rect, rectsOverlap, type Vec } from "../core/geometry"
 export type Drift = "up" | "down";
 
 const BREATHING_ROOM = 6;
-const MAX_STEPS = 6;
+const PREFERRED_LINE_DISTANCE = 6;
 
 const clearOf = (candidate: Rect, taken: readonly Rect[]): boolean =>
   !taken.some((rect) => rectsOverlap(expandRect(candidate, BREATHING_ROOM), rect));
 
-/**
- * The nearest top-left for `wanted` at which it overlaps none of `taken`: the spot itself, then
- * whole line-heights in the drift direction, then the other way. Falls back to the spot itself.
- */
-export const settle = (wanted: Rect, taken: readonly Rect[], drift: Drift): Vec => {
-  const origin = { x: wanted.x, y: wanted.y };
-  if (clearOf(wanted, taken)) return origin;
-  const step = (wanted.height + BREATHING_ROOM) * (drift === "up" ? -1 : 1);
-  for (const direction of [1, -1]) {
-    for (let i = 1; i <= MAX_STEPS; i++) {
-      const y = wanted.y + direction * i * step;
-      if (clearOf({ ...wanted, y }, taken)) return { x: wanted.x, y };
-    }
+export const settle = (
+  wanted: Rect,
+  taken: readonly Rect[],
+  drift: Drift,
+  minY = Number.NEGATIVE_INFINITY,
+): Vec => {
+  const origin = { x: wanted.x, y: Math.max(wanted.y, minY) };
+  if (clearOf({ ...wanted, ...origin }, taken)) return origin;
+  const edges = taken
+    .flatMap((rect) => [
+      rect.y - wanted.height - BREATHING_ROOM,
+      rect.y + rect.height + BREATHING_ROOM,
+    ])
+    .filter((y) => y >= minY);
+  const priority = (y: number): number => {
+    const distance = y - origin.y;
+    if (Math.abs(distance) > (wanted.height + BREATHING_ROOM) * PREFERRED_LINE_DISTANCE) return 2;
+    return distance * (drift === "up" ? -1 : 1) >= 0 ? 0 : 1;
+  };
+  edges.sort(
+    (a, b) => priority(a) - priority(b) || Math.abs(a - origin.y) - Math.abs(b - origin.y),
+  );
+  for (const y of edges) {
+    if (clearOf({ ...wanted, y }, taken)) return { x: wanted.x, y };
   }
   return origin;
 };

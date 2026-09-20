@@ -1,6 +1,7 @@
 import Matter from "matter-js";
-import type { Ruling } from "../cat/types";
+import { type Ruling, STRENGTH_RANGE } from "../cat/types";
 import type { Rect, Stroke } from "../core/geometry";
+import { bearingStrokes } from "../ink/bearing";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { WorldPhysics } from "../rules/types";
 import { countAnchorClusters } from "./anchoring";
@@ -75,6 +76,13 @@ export class InkLayer {
   }
 
   applyRuling(id: DrawingId, ruling: Ruling): void {
+    if (
+      !Number.isFinite(ruling.strength) ||
+      ruling.strength < STRENGTH_RANGE.min ||
+      ruling.strength > STRENGTH_RANGE.max
+    ) {
+      throw new RangeError("Invalid ruling strength");
+    }
     const ink = this.inks.get(id);
     if (ink === undefined) return;
     ink.nature = ruling.nature;
@@ -116,7 +124,7 @@ export class InkLayer {
   ): Matter.Body | null {
     const strategy = NATURES[state.nature];
     const anchorClusters = countAnchorClusters(worldStrokes, this.anchorRects);
-    return buildInkBody(drawnStrokes, {
+    return buildInkBody(bearingStrokes(drawnStrokes), {
       isStatic: state.frozen || holdsStill(strategy, anchorClusters),
       material: this.materialOf(state),
       collisionFilter: strategy.solidToAlice ? SOLID_TO_ALL : GHOST_TO_ALICE,

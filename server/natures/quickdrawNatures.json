@@ -1,9 +1,9 @@
 {
   "aircraft carrier": {
     "name": "an aircraft carrier",
-    "nature": "heavy",
-    "strength": 1.8,
-    "line": "A whole airport that swims. Mind where it lands."
+    "nature": "vehicle",
+    "strength": 0.6,
+    "line": "A whole airport that swims. Drive it carefully."
   },
   "airplane": {
     "name": "an airplane",
@@ -19,9 +19,9 @@
   },
   "ambulance": {
     "name": "an ambulance",
-    "nature": "heavy",
+    "nature": "vehicle",
     "strength": 1.2,
-    "line": "In a hurry, and heavy with it. Do stand aside."
+    "line": "In a hurry, and now she is too. Do stand aside."
   },
   "angel": {
     "name": "an angel",
@@ -175,9 +175,9 @@
   },
   "bicycle": {
     "name": "a bicycle",
-    "nature": "ink",
-    "strength": 1,
-    "line": "Two wheels and a wobble. Nobody's pedalling, mind."
+    "nature": "vehicle",
+    "strength": 0.8,
+    "line": "Two wheels and a wobble. Stand on and steer."
   },
   "binoculars": {
     "name": "binoculars",
@@ -278,15 +278,15 @@
   },
   "bulldozer": {
     "name": "a bulldozer",
-    "nature": "heavy",
-    "strength": 1.7,
-    "line": "It moves mountains, slowly. Nothing moves it."
+    "nature": "vehicle",
+    "strength": 0.6,
+    "line": "It moves mountains, slowly, wherever she points it."
   },
   "bus": {
     "name": "a bus",
-    "nature": "heavy",
-    "strength": 1.5,
-    "line": "Heavy, and late, I expect. Buses usually are."
+    "nature": "vehicle",
+    "strength": 0.8,
+    "line": "Late, I expect. Buses are. Hop on anyway."
   },
   "bush": {
     "name": "a bush",
@@ -362,15 +362,15 @@
   },
   "canoe": {
     "name": "a canoe",
-    "nature": "ink",
-    "strength": 1,
-    "line": "A boat in want of a river. Paddle not included."
+    "nature": "vehicle",
+    "strength": 0.7,
+    "line": "A boat in want of a river. It rolls, regardless."
   },
   "car": {
     "name": "a car",
-    "nature": "heavy",
-    "strength": 1.1,
-    "line": "Heavy, and nobody driving. It will sit and sulk."
+    "nature": "vehicle",
+    "strength": 1.0,
+    "line": "Something to drive. Step aboard and point her somewhere."
   },
   "carrot": {
     "name": "a carrot",
@@ -520,8 +520,8 @@
   },
   "cruise ship": {
     "name": "a cruise ship",
-    "nature": "heavy",
-    "strength": 1.7,
+    "nature": "vehicle",
+    "strength": 0.6,
     "line": "A floating hotel. Rather less floating, down here."
   },
   "cup": {
@@ -694,9 +694,9 @@
   },
   "firetruck": {
     "name": "a fire truck",
-    "nature": "heavy",
-    "strength": 1.5,
-    "line": "Ladders, hoses and a great deal of red."
+    "nature": "vehicle",
+    "strength": 0.9,
+    "line": "Ladders, hoses and a great deal of red. Drive it."
   },
   "fish": {
     "name": "a fish",
@@ -1139,9 +1139,9 @@
   },
   "motorbike": {
     "name": "a motorbike",
-    "nature": "heavy",
-    "strength": 1.1,
-    "line": "Two wheels, much noise, considerable weight."
+    "nature": "vehicle",
+    "strength": 1.3,
+    "line": "Two wheels, much noise. Stand on it and hold tight."
   },
   "mountain": {
     "name": "a mountain",
@@ -1326,10 +1326,10 @@
   },
   "pickup truck": {
     "name": "a pickup truck",
-    "nature": "heavy",
-    "strength": 1.3,
+    "nature": "vehicle",
+    "strength": 1.0,
     "alias": "truck",
-    "line": "Heavy, with room in the back for more heavy."
+    "line": "Room in the back. Stand on it and drive."
   },
   "picture frame": {
     "name": "a picture frame",
@@ -1369,10 +1369,10 @@
   },
   "police car": {
     "name": "a police car",
-    "nature": "heavy",
-    "strength": 1.1,
+    "nature": "vehicle",
+    "strength": 1.2,
     "alias": "car",
-    "line": "Heavy, with a flashing hat. Nobody's in trouble. Yet."
+    "line": "Fast, with a flashing hat. Nobody's in trouble. Yet."
   },
   "pond": {
     "name": "a pond",
@@ -1490,9 +1490,9 @@
   },
   "sailboat": {
     "name": "a sailboat",
-    "nature": "light",
-    "strength": 1,
-    "line": "All sail and no anchor. The wind decides."
+    "nature": "vehicle",
+    "strength": 0.7,
+    "line": "All sail, no wind. She'll have to steer it herself."
   },
   "sandwich": {
     "name": "a sandwich",
@@ -1514,10 +1514,10 @@
   },
   "school bus": {
     "name": "a school bus",
-    "nature": "heavy",
-    "strength": 1.5,
+    "nature": "vehicle",
+    "strength": 0.8,
     "alias": "bus",
-    "line": "Yellow, heavy and full of lessons."
+    "line": "Yellow and full of lessons. She can drive it, mind."
   },
   "scissors": {
     "name": "scissors",
@@ -1587,9 +1587,9 @@
   },
   "skateboard": {
     "name": "a skateboard",
-    "nature": "slippery",
+    "nature": "vehicle",
     "strength": 1.2,
-    "line": "A plank on wheels. Off it goes, with or without her."
+    "line": "A plank on wheels. Stand on it and lean."
   },
   "skull": {
     "name": "a skull",
@@ -1660,9 +1660,9 @@
   },
   "speedboat": {
     "name": "a speedboat",
-    "nature": "slippery",
-    "strength": 1.1,
-    "line": "It skims. Fast, wet, and gone."
+    "nature": "vehicle",
+    "strength": 1.4,
+    "line": "It skims. Fast, and wetter if there were water."
   },
   "spider": {
     "name": "a spider",
@@ -1768,9 +1768,9 @@
   },
   "submarine": {
     "name": "a submarine",
-    "nature": "heavy",
-    "strength": 1.5,
-    "line": "Built to sink on purpose. It does it well."
+    "nature": "vehicle",
+    "strength": 0.7,
+    "line": "Built to sink on purpose. Down here it merely drives."
   },
   "suitcase": {
     "name": "a suitcase",
@@ -1924,9 +1924,9 @@
   },
   "tractor": {
     "name": "a tractor",
-    "nature": "heavy",
-    "strength": 1.5,
-    "line": "Slow, muddy and heavy. It ploughs on regardless."
+    "nature": "vehicle",
+    "strength": 0.6,
+    "line": "Slow and muddy. It ploughs on wherever she points."
   },
   "traffic light": {
     "name": "a traffic light",
@@ -1936,9 +1936,9 @@
   },
   "train": {
     "name": "a train",
-    "nature": "heavy",
-    "strength": 1.8,
-    "line": "Heavy, and sticks to its lines. How unimaginative."
+    "nature": "vehicle",
+    "strength": 1.3,
+    "line": "Sticks to its lines, but oh, it goes. All aboard."
   },
   "tree": {
     "name": "a tree",
@@ -1960,9 +1960,9 @@
   },
   "truck": {
     "name": "a truck",
-    "nature": "heavy",
-    "strength": 1.4,
-    "line": "It will stay where it lands, that one."
+    "nature": "vehicle",
+    "strength": 0.8,
+    "line": "Slow to start, hard to stop. Climb up and steer."
   },
   "trumpet": {
     "name": "a trumpet",
@@ -1990,9 +1990,9 @@
   },
   "van": {
     "name": "a van",
-    "nature": "heavy",
-    "strength": 1.2,
-    "line": "A box on wheels, heavy with parcels."
+    "nature": "vehicle",
+    "strength": 0.9,
+    "line": "A box on wheels. Room for her and her parcels."
   },
   "vase": {
     "name": "a vase",

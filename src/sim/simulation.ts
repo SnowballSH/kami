@@ -4,6 +4,7 @@ import type { Ruling } from "../cat/types";
 import { distanceToRect, type Rect, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS, LOST_DISTANCE } from "../core/world";
 import type { Drawing, DrawingId } from "../ink/types";
+import { validPhysics } from "../rules/effectDomains";
 import { EARTH, type WorldPhysics } from "../rules/types";
 import { AliceController, type AliceSurroundings } from "./alice";
 import { pullToward } from "./attraction";
@@ -20,8 +21,8 @@ import { NATURES, type NatureWorld } from "./natures";
 import { Sumikui } from "./sumikui";
 import { Twins } from "./twins";
 import {
-  ALICE_BASE,
   ALICE_SCALE,
+  aliceDimensions,
   type BounceArc,
   type SimEvent,
   type Simulation,
@@ -97,6 +98,7 @@ export class MatterSimulation implements Simulation {
   }
 
   setPhysics(physics: WorldPhysics): void {
+    if (!validPhysics(physics)) throw new RangeError("Invalid world physics");
     const { alice, twins, inks } = this.world;
     this.physics = physics;
     alice.applyPhysics(physics);
@@ -244,6 +246,7 @@ export class MatterSimulation implements Simulation {
     return {
       alice,
       gravity: accelerationOf(this.physics.gravity),
+      intent: this.intent,
       feelers: {
         touches: (ink, offset) => this.feltBy(ink, offset),
         groundBelow: (ink, foot, drop) => this.groundBelow(ink, foot, drop),
@@ -262,8 +265,8 @@ export class MatterSimulation implements Simulation {
         if (lastRefusedAt !== undefined && now - lastRefusedAt <= GROW_REFUSAL_COOLDOWN_MS) return;
         this.events.push({ type: "grow-blocked", drawingId: ink.id });
       },
-      hasHeadroomFor: (size) =>
-        this.hasHeadroomFor(alice, ALICE_SCALE[size] * this.physics.aliceSize),
+      hasHeadroomFor: (size, meal) =>
+        this.hasHeadroomFor(alice, ALICE_SCALE[size] * this.physics.aliceSize, meal),
       pullToward: (ink, strengthInG) => {
         const loose = inks.dynamicBodies.filter((body) => body !== ink.body);
         pullToward(ink.body.position, strengthInG, [alice.body, ...loose]);
@@ -407,22 +410,21 @@ export class MatterSimulation implements Simulation {
     }
   }
 
-  private hasHeadroomFor(alice: AliceController, scale: number): boolean {
+  private hasHeadroomFor(alice: AliceController, scale: number, meal?: InkEntity): boolean {
     const { inks, props } = this.world;
     const current = alice.bounds();
-    const targetHeight = ALICE_BASE.height * scale;
-    const extraHeight = targetHeight - current.height;
-    if (extraHeight <= 0) return true;
+    const target = aliceDimensions("normal", scale);
+    if (target.height <= current.height && target.width <= current.width) return true;
     const headroom = Matter.Bodies.rectangle(
       current.x + current.width / 2,
-      current.y - extraHeight / 2,
-      current.width - 2 * HEADROOM_INSET,
-      extraHeight - 2 * HEADROOM_INSET,
+      current.y + current.height - target.height / 2,
+      target.width - 2 * HEADROOM_INSET,
+      target.height - 2 * HEADROOM_INSET,
     );
     const ceilings = [
       ...props.solidBodies,
       ...inks.all
-        .filter((ink) => ink.body.isStatic && NATURES[ink.nature].solidToAlice)
+        .filter((ink) => ink !== meal && ink.body.isStatic && NATURES[ink.nature].solidToAlice)
         .map((ink) => ink.body),
     ];
     return contactsWith(headroom, ceilings).length === 0;
