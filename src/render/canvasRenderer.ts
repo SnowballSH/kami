@@ -25,6 +25,8 @@ import { PointerTracker } from "./pointerTracker";
 import { paintSumikui } from "./sumikuiPainter";
 import type { Camera, Chew, Renderer, RenderFrame } from "./types";
 
+export const GHOST_ALPHA = 0.35;
+
 const aliceInView = (alice: AliceSnapshot, view: Rect): boolean =>
   distanceToRect(alice.center, view) <= Math.max(alice.width, alice.height);
 
@@ -97,6 +99,7 @@ export class CanvasRenderer implements Renderer {
     this.inkPainter.paintInks(ctx, frame.inks, view, nowMs, chewOf(world.sumikui));
     const moonlit = frame.daylight < 1;
     if (!moonlit) this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
+    this.paintGhosts(ctx, frame.ghosts ?? [], view, nowMs);
     const several = world.twins.length > 0;
     for (const [index, twin] of world.twins.entries()) {
       if (!aliceInView(twin, view)) continue;
@@ -132,6 +135,20 @@ export class CanvasRenderer implements Renderer {
       this.notePainter.paintNotes(ctx, frame.notes, view, nowMs, frame.daylight);
     }
     if (frame.eraserActive) this.paintEraserCursor();
+  }
+
+  /** Other devices' Alices on a shared page: there, but faint, so whose is whose stays clear. */
+  private paintGhosts(
+    ctx: CanvasRenderingContext2D,
+    ghosts: readonly AliceSnapshot[],
+    view: Rect,
+    nowMs: number,
+  ): void {
+    if (ghosts.length === 0) return;
+    ctx.save();
+    ctx.globalAlpha = GHOST_ALPHA;
+    for (const ghost of ghosts) if (aliceInView(ghost, view)) paintAlice(ctx, ghost, nowMs);
+    ctx.restore();
   }
 
   private paintEraserCursor(): void {

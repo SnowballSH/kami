@@ -84,6 +84,11 @@ out. It is deterministic and offline like the rest of the autopilot; there is no
 model in the loop. When a goal appears, the errand ordering (key → door → goal → eat → wait /
 wander) takes over on the next replan, and every Alice heads for it by her own route.
 
+On an endless page ([modes.md](modes.md), the sandbox) nobody waits and nobody strolls at random:
+with no errand every pilot's plan is `explore` — walk to the reachable stance nearest the top of the
+newest ink, or the edge of the paper she faces when nothing has been drawn. The chart is a window
+around every Alice on the page, shared by all their pilots as in a room.
+
 ## 3. One hand: selection
 
 The thumbstick, arrow keys, a controller or the cabinet all reach `Game.onWalkIntent`, which is

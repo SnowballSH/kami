@@ -1,0 +1,60 @@
+import type { ModeCard } from "../modes/types";
+import { el } from "./dom";
+import { activateOnTap } from "./tap";
+
+export const TITLE_CARD_SHOWN_MS = 4500;
+const FADING_CLASS = "is-fading";
+const FADE_MS = 600;
+
+/**
+ * The mode's name and its one line, over the page for a moment when it opens, then gone: a tap
+ * or a few seconds dismisses it. Nothing to choose; the page underneath is already live.
+ */
+export class TitleCard {
+  readonly element: HTMLElement;
+  private readonly title = el("h1", { className: "kami-title-card-title" });
+  private readonly tagline = el("p", { className: "kami-title-card-tagline" });
+  private hideAt: ReturnType<typeof setTimeout> | null = null;
+  private goneAt: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(private readonly shownMs: number = TITLE_CARD_SHOWN_MS) {
+    this.element = el(
+      "div",
+      { className: "kami-title-card", attrs: { role: "status", "aria-live": "polite" } },
+      [this.title, this.tagline],
+    );
+    this.element.hidden = true;
+    activateOnTap(this.element, () => this.fade());
+  }
+
+  get showing(): boolean {
+    return !this.element.hidden;
+  }
+
+  show(card: ModeCard): void {
+    this.clearTimers();
+    this.title.textContent = card.title;
+    this.tagline.textContent = card.tagline;
+    this.element.classList.remove(FADING_CLASS);
+    this.element.hidden = false;
+    this.hideAt = setTimeout(() => this.fade(), this.shownMs);
+  }
+
+  private fade(): void {
+    if (this.element.hidden || this.element.classList.contains(FADING_CLASS)) return;
+    this.clearTimers();
+    this.element.classList.add(FADING_CLASS);
+    this.goneAt = setTimeout(() => {
+      this.element.hidden = true;
+      this.element.classList.remove(FADING_CLASS);
+      this.goneAt = null;
+    }, FADE_MS);
+  }
+
+  private clearTimers(): void {
+    if (this.hideAt !== null) clearTimeout(this.hideAt);
+    if (this.goneAt !== null) clearTimeout(this.goneAt);
+    this.hideAt = null;
+    this.goneAt = null;
+  }
+}
