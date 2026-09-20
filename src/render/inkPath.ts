@@ -9,13 +9,18 @@ export const NOTE_THICKNESS = 2.2;
 /** Drawn thinner than the ink's physical thickness: a fine pen over a body that stays as solid as before. */
 export const PEN_THICKNESS = INK_THICKNESS / 2;
 
-/** A pen that reports pressure draws with it; a mouse or a finger gets pressure faked from speed. */
+/**
+ * A pen that reports pressure draws with it. Ink without pressure (a mouse, a finger, a drawing read
+ * back from the store, anything Kami drew) keeps one steady width: pressure faked from speed makes a
+ * line as thin as its points are far apart — 5.5 px at 2 px apart, 2.3 px at 7 px — and thins every
+ * stroke's start to nothing, so strokes that meet end to end show white notches between them.
+ */
 export const INK_PEN: Pen = {
   size: PEN_THICKNESS,
   thinning: 0.55,
   smoothing: 0.5,
   streamline: 0.2,
-  simulatePressure: true,
+  simulatePressure: false,
   last: true,
 };
 

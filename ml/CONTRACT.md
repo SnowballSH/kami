@@ -191,7 +191,8 @@ characters; `null` and `""` mean no name.
      more than one and a half times the player's own ink. A finished drawing usually gets none.
      A run would start a cover radius away from the ink and float beside the drawing; so each one
      grows at both ends for as long as the exemplar keeps coming closer to the ink (until it is
-     within 2 %), and starts where the two meet.
+     within 2 %), and starts where the two meet — then runs two samples on under the ink, because two
+     lines that only touch end to end show a notch between their round ends.
    - *The player's slider.* The request's optional `strength` (0–1, default 0.5) runs **from the
      player's drawing to the dataset's**; `care` = min(1, strength / 0.5) and `takeover` =
      max(0, strength − 0.5) / 0.5.

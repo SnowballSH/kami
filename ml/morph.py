@@ -50,6 +50,7 @@ class MorphSettings:
     exact_cover_radius: float = 0.04
     exact_min_added_length: float = 0.04
     touch_radius: float = 0.02
+    joint_overlap: int = 2
     sample_spacing: float = 0.02
     most_samples: int = 1500
     match_run: int = 8
@@ -598,15 +599,20 @@ def _uncovered_runs(covered: NDArray[np.bool_], bridge: int) -> list[tuple[int, 
 
 
 def _reaching_the_ink(
-    distance: NDArray[np.float64], start: int, end: int, touch: float
+    distance: NDArray[np.float64], start: int, end: int, touch: float, overlap: int
 ) -> tuple[int, int]:
     """An uncovered run starts a cover radius away from the ink, which would leave the added part
     floating beside the drawing; so it grows at both ends for as long as the exemplar keeps coming
-    closer to the ink, and starts where the two meet."""
+    closer to the ink, and starts where the two meet. Two lines that only touch end to end show a
+    notch between their round ends, so an end that met the ink runs `overlap` samples under it."""
     while start > 0 and distance[start] > touch and distance[start - 1] < distance[start]:
         start -= 1
     while end < len(distance) and distance[end - 1] > touch and distance[end] < distance[end - 1]:
         end += 1
+    if distance[start] <= touch:
+        start = max(0, start - overlap)
+    if distance[end - 1] <= touch:
+        end = min(len(distance), end + overlap)
     return start, end
 
 
@@ -627,7 +633,7 @@ def _missing(
         for (start, end), following in pairwise([*runs, (len(dense), len(dense))]):
             if (end - start - 1) * spacing >= adding.min_added_length * diagonal:
                 first, last = _reaching_the_ink(
-                    distance, start, end, settings.touch_radius * diagonal
+                    distance, start, end, settings.touch_radius * diagonal, settings.joint_overlap
                 )
                 first, last = max(first, taken), min(last, following[0])
                 if last - first >= 2:

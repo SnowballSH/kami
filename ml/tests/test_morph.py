@@ -360,3 +360,14 @@ def test_a_small_shape_the_exemplar_draws_elsewhere_moves_in_one_piece() -> None
     assert sides.max() < 2.0 * np.linalg.norm(np.diff(before, axis=0), axis=1).max()
     width, height = np.ptp(after, axis=0)
     assert width / height == pytest.approx(1.0, abs=0.2)
+
+
+def test_an_added_part_runs_on_under_the_ink_it_meets_so_no_notch_shows_between_them() -> None:
+    rail = np.column_stack([np.linspace(0.0, 255.0, 120), np.full(120, 128.0)])
+    drawn = [FRAME + CENTRE, rail[:60] + CENTRE]
+    result = morph_onto(drawn, [FRAME + CENTRE, rail + CENTRE], certainty=1.0, firmness=1.0)
+    assert result is not None and len(result.added) == 1
+    inked_to = result.tidied[1][:, 0].max()
+    added_from = result.added[0][:, 0].min()
+    spacing = spacing_of(drawn, DEFAULT_SETTINGS)
+    assert added_from < inked_to - 0.5 * spacing
