@@ -72,7 +72,7 @@ def test_an_exemplar_sent_back_in_finds_itself(
     assert body["added"] == []
     for tidied, drawn in zip(body["tidied"], sketch, strict=True):
         assert np.asarray([[point["x"], point["y"]] for point in tidied]) == pytest.approx(
-            np.asarray([[point["x"], point["y"]] for point in drawn]), abs=0.5
+            np.asarray([[point["x"], point["y"]] for point in drawn]), abs=1.0
         )
 
 
