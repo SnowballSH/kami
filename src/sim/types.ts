@@ -80,7 +80,7 @@ export interface SumikuiSnapshot {
   readonly facing: -1 | 1;
   readonly phase: SumikuiPhase;
   readonly quarry: SumikuiQuarry | null;
-  /** The Alice it is closing on, while `quarry` is `"alice"`. */
+  /** The Alice it is closing on, or whose ground it is biting, while `quarry` is `"alice"` or `"paper"`. */
   readonly prey: AliceIndex | null;
   /** The drawing between its teeth right now, dissolving as `bite` climbs. */
   readonly chewing: DrawingId | null;

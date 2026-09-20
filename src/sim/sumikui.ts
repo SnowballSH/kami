@@ -140,7 +140,8 @@ export class Sumikui {
   }
 
   snapshot(alices: readonly AliceController[]): SumikuiSnapshot {
-    const prey = this.quarry?.kind === "alice" ? alices.indexOf(this.quarry.alice) : -1;
+    const prey =
+      this.quarry !== null && this.quarry.kind !== "ink" ? alices.indexOf(this.quarry.alice) : -1;
     return {
       centre: this.centre,
       facing: this.facing,
