@@ -35,11 +35,24 @@ const touchesZone = (strokes: readonly Stroke[], zones: readonly Rect[]): boolea
 const crossesRect = (strokes: readonly Stroke[], rect: Rect): boolean =>
   strokes.some((stroke) => segmentsOf(stroke).some((segment) => segmentCrossesRect(segment, rect)));
 
+export const isUnderGround = (point: Vec, solids: readonly Rect[]): boolean => {
+  const bottom = solids.reduce(
+    (lowest, { x, y, width, height }) =>
+      point.x >= x && point.x <= x + width ? Math.max(lowest, y + height) : lowest,
+    Number.NEGATIVE_INFINITY,
+  );
+  return bottom > Number.NEGATIVE_INFINITY && point.y > bottom;
+};
+
+const underGround = (strokes: readonly Stroke[], solids: readonly Rect[]): boolean =>
+  strokes.some((stroke) => stroke.some((point) => isUnderGround(point, solids)));
+
 export const judgePlacement = (
   strokes: readonly Stroke[],
-  { noInkZones, aliceBounds }: PlacementRules,
+  { noInkZones, solids, aliceBounds }: PlacementRules,
 ): PlacementVerdict => {
   if (touchesZone(strokes, noInkZones)) return "no-ink-zone";
+  if (underGround(strokes, solids)) return "under-ground";
   if (aliceBounds !== null && crossesRect(strokes, expandRect(aliceBounds, INK_THICKNESS / 2))) {
     return "overlaps-alice";
   }

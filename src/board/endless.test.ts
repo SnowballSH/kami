@@ -6,6 +6,7 @@ import {
   ENDLESS_GROUND,
   ENDLESS_HIGH_GROUNDS,
   endlessBoard,
+  groundSolids,
   isEndless,
   pageFor,
 } from ".";
@@ -51,5 +52,12 @@ describe("an endless page", () => {
     expect(isEndless(pageFor("endless", "x"))).toBe(true);
     expect(isEndless(boardFor("x"))).toBe(false);
     expect(isEndless(boardFor(DEMO_BOARD_ID))).toBe(false);
+  });
+
+  it("keeps only ground-level solids available for beneath-ground placement", () => {
+    const board = boardFor(DEMO_BOARD_ID);
+    const grounds = groundSolids(board);
+    expect(grounds).toContainEqual(board.solids.find(({ rect }) => rect.x === -2000)?.rect);
+    expect(grounds).not.toContainEqual({ x: 420, y: 400, width: 140, height: 24 });
   });
 });

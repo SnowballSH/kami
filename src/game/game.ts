@@ -1,5 +1,5 @@
 import type { Scene } from "../autopilot/types";
-import { arenaBoard, arenaHeight, endlessBoard } from "../board";
+import { arenaBoard, arenaHeight, endlessBoard, groundSolids } from "../board";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
 import {
@@ -19,7 +19,7 @@ import { same } from "../core/same";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
 import { counselFor, isIdeaRequest, placeSketch, surroundingsOf } from "../counsel";
 import type { Handwriting } from "../handwriting/types";
-import { judgePlacement } from "../ink/placement";
+import { isUnderGround, judgePlacement } from "../ink/placement";
 import type {
   Drawing,
   DrawingId,
@@ -355,6 +355,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     this.ink.update(nowMs, {
       noInkZones: this.board.noInkZones,
+      solids: groundSolids(this.board),
       aliceBounds: this.inkKeepsOff(),
     });
     if (!this.ink.isDrawing) this.forgetGlimpse();
@@ -470,6 +471,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   onReject(reason: PlacementRejection, strokes: readonly Stroke[]): void {
+    if (reason === "under-ground") return;
     if (this.penReader === null || reason === "too-detailed" || reason === "out-of-bounds") {
       this.remark(REJECTION_LINES[reason]);
       return;
@@ -1329,6 +1331,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.remark(REJECTION_LINES["out-of-bounds"]);
       return;
     }
+    if (isUnderGround(position, groundSolids(this.board))) return;
     const around =
       this.director.mode.help === "on-request" && (isHelpRequest(text) || isIdeaRequest(text))
         ? this.scene()
@@ -1406,7 +1409,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const exemplar = (await this.modules.summoner?.exemplar(advice.sketch.word)) ?? null;
     if (epoch !== this.epoch || exemplar === null || exemplar.strokes.length === 0) return;
     const strokes = placeSketch(exemplar.strokes, advice.sketch);
-    const rules = { noInkZones: this.board.noInkZones, aliceBounds: null };
+    const rules = {
+      noInkZones: this.board.noInkZones,
+      solids: groundSolids(this.board),
+      aliceBounds: null,
+    };
     if (judgePlacement(strokes, rules) !== "ok") return;
     void this.label(this.conjure(strokes, this.nowMs), exemplar.word);
   }
@@ -1424,7 +1431,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         ? []
         : await summoner.conjure(wish, writing, sim.aliceBounds(this.party.selected));
     if (!stillHere()) return;
-    const rules = { noInkZones: this.board.noInkZones, aliceBounds: null };
+    const rules = {
+      noInkZones: this.board.noInkZones,
+      solids: groundSolids(this.board),
+      aliceBounds: null,
+    };
     const landed = summoned.filter(({ strokes }) => judgePlacement(strokes, rules) === "ok");
     if (landed.length === 0) {
       this.remarkUnder(note.id, CANNOT_DRAW_LINE(wish.asked));

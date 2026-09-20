@@ -13,7 +13,11 @@ describe("judgePlacement", () => {
           { x: 400, y: 300 },
         ],
       ],
-      { noInkZones: [{ x: 0, y: 0, width: 50, height: 50 }], aliceBounds: ALICE },
+      {
+        noInkZones: [{ x: 0, y: 0, width: 50, height: 50 }],
+        solids: [],
+        aliceBounds: ALICE,
+      },
     );
     expect(verdict).toBe("ok");
   });
@@ -26,7 +30,7 @@ describe("judgePlacement", () => {
           { x: 400, y: 130 },
         ],
       ],
-      { noInkZones: [], aliceBounds: ALICE },
+      { noInkZones: [], solids: [], aliceBounds: ALICE },
     );
     expect(verdict).toBe("overlaps-alice");
   });
@@ -44,13 +48,13 @@ describe("judgePlacement", () => {
         { x: 400, y: 170 },
       ],
     ];
-    const rules = { noInkZones: [], aliceBounds: ALICE };
+    const rules = { noInkZones: [], solids: [], aliceBounds: ALICE };
     expect(judgePlacement(grazing, rules)).toBe("overlaps-alice");
     expect(judgePlacement(clear, rules)).toBe("ok");
   });
 
   it("treats a lone dot as a point", () => {
-    const rules = { noInkZones: [], aliceBounds: ALICE };
+    const rules = { noInkZones: [], solids: [], aliceBounds: ALICE };
     expect(judgePlacement([[{ x: 110, y: 120 }]], rules)).toBe("overlaps-alice");
     expect(judgePlacement([[{ x: 300, y: 120 }]], rules)).toBe("ok");
   });
@@ -58,8 +62,22 @@ describe("judgePlacement", () => {
   it("puts red paint ahead of Alice", () => {
     const verdict = judgePlacement([[{ x: 110, y: 120 }]], {
       noInkZones: [{ x: 90, y: 90, width: 100, height: 100 }],
+      solids: [],
       aliceBounds: ALICE,
     });
     expect(verdict).toBe("no-ink-zone");
+  });
+
+  it("rejects points beneath the ground but keeps solids and ditches drawable", () => {
+    const solids = [{ x: 0, y: 100, width: 100, height: 20 }];
+    expect(
+      judgePlacement([[{ x: 50, y: 130 }]], { noInkZones: [], solids, aliceBounds: null }),
+    ).toBe("under-ground");
+    expect(
+      judgePlacement([[{ x: 50, y: 110 }]], { noInkZones: [], solids, aliceBounds: null }),
+    ).toBe("ok");
+    expect(
+      judgePlacement([[{ x: 150, y: 130 }]], { noInkZones: [], solids, aliceBounds: null }),
+    ).toBe("ok");
   });
 });

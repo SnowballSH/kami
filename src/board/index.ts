@@ -2,6 +2,9 @@ import { blankBoard } from "./boards/blank";
 import { endlessBoard } from "./boards/endless";
 import { PUZZLE_BOARDS } from "./boards/puzzles";
 import { wonderland } from "./boards/wonderland";
+
+export { groundSolids } from "./ground";
+
 import type { BoardDefinition, PageKind } from "./types";
 
 export { PUZZLE_BOARDS } from "./boards/puzzles";

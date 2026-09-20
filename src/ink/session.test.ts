@@ -10,7 +10,7 @@ import type {
   PlacementRules,
 } from "./types";
 
-const OPEN_PAGE: PlacementRules = { noInkZones: [], aliceBounds: null };
+const OPEN_PAGE: PlacementRules = { noInkZones: [], solids: [], aliceBounds: null };
 const ALICE: Rect = { x: 100, y: 500, width: 28, height: 60 };
 
 class RecordingListener implements InkSessionListener {
@@ -181,7 +181,7 @@ describe("PenInkSession", () => {
 
   it("rejects ink over Alice, refunds it and tells the listener", () => {
     drawLine(session, { x: 50, y: 530 }, { x: 200, y: 530 });
-    const rules: PlacementRules = { noInkZones: [], aliceBounds: ALICE };
+    const rules: PlacementRules = { noInkZones: [], solids: [], aliceBounds: ALICE };
     session.update(0, rules);
     expect(session.activeVerdict).toBe("overlaps-alice");
     expect(session.budget.remaining).toBe(450);
@@ -198,6 +198,7 @@ describe("PenInkSession", () => {
     drawLine(session, { x: 0, y: 0 }, { x: 100, y: 0 });
     const rules: PlacementRules = {
       noInkZones: [{ x: 90, y: -10, width: 50, height: 50 }],
+      solids: [],
       aliceBounds: null,
     };
     session.update(0, rules);
@@ -328,8 +329,8 @@ describe("PenInkSession", () => {
       session.penMove({ x: 50, y: 10 });
       session.penCancel();
       drawLine(session, { x: 50, y: 530 }, { x: 200, y: 530 });
-      session.update(2000, { noInkZones: [], aliceBounds: ALICE });
-      session.update(2900, { noInkZones: [], aliceBounds: ALICE });
+      session.update(2000, { noInkZones: [], solids: [], aliceBounds: ALICE });
+      session.update(2900, { noInkZones: [], solids: [], aliceBounds: ALICE });
 
       expect(listener.rejections).toEqual(["overlaps-alice"]);
       expect(session.budget).toEqual({ total: ENDLESS, remaining: ENDLESS });

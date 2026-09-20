@@ -7,6 +7,7 @@ export const TAGLINE = "draw it. name it. it wakes up.";
 export const REJECTION_LINES: Readonly<Record<PlacementRejection, string>> = {
   "no-ink-zone": "That part's painted red. It won't take ink.",
   "overlaps-alice": "Not on Alice, if you please. Beside her.",
+  "under-ground": "",
   "too-detailed": "Too much detail for one drawing. Try drawing it in smaller parts.",
   "out-of-bounds": "That is beyond the edge of this board. Draw closer to Alice.",
 };

@@ -13,12 +13,14 @@ export type PlacementVerdict =
   | "ok"
   | "overlaps-alice"
   | "no-ink-zone"
+  | "under-ground"
   | "too-detailed"
   | "out-of-bounds";
 export type PlacementRejection = Exclude<PlacementVerdict, "ok">;
 
 export interface PlacementRules {
   readonly noInkZones: readonly Rect[];
+  readonly solids: readonly Rect[];
   readonly aliceBounds: Rect | null;
 }
 

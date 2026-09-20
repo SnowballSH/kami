@@ -379,7 +379,11 @@ describe("the pool of tears", () => {
 describe("the croquet ground", () => {
   const lawnCentreY = PLATEAU_TOP - 30;
   const dab = (x: number, y: number): readonly Stroke[] => [[{ x, y }]];
-  const rules = { noInkZones: wonderland.noInkZones, aliceBounds: null };
+  const rules = {
+    noInkZones: wonderland.noInkZones,
+    solids: wonderland.solids.map(({ rect }) => rect),
+    aliceBounds: null,
+  };
 
   it("paints the whole lawn red, from the arbour to the dais, up past her head", () => {
     for (let x = rightOf(CROQUET.arbour) + 24; x < CROQUET.daisFaceX; x += 40) {

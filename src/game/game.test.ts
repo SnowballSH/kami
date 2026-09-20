@@ -505,9 +505,9 @@ describe("Game on the Wonderland board", () => {
   });
 
   it.each([
-    { angle: Math.PI / 2, at: { x: 1000, y: 1180 }, competingY: 1120 },
-    { angle: -Math.PI / 2, at: { x: 1000, y: 800 }, competingY: 860 },
-    { angle: 0, at: { x: 1190, y: 1000 }, competingY: 1100 },
+    { angle: Math.PI / 2, at: { x: 1000, y: 480 }, competingY: 420 },
+    { angle: -Math.PI / 2, at: { x: 1000, y: 200 }, competingY: 260 },
+    { angle: 0, at: { x: 1190, y: 480 }, competingY: 580 },
   ])(
     "names the nearest drawing under a full pose with angle $angle",
     async ({ angle, at, competingY }) => {
@@ -528,7 +528,15 @@ describe("Game on the Wonderland board", () => {
           ...drawing,
           pose:
             drawing.id === target.id
-              ? { origin: { x: 500, y: 300 }, position: { x: 1000, y: 1000 }, angle, scale: 1 }
+              ? {
+                  origin: { x: 500, y: 300 },
+                  position: {
+                    x: 1000,
+                    y: angle === Math.PI / 2 ? 300 : angle === -Math.PI / 2 ? 400 : 480,
+                  },
+                  angle,
+                  scale: 1,
+                }
               : { origin: { x: 0, y: 0 }, position: { x: 0, y: 0 }, angle: 0, scale: 1 },
         })),
       });
@@ -2436,7 +2444,7 @@ describe("Game in Boss mode", () => {
   it("clears player ink and laws while keeping the Boss soul", async () => {
     const heart = soulOf(player);
     player.game.onCommit(drawingOf("old ink", ringAround({ x: heart.x + 80, y: heart.y }, 20)));
-    await player.write("gravity is weaker", { x: heart.x + 200, y: heart.y + 200 });
+    await player.write("gravity is weaker", { x: heart.x + 200, y: heart.y + 100 });
     expect(player.renderer.lastFrame?.inks).toHaveLength(1);
     expect(player.laws.laws).toHaveLength(1);
 
@@ -2447,6 +2455,18 @@ describe("Game in Boss mode", () => {
     expect(player.renderer.lastFrame?.world.tear).toBeNull();
     expect(player.renderer.lastFrame?.inks).toHaveLength(0);
     expect(player.laws.laws).toHaveLength(0);
+  });
+
+  it("drops ink below the arena floor but accepts ink beside it", async () => {
+    await player.draw(line({ x: 100, y: 40 }, { x: 180, y: 40 }));
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+
+    await player.draw(line({ x: 100, y: -40 }, { x: 180, y: -40 }));
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+
+    await player.write("gravity is weaker", { x: 100, y: 40 });
+    expect(player.laws.laws).toHaveLength(0);
+    expect(player.written).not.toContain("gravity is weaker");
   });
 
   it("opens every Boss fight on a fresh page", async () => {
@@ -2486,7 +2506,7 @@ describe("Game in Boss mode", () => {
     const heart = soulOf(player);
     player.game.onCommit(drawingOf("body", ringAround(heart, 30)));
     await player.wait(50);
-    await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
+    await player.write("alice", { x: heart.x + 200, y: heart.y + 100 });
     expect(player.renderer.lastFrame?.world.soul).toBeNull();
     expect(drawnLook(player).body.strokes).toHaveLength(1);
   });
@@ -2498,7 +2518,7 @@ describe("Game in Boss mode", () => {
     await player.wait(50);
     for (const stroke of bossPaceBody(heart)) await player.draw(stroke);
 
-    await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
+    await player.write("alice", { x: heart.x + 200, y: heart.y + 100 });
 
     expect(player.sim.snapshot().alice?.look.kind).toBe("drawn");
     const look = drawnLook(player);
@@ -2511,7 +2531,7 @@ describe("Game in Boss mode", () => {
   it("keeps free combat remarks clear of the tear", async () => {
     const heart = soulOf(player);
     player.game.onCommit(drawingOf("body", ringAround(heart, 30)));
-    await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
+    await player.write("alice", { x: heart.x + 200, y: heart.y + 100 });
     const tear = tearOf(player);
     if (tear === null) throw new Error("the tear did not open");
 
@@ -2609,7 +2629,12 @@ describe("Game in Boss mode", () => {
       x: current.center.x + current.look.body.heart.x * current.look.scale,
       y: current.center.y + current.look.body.heart.y * current.look.scale,
     };
-    const legs = legsBelow(bodyHeart);
+    const legs = legsBelow(bodyHeart).map((stroke) =>
+      stroke.map((point) => ({
+        ...point,
+        y: bodyHeart.y + (point.y - bodyHeart.y) * 0.6,
+      })),
+    );
     await player.scrawl(legs.map((stroke) => [...stroke]));
     expect(drawnLook(player).abilities.walk).toBe(true);
     expect(drawnLook(player).body.strokes).toHaveLength(6);

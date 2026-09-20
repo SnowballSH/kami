@@ -3,7 +3,7 @@ import { DrawingIdSequence } from "./ids";
 import { createInkSession } from "./index";
 import type { Drawing, InkSessionListener, PlacementRules } from "./types";
 
-const OPEN_PAGE: PlacementRules = { noInkZones: [], aliceBounds: null };
+const OPEN_PAGE: PlacementRules = { noInkZones: [], solids: [], aliceBounds: null };
 const COMMIT_AT_MS = 900;
 
 const commitOneLine = (): Drawing | undefined => {
