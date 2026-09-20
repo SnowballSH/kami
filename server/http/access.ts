@@ -3,13 +3,14 @@ import { badRequest, json, notFound, preflight } from "./responses";
 import { Sessions } from "./sessions";
 import { WorkLimit } from "./workLimit";
 
-const MODEL_ROUTES = new Set([
-  "/api/recognize",
-  "/api/beautify",
-  "/api/compile",
-  "/api/transcribe",
-  "/api/voice/speak",
-  "/api/voice/listen",
+const MODEL_ROUTES = new Map([
+  ["/api/recognize", "POST"],
+  ["/api/beautify", "POST"],
+  ["/api/compile", "POST"],
+  ["/api/transcribe", "POST"],
+  ["/api/voice/speak", "POST"],
+  ["/api/voice/listen", "GET"],
+  ["/api/exemplar", "GET"],
 ]);
 const METHODS = "GET, PUT, POST, DELETE, OPTIONS";
 const HEADERS = new Set(["content-type", "authorization"]);
@@ -137,7 +138,7 @@ export class ApiAccess {
       if (scope === null) return unauthorized();
       if (!this.#permits(scope, path, resource, id)) return denied();
     }
-    if (request.method !== "POST" || !MODEL_ROUTES.has(path)) return respond(request);
+    if (MODEL_ROUTES.get(path) !== request.method) return respond(request);
     const release = this.#models.enter();
     if (release === null) return busy();
     try {
