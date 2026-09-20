@@ -31,6 +31,7 @@ const frame = (eraserActive: boolean): RenderFrame => ({
   world: {
     alice: {
       center: { x: FAR_AWAY, y: FAR_AWAY },
+      velocity: { x: 0, y: 0 },
       width: 40,
       height: 80,
       size: "normal",
@@ -41,6 +42,7 @@ const frame = (eraserActive: boolean): RenderFrame => ({
       grounded: true,
       climbing: false,
       hasKey: false,
+      ride: null,
     },
     twins: [],
     sumikui: null,
