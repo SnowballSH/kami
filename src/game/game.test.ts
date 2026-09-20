@@ -1658,6 +1658,25 @@ describe("Game with a Kami who takes everyone places", () => {
     expect(player.sim.snapshot().drawings).toHaveLength(4);
   });
 
+  it("replaces a previous scene's laws when it takes us home", async () => {
+    const player = new Player("wonderland", { eyes: traveller() });
+    await player.arrive();
+
+    await player.write("teleport us to the moon", { x: 300, y: 500 });
+    expect(player.laws.laws.map((law) => law.text)).toEqual(["teleport us to the moon"]);
+
+    await player.write("take us home", { x: 300, y: 500 });
+
+    expect(
+      (await player.store.load("wonderland")).rules.every(
+        (rule) => rule.sourceText === "take us home",
+      ),
+    ).toBe(true);
+    expect(player.laws.laws).toHaveLength(1);
+    expect(player.laws.laws[0]?.text).toBe("take us home");
+    expect(player.renderer.lastFrame?.daylight).toBe(1);
+  });
+
   it("asks the model for a place the atlas has never heard of, and refuses none it knows", async () => {
     const eyes = traveller();
     const chocolate: Scene = {
@@ -2138,6 +2157,15 @@ describe("Game in the Sandbox", () => {
     await player.write("help", { x: 60, y: -160 });
     expect(player.written).toContain(DROP_LINE);
     expect(eyes.summoned).toEqual([]);
+  });
+
+  it("does not repeat the same counsel while the first line is still visible", async () => {
+    const { player } = sandbox();
+    await player.arrive();
+    await player.write("help", { x: 60, y: -160 });
+    await player.write("give me an idea", { x: 60, y: -160 });
+
+    expect(player.written.filter((text) => text === DROP_LINE)).toHaveLength(1);
   });
 
   it("starts a bridge across a gap when asked how to get across", async () => {

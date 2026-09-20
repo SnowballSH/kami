@@ -304,3 +304,18 @@ transitions, physics changed by presentation, stale state after respawn/room cha
 - **Finding:** Inspect the lexicon so “boat” resolves to vehicle. Sandbox has no water, so buoyancy is not testable locally.
 - **Status:** Open for boat lexicon; water behavior not testable locally.
 - **Recommendation:** Add the boat mapping and re-run in a board with a water region.
+
+## Sweep 3 — Sandbox
+
+![Sweep 3 Sandbox](gallery/sweep3-sandbox-sheet.png)
+
+| Scenario | Expected | Observed | Status |
+| --- | --- | --- | --- |
+| Open | Sandbox title/opening line; no Sumikui after 20 s and two platforms | Title/opening appeared; two platforms remained and no Sumikui appeared after 20 s | Fixed/Pass |
+| Help | `help`, `give me an idea`, and `what should I draw` give scene counsel without repeating a visible line | Scene counsel appeared; identical counsel no longer repeats while visible | Fixed |
+| Endless page + fall-return | Camera follows the walk, page continues, Alice can return by drawing a far platform | Camera followed; Alice reached the page edge/off-ground; a far platform held her | Pass; edge behavior observed |
+| Two tabs | Drawing and naming sync live; presence ghost is visible | Drawing synced; name was delayed in the captured tab-A frame; no presence ghost was seen | Drawing pass; name delay and ghost open |
+| Persistence | Reload keeps drawings/names without a memory warning | Fresh-tab load retained drawings and `dog`; literal CDP reload was unmeasured because it hung; no warning appeared | Fresh-load pass; reload open |
+| Moon/home | Returning home replaces the Moon laws | Moon then home left only the `take us home` scene law | Fixed |
+
+The right-edge guess-chip overflow visible around `sandbox-08`/`sandbox-09` remains open.

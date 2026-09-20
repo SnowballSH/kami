@@ -249,6 +249,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly ids = new IdMint();
   private readonly introduced = new Set<string>();
   private readonly director: ModeDirector;
+  private sceneLawIds: RuleId[] = [];
 
   private board: BoardDefinition;
   private epoch = 0;
@@ -608,6 +609,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.labelsByKami.clear();
     this.glimpse = null;
     this.rules.replaceAll([]);
+    this.sceneLawIds = [];
     this.showLaws();
     this.applyLaws({ silently: true });
     this.introduced.clear();
@@ -1377,7 +1379,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    */
   private async counsel(around: Scene, position: Vec): Promise<void> {
     const advice = counselFor(surroundingsOf(around), this.ideasGiven++);
-    this.kamiWrites(advice.line, position, { lifetimeMs: HINT_LIFETIME_MS });
+    this.remark(advice.line, HINT_LIFETIME_MS, position);
     if (advice.sketch === null) return;
     const epoch = this.epoch;
     const exemplar = (await this.modules.summoner?.exemplar(advice.sketch.word)) ?? null;
@@ -1453,6 +1455,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.refuseLaw(note.id, forbidden.effect.governs);
       return;
     }
+    for (const id of this.sceneLawIds) this.onRepealLaw(id);
+    this.sceneLawIds = [];
     this.enactAll(
       rules,
       note.id,
@@ -1461,6 +1465,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         rules.map((rule) => rule.explanation),
       ),
     );
+    this.sceneLawIds = rules.map((rule) => rule.id);
     this.remark(scene.line);
     await this.dress(scene, note, stillHere);
   }
@@ -1859,7 +1864,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private remark(line: string, lifetimeMs: number = REMARK_LIFETIME_MS, at?: Vec): void {
     const fleeting = this.notes.fleetingBy("kami");
-    if (fleeting.some((note) => note.text === line)) return;
+    if (this.alreadySaid(line)) return;
     const toHurry = fleeting.length - MAX_REMARKS + 1;
     for (const note of fleeting.slice(0, Math.max(0, toHurry)))
       this.notes.hurry(note.id, this.nowMs);
@@ -1868,6 +1873,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       lifetimeMs,
       minY: this.writingTop(),
     });
+  }
+
+  private alreadySaid(line: string): boolean {
+    return this.notes.fleetingBy("kami").some((note) => note.text === line);
   }
 
   private writingTop(): number {
