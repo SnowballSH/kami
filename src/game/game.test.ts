@@ -1166,6 +1166,40 @@ describe("Game with a Kami who tidies", () => {
     expect(saved?.drawing.strokes[0]?.[0]?.y).toBe((untouched[0]?.[0]?.y ?? 0) - 3);
   });
 
+  it("tidies what is already named again when the slider comes to rest, always from the ink as drawn", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
+    const asked: { firstY: number; firmness: number | undefined }[] = [];
+    eyes.complete = (strokes, _name, firmness) => {
+      asked.push({ firstY: strokes[0]?.[0]?.y ?? Number.NaN, firmness });
+      const lift = 10 * (firmness ?? 0);
+      return Promise.resolve({
+        tidied: strokes.map((stroke) => stroke.map(({ x, y }) => ({ x, y: y - lift }))),
+        added: [],
+        word: "mushroom",
+        confidence: 1,
+      });
+    };
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    const drawnY = asked[0]?.firstY ?? Number.NaN;
+    const savedY = async () =>
+      (await player.store.load("wonderland")).drawings[0]?.drawing.strokes[0]?.[0]?.y;
+    expect(await savedY()).toBeCloseTo(drawnY - 5);
+
+    player.hud.handlers.onTidinessChanged(0.8);
+    player.hud.handlers.onTidinessChanged(1);
+    await player.wait(600);
+    expect(asked.map(({ firmness }) => firmness)).toEqual([0.5, 1]);
+    expect(asked[1]?.firstY).toBe(drawnY);
+    expect(await savedY()).toBeCloseTo(drawnY - 10);
+
+    player.hud.handlers.onTidinessChanged(0);
+    await player.wait(600);
+    expect(asked).toHaveLength(2);
+    expect(await savedY()).toBe(drawnY);
+  });
+
   it("tidies as firmly as the slider says, and not at all when it is all the way down", async () => {
     const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
     const firmnesses: (number | undefined)[] = [];

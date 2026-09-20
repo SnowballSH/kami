@@ -14,6 +14,8 @@ import {
 } from "./retrace";
 
 export interface InkRecord extends StoredDrawing {
+  /** The strokes as they landed: what the sim built its body from, and what every tidying starts from. */
+  readonly drawn: Drawing["strokes"];
   readonly awakenedAtMs: number | null;
   /** Set while the ink is still gliding into the tidied strokes `drawing` already holds. */
   readonly retrace: Retrace | null;
@@ -41,12 +43,17 @@ export class InkLedger {
   private readonly records = new Map<DrawingId, InkRecord>();
 
   add(drawing: Drawing): void {
-    this.records.set(drawing.id, { ...FRESH, drawing });
+    this.records.set(drawing.id, { ...FRESH, drawing, drawn: drawing.strokes });
   }
 
   /** A drawing Kami made himself: it is all there at once, but is shown being inked from `atMs`. */
   conjure(drawing: Drawing, atMs: number): InkRecord {
-    const record: InkRecord = { ...FRESH, drawing, arrival: { startedAtMs: atMs } };
+    const record: InkRecord = {
+      ...FRESH,
+      drawing,
+      drawn: drawing.strokes,
+      arrival: { startedAtMs: atMs },
+    };
     this.records.set(drawing.id, record);
     return record;
   }
@@ -70,6 +77,11 @@ export class InkLedger {
     };
     this.records.set(id, retraced);
     return retraced;
+  }
+
+  /** The drawings that have a name, oldest first. */
+  named(): readonly InkRecord[] {
+    return [...this.records.values()].filter(({ ruling }) => ruling !== null);
   }
 
   get(id: DrawingId): InkRecord | null {
@@ -101,8 +113,8 @@ export class InkLedger {
 
   /** What Alice can stand on: the strokes the sim built its body from, not the tidied ones shown. */
   sceneInks(poses: readonly DrawingPose[]): readonly SceneInk[] {
-    return this.join(poses, ({ drawing, ruling, retrace }, pose) => ({
-      drawing: retrace === null ? drawing : { ...drawing, strokes: retrace.from },
+    return this.join(poses, ({ drawing, ruling, drawn }, pose) => ({
+      drawing: drawing.strokes === drawn ? drawing : { ...drawing, strokes: drawn },
       pose,
       nature: ruling?.nature ?? "ink",
       strength: ruling?.strength ?? 1,

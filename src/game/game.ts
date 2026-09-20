@@ -94,6 +94,8 @@ import { placeProp, placeSummoned, summonsOf } from "./summons";
 
 const MAX_STEPS_PER_FRAME = 5;
 export const DEFAULT_TIDINESS = 0.5;
+const RETIDY_AFTER_MS = 350;
+const MOST_RETIDIED = 12;
 const ERASER_TOLERANCE = 18;
 const NAMING_REACH = 190;
 const GUESS_OFFSET = { x: 30, y: -4, line: 42 } as const;
@@ -214,6 +216,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   /** Labels Kami wrote for drawings he was sure of: the one kind of note of his that is kept. */
   private readonly labelsByKami = new Set<NoteId>();
   private readonly tidied = new Set<DrawingId>();
+  private readonly tidyTurns = new Map<DrawingId, number>();
+  private retidyDueAtMs: number | null = null;
 
   constructor(
     private readonly modules: GameModules,
@@ -266,6 +270,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (!this.ink.isDrawing) this.forgetGlimpse();
     this.notes.expire(nowMs);
     this.speakDueRecital();
+    if (this.retidyDueAtMs !== null && nowMs >= this.retidyDueAtMs) this.retidyTheBoard();
     if (this.stuck.isStuck(nowMs)) this.offerHelp();
     this.camera.follow(sim.aliceBounds(), renderer.viewport());
 
@@ -372,6 +377,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   onTidinessChanged(tidiness: number): void {
     this.tidiness = clamp(tidiness, 0, 1);
     this.modules.onTidinessChanged?.(this.tidiness);
+    this.retidyDueAtMs = this.nowMs + RETIDY_AFTER_MS;
   }
 
   onAutopilotToggled(enabled: boolean): void {
@@ -472,6 +478,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.penReader?.forget();
     this.held.clear();
     this.tidied.clear();
+    this.tidyTurns.clear();
+    this.retidyDueAtMs = null;
     this.ledger.clear();
     this.notes.clear();
     this.labelsByKami.clear();
@@ -1067,32 +1075,55 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    * less than a pen's width.
    */
   private async tidy(id: DrawingId, name: string): Promise<void> {
-    const before = this.ledger.get(id);
-    if (this.modules.finisher === undefined || before === null || this.tidied.has(id)) return;
-    if (this.tidiness <= 0) return;
+    if (this.tidied.has(id) || this.tidiness <= 0) return;
     this.tidied.add(id);
+    await this.retidy(id, name);
+  }
+
+  /**
+   * Always from the strokes as drawn, so tidying twice is not tidying squared and the slider can be
+   * moved back. The latest request for a drawing wins; an answer for a name that no longer stands,
+   * a drawing that is gone or another board is dropped.
+   */
+  private async retidy(id: DrawingId, name: string): Promise<void> {
+    const finisher = this.modules.finisher;
+    const before = this.ledger.get(id);
+    if (finisher === undefined || before === null) return;
     const epoch = this.epoch;
-    const completion = await this.modules.finisher.complete(
-      before.drawing.strokes,
-      name,
-      this.tidiness,
-    );
+    const turn = (this.tidyTurns.get(id) ?? 0) + 1;
+    this.tidyTurns.set(id, turn);
+    const completion =
+      this.tidiness <= 0 ? null : await finisher.complete(before.drawn, name, this.tidiness);
     const current = this.ledger.get(id);
-    if (epoch !== this.epoch || current?.drawing !== before.drawing) return;
+    if (epoch !== this.epoch || current === null || this.tidyTurns.get(id) !== turn) return;
     if (current.ruling !== before.ruling) {
-      this.tidied.delete(id);
-      if (current.ruling !== null) await this.tidy(id, current.ruling.name);
+      if (current.ruling !== null) await this.retidy(id, current.ruling.name);
       return;
     }
-    if (completion === null) return;
-    const strokes = [...completion.tidied, ...completion.added];
+    const strokes =
+      completion === null ? current.drawn : [...completion.tidied, ...completion.added];
+    if (completion === null && (this.tidiness > 0 || current.drawing.strokes === current.drawn)) {
+      return;
+    }
     const retraced = this.ledger.retrace(id, strokes, this.nowMs);
     if (retraced === null) return;
-    this.modules.autopilot.invalidate();
     this.modules.store.saveDrawing(this.board.id, {
       drawing: retraced.drawing,
       ruling: retraced.ruling,
     });
+  }
+
+  /** The slider came to rest: what is already named is tidied again at the new firmness. */
+  private retidyTheBoard(): void {
+    this.retidyDueAtMs = null;
+    const named = this.ledger
+      .named()
+      .slice(-MOST_RETIDIED)
+      .flatMap(({ drawing, ruling }) => (ruling === null ? [] : [{ id: drawing.id, ruling }]));
+    for (const { id, ruling } of named) {
+      this.tidied.add(id);
+      void this.retidy(id, ruling.name);
+    }
   }
 
   private shrug(noteId: NoteId): void {

@@ -298,7 +298,7 @@ glides into place, then what was added is drawn in — and the tidied drawing is
 answer on another board, or ink that changed meanwhile: nothing happens. The browser requires the
 same stroke/point counts in `tidied`, finite bounded coordinates and a combined drawing within
 the input budget; images and old replacement-only responses are ignored. Its return type is
-`{ tidied, added, word, confidence } | null`. How firmly is the player's choice: the bead on the line at the bottom of the HUD (`ui/tidySlider.ts`, remembered per device as `kami.tidiness`) is sent as `strength`; all the way left, `tidy()` does not ask at all.
+`{ tidied, added, word, confidence } | null`. How firmly is the player's choice: the bead on the line at the bottom of the HUD (`ui/tidySlider.ts`, remembered per device as `kami.tidiness`) is sent as `strength`; all the way left, `tidy()` does not ask at all. Every tidying starts from the strokes as drawn (`InkRecord.drawn`, which is also what the autopilot charts), so it is never tidying squared; when the slider comes to rest (`RETIDY_AFTER_MS`) the named drawings on the board are tidied again at the new firmness — back to the ink as drawn at zero — and the latest request for a drawing wins. A tidied point keeps the pressure the pen had there.
 
 The sim and pilot keep the original collision geometry until reload, when the saved tidied/added
 strokes become bodies. Visual ink can therefore differ from collision geometry during play.

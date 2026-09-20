@@ -224,6 +224,24 @@ describe("HttpRecognizer", () => {
     ]);
   });
 
+  it("keeps the pen's pressure on every tidied point", async () => {
+    const pressed = [
+      [
+        { x: 0, y: 0, pressure: 0.2 },
+        { x: 10, y: 10, pressure: 0.9 },
+      ],
+    ];
+    const recognizer = new HttpRecognizer(async () =>
+      Response.json({ tidied, added: [], category: "mushroom", confidence: 0.9 }),
+    );
+    expect((await recognizer.complete(pressed))?.tidied).toEqual([
+      [
+        { x: 1, y: 2, pressure: 0.2 },
+        { x: 9, y: 9, pressure: 0.9 },
+      ],
+    ]);
+  });
+
   it.each<[string, FetchLike]>([
     ["no model is attached", async () => Response.json({ error: "none" }, { status: 501 })],
     [

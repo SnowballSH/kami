@@ -41,6 +41,17 @@ describe("retracedStrokes", () => {
     expect(partly[1]?.length).toBeLessThan(added.length);
   });
 
+  it("keeps the pen's pressure while the ink is on its way", () => {
+    const pressed: Stroke[] = [
+      [
+        { x: 0, y: 0, pressure: 0.3 },
+        { x: 10, y: 0, pressure: 0.8 },
+      ],
+    ];
+    const [stroke] = retracedStrokes(pressed, tidied, 0.3);
+    expect(stroke?.map((point) => point.pressure)).toEqual([0.3, 0.8]);
+  });
+
   it("jumps straight to the tidied drawing if it is not point for point the player's", () => {
     const other: Stroke[] = [[{ x: 1, y: 1 }]];
     expect(retracedStrokes(drawn, other, 0.2)).toBe(other);

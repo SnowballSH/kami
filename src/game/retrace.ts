@@ -1,4 +1,4 @@
-import type { Stroke, Vec } from "../core/geometry";
+import type { PenPoint, Stroke } from "../core/geometry";
 
 /** A drawing on its way from the player's ink to Kami's tidied version of it. */
 export interface Retrace {
@@ -11,7 +11,8 @@ const TIDY_SHARE = 0.6;
 
 const easeInOut = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
-const between = (a: Vec, b: Vec, t: number): Vec => ({
+const between = (a: PenPoint, b: PenPoint, t: number): PenPoint => ({
+  ...(a.pressure === undefined ? {} : { pressure: a.pressure }),
   x: a.x + (b.x - a.x) * t,
   y: a.y + (b.y - a.y) * t,
 });
