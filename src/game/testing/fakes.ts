@@ -95,6 +95,12 @@ export class FakeHud implements Hud {
     this.autopilot = enabled;
   }
 
+  tidiness: number | null = null;
+
+  setTidiness(tidiness: number): void {
+    this.tidiness = tidiness;
+  }
+
   setListening(listening: boolean): void {
     this.listening = listening;
   }

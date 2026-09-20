@@ -15,6 +15,7 @@ from pathlib import Path
 from artifacts import validate_bundle
 from completion import SketchCompleter
 from exemplar_set import load_exemplars_of_model
+from morph import DEFAULT_FIRMNESS
 from recognizer import DEFAULT_TOP, SketchRecognizer
 from render import Point
 
@@ -103,6 +104,15 @@ def parse_name(payload: dict[str, object]) -> str | None:
     return name
 
 
+def parse_strength(payload: dict[str, object]) -> float:
+    strength = payload.get("strength", DEFAULT_FIRMNESS)
+    if isinstance(strength, bool) or not isinstance(strength, int | float):
+        raise BadRequest("'strength' must be a number from 0 to 1")
+    if not math.isfinite(strength) or not 0.0 <= strength <= 1.0:
+        raise BadRequest("'strength' must be a number from 0 to 1")
+    return float(strength)
+
+
 def parse_body_length(value: str | None) -> int:
     try:
         length = int(value or "")
@@ -149,15 +159,17 @@ def make_handler(
             if self.path == "/embed":
                 return HTTPStatus.OK, {"embedding": recognizer.embed(strokes)}
             if self.path == "/complete":
-                return self._complete(strokes, parse_name(payload))
+                return self._complete(strokes, parse_name(payload), parse_strength(payload))
             parse_partial(payload)
             recognition = recognizer.recognize(strokes, parse_top(payload))
             return HTTPStatus.OK, {"labels": recognition.labels, "probs": recognition.probs}
 
-        def _complete(self, strokes: list[list[Point]], name: str | None) -> Answer:
+        def _complete(
+            self, strokes: list[list[Point]], name: str | None, strength: float
+        ) -> Answer:
             if completer is None:
                 return HTTPStatus.NOT_FOUND, {"error": f"{recognizer.name} has no exemplar set"}
-            completion = completer.complete(strokes, name)
+            completion = completer.complete(strokes, name, strength)
             if completion is None:
                 return HTTPStatus.NOT_FOUND, {"error": "no exemplar to finish this drawing with"}
             return HTTPStatus.OK, completion.to_json()

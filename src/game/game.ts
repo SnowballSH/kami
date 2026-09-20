@@ -3,6 +3,7 @@ import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
 import {
   boundsOf,
+  clamp,
   type PenPoint,
   poseToWorld,
   type Rect,
@@ -79,6 +80,7 @@ import { StuckDetector } from "./stuckDetector";
 import { placeSummoned, summonsOf } from "./summons";
 
 const MAX_STEPS_PER_FRAME = 5;
+export const DEFAULT_TIDINESS = 0.5;
 const ERASER_TOLERANCE = 18;
 const NAMING_REACH = 190;
 const GUESS_OFFSET = { x: 30, y: -4, line: 42 } as const;
@@ -144,6 +146,9 @@ export interface GameModules {
   /** Whether Alice starts out walking herself; the player can switch it from the HUD. */
   readonly selfDriving?: boolean;
   readonly onSelfDrivingChanged?: (enabled: boolean) => void;
+  /** How firmly Kami tidies a named drawing: 0 not at all, 1 as firm as he gets. */
+  readonly tidiness?: number;
+  readonly onTidinessChanged?: (tidiness: number) => void;
 }
 
 export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, LawsPanelHandlers {
@@ -175,6 +180,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private manualIntent: WalkIntent = IDLE_INTENT;
   private wasStuck = false;
   private selfDriving: boolean;
+  private tidiness: number;
   private hasAskedWhatItIs = false;
   private shrugs = 0;
   private sumikuiLoose = false;
@@ -198,6 +204,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.board = modules.boardFor(initialBoardId);
     this.director = directorFor(modules.mode ?? EMBODIED_MODE);
     this.selfDriving = (modules.selfDriving ?? true) && this.walksHerself();
+    this.tidiness = clamp(modules.tidiness ?? DEFAULT_TIDINESS, 0, 1);
     this.notes = new NoteBook(modules.handwriting);
     this.rules = new RuleBook((rules) =>
       modules.resolvePhysics(rules.filter((rule) => this.allowsRule(rule))),
@@ -218,6 +225,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.lastFrameMs = nowMs;
     this.hud.setTool(this.tool);
     this.hud.setAutopilot(this.selfDriving);
+    this.hud.setTidiness(this.tidiness);
     return this.open(this.board.id);
   }
 
@@ -341,6 +349,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   onZoom(factor: number): void {
     const { width, height } = this.modules.renderer.viewport();
     this.zoomAt({ x: width / 2, y: height / 2 }, factor);
+  }
+
+  onTidinessChanged(tidiness: number): void {
+    this.tidiness = clamp(tidiness, 0, 1);
+    this.modules.onTidinessChanged?.(this.tidiness);
   }
 
   onAutopilotToggled(enabled: boolean): void {
@@ -934,9 +947,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private async tidy(id: DrawingId, name: string): Promise<void> {
     const before = this.ledger.get(id);
     if (this.modules.finisher === undefined || before === null || this.tidied.has(id)) return;
+    if (this.tidiness <= 0) return;
     this.tidied.add(id);
     const epoch = this.epoch;
-    const completion = await this.modules.finisher.complete(before.drawing.strokes, name);
+    const completion = await this.modules.finisher.complete(
+      before.drawing.strokes,
+      name,
+      this.tidiness,
+    );
     const current = this.ledger.get(id);
     if (epoch !== this.epoch || current?.drawing !== before.drawing) return;
     if (current.ruling !== before.ruling) {

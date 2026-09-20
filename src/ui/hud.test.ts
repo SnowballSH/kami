@@ -17,6 +17,7 @@ const createHandlers = () =>
     onZoom: vi.fn<(factor: number) => void>(),
     onRecenter: vi.fn(),
     onAutopilotToggled: vi.fn<(enabled: boolean) => void>(),
+    onTidinessChanged: vi.fn<(tidiness: number) => void>(),
     onOpenBoard: vi.fn<(boardId: string) => void>(),
     onNewBoard: vi.fn(),
     onClearBoard: vi.fn(),

@@ -8,6 +8,7 @@ import { KeyboardWalk } from "./keyboard";
 import { PersistenceStatus } from "./persistenceStatus";
 import { TalkButton } from "./talkButton";
 import { TextPrompt } from "./textPrompt";
+import { TidySlider } from "./tidySlider";
 import { Toolbar } from "./toolbar";
 import { ToolHotkeys } from "./toolHotkeys";
 import { ToolSelection } from "./toolSelection";
@@ -26,6 +27,7 @@ export class DomHud implements Hud {
   private readonly prompt: TextPrompt;
   private readonly stick: Joystick;
   private readonly talk: TalkButton;
+  private readonly tidy: TidySlider;
   private readonly detachers: readonly Detach[];
 
   constructor(root: HTMLElement, handlers: HudHandlers) {
@@ -45,12 +47,14 @@ export class DomHud implements Hud {
     this.prompt = new TextPrompt(host);
     this.stick = new Joystick(walk.source());
     this.talk = new TalkButton(handlers);
+    this.tidy = new TidySlider((tidiness) => handlers.onTidinessChanged(tidiness));
     const remoteStick = createRemoteStick(walk.source());
     this.overlay.append(
       this.boards.element,
       this.toolbar.element,
       this.stick.element,
       this.talk.element,
+      this.tidy.element,
       this.zoom.element,
       this.prompt.element,
       this.prompt.feedback,
@@ -74,6 +78,10 @@ export class DomHud implements Hud {
 
   setAutopilot(enabled: boolean): void {
     this.zoom.setAutopilot(enabled);
+  }
+
+  setTidiness(tidiness: number): void {
+    this.tidy.setValue(tidiness);
   }
 
   setTool(tool: Tool): void {

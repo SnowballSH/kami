@@ -119,6 +119,72 @@
   bottom: var(--kami-safe-bottom);
 }
 
+.kami-tidy {
+  position: absolute;
+  left: 50%;
+  bottom: var(--kami-safe-bottom);
+  transform: translateX(-50%);
+  align-items: center;
+  gap: 4px;
+  height: calc(var(--kami-control) + 2 * var(--kami-island-padding));
+  padding: 0 14px 0 10px;
+}
+
+.kami-tidy svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  transition: opacity 0.15s ease;
+}
+
+.kami-tidy.is-off svg {
+  opacity: 0.3;
+}
+
+.kami-tidy-track {
+  position: relative;
+  width: min(170px, 34vw);
+  height: var(--kami-control);
+  cursor: pointer;
+}
+
+.kami-tidy-track::before,
+.kami-tidy-filled {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 2px;
+  border-radius: 2px;
+  transform: translateY(-50%);
+}
+
+.kami-tidy-track::before {
+  right: 0;
+  background: var(--kami-rule);
+}
+
+.kami-tidy-filled {
+  height: 3px;
+  background: var(--kami-ink);
+}
+
+.kami-tidy-bead {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--kami-ink);
+  border-radius: 50%;
+  background: var(--kami-board);
+  transform: translate(-50%, -50%);
+  box-shadow: var(--kami-hairline);
+}
+
+.kami-tidy-track:active .kami-tidy-bead {
+  background: var(--kami-pressed);
+}
+
 .kami-voice {
   position: absolute;
   right: var(--kami-safe-right);
