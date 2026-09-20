@@ -429,7 +429,7 @@ or the importer changes. The game asks the language model **last** — the offli
 are instant — and the server warms it at start.
 
 **Kami's Eye on the box.** Training runs there (`ml/README.md`), and `start.sh` serves the model it finds at
-`~/kami-ml/artifacts/kami-eye` (`KAMI_EYE_MODEL_NAME` picks another; a model shipped from `ml/artifacts` is
+`~/kami-ml/artifacts/<name>`, where `<name>` is the one line in `~/kami-ml/artifacts/LIVE` (`kami-eye` without that file; `KAMI_EYE_MODEL_NAME` overrides it for one start; a model shipped from `ml/artifacts` is
 the fallback) with the sidecar code the deploy shipped to `~/kami/app/eye`. A retrained model needs only
 `~/kami/current/box/start.sh`. No model, no Python packages, or a sidecar that does not come up: the k-NN answers,
 and the start-up log says which.
