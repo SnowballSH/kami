@@ -52,4 +52,21 @@ describe("NoteBook fleeting Kami notes", () => {
     expect(written.position.y).toBeLessThan(500);
     expect(written.position.y + 30).toBeLessThanOrEqual(530);
   });
+
+  it("keeps notes inside the visible world, including guesses at the edge", () => {
+    const book = new NoteBook(new FakeHandwriting());
+    const within = { x: 0, y: 0, width: 200, height: 100 };
+    const written = book.write({
+      note: { ...note("edge", "a long guess", 1), position: { x: 110, y: 90 } },
+      nowMs: 0,
+      within,
+    });
+    const bounds = book.views(0)[0]?.script.bounds;
+    if (bounds === undefined) throw new Error("edge note missing");
+    expect(bounds.x).toBeGreaterThanOrEqual(within.x);
+    expect(bounds.y).toBeGreaterThanOrEqual(within.y);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(within.x + within.width);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(within.y + within.height);
+    expect(written.position).not.toEqual({ x: 110, y: 90 });
+  });
 });

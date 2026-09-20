@@ -181,7 +181,7 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 | Walk intent merger | `src/ui/walkIntent.ts` | built | keyboard + stick + controller → one `intent`, steering the selected Alice (`Party.steer`) |
 | Arduino / cabinet | `src/controller/*`, `server/controllers/*` | external | `kami arcade <x> <y> [buttons]` over UDP/serial/HTTP → SSE → `createRemoteStick` ([controllers.md](controllers.md), [hardware.md](hardware.md)) |
 | Voice | `src/voice/*`, `server/voice/*`, `src/ui/talkButton.ts` | external | hold-to-talk / wake word → Deepgram proxy → funnel; Kami speaks back ([voice.md](voice.md)) |
-| HUD | `src/ui/hud.ts`, `toolbar.ts`, `lawsPanel.ts`, `controls.ts`, `persistenceStatus.ts`, `accessGate.ts` | built | always-available clear-page button; laws panel stays visible with an empty-state hint; autopilot switch, save status, access gate |
+| HUD | `src/ui/hud.ts`, `toolbar.ts`, `lawsPanel.ts`, `controls.ts`, `persistenceStatus.ts`, `accessGate.ts` | built | always-available clear-page button; labeled, focusable 44px controls; laws panel stays visible with an empty-state hint; autopilot switch, save status, access gate |
 
 ## 11. The text funnel
 
@@ -220,7 +220,7 @@ repeals what it enacted.
 | Component | Files | Status | Notes |
 |---|---|---|---|
 | Handwriting | `src/handwriting/*` | built | text → timed pen strokes in a single-stroke font, wobble, reveal |
-| Notes | `src/notes/types.ts`, `src/game/noteBook.ts`, `noteLayout.ts` | built | player and Kami notes; laid out to avoid overlap; a note may own a rule. Nothing written stays: Kami's replies fade in 6–12 s, the player's words and Kami's labels 12 s after they are answered (`NoteBook.release`), restored notes 12 s after the board opens; only the wordmark is permanent. Fading never repeals — laws live on in the laws panel, drawings keep their names |
+| Notes | `src/notes/types.ts`, `src/game/noteBook.ts`, `noteLayout.ts` | built | player and Kami notes; laid out to avoid overlap and clamped inside the visible world. A note may own a rule. Nothing written stays: Kami's replies fade in 6–12 s, the player's words and Kami's labels 12 s after they are answered (`NoteBook.release`), restored notes 12 s after the board opens; only the wordmark is permanent. Fading never repeals — laws live on in the laws panel, drawings keep their names |
 | Pen reading | `src/reading/*`, `src/persistence/httpHandwritingReader.ts` | built / external | handwriting → words while still writing (a read per pen-lift) |
 | Lines & lore | `src/cat/lines.ts`, `src/game/lines.ts`, `src/sim/sumikui.ts` | built | refusals, tempers, warps, devourings, the under-the-page recital |
 

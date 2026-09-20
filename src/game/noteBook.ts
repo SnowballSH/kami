@@ -1,4 +1,4 @@
-import { expandRect, type Rect, rectContains, type Vec } from "../core/geometry";
+import { clamp, expandRect, type Rect, rectContains, type Vec } from "../core/geometry";
 import type { Handwriting, PenScript } from "../handwriting/types";
 import type { DrawingId } from "../ink/types";
 import type { Note, NoteId } from "../notes/types";
@@ -51,15 +51,22 @@ export class NoteBook {
   write({ note, nowMs, lifetimeMs, anchor, drift, minY, obstacles, within }: NotePlacement): Note {
     const placed =
       drift === undefined ? note : this.clearSpotFor(note, drift, minY, obstacles ?? [], within);
-    return this.inscribe(placed, nowMs, anchor ?? null, lifetimeMs).note;
+    return this.inscribe(
+      this.clampToWithin(placed, within),
+      nowMs,
+      anchor ?? null,
+      lifetimeMs,
+      within,
+    ).note;
   }
 
   /** A note from a previous session: already on the board, fully written, and soon to fade. */
-  restore(note: Note, nowMs: number, lifetimeMs: number): void {
+  restore(note: Note, nowMs: number, lifetimeMs: number, within?: Rect): void {
     const anchor: NoteAnchor | null =
       note.drawingId === undefined ? null : { type: "drawing", id: note.drawingId };
-    this.inscribe(note, nowMs - ALREADY_WRITTEN_MS, anchor);
-    this.release(note.id, nowMs, lifetimeMs);
+    const placed = this.clampToWithin(note, within);
+    this.inscribe(placed, nowMs - ALREADY_WRITTEN_MS, anchor, undefined, within);
+    this.release(placed.id, nowMs, lifetimeMs);
   }
 
   /** Lets a note that was written to stay go after `lifetimeMs`, unless it was already leaving sooner. */
@@ -167,7 +174,7 @@ export class NoteBook {
     obstacles: readonly Rect[],
     within: Rect | undefined,
   ): Note {
-    const wanted = this.scriptFor(note, this.seed + 1).bounds;
+    const wanted = this.scriptFor(note, this.seed + 1, within).bounds;
     const taken = [...this.entries.values()].map((entry) => entry.script.bounds).concat(obstacles);
     const settled = settle(wanted, taken, drift, minY, within);
     const position = {
@@ -177,10 +184,30 @@ export class NoteBook {
     return { ...note, position };
   }
 
-  private scriptFor(note: Note, seed: number): PenScript {
+  private clampToWithin(note: Note, within: Rect | undefined): Note {
+    if (within === undefined) return note;
+    const script = this.scriptFor(note, this.seed + 1, within);
+    const offsetX = script.bounds.x - note.position.x;
+    const offsetY = script.bounds.y - note.position.y;
+    const minX = within.x - offsetX;
+    const maxX = within.x + within.width - script.bounds.width - offsetX;
+    const minY = within.y - offsetY;
+    const maxY = within.y + within.height - script.bounds.height - offsetY;
+    return {
+      ...note,
+      position: {
+        x: clamp(note.position.x, Math.min(minX, maxX), Math.max(minX, maxX)),
+        y: clamp(note.position.y, Math.min(minY, maxY), Math.max(minY, maxY)),
+      },
+    };
+  }
+
+  private scriptFor(note: Note, seed: number, within?: Rect): PenScript {
+    const style = NOTE_STYLE[note.author];
     return this.handwriting.write(note.text, {
       origin: note.position,
-      ...NOTE_STYLE[note.author],
+      ...style,
+      maxWidth: Math.min(style.maxWidth, within?.width ?? style.maxWidth),
       seed,
     });
   }
@@ -190,9 +217,10 @@ export class NoteBook {
     writtenAtMs: number,
     anchor: NoteAnchor | null,
     lifetimeMs?: number,
+    within?: Rect,
   ): Entry {
     this.seed += 1;
-    const script = this.scriptFor(note, this.seed);
+    const script = this.scriptFor(note, this.seed, within);
     const expiresAtMs =
       lifetimeMs === undefined ? null : writtenAtMs + script.durationMs + lifetimeMs;
     const entry = { note, script, writtenAtMs, expiresAtMs, anchor };

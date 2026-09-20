@@ -795,7 +795,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private placeNote(note: Note): void {
     this.lastSubmittedAt = Math.max(this.lastSubmittedAt, note.createdAt);
     if (same(this.notes.get(note.id), note)) return;
-    this.notes.restore(note, this.nowMs, NOTE_LINGER_MS);
+    this.notes.restore(note, this.nowMs, NOTE_LINGER_MS, this.visibleWorldRect());
     if (!isPlayers(note)) this.labelsByKami.add(note.id);
   }
 
