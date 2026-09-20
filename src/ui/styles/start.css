@@ -37,6 +37,7 @@
   flex-direction: column;
   gap: 0.5rem;
   width: 15rem;
+  min-height: 44px;
   padding: 1.25rem;
   border: 1.5px solid #252525;
   border-radius: 0.75rem;
@@ -51,6 +52,11 @@
 .start-choices button:hover,
 .start-choices button:focus-visible {
   background: var(--kami-hover);
+}
+
+.start-choices button:focus-visible {
+  outline: 3px solid var(--kami-ink);
+  outline-offset: 3px;
 }
 
 .start-choices strong {

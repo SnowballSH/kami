@@ -68,6 +68,8 @@ export const chooseMode = (
   const heading = document.createElement("h1");
   const wordmark = document.createElement("img");
   wordmark.className = "start-wordmark";
+  wordmark.width = 960;
+  wordmark.height = 446;
   wordmark.src = wordmarkUrl;
   wordmark.alt = "kami";
   heading.append(wordmark);
@@ -76,7 +78,9 @@ export const chooseMode = (
   for (const choice of START_CHOICES) {
     const button = document.createElement("button");
     button.type = "button";
-    button.dataset["mode"] = choice.id;
+    button.dataset.mode = choice.id;
+    button.setAttribute("aria-label", `Start ${choice.name}`);
+    if (choices.childElementCount === 0) button.autofocus = true;
     const name = document.createElement("strong");
     name.textContent = choice.name;
     const line = document.createElement("span");
