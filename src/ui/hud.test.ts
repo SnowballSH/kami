@@ -71,6 +71,16 @@ describe("DomHud", () => {
   });
 
   describe("toolbar", () => {
+    it("reports its current bottom edge for canvas writing placement", () => {
+      const { root, hud } = setup();
+      const toolbar = find<HTMLElement>(root, ".kami-toolbar");
+      const rect = vi.spyOn(toolbar, "getBoundingClientRect");
+      rect.mockReturnValue(new DOMRect(100, 32, 240, 50));
+      expect(hud.toolbarBottom()).toBe(82);
+      rect.mockReturnValue(new DOMRect(100, 48, 240, 70));
+      expect(hud.toolbarBottom()).toBe(118);
+    });
+
     it("starts on draw and reports the tool a button picks", () => {
       const { root, handlers, pressedTools } = setup();
       expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-draw")]);

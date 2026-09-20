@@ -192,7 +192,8 @@ export const createApi = ({
         : badRequest(INVALID_CONTROLLER_ID),
     )
     .on("POST", "/api/transcribe", async ({ request }) => {
-      if (transcriber === null) return notImplemented("no handwriting reader is attached");
+      if (transcriber === null || !transcriber.ready)
+        return notImplemented("no verified handwriting reader is available");
       const body = await parseJsonBody(request, transcribeRequestSchema);
       if (!body.ok) return body.response;
       const text = await transcriber.transcribe(body.value.strokes, { signal: request.signal });

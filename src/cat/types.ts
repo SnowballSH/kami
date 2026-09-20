@@ -16,6 +16,7 @@ export const NATURES = [
   "walker",
   "hopper",
   "flier",
+  "vehicle",
   "attractor",
   "lantern",
   "solid",
@@ -26,7 +27,8 @@ export const NATURES = [
 
 /**
  * What a drawing is. The first ten are spirits (spec §4). Then three creatures, which move by
- * themselves: `walker` paces, `hopper` leaps, `flier` roams the air. Then two fields: an
+ * themselves: `walker` paces, `hopper` leaps, `flier` roams the air; a `vehicle` rolls where Alice
+ * steers it while she stands aboard. Then two fields: an
  * `attractor` pulls everything toward it, a `lantern` lights its patch at night. The last four are roles, for
  * sketching a new game: `solid` is ground that stays put wherever it was drawn, `goal` wins the board,
  * `hazard` sends Alice back to her checkpoint, `spawn` moves that checkpoint.
@@ -71,6 +73,7 @@ export interface RoomBrief {
 export interface Look {
   readonly certain: Ruling | null;
   readonly guesses: readonly [string, string, string];
+  readonly rulings: readonly Ruling[];
 }
 
 export interface Cat {
@@ -78,6 +81,8 @@ export interface Cat {
   enterRoom(room: RoomBrief): void;
   /** Maps whatever the player said about `drawing` onto a nature. Never rejects. */
   name(utterance: string, drawing: Drawing): Promise<Ruling>;
+  /** Accepts an offered ruling, subject to the current room's restrictions. */
+  accept(ruling: Ruling): Ruling;
   /**
    * His three best guesses at an unnamed drawing, as short names ("a mushroom"). What the
    * recognizer saw comes first; a geometric hunch fills in when it saw nothing.

@@ -33,7 +33,7 @@ const controllers = await startControllers(config.controllers, {
 });
 
 const compiler = createLlmCompiler(config.llm);
-const transcriber = createLlmTranscriber(config.llm);
+const transcriber = createLlmTranscriber(config.transcribe);
 const voice = voiceSockets(config.voice);
 const api = createApi({
   boards,
@@ -79,17 +79,19 @@ console.log(
 );
 console.log(`  model compile: ${config.llm === null ? "off" : config.llm.model}`);
 console.log(
-  `  handwriting: ${config.llm === null ? "off" : `${config.llm.model} (as a vision model)`}`,
+  `  handwriting: ${config.transcribe === null ? "off" : `${config.transcribe.model} (checking vision)`}`,
 );
-if (transcriber !== null) {
-  void compiler
-    .warmUp()
-    .then((awake) =>
-      console.log(`  model ${awake ? "is awake" : "did not answer (is the GX10 tunnel up?)"}`),
-    )
-    .then(() => transcriber.warmUp())
-    .then((reads) => console.log(`  handwriting reader ${reads ? "is awake" : "did not answer"}`));
-}
+void compiler
+  .warmUp()
+  .then((awake) => {
+    if (config.llm !== null)
+      console.log(`  model ${awake ? "is awake" : "did not answer (is the GX10 tunnel up?)"}`);
+  })
+  .then(async () => {
+    if (transcriber === null) return;
+    const reads = await transcriber.warmUp();
+    console.log(`  handwriting reader ${reads ? "is ready" : "disabled: image check failed"}`);
+  });
 
 const once = (task: () => Promise<void>): (() => Promise<void>) => {
   let started: Promise<void> | undefined;

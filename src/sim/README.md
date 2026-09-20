@@ -10,7 +10,7 @@
 | `alice.ts` | `AliceController`: walking, blocking, step-assist, climbing, resize, respawn, traction |
 | `contacts.ts` | Collision categories, `Contact`, slope classification, the probe helpers |
 | `inkLayer.ts` / `inkEntity.ts` | Live drawings ↔ matter bodies; rebuilds a body when a ruling changes it |
-| `inkBody.ts` | Strokes → one compound body |
+| `inkBody.ts` | Strokes → one compound body; `ink/bearing.ts` first drops the strokes that are scenery |
 | `anchoring.ts` | Anchor-cluster counting |
 | `natures.ts` | The strategy table keyed by `Nature`: ten spirits and four roles |
 | `boardProps.ts` | The board's pre-sketched solids, door, key, goal |
@@ -18,6 +18,10 @@
 | `worldPhysics.ts` | `WorldPhysics` → matter-js numbers: accelerations, materials, per-body pushes |
 | `emptyBoard.ts` | What the simulation holds before the first `loadBoard` |
 | `constants.ts` | Every tuning number |
+
+## Load-bearing strokes
+
+A drawing is a side view, so whatever is drawn *above* a span and *within* it — the towers and cables of a bridge, the walls and roof over a floor — stands behind the walkway, not on it. `bearingStrokes` (`src/ink/bearing.ts`) keeps every span (a straight, near-level run at least `MIN_SPAN` wide) and every stroke that reaches past or below one, and drops the rest before the body is built. The autopilot's chart stamps the same subset. Rendering and erasing still use every stroke; a lone stroke is always solid.
 
 ## Step and tick
 
