@@ -46,6 +46,7 @@ import {
   type AliceSize,
   type AliceSnapshot,
   type Axis,
+  type Ride,
   type WalkIntent,
 } from "./types";
 import { accelerationOf, airFrictionUnder, cancelGravity } from "./worldPhysics";
@@ -60,6 +61,8 @@ export interface AliceSurroundings {
   isClimbable(body: Matter.Body): boolean;
   /** A vehicle under her that flies where she points, so up is not a jump. */
   liftsHer(body: Matter.Body): boolean;
+  /** What standing on `body` makes her: a driver or a passenger, or nothing special. */
+  rideOn(body: Matter.Body): Ride | null;
 }
 
 interface ResizeTween {
@@ -91,6 +94,7 @@ export class AliceController {
   private climbing = false;
   private onClimbable = false;
   private piloting = false;
+  private mount: Ride | null = null;
   private footing: readonly Contact[] = [];
   private ahead: readonly Contact[] = [];
   private passing: readonly Contact[] = [];
@@ -250,6 +254,7 @@ export class AliceController {
     this.passing = contactsWith(this.body, passables);
     this.onClimbable = this.passing.some((contact) => surroundings.isClimbable(contact.body));
     this.piloting = this.footing.some((contact) => surroundings.liftsHer(contact.body));
+    this.mount = this.rideUnderfoot(surroundings);
     if (this.grounded) this.lastFootingY = bottomOf(this.bounds());
   }
 
@@ -326,6 +331,7 @@ export class AliceController {
     this.passing = [];
     this.onClimbable = false;
     this.piloting = false;
+    this.mount = null;
     this.blockedTicks = 0;
     this.jumpArmed = true;
     this.lastFootingY = feet.y;
@@ -359,6 +365,7 @@ export class AliceController {
     const { x, y } = this.body.position;
     return {
       center: { x, y },
+      velocity: this.velocity,
       width,
       height,
       size: this.currentSize,
@@ -369,6 +376,7 @@ export class AliceController {
       grounded: this.grounded,
       climbing: this.climbing,
       hasKey: this.hasKey,
+      ride: this.mount,
       look: this.look(),
     };
   }
@@ -382,6 +390,14 @@ export class AliceController {
       abilities: this.abilities,
       clockMs: this.clock,
     };
+  }
+
+  private rideUnderfoot(surroundings: AliceSurroundings): Ride | null {
+    for (const contact of this.footing) {
+      const ride = surroundings.rideOn(contact.body);
+      if (ride !== null) return ride;
+    }
+    return null;
   }
 
   private walkVelocity(current: number, direction: Axis, surroundings: AliceSurroundings): number {

@@ -4,6 +4,7 @@ import { lightsOf } from "./nightPainter";
 
 const standing = (x: number): AliceSnapshot => ({
   center: { x, y: 100 },
+  velocity: { x: 0, y: 0 },
   width: 28,
   height: 60,
   size: "normal",
@@ -14,6 +15,7 @@ const standing = (x: number): AliceSnapshot => ({
   grounded: true,
   climbing: false,
   hasKey: false,
+  ride: null,
   look: { kind: "alice" },
 });
 

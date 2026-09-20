@@ -2,7 +2,7 @@ import type { EventSourceFactory, EventSourceLike } from "../controller/types";
 import { API_BASE, browserFetch, type FetchLike, JSON_HEADERS } from "../persistence/api";
 import type { AliceSnapshot } from "../sim/types";
 import type { Detach } from "../ui/types";
-import { type BoardChange, type Ghost, type PeerId, parseFeedMessage } from "./wire";
+import { type BoardChange, type Ghost, ghostOf, type PeerId, parseFeedMessage } from "./wire";
 
 /** How often a device says where its Alice is: a few times a second is plenty for a ghost. */
 export const PRESENCE_INTERVAL_MS = 250;
@@ -101,7 +101,7 @@ export class BoardLink {
     void this.fetch(presencePath(following.boardId), {
       method: "POST",
       headers: JSON_HEADERS,
-      body: JSON.stringify({ peer: this.peer, alice }),
+      body: JSON.stringify({ peer: this.peer, alice: ghostOf(alice) }),
       keepalive: true,
     }).catch(() => {});
   }

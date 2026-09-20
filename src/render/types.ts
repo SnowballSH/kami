@@ -4,7 +4,7 @@ import type { Pose, Stroke, Vec } from "../core/geometry";
 import type { PenScript } from "../handwriting/types";
 import type { Drawing, DrawingId, PlacementVerdict } from "../ink/types";
 import type { NoteAuthor, NoteId, NoteTone } from "../notes/types";
-import type { AliceIndex, AliceSnapshot, WorldSnapshot } from "../sim/types";
+import type { AliceIndex, AliceSnapshot, SimEvent, WorldSnapshot } from "../sim/types";
 
 /** The window onto the endless board: `center` is the world point in the middle of the canvas. */
 export interface Camera {
@@ -65,6 +65,8 @@ export interface RenderFrame {
   readonly ghosts?: readonly AliceSnapshot[];
   /** Which Alice the player steers; marked only when there are several to tell apart. */
   readonly selectedAlice?: AliceIndex;
+  /** What the simulation reported since the last frame, for beats a snapshot alone cannot show. */
+  readonly events?: readonly SimEvent[];
 }
 
 export interface Renderer {

@@ -87,6 +87,19 @@ describe("ink ruled vehicle", () => {
     expect(centreOf(sim)).toBeLessThan(parked);
   });
 
+  it("shows in her snapshot as her ride only while she is aboard", () => {
+    const sim = parkCar();
+    expect(aliceOf(sim).ride).toBeNull();
+    climbAboard(sim);
+    runSteps(sim, 2);
+    expect(aliceOf(sim).ride).toEqual({ id: CAR, gait: "vehicle" });
+    sim.setWalkIntent(STAY);
+    runSteps(sim, 60);
+    sim.setWalkIntent({ x: -1, y: -1 });
+    runUntil(sim, (_events, current) => aliceOf(current).grounded && feetOf(current).x < 30);
+    expect(aliceOf(sim).ride).toBeNull();
+  });
+
   it("lets her jump off the back", () => {
     const sim = parkCar();
     climbAboard(sim);

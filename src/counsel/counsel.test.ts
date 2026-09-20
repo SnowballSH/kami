@@ -16,6 +16,7 @@ const groundEnd = ENDLESS_GROUND.x + ENDLESS_GROUND.width;
 
 const alice = (feet: Vec, facing: 1 | -1 = 1): AliceSnapshot => ({
   center: { x: feet.x, y: feet.y - ALICE_BASE.height / 2 },
+  velocity: { x: 0, y: 0 },
   width: ALICE_BASE.width,
   height: ALICE_BASE.height,
   size: "normal",
@@ -26,6 +27,7 @@ const alice = (feet: Vec, facing: 1 | -1 = 1): AliceSnapshot => ({
   grounded: true,
   climbing: false,
   hasKey: false,
+  ride: null,
   look: { kind: "alice" },
 });
 

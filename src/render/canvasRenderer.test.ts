@@ -27,24 +27,28 @@ const SILENT: Handwriting = {
 const CANVAS_ORIGIN = { x: 100, y: 50 };
 const FAR_AWAY = 1e6;
 
+const ALICE: AliceSnapshot = {
+  center: { x: FAR_AWAY, y: FAR_AWAY },
+  velocity: { x: 0, y: 0 },
+  width: 40,
+  height: 80,
+  size: "normal",
+  sizeMultiplier: 1,
+  headingScale: 1,
+  facing: 1,
+  walking: false,
+  grounded: true,
+  climbing: false,
+  hasKey: false,
+  ride: null,
+  look: { kind: "alice" },
+};
+
 const frame = (eraserActive: boolean, ghosts?: readonly AliceSnapshot[]): RenderFrame => ({
   nowMs: 0,
   camera: { center: { x: 20, y: 20 }, zoom: 2, angle: 0 },
   world: {
-    alice: {
-      center: { x: FAR_AWAY, y: FAR_AWAY },
-      width: 40,
-      height: 80,
-      size: "normal",
-      sizeMultiplier: 1,
-      headingScale: 1,
-      facing: 1,
-      walking: false,
-      grounded: true,
-      climbing: false,
-      hasKey: false,
-      look: { kind: "alice" },
-    },
+    alice: ALICE,
     soul: null,
     tear: null,
     twins: [],
@@ -64,11 +68,7 @@ const frame = (eraserActive: boolean, ghosts?: readonly AliceSnapshot[]): Render
   ...(ghosts === undefined ? {} : { ghosts }),
 });
 
-const ghostAt = (center: Vec): AliceSnapshot => {
-  const { alice } = frame(false).world;
-  if (alice === null) throw new Error("Nobody is on the board");
-  return { ...alice, center };
-};
+const ghostAt = (center: Vec): AliceSnapshot => ({ ...ALICE, center });
 
 const setup = () => {
   const calls: Call[] = [];

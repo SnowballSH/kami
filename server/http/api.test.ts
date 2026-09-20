@@ -836,6 +836,7 @@ describe("CORS", () => {
 describe("shared pages", () => {
   const GHOST = {
     center: { x: 12, y: -30 },
+    velocity: { x: 1.5, y: 0 },
     width: 24,
     height: 48,
     size: "normal",
@@ -846,6 +847,7 @@ describe("shared pages", () => {
     grounded: true,
     climbing: false,
     hasKey: false,
+    ride: null,
     look: { kind: "alice" },
   } as const;
 
