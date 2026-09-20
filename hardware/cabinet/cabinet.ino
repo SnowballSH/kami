@@ -1,9 +1,10 @@
 // Kami cabinet — Arduino UNO R4 WiFi
 // Wiring + protocol: docs/hardware.md
-// NOT YET COMPILED. Libraries: Adafruit NeoPixel; Arduino_LED_Matrix (bundled with the UNO R4 core).
+// Build profile: sketch.yaml; compile and native checks: scripts/checkCabinet.sh.
 
 #include <Adafruit_NeoPixel.h>
 #include "Arduino_LED_Matrix.h"
+#include "input.h"
 
 #define N_PX 60                         // only the first 60 px of the 300 px strip
 const uint8_t PIN_DIR[4] = {2, 3, 4, 5};  // left, right, up, down  (LOW = pressed)
@@ -30,8 +31,8 @@ int   inkPct = 100;
 bool  catOn = false, catShown = false;
 uint32_t pulseStart = 0, flashUntil = 0, flashColor = 0;
 uint32_t lastSend = 0, lastShow = 0;
-char  line[24];
-uint8_t len = 0;
+DebouncedButton directions[4], inkButton, catButton;
+FeedbackLine feedbackLine;
 
 void setup() {
   Serial.begin(115200);
@@ -48,23 +49,29 @@ void setup() {
   matrix.renderBitmap(BLANK, 8, 12);
 }
 
-void handleLine() {
-  line[len] = 0;
-  if (line[0] == 'I' && line[1] == ',')      inkPct = constrain(atoi(line + 2), 0, 100);
-  else if (line[0] == 'C' && line[1] == ',') catOn = (line[2] == '1');
-  else if (line[0] == 'P')                   pulseStart = millis();
-  else if (line[0] == 'F' && line[1] == ',') {
-    flashColor = (line[2] == 'g') ? strip.Color(0, 255, 60) : strip.Color(255, 0, 0);
-    flashUntil = millis() + 350;
+void handleLine(const char* line) {
+  Feedback feedback;
+  if (!parseFeedback(line, feedback)) return;
+  switch (feedback.kind) {
+    case FeedbackKind::Ink:
+      inkPct = feedback.value;
+      break;
+    case FeedbackKind::Cat:
+      catOn = feedback.value != 0;
+      break;
+    case FeedbackKind::Pulse:
+      pulseStart = millis();
+      break;
+    case FeedbackKind::Flash:
+      flashColor = feedback.value ? strip.Color(0, 255, 60) : strip.Color(255, 0, 0);
+      flashUntil = millis() + 350;
+      break;
   }
 }
 
 void readSerial() {
   while (Serial.available()) {
-    char c = Serial.read();
-    if (c == '\n' || c == '\r') { if (len) handleLine(); len = 0; }
-    else if (len < sizeof(line) - 1) line[len++] = c;
-    else len = 0;                       // overlong line: drop it
+    if (feedbackLine.push(Serial.read())) handleLine(feedbackLine.text());
   }
 }
 
@@ -99,13 +106,17 @@ void loop() {
   px += ALPHA * (analogRead(A0) - px);
   py += ALPHA * (analogRead(A1) - py);
 
+  uint8_t dir = 0;
+  for (uint8_t i = 0; i < 4; i++)
+    if (directions[i].sample(digitalRead(PIN_DIR[i]) == LOW, now)) dir |= (1 << i);
+  const bool inkHeld = inkButton.sample(digitalRead(PIN_INK) == LOW, now);
+  const bool catHeld = catButton.sample(digitalRead(PIN_CAT) == LOW, now);
+
   if (now - lastSend >= 20) {           // 50 Hz
     lastSend = now;
-    uint8_t dir = 0;
-    for (uint8_t i = 0; i < 4; i++) if (digitalRead(PIN_DIR[i]) == LOW) dir |= (1 << i);
     Serial.print("S,");  Serial.print(dir);
-    Serial.print(',');   Serial.print(digitalRead(PIN_INK) == LOW ? 1 : 0);
-    Serial.print(',');   Serial.print(digitalRead(PIN_CAT) == LOW ? 1 : 0);
+    Serial.print(',');   Serial.print(inkHeld ? 1 : 0);
+    Serial.print(',');   Serial.print(catHeld ? 1 : 0);
     Serial.print(',');   Serial.print((int)px);
     Serial.print(',');   Serial.println((int)py);
   }

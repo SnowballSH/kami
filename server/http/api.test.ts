@@ -66,6 +66,12 @@ const moonRule: Rule = {
 };
 
 const MARS_RULE = { effect: { governs: "gravity", x: 0, y: 0.38 }, explanation: "Mars" } as const;
+const MARS_SCENE = {
+  place: "Mars",
+  laws: [MARS_RULE],
+  props: [{ word: "cactus", at: { x: -200, y: -120 }, size: 1 }],
+  line: "Red dust everywhere.",
+} as const;
 
 const PRETTIER = [
   [
@@ -116,6 +122,9 @@ beforeAll(async () => {
   const compiler = {
     compile: async (text: string) => (text.includes("mars") ? MARS_RULE : null),
   };
+  const scenes = {
+    compile: async (text: string) => (text.includes("mars") ? MARS_SCENE : null),
+  };
   const transcriber = {
     ready: true,
     transcribe: async (strokes: readonly Stroke[]) => (strokes.length > 1 ? "no gravity" : null),
@@ -129,7 +138,7 @@ beforeAll(async () => {
   });
   clock = new ManualClock();
   controllers = new InMemoryControllerHub(clock);
-  apiParts = () => ({ boards, recognizer, compiler, controllers, transcriber });
+  apiParts = () => ({ boards, recognizer, compiler, scenes, controllers, transcriber });
   api = createApi({ ...apiParts(), beautifier });
 }, 120_000);
 
@@ -206,6 +215,7 @@ describe("input budgets", () => {
     ["/api/beautify", INPUT_LIMITS.sketchBytes],
     ["/api/transcribe", INPUT_LIMITS.sketchBytes],
     ["/api/compile", INPUT_LIMITS.textBytes],
+    ["/api/scene", INPUT_LIMITS.textBytes],
     ["/api/controllers/pen/state", INPUT_LIMITS.controllerBytes],
   ])("rejects excessive bytes on %s before parsing", async (path, bytes) => {
     expect((await call("POST", path, " ".repeat(bytes + 1))).status).toBe(413);
@@ -399,6 +409,7 @@ describe("bad requests", () => {
     );
     expect((await call("POST", "/api/compile", { text: 7 })).status).toBe(400);
     expect((await call("POST", "/api/compile")).status).toBe(400);
+    expect((await call("POST", "/api/scene", { text: 7 })).status).toBe(400);
   });
 
   it("answers 404 to unknown routes and collections, 400 to a malformed path", async () => {
@@ -432,6 +443,43 @@ describe("beautify", () => {
 
   it("rejects a sketch with no name", async () => {
     expect((await call("POST", "/api/beautify", { strokes, name: " " })).status).toBe(400);
+  });
+});
+
+describe("exemplar", () => {
+  const RABBIT = {
+    word: "rabbit",
+    strokes: [
+      [
+        { x: 0, y: 0 },
+        { x: 255, y: 255 },
+      ],
+    ],
+  };
+  const drawing = () =>
+    createApi({
+      ...apiParts(),
+      beautifier,
+      exemplars: { exemplar: async (word) => (word === "rabbit" ? RABBIT : null) },
+    });
+
+  it("draws the word asked for", async () => {
+    const response = await drawing().handle(new Request(`${ORIGIN}/api/exemplar?word=rabbit`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(await response.json()).toEqual(RABBIT);
+  });
+
+  it("has no picture of a word it never learnt, and none at all without a source", async () => {
+    const unknown = await drawing().handle(new Request(`${ORIGIN}/api/exemplar?word=unicorn`));
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({ error: "no picture of unicorn" });
+    expect((await call("GET", "/api/exemplar?word=rabbit")).status).toBe(404);
+  });
+
+  it("asks for a word when given none", async () => {
+    expect((await call("GET", "/api/exemplar")).status).toBe(400);
+    expect((await call("GET", "/api/exemplar?word=%20")).status).toBe(400);
   });
 });
 
@@ -644,6 +692,14 @@ describe("recognise and compile", () => {
     const shrug = await call("POST", "/api/compile", { text: "a mushroom" });
     expect(await shrug.json()).toEqual({ rule: null });
   });
+
+  it("returns the scene compiler's scene, or null when it knows no such place", async () => {
+    const known = await call("POST", "/api/scene", { text: "take us to mars" });
+    expect(await known.json()).toEqual({ scene: MARS_SCENE });
+    const unknown = await call("POST", "/api/scene", { text: "take us to narnia" });
+    expect(await unknown.json()).toEqual({ scene: null });
+    expect((await call("POST", "/api/scene")).status).toBe(400);
+  });
 });
 
 describe("controllers", () => {
@@ -743,10 +799,27 @@ describe("controllers", () => {
 });
 
 describe("CORS", () => {
-  it("answers preflights and marks responses as readable from any origin", async () => {
-    const preflight = await call("OPTIONS", "/api/boards/demo/notes/note-1");
+  it("allows same-origin demo requests without exposing the API to arbitrary origins", async () => {
+    const preflight = await api.handle(
+      new Request(`${ORIGIN}/api/boards/demo/notes/note-1`, {
+        method: "OPTIONS",
+        headers: { origin: ORIGIN, "access-control-request-method": "PUT" },
+      }),
+    );
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("access-control-allow-methods")).toContain("PUT");
-    expect((await call("GET", "/api/boards")).headers.get("access-control-allow-origin")).toBe("*");
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    expect((await call("GET", "/api/boards")).headers.has("access-control-allow-origin")).toBe(
+      false,
+    );
+    expect(
+      (
+        await api.handle(
+          new Request(`${ORIGIN}/api/boards`, {
+            headers: { origin: "https://untrusted.test" },
+          }),
+        )
+      ).status,
+    ).toBe(403);
   });
 });

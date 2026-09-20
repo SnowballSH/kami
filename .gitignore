@@ -6,3 +6,4 @@ dist/
 coverage/
 .kami-data/
 .gx10/
+__pycache__/

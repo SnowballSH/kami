@@ -7,7 +7,9 @@
 
 *Kami* (紙) is paper. *Kami* (神) is also the spirit that lives in a thing. The game is both: a world made of paper, where anything you draw gets a spirit the moment you say what it is.
 
-This is the source of truth for **what we're making and why**. How it's built lives in `engineering-notes.md`; the cabinet lives in `hardware.md`.
+This is the source of truth for **what we're making and why**. How it's built, including demo
+differences and verification limits, lives in [architecture.md](architecture.md); the cabinet
+lives in [hardware.md](hardware.md). Historical designs are archived separately.
 
 ---
 
@@ -69,8 +71,11 @@ One per drawing. The player never sees this list — they see the ink change tin
 | **vehicle** | car, cart, boat, bicycle, train, skateboard | Something to drive. Alice steps aboard and it rolls where she points, faster than she walks; she jumps off |
 | **attractor** | black hole, sun, vortex, whirlpool | Pulls Alice and every loose drawing toward itself |
 | **lantern** | lantern, lamp, candle, torch | Lights its patch of the board when it's night |
+| **portal** | portal, wormhole, warp, gate, mirror, looking glass | Step in here, out of the one drawn next. Two link; three or more go round in a ring; one alone leads nowhere (*"Draw it a twin."*). Never a wall |
 
 Creatures are natures, not names: a *walking* teapot walks, a *flying* pig flies. Any animal the Cat knows goes into the nature that says how it moves, and the player's own verb or adjective overrules the noun.
+
+A creature may also have a **temper** toward Alice: *follows* or *flees*. Dogs, puppies, ducklings, knights and ghosts follow her by nature — a walker heels at her side, a hopper bounds after her, a flier perches above her head; mice, deer, squirrels and butterflies bolt when she comes near and forget her once she is far. The player's word wins over the animal's: *a shy dog* runs, *a loyal mouse* heels, *a tortoise that follows Alice* follows. Alice can still be steered by hand; the creatures make up their own minds.
 
 Plus free-form **tags** the inhabitants react to — *rose*, *tart*, *queen* — see Room 5.
 

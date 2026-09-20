@@ -7,16 +7,17 @@ import {
   createBoardStore,
   createHandwritingReader,
   createRemoteRuleCompiler,
+  createRemoteSceneCompiler,
   guardUnsavedChanges,
 } from "../persistence";
 import { createPenReader } from "../reading";
 import { createRecognizer } from "../recognition";
 import { createRenderer } from "../render";
-import { createRuleCompiler, resolvePhysics } from "../rules";
+import { createRuleCompiler, createSceneCompiler, resolvePhysics } from "../rules";
 import { createSimulation } from "../sim";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
 import { createVoice } from "../voice";
-import { Game } from "./game";
+import { DEFAULT_TIDINESS, Game } from "./game";
 
 const BOARD_PARAM = "board";
 const AUTOPILOT_PARAM = "autopilot";
@@ -44,6 +45,23 @@ const rememberSelfDriving = (enabled: boolean): void => {
   } catch {}
 };
 
+const TIDINESS_MEMORY = "kami.tidiness";
+
+const rememberedTidiness = (): number => {
+  try {
+    const kept = Number.parseFloat(window.localStorage.getItem(TIDINESS_MEMORY) ?? "");
+    return Number.isFinite(kept) ? kept : DEFAULT_TIDINESS;
+  } catch {
+    return DEFAULT_TIDINESS;
+  }
+};
+
+const rememberTidiness = (tidiness: number): void => {
+  try {
+    window.localStorage.setItem(TIDINESS_MEMORY, String(tidiness));
+  } catch {}
+};
+
 const boardInUrl = (): string =>
   new URLSearchParams(window.location.search).get(BOARD_PARAM) ?? DEMO_BOARD_ID;
 
@@ -67,10 +85,12 @@ export function startGame(root: HTMLElement): void {
       autopilot: createAutopilot(),
       cat: createCat(recognizer),
       finisher: recognizer,
+      summoner: recognizer,
       renderer,
       handwriting,
       compiler: createRuleCompiler(),
       thinker: createRemoteRuleCompiler(),
+      scenes: createSceneCompiler(createRemoteSceneCompiler()),
       store,
       penReader: createPenReader(createHandwritingReader()),
       resolvePhysics,
@@ -83,6 +103,8 @@ export function startGame(root: HTMLElement): void {
       onBoardOpened: rememberBoardInUrl,
       selfDriving: startsSelfDriving(),
       onSelfDrivingChanged: rememberSelfDriving,
+      tidiness: rememberedTidiness(),
+      onTidinessChanged: rememberTidiness,
     },
     boardInUrl(),
   );

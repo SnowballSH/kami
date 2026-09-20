@@ -7,7 +7,7 @@ nothing of theirs covers are added. The rules are in CONTRACT.md, "Completion".
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 from numpy.typing import NDArray
@@ -40,6 +40,24 @@ class MorphSettings:
     coverage_weight: float = 0.1
     refinements: int = 8
     refine_scale_limits: tuple[float, float] = (0.8, 1.25)
+
+
+DEFAULT_FIRMNESS = 0.5
+MAX_REACH = 0.25
+
+
+def firmed(settings: MorphSettings, firmness: float) -> MorphSettings:
+    """The player's say in it: 0 leaves the ink alone, 0.5 is these settings, 1 is twice as firm:
+    strengths up to a full snap, points allowed twice as far, ink a little further off pulled in."""
+    scale = min(1.0, max(0.0, firmness)) / DEFAULT_FIRMNESS
+    return replace(
+        settings,
+        gentle_strength=min(1.0, settings.gentle_strength * scale),
+        bold_strength=min(1.0, settings.bold_strength * scale),
+        gentle_shift=settings.gentle_shift * scale,
+        bold_shift=settings.bold_shift * scale,
+        reach=min(MAX_REACH, settings.reach * max(1.0, scale)),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,10 +265,12 @@ def morph(
     player: list[Points],
     exemplar: list[Points],
     certainty: float = 1.0,
+    firmness: float = DEFAULT_FIRMNESS,
     settings: MorphSettings = DEFAULT_SETTINGS,
 ) -> Morph | None:
     """None when either drawing has no extent to work with. `tidied` always has the player's shape:
     the same strokes in the same order, each with the same number of points."""
+    settings = firmed(settings, firmness)
     inked = [stroke for stroke in player if len(stroke) > 0]
     exemplar = [stroke for stroke in exemplar if len(stroke) > 0]
     if not inked or not exemplar:

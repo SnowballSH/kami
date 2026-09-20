@@ -19,6 +19,8 @@ export interface HudHandlers {
   onRecenter(): void;
   /** Alice walks herself, or waits for the thumbstick and the arrow keys. */
   onAutopilotToggled(enabled: boolean): void;
+  /** The tidy slider moved: 0 leaves the ink alone, 1 is as firm as Kami gets. */
+  onTidinessChanged(tidiness: number): void;
   onOpenBoard(boardId: string): void;
   onNewBoard(): void;
   /** Wipe everything the player drew, wrote and ruled on this board. */
@@ -36,6 +38,7 @@ export interface Hud {
   toolbarBottom(): number;
   setTool(tool: Tool): void;
   setAutopilot(enabled: boolean): void;
+  setTidiness(tidiness: number): void;
   setBoards(boards: readonly BoardListing[], currentId: string): void;
   setPersistence(state: PersistenceState): void;
   /**

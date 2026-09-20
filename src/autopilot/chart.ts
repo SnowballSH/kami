@@ -71,6 +71,7 @@ const flagsFor = (nature: Nature): number => {
     case "goal":
       return CellFlag.goal;
     case "spawn":
+    case "portal":
       return 0;
     case "bouncy":
       return CellFlag.solid | CellFlag.bouncy;

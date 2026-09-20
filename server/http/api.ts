@@ -1,12 +1,13 @@
 import type { Stroke } from "../../src/core/geometry";
 import { INPUT_LIMITS } from "../../src/core/inputLimits";
-import type { RuleCompiler } from "../../src/rules/types";
+import type { RuleCompiler, SceneCompiler } from "../../src/rules/types";
 import type { Beautifier } from "../beautify/beautifier";
 import { controllerEventStream } from "../controllers/eventStream";
 import { isControllerId, parseControllerReading } from "../controllers/message";
 import { noContent } from "../controllers/responses";
 import type { ControllerHub } from "../controllers/types";
 import { type BoardRepository, type EntityKind, isEntityKind } from "../db/boardRepository";
+import type { ExemplarSource } from "../exemplar/exemplars";
 import { type NatureTable, quickdrawNatureTable } from "../natures/natureTable";
 import { isCertain } from "../recognition/certainty";
 import type { Reading } from "../recognition/types";
@@ -24,6 +25,7 @@ import {
 } from "../schemas";
 import type { HandwritingTranscriber } from "../transcribe/llmTranscriber";
 import type { Speaker } from "../voice/types";
+import { ApiAccess } from "./access";
 import {
   audio,
   badRequest,
@@ -65,6 +67,7 @@ const recognitionOf = ({ ranking, certainAbove }: Reading, natures: NatureTable)
 };
 
 export interface ApiDependencies {
+  readonly access?: ApiAccess;
   readonly boards: BoardRepository;
   readonly recognizer: SketchRecognizer;
   readonly compiler: RuleCompiler;
@@ -75,7 +78,14 @@ export interface ApiDependencies {
   /** Gives Kami a voice; null without Deepgram, and then he only writes. */
   readonly speaker?: Speaker | null;
   readonly natures?: NatureTable;
+  /** Drawings for Kami to ink himself ("summon a rabbit"); without one, every summons is 404. */
+  readonly exemplars?: ExemplarSource;
+  /** Places the atlas has never heard of ("teleport us to a chocolate factory"), made by a model. */
+  readonly scenes?: SceneCompiler;
 }
+
+const NO_EXEMPLARS: ExemplarSource = { exemplar: () => Promise.resolve(null) };
+const NO_SCENES: SceneCompiler = { compile: () => Promise.resolve(null) };
 
 const INVALID_CONTROLLER_ID = "a controller id is 1–32 of a-z, 0-9 and '-'";
 const INVALID_CONTROLLER_STATE = "the body is '<x> <y> [buttons]', e.g. '100 0 A'";
@@ -142,9 +152,15 @@ export const createApi = ({
   transcriber = null,
   speaker = null,
   natures = quickdrawNatureTable,
+  exemplars = NO_EXEMPLARS,
+  scenes = NO_SCENES,
+  access = new ApiAccess(),
 }: ApiDependencies): Router =>
-  new Router()
-    .on("GET", "/api/boards", async () => json({ boards: await boards.summaries() }))
+  new Router(access)
+    .on("GET", "/api/boards", async ({ request }) => {
+      const summaries = await boards.summaries();
+      return json({ boards: access.visible(request, "boards", summaries) });
+    })
     .on("GET", "/api/boards/:board", async ({ params }) => {
       const boardId = parseWith(boardIdSchema, params.board, "board id");
       return boardId.ok ? json(await boards.snapshot(boardId.value)) : boardId.response;
@@ -182,11 +198,23 @@ export const createApi = ({
       if (!body.ok) return body.response;
       return (await beautifier.beautify(body.value)) ?? notImplemented("no beautifier is attached");
     })
+    .on("GET", "/api/exemplar", async ({ request }) => {
+      const word = new URL(request.url).searchParams.get("word")?.trim() ?? "";
+      if (word.length === 0) return badRequest("say what to draw: ?word=rabbit");
+      const exemplar = await exemplars.exemplar(word);
+      return exemplar === null ? json({ error: `no picture of ${word}` }, 404) : json(exemplar);
+    })
     .on("POST", "/api/compile", async ({ request }) => {
       const body = await parseJsonBody(request, compileRequestSchema, INPUT_LIMITS.textBytes);
       return body.ok ? json({ rule: await compiler.compile(body.value.text) }) : body.response;
     })
-    .on("GET", "/api/controllers", () => json(controllers.list()))
+    .on("POST", "/api/scene", async ({ request }) => {
+      const body = await parseJsonBody(request, compileRequestSchema, INPUT_LIMITS.textBytes);
+      return body.ok ? json({ scene: await scenes.compile(body.value.text) }) : body.response;
+    })
+    .on("GET", "/api/controllers", ({ request }) =>
+      json(access.visible(request, "controllers", controllers.list())),
+    )
     .on("POST", "/api/controllers/:id/state", async ({ request, params }) => {
       if (!isControllerId(params.id)) return badRequest(INVALID_CONTROLLER_ID);
       const body = await parseTextBody(request, INPUT_LIMITS.controllerBytes);
@@ -198,7 +226,10 @@ export const createApi = ({
     })
     .on("GET", "/api/controllers/:id/events", ({ request, params }) =>
       isControllerId(params.id)
-        ? controllerEventStream(controllers, params.id, { signal: request.signal })
+        ? controllerEventStream(controllers, params.id, {
+            signal: request.signal,
+            authorized: () => access.allowsController(request, params.id),
+          })
         : badRequest(INVALID_CONTROLLER_ID),
     )
     .on("POST", "/api/transcribe", async ({ request }) => {

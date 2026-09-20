@@ -120,6 +120,14 @@ The offline grammar (`src/rules/grammarCompiler.ts`) is a chain of **recognisers
 
 The model-backed compiler on the server is asked to emit the same shape. `server/schemas.ts` and `server/compile/effectRanges.ts` are the shared contract; the server typecheck fails if the two ends drift. A remote answer that does not validate is dropped, not repaired — the model may pick values, never a shape.
 
+### 4.1 Scenes: one sentence, many edits
+
+```
+scene : Text → Maybe (Place × [Edit × Gloss] × [Prop] × Line)
+```
+
+“Teleport us to the moon” is not one dial. A **scene** (`src/rules/scenes/`) is a finite list of ordinary edits — the Moon is `set(gravity,(0,.165))`, `set(airDrag, low)`, `set(daylight, .3)` — plus props Kami draws (`{ word, at, size }`, each a summons) and an arrival line. Nothing new is added to `Edit`: the scene's edits are enacted in order and each becomes a rule of its own, but all of them carry the same source note, so **erasing the note repeals the whole list** and the refold is the ordinary one. The composite is just `e_n ∘ … ∘ e_1`, the fold of the list; a scene is a name for a word in the free monoid of edits. The offline atlas (`atlas.ts`) is a table of such words; the model (`server/scene/`) may write another for a place the table lacks, validated edit by edit against the same schema and ranges as single laws (§5), so it too can only pick values. A scene is enacted whole or refused whole under the mode policy — a half-Moon is not a place.
+
 ## 5. Validation and clamping
 
 Every dial `d` has a closed range `[lo_d, hi_d]` (`src/rules/effects.ts`; the server's wider table in `effectRanges.ts`). `set(d, v)` is only admitted with `v := clamp(v, lo_d, hi_d)` and the gloss says “(capped)” when clamping bit. Because the fold only ever composes admitted dial sets, `physics(R)` lies inside the product of the ranges for *any* `R` — the invariant the simulation relies on, and the reason a model or a mischievous player cannot produce a world the engine cannot simulate.
@@ -176,14 +184,15 @@ The autopilot is a system too: `Scene.canFly` marks every cell of air climbable,
 | `everything spins` then `the rock stops spinning` | `set(spin, 1) of all`, `set(spin, 0) of named(rock)` | both kept; `motion("rock") = { spin: 0 }`, `motion("wheel") = { spin: 1 }` | motion |
 | `a spinning wheel` (as a name) | `null` (identity); the ruling carries `own = { spin: 1 }` | — | funnel names the drawing; motion turns it |
 | `a mushroom` | `null` (identity) | — | funnel falls through to naming |
+| `teleport us to the moon` | `[set(gravity,(0,.165)), set(airDrag,·), set(daylight,.3)]`, all of one note; props `moon`, `star ×3` | the three edits in order; erasing the note refolds without all three | gravity, drag, lighting; Kami inks the props above the words |
 
 ## 9. Extension paths
 
 What each of the remaining ideas is, in this vocabulary, and what it costs:
 
 - **Vehicles** (“a car”) — *built*: a `vehicle` nature whose `beforeStep` (`sim/vehicles.ts`) reads the new `NatureWorld.intent` capability and rolls the body toward `intent.x × VEHICLE_SPEED × strength` while Alice is aboard; `alice.drive` makes her movement yield to it, and jumping dismounts. One nature record, one capability, exactly as costed.
-- **Follow / flee** (“a dog”, “a mouse”): creature natures whose mind reads `world.alice` and turns toward or away. Two nature records over the existing `Feelers`.
-- **Portals**: a `portal` nature; the system pairs portal bodies and teleports whatever touches one to its partner. One nature, one hook.
+- **Follow / flee** (“a dog”, “a mouse”) — *built*: not new natures but a `temper` on the ruling, orthogonal to how the creature moves, so every walker, hopper and flier can follow or flee. `urgeOf` (`sim/creatures.ts`) reads `world.alice` and returns the creature's urge; the three strategies take their facing from it. One field, one function, no new nature records.
+- **Portals** (“a portal”, twice) — *built*: a `portal` role whose touch hook calls `NatureWorld.warp`; `sim/portals.ts` pairs them in drawing order as a ring and bars the exit until Alice steps clear. One nature, one capability, one hook.
 - **Kinds** (“all clouds are heavy”): a third `Target` variant, `kind(Nature)`, matched in `speaksOf` against the drawing's nature instead of its name. One variant, one line in `speaksOf`; the fold, the compiler chain and the motion system are untouched.
 - **More motion dials** (“the rock is dragless”, “the wheel is glued down”): a field on `Motion`, a default in `STILL`, a row in the body ranges and the server prompt, and a line in `materialMoved` or the motion system.
 - **Independent clones**: twins that own an autopilot each; the `Scene` would take an `alice` per pilot.

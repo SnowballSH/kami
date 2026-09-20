@@ -218,6 +218,10 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+check = [
+    { name = "mypy" },
+    { name = "ruff" },
+]
 dev = [
     { name = "mypy" },
     { name = "onnx" },
@@ -240,6 +244,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+check = [
+    { name = "mypy", specifier = ">=1.13" },
+    { name = "ruff", specifier = ">=0.8" },
+]
 dev = [
     { name = "mypy", specifier = ">=1.13" },
     { name = "onnx", specifier = ">=1.17" },

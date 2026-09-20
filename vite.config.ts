@@ -6,7 +6,7 @@ const PLAYTHROUGH_TIMEOUT_MS = 30_000;
 export default defineConfig({
   base: "./",
   server: {
-    host: true,
+    host: process.env.KAMI_WEB_HOST ?? "0.0.0.0",
     port: 5173,
     proxy: { "/api": { target: `http://localhost:${SERVER_PORT}`, ws: true } },
   },

@@ -47,6 +47,16 @@ export interface Completion {
   readonly confidence: number;
 }
 
+/**
+ * A clean drawing of one thing, for Kami to draw himself. Strokes sit in a 256 px square with the
+ * origin top-left (Quick, Draw!'s frame); the caller fits them where they belong.
+ */
+export interface Exemplar {
+  /** The Quick, Draw! word it is a drawing of. */
+  readonly word: string;
+  readonly strokes: readonly Stroke[];
+}
+
 /** A recogniser that also says what each guess means, and can look at a drawing still under the pen. */
 export interface LiveRecognizer extends Recognizer {
   /**
@@ -55,8 +65,18 @@ export interface LiveRecognizer extends Recognizer {
    */
   sight(strokes: readonly Stroke[], options?: SightOptions): Promise<readonly Sighting[]>;
   /**
-   * Kami tidies and finishes the drawing. `name` is what the player called it, when they have.
-   * Null when he has nothing to offer or is offline — keep the player's ink. Never rejects.
+   * Kami tidies and finishes the drawing. `name` is what the player called it, when they have;
+   * `firmness` (0–1, the server's default when left out) is how boldly to tidy. Null when he has
+   * nothing to offer or is offline — keep the player's ink. Never rejects.
    */
-  complete(strokes: readonly Stroke[], name?: string): Promise<Completion | null>;
+  complete(
+    strokes: readonly Stroke[],
+    name?: string,
+    firmness?: number,
+  ): Promise<Completion | null>;
+  /**
+   * A drawing of `word` for Kami to ink himself ("summon a rabbit"). Null when he has no picture
+   * of it, or is offline. Never rejects.
+   */
+  exemplar(word: string): Promise<Exemplar | null>;
 }

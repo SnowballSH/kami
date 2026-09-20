@@ -95,6 +95,12 @@ export class FakeHud implements Hud {
     this.autopilot = enabled;
   }
 
+  tidiness: number | null = null;
+
+  setTidiness(tidiness: number): void {
+    this.tidiness = tidiness;
+  }
+
   setListening(listening: boolean): void {
     this.listening = listening;
   }
@@ -159,7 +165,11 @@ const INSTANT_MS = 1;
 
 /** Writes every note as one underline-shaped stroke, instantly. */
 export class FakeHandwriting implements Handwriting {
+  /** Everything anyone ever wrote, fleeting notes included. */
+  readonly everWritten: string[] = [];
+
   write(text: string, { origin, size }: WriteOptions): PenScript {
+    this.everWritten.push(text);
     const stroke: Stroke = [
       { x: origin.x, y: origin.y },
       { x: origin.x + Math.max(1, text.length) * size * GLYPH_WIDTH, y: origin.y + size },

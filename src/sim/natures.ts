@@ -38,6 +38,8 @@ export interface NatureWorld {
   hasHeadroomFor(size: AliceSize, meal: InkEntity): boolean;
   /** Pulls Alice and every loose drawing but `ink` itself toward `ink`, at `strengthInG` up close. */
   pullToward(ink: InkEntity, strengthInG: number): void;
+  /** Sends Alice out of the portal drawn after `ink` (round to the first); nothing happens if it stands alone. */
+  warp(ink: InkEntity): void;
 }
 
 type InkHook = (ink: InkEntity, world: NatureWorld) => void;
@@ -147,6 +149,11 @@ export const NATURES: Readonly<Record<Nature, NatureStrategy>> = {
   vehicle: { ...CREATURE, beforeStep: drive },
   attractor: { ...ROLE, beforeStep: attract },
   lantern: PLAIN,
+  portal: {
+    ...ROLE,
+    solidToAlice: false,
+    onAliceTouch: (ink, _contact, world) => world.warp(ink),
+  },
   solid: ROLE,
   goal: {
     ...ROLE,

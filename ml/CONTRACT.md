@@ -48,7 +48,7 @@ Listens on `127.0.0.1:8790` (`KAMI_EYE_PORT`), loads `KAMI_EYE_MODEL` (an artifa
 | `GET /health` | | `{ "ok": true, "classes": K, "model": "<name>", "exemplars": N }` — `N` is 0 when the model has no exemplar set |
 | `POST /recognize` | `{ "strokes": [[{"x":1,"y":2},...],...], "partial": false, "top": 5 }` | `{ "labels": [...], "probs": [...] }` — best first, temperature-scaled softmax, `top` entries (default 5); plus `"certainAbove": 0.80 \| null` when the model states its floors — see Regimes |
 | `POST /embed` | `{ "strokes": ... }` | `{ "embedding": [512 floats, L2-normalised] }` |
-| `POST /complete` | `{ "strokes": ..., "name": "a mushroom" }` (`name` optional) | `{ "tidied": [[{"x":..,"y":..},...],...], "added": [...], "category": "mushroom", "confidence": 0.93, "similarity": 0.81, "boldness": 0.9, "exemplar": "5152802093400064" }`, or `404 {"error"}` — see Completion |
+| `POST /complete` | `{ "strokes": ..., "name": "a mushroom", "strength": 0.5 }` (`name`, `strength` optional) | `{ "tidied": [[{"x":..,"y":..},...],...], "added": [...], "category": "mushroom", "confidence": 0.93, "similarity": 0.81, "boldness": 0.9, "exemplar": "5152802093400064" }`, or `404 {"error"}` — see Completion |
 
 Strokes arrive raw, in world px; the sidecar owns rendering. Bad input → `400 {"error"}`; never a crash.
 
@@ -160,6 +160,9 @@ characters; `null` and `""` mean no name.
      exemplar. At boldness 0 a point moves half of the way and never more than 6 % of the diagonal;
      at boldness 1, nine tenths of the way and never more than 10 %. A name the model does not
      believe, or an exemplar that lies loosely, keeps his hand light.
+     The request's optional `strength` (0–1, default 0.5) is the player's say on top of that: 0.5 is
+     the numbers above, 1 doubles them (strengths capped at a full snap, moves up to 12–20 % of the
+     diagonal, reach up to 25 %), 0 moves nothing. Anything else is a `400`.
    - *Add.* Runs of the fitted exemplar farther than 8 % of the diagonal from any of the player's ink,
      and at least 10 % of it long, become new strokes. A finished drawing usually gets none.
 
