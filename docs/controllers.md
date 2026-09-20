@@ -106,8 +106,8 @@ in use: flashed and heard by the server on the box on 20 September 2026.
 
 | Module pin | Uno R4 pin | |
 |---|---|---|
-| `VRx` | `A0` | |
-| `VRy` | `A1` | |
+| `VRx` | `A0` | up–down on the box, where the module sits a quarter turn round; pushing up reads lower (`Y_SIGN = -1`) |
+| `VRy` | `A1` | left–right; pushing right reads lower (`X_SIGN = -1`) |
 | `SW` | `D2` | `INPUT_PULLUP`, pressed = `LOW`, debounced 20 ms; sent as button **`A`** = jump |
 | `+5V`, `GND` | `5V`, `GND` | |
 
@@ -115,8 +115,10 @@ in use: flashed and heard by the server on the box on 20 September 2026.
 be tested without a board. The average of 16 readings while the board starts becomes the centre, and each
 side of it scales to its own end of travel, so an off-centre stick still reaches ±100 both ways. A start
 reading further than a quarter of the range from the middle means the stick was held: the middle is used
-instead. Lines go out by the rule under "The one message". `X_SIGN` / `Y_SIGN` at the top of the sketch
-flip an axis that runs backwards.
+instead. Lines go out by the rule under "The one message". `PIN_X` / `PIN_Y` and `X_SIGN` / `Y_SIGN` at
+the top of the sketch say which way round the module is mounted: a module mounted upright reads x from
+`A0` and y from `A1` with both signs `1`. Checked on the box by pushing right, then up, then clicking, and
+reading `GET /api/controllers`: `right`, `up`, and `a` (which puts `up` into `held`).
 
 ```bash
 bun run gx10:flash              # from the Mac: compile on the box, upload to the Arduino plugged into it
