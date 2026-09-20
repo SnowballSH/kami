@@ -57,6 +57,8 @@ export const HOP_FORWARD_SPEED = 2.4;
 /** Roughly how far one hop carries, so a hopper looks that far before leaping. */
 export const HOP_REACH = 90;
 export const FLY_SPEED = 1.5;
+export const VEHICLE_SPEED = 4.5;
+export const VEHICLE_ACCELERATION = 0.25;
 export const FLY_BOB_SPEED = 0.7;
 export const FLY_BOB_PERIOD_TICKS = 90;
 export const FLY_ROAM_PX = 320;

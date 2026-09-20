@@ -109,6 +109,7 @@ interface Plan {
   readonly path: readonly Waypoint[] | null;
   readonly footprint: Footprint;
   readonly size: AliceSize;
+  readonly sizeMultiplier: number;
   readonly keyTaken: boolean;
   readonly doorOpen: boolean;
 }
@@ -166,9 +167,13 @@ export class Pilot implements Autopilot {
 
   private sceneChanged(scene: Scene): boolean {
     const plan = this.plan;
+    const footprint = footprintFor(scene.alice);
     return (
       plan === null ||
       plan.size !== scene.alice.size ||
+      plan.sizeMultiplier !== scene.alice.sizeMultiplier ||
+      plan.footprint.cols !== footprint.cols ||
+      plan.footprint.rows !== footprint.rows ||
       plan.keyTaken !== scene.keyTaken ||
       plan.doorOpen !== scene.doorOpen
     );
@@ -181,7 +186,7 @@ export class Pilot implements Autopilot {
 
   private replan(scene: Scene): void {
     const objective = objectiveOf(scene);
-    const footprint = footprintFor(scene.alice.size);
+    const footprint = footprintFor(scene.alice);
     const previous = this.plan;
     const plan =
       objective === null
@@ -211,6 +216,7 @@ export class Pilot implements Autopilot {
 
   private planFor(scene: Scene, footprint: Footprint, objective: Objective): Plan {
     const chart = Chart.of(scene);
+    if (chart === null) return this.remember(scene, footprint, { kind: "wait", objective }, null);
     const finder = new Pathfinder(chart, scene, footprint);
     const start = nodeOfFeet(feetOfScene(scene), footprint);
     const direct = finder.route(start, { kind: "objective", objective });
@@ -248,8 +254,10 @@ export class Pilot implements Autopilot {
         ...scene,
         inks: scene.inks.filter((ink) => ink.drawing.id !== meal.drawing.id),
       };
-      const grown = footprintFor(newSize);
-      const onward = new Pathfinder(Chart.of(after), after, grown);
+      const grown = footprintFor(scene.alice, newSize);
+      const chart = Chart.of(after);
+      if (chart === null) continue;
+      const onward = new Pathfinder(chart, after, grown);
       const from = nodeOfFeet(feetOf(last.node, footprint), grown);
       if (onward.route(from, { kind: "objective", objective }) === null) continue;
       return this.remember(scene, footprint, { kind: "eat", drawingId: meal.drawing.id }, route);
@@ -268,6 +276,7 @@ export class Pilot implements Autopilot {
       path,
       footprint,
       size: scene.alice.size,
+      sizeMultiplier: scene.alice.sizeMultiplier,
       keyTaken: scene.keyTaken,
       doorOpen: scene.doorOpen,
     };

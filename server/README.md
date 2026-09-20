@@ -25,7 +25,8 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `PORT` | HTTP port, default `8787` (what `vite.config.ts` proxies `/api` to) |
 | `MONGODB_URI` | Use this MongoDB instead of the embedded one, e.g. the Atlas `mongodb+srv://…` string. Database `kami`. |
 | `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile` and `/api/transcribe`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
-| `KAMI_LLM_MODEL` | Model name to request. Model compile and handwriting reading are **off** unless both URL and model are set; reading also needs the model to take images (`qwen3.8` does). |
+| `KAMI_LLM_MODEL` | Compiler model name; also the fallback handwriting model. Compilation is **off** unless both URL and model are set. |
+| `KAMI_TRANSCRIBE_MODEL` | Handwriting model, defaulting to `KAMI_LLM_MODEL`; uses the same URL/key. Startup must correctly read a known PNG before `/api/transcribe` is enabled. While warming up or after a failed image check, the route returns **501**. |
 | `KAMI_LLM_API_KEY` | Optional bearer token. |
 | `KAMI_CONTROLLER_UDP_PORT` | UDP port physical controllers send to, default `8788`; `off` disables. See `docs/controllers.md`. |
 | `KAMI_CONTROLLER_SERIAL` | `auto` (default: every `/dev/ttyACM*`, rescanned every 3 s), a device path, or `off`. The user needs the `dialout` group. |
@@ -54,6 +55,11 @@ returned untouched. CORS is wide open, for development.
 Collections `drawings`, `notes`, `rules` hold the client's objects as they are plus `boardId`
 (and, for drawings, a top-level `id` copied from `drawing.id`), with a unique `{ boardId, id }`
 index. `_id` and `boardId` never leave the server.
+
+Drawing labels carry an optional `Note.drawingId`, a board-local deletion association. The client
+removes those labels on rename, erase, consumption or devouring, including after reload. Older notes
+without it remain unassociated; their target is not guessed from their text or position. This does
+not make labels follow moving drawings. Passing remarks and guess notes remain transient.
 
 ## Quick, Draw!
 
@@ -217,7 +223,7 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 | `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[], names: string[], natures: Nature[], strengths: number[], lines: string[], certain: boolean }` — parallel arrays, best first, at most three, all empty when unsure. `guesses` are bare Quick, Draw! words, each with a 0–1 `confidence`; the other four say what each guess is for the game (below). `certain: true` means `guesses[0]` may be named without offering the player a choice (see "Naming without asking"); a client that ignores it keeps asking, as before |
 | `POST /api/beautify` | `{ strokes: {x,y}[][], name?: string }` | whatever the attached model answers, content-type preserved. With Kami's Eye attached (the box's default): **`application/json` `{ tidied, added, category, confidence, similarity, exemplar }`** — `tidied` is the player's own strokes, point for point, each nudged a bounded distance toward a clean drawing of the same thing; `added` is what theirs was missing (`ml/CONTRACT.md`, "Completion"). Another model may answer an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
-| `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no model is attached (`KAMI_LLM_URL`/`KAMI_LLM_MODEL`). Stateless; the client may abort a request (the read of a prefix) freely. |
+| `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no model is configured or its image warm-up has not passed (`KAMI_LLM_URL` and `KAMI_TRANSCRIBE_MODEL`, falling back to `KAMI_LLM_MODEL`). Stateless; the client may abort a request (the read of a prefix) freely. |
 | boards, drawings, notes, rules | see the table above | |
 | `POST /api/controllers/:id/state` | `text/plain` `<x> <y> [buttons]`, e.g. `100 0 A`: axes -100 … 100 (y up), then the letters of the buttons held (`A` `B` `X` `Y`). `:id` is `[a-z0-9-]{1,32}` | `204`, or `400` `{ error }` |
 | `GET /api/controllers/:id/events` | — | `text/event-stream`: `retry: 1000`, then `data: {"x":-0.7,"y":0.85,"held":["left","up"],"buttons":["a"]}` on connect and on every change (`x`, `y` -1 … 1; `held` of `left` `right` `up` `down`, with `up` also while `a` is held; everything let go after 1 s without a message), and `: keep-alive` every 5 s |
@@ -273,6 +279,13 @@ confidence summed: `birthday cake` → `cake`, `coffee cup` and `mug` → `cup`,
 `face`. So `guesses` only ever holds the canonical word, and a client that reads just `guesses` and
 `confidence` keeps working unchanged. A word the table has never met is `"ink"`, strength 1.
 
+The game accepts these structured rulings directly through `Cat.accept`; it does not reinterpret a
+guess's name with the typed-name lexicon. Room restrictions still apply. `NoteAction.ruling` is an
+optional additive field using the existing `Ruling` schema; old name-only actions remain valid.
+Guess notes stay transient. The contract test in `server/natures/recognitionContract.test.ts` compares
+all 345 categories, including aliases, through the HTTP adapter and acceptance path. Its only
+exclusion allowlist is the eight bare shapes, which remain unnamed.
+
 ## Running everything on the ASUS Ascent GX10
 
 All computation happens on the box; the Mac edits, tests and ships.
@@ -295,8 +308,37 @@ bun run gx10:deploy                # ship, install, (re)start, health-check → 
                                    #   add --autostart to bring Kami back whenever the box boots
 ```
 
-Then on the iPad: `http://<box address>:8787`. On the box, `~/kami/box/status.sh` shows what is running
+Then on the iPad: `http://<box address>:8787`. On the box, `~/kami/current/box/status.sh` shows what is running
 (and the Eye's health) and `stop.sh` / `start.sh` do what they say.
+
+Preparation writes `app/runtime.json` with exact Bun/MongoDB versions, archive names, Python target,
+locked requirements digest, and SHA-256 hashes for every archive and wheel. Installation verifies those
+files, probes the extracted binaries' versions, and publishes Bun, MongoDB and Python dependencies
+together through an atomic `runtime/current` symlink. Older runtime bundles remain available; multiple
+cached archive versions cannot change which one is selected. Legacy unpacked runtime directories fail
+with a migration message: deploy into a fresh staged release rather than deleting a running runtime.
+
+Eye preparation requires `uv export --locked`; export and download failures abort preparation, without
+an unpinned fallback. Downloads and installation use pip's `--require-hashes`. An offline wheel cache
+is reused only when its requirements digest, Python target and every wheel hash match. To deliberately
+prepare without Eye, set `KAMI_EYE_ENABLED=0`. Transfer repairs mismatched cache files through verified
+temporary files. Archive hashes protect cache/transfer integrity; initial archives still rely on the
+official HTTPS download sources. Validate actual Linux arm64 binaries on GX10 before rollout.
+
+Deployments upload a complete checksummed release into `~/kami/releases/<id>` and install its
+dependencies before touching running services. Only then does activation switch `~/kami/current`.
+Application readiness requires the exact client HTML and a valid board-list API response; failure
+restarts the previous release. `~/kami/previous` retains the last working release for manual rollback:
+`bash ~/kami/current/box/activate.sh "$(readlink -f ~/kami/previous)"`.
+The first deployment preserves the old flat layout for rollback; use `current/box` commands afterward.
+An existing Kami boot entry is migrated to `current/box/start.sh` after successful activation.
+Deploying without `--autostart` leaves autostart disabled when no Kami boot entry exists.
+If `previous` points to the legacy `~/kami` layout, use its original `~/kami/box/start.sh` for
+manual recovery; it predates the release manifest needed by `activate.sh`.
+MongoDB data, logs, PID files and the download cache stay outside releases under `~/kami`.
+Rollback restores code and dependencies, not database mutations; no database downgrade/migration is
+performed. Interrupted uploads leave the active release untouched. A power loss during activation
+requires starting `current/box/start.sh` (or selecting `previous`) after inspecting logs.
 
 How it fits: the server serves the built game itself (`KAMI_WEB_DIR`, `server/http/staticSite.ts`), so one
 process is the product. `bun build` bundles it to a single `server.js`, so the box needs no
@@ -308,7 +350,7 @@ are instant — and the server warms it at start.
 **Kami's Eye on the box.** Training runs there (`ml/README.md`), and `start.sh` serves the model it finds at
 `~/kami-ml/artifacts/kami-eye` (`KAMI_EYE_MODEL_NAME` picks another; a model shipped from `ml/artifacts` is
 the fallback) with the sidecar code the deploy shipped to `~/kami/app/eye`. A retrained model needs only
-`~/kami/box/start.sh`. No model, no Python packages, or a sidecar that does not come up: the k-NN answers,
+`~/kami/current/box/start.sh`. No model, no Python packages, or a sidecar that does not come up: the k-NN answers,
 and the start-up log says which.
 
 For development on the Mac, `bun run gx10:tunnel` forwards the box's Ollama to `localhost:11434` (what

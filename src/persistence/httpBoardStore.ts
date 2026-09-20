@@ -10,7 +10,9 @@ import {
   type FetchLike,
   JSON_HEADERS,
 } from "./api";
+import { parseBoardResponse, rejectBoardResponse } from "./boardResponse";
 import { withRequestDeadline } from "./requestDeadline";
+import { boardSnapshotSchema, boardSummaryListSchema } from "./schemas";
 import type { BoardSnapshot, BoardStore, BoardSummary, StoredDrawing } from "./types";
 import { WriteQueue } from "./writeQueue";
 
@@ -18,18 +20,6 @@ const EMPTY_SNAPSHOT: BoardSnapshot = { drawings: [], notes: [], rules: [] };
 
 const UNREACHABLE_WARNING =
   "Kami's memory (the server behind /api) is unreachable; this board will not be remembered.";
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null;
-
-const isSnapshot = (body: unknown): body is BoardSnapshot =>
-  isRecord(body) &&
-  Array.isArray(body.drawings) &&
-  Array.isArray(body.notes) &&
-  Array.isArray(body.rules);
-
-const isSummaryList = (body: unknown): body is { readonly boards: readonly BoardSummary[] } =>
-  isRecord(body) && Array.isArray(body.boards);
 
 export class HttpBoardStore implements BoardStore {
   readonly #fetch: FetchLike;
@@ -42,14 +32,18 @@ export class HttpBoardStore implements BoardStore {
 
   load(boardId: string): Promise<BoardSnapshot> {
     return this.#queue.enqueueBarrier(boardId, async () => {
-      const body = await this.#read(boardPath(boardId));
-      return isSnapshot(body) ? body : EMPTY_SNAPSHOT;
+      const path = boardPath(boardId);
+      const body = await this.#read(path);
+      return body === undefined
+        ? EMPTY_SNAPSHOT
+        : parseBoardResponse(boardSnapshotSchema, path, body);
     });
   }
 
   async listBoards(): Promise<readonly BoardSummary[]> {
-    const body = await this.#read(boardsPath());
-    return isSummaryList(body) ? body.boards : [];
+    const path = boardsPath();
+    const body = await this.#read(path);
+    return body === undefined ? [] : parseBoardResponse(boardSummaryListSchema, path, body).boards;
   }
 
   saveDrawing(boardId: string, stored: StoredDrawing): void {
@@ -107,6 +101,7 @@ export class HttpBoardStore implements BoardStore {
         return await response.json();
       });
     } catch (error) {
+      if (error instanceof SyntaxError) rejectBoardResponse(path, ["response: invalid JSON"]);
       this.#warnOnce(error);
       return undefined;
     }

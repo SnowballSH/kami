@@ -1,18 +1,19 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
-import { rectsOverlap, type Vec } from "../core/geometry";
+import { poseToWorld, rectsOverlap, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
 import { EMBODIED_MODE } from "../modes";
 import type { GameMode } from "../modes/types";
-import type { HandwritingReader } from "../persistence/types";
+import type { BoardSnapshot, HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
 import type { Completion, LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import type { CompiledRule } from "../rules/types";
 import { createSimulation } from "../sim";
+import { drawingOf } from "../sim/testSupport";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
 import {
@@ -47,7 +48,7 @@ const blob = (center: Vec, rx: number, ry: number): Vec[] =>
     y: center.y + ry * Math.sin((i / 24) * Math.PI * 2),
   }));
 
-type Thoughts = Readonly<Record<string, CompiledRule>>;
+type Thoughts = Readonly<Record<string, CompiledRule | Promise<CompiledRule | null>>>;
 
 interface PlayerOptions {
   readonly store?: MemoryBoardStore;
@@ -97,11 +98,11 @@ class Eyes implements LiveRecognizer {
 }
 
 /** Short vertical strokes side by side: what a scrawled word looks like to the ink session. */
-const scrawl = (at: Vec, letters: number): Vec[][] =>
+const scrawl = (at: Vec, letters: number, spacing = 14): Vec[][] =>
   Array.from({ length: letters }, (_, i) => [
-    { x: at.x + i * 14, y: at.y },
-    { x: at.x + i * 14 + 6, y: at.y + 12 },
-    { x: at.x + i * 14, y: at.y + 24 },
+    { x: at.x + i * spacing, y: at.y },
+    { x: at.x + i * spacing + 6, y: at.y + 12 },
+    { x: at.x + i * spacing, y: at.y + 24 },
   ]);
 
 /** Reads any scrawl of at least three strokes as the given words, after a delay in frames. */
@@ -127,6 +128,7 @@ class ScriptedReader implements HandwritingReader {
 }
 
 class Player {
+  readonly sim = createSimulation();
   readonly renderer = new FakeRenderer();
   readonly store: MemoryBoardStore;
   readonly game: Game;
@@ -143,7 +145,7 @@ class Player {
     this.store = store;
     this.game = new Game(
       {
-        sim: createSimulation(),
+        sim: this.sim,
         autopilot: createAutopilot(),
         cat: createCat(eyes),
         ...(eyes === undefined ? {} : { finisher: eyes }),
@@ -272,6 +274,43 @@ describe("Game on the Wonderland board", () => {
     await player.arrive();
   });
 
+  it.each([
+    { angle: Math.PI / 2, at: { x: 1000, y: 1180 }, competingY: 1120 },
+    { angle: -Math.PI / 2, at: { x: 1000, y: 800 }, competingY: 860 },
+    { angle: 0, at: { x: 1190, y: 1000 }, competingY: 1100 },
+  ])(
+    "names the nearest drawing under a full pose with angle $angle",
+    async ({ angle, at, competingY }) => {
+      const target = drawingOf("target", [
+        { x: 300, y: 300 },
+        { x: 700, y: 300 },
+      ]);
+      const competitor = drawingOf("competitor", [
+        { x: at.x, y: competingY },
+        { x: at.x + 40, y: competingY },
+      ]);
+      player.game.onCommit(target);
+      player.game.onCommit(competitor);
+      const snapshot = player.sim.snapshot();
+      vi.spyOn(player.sim, "snapshot").mockReturnValue({
+        ...snapshot,
+        drawings: snapshot.drawings.map((drawing) => ({
+          ...drawing,
+          pose:
+            drawing.id === target.id
+              ? { origin: { x: 500, y: 300 }, position: { x: 1000, y: 1000 }, angle }
+              : { origin: { x: 0, y: 0 }, position: { x: 0, y: 0 }, angle: 0 },
+        })),
+      });
+
+      await player.write("a rock", at);
+
+      const { drawings } = await player.store.load("wonderland");
+      expect(drawings.find(({ drawing }) => drawing.id === target.id)?.ruling?.name).toBe("a rock");
+      expect(drawings.find(({ drawing }) => drawing.id === competitor.id)?.ruling).toBeNull();
+    },
+  );
+
   it("opens with Kami's wordmark and the first zone's line written on the board", () => {
     expect(player.written).toContain("kami");
     expect(player.written).toContain("She can hop, not fly. You can draw.");
@@ -341,6 +380,23 @@ describe("Game on the Wonderland board", () => {
     for (const line of unspoken) expect(player.written).not.toContain(line);
   });
 
+  it("places the lore below the toolbar without overlapping the intro or earlier notes", async () => {
+    player.hud.toolbarBottomY = 350;
+    await player.write("summon the ink eater", { x: 200, y: 200 });
+    await player.wait(SUMIKUI_LORE_LINE_DELAY_MS * 2 + 100);
+    const notes = player.renderer.lastFrame?.notes ?? [];
+    const lore = notes.filter((note) => SUMIKUI_SUMMONED_LINES.includes(note.script.text));
+    expect(lore).toHaveLength(SUMIKUI_SUMMONED_LINES.length);
+    for (const note of lore) {
+      expect(note.script.bounds.y).toBeGreaterThan(player.hud.toolbarBottomY);
+      expect(
+        notes.some(
+          (other) => other.id !== note.id && rectsOverlap(note.script.bounds, other.script.bounds),
+        ),
+      ).toBe(false);
+    }
+  });
+
   it("summons the Sumikui with its lore, keeps it while the law stands, and seals it when erased", async () => {
     await player.write("summon the ink eater", { x: 200, y: 200 });
     expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
@@ -389,6 +445,31 @@ describe("Game on the Wonderland board", () => {
     expect(returning.written.some((text) => text.startsWith("kami: gravity"))).toBe(true);
   });
 
+  it("restores legacy labels without inventing a drawing association", async () => {
+    player.game.onAutopilotToggled(false);
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("a rock", { x: 250, y: 450 });
+    const saved = await player.store.load("wonderland");
+    const label = saved.notes[0];
+    const drawing = saved.drawings[0]?.drawing;
+    if (label === undefined || drawing === undefined) throw new Error("no named drawing");
+    const { drawingId: _drawingId, ...legacy } = label;
+    player.store.saveNote("wonderland", legacy);
+    const returning = new Player("wonderland", { store: player.store });
+    returning.game.onAutopilotToggled(false);
+    await returning.arrive();
+    const pose = returning.renderer.lastFrame?.world.drawings[0];
+    const point = drawing.strokes[0]?.[0];
+    if (pose === undefined || point === undefined) throw new Error("no drawing to erase");
+    await returning.erase(poseToWorld(point, pose.pose));
+    expect(returning.written).toContain("a rock");
+    expect(await player.store.load("wonderland")).toEqual({
+      drawings: [],
+      notes: [legacy],
+      rules: [],
+    });
+  });
+
   it("is completable start to goal: bridge, bouncy mushroom, cake, key, bottle, door", async () => {
     await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
     await player.draw(blob({ x: 1430, y: 540 }, 30, 18));
@@ -420,6 +501,119 @@ describe("Game on the Wonderland board", () => {
       undefined,
       "a bouncy mushroom",
     ]);
+  });
+});
+
+describe.each(["live", "reloaded"])("drawing labels on a %s board", (state) => {
+  const resume = async (player: Player, boardId: string): Promise<Player> => {
+    if (state === "live") return player;
+    const returning = new Player(boardId, { store: player.store });
+    returning.game.onAutopilotToggled(false);
+    await returning.arrive();
+    return returning;
+  };
+
+  describe.each(["typed", "unknown", "certain", "certain ink", "guess"])("%s label", (source) => {
+    it.each(["rename", "erase"])("removes the old label on %s", async (action) => {
+      let player = new Player("wonderland", {
+        eyes: new Eyes(
+          [],
+          [seen("rock", source === "certain ink" ? "ink" : "heavy", source.startsWith("certain"))],
+        ),
+      });
+      player.game.onAutopilotToggled(false);
+      await player.arrive();
+      await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+      if (source === "guess") {
+        expect((await player.store.load("wonderland")).notes).toEqual([]);
+        const guess = player.renderer.lastFrame?.notes.find((note) => note.tappable);
+        if (guess === undefined) throw new Error("no guess to accept");
+        const { x, y } = guess.script.bounds;
+        player.game.tap({ x, y });
+        await player.wait(100);
+      } else if (!source.startsWith("certain")) {
+        await player.write(source === "unknown" ? "my friend gerald" : "a rock", {
+          x: 250,
+          y: 450,
+        });
+      }
+      const saved = await player.store.load("wonderland");
+      expect(saved.notes).toHaveLength(1);
+      const label = saved.notes[0];
+      const drawing = saved.drawings[0]?.drawing;
+      if (label === undefined || drawing === undefined) throw new Error("no named drawing");
+      expect(label.drawingId).toBe(drawing.id);
+      expect(label.fleeting).toBe(false);
+      expect(label.action).toBeUndefined();
+
+      player = await resume(player, "wonderland");
+      expect(player.written).toContain(label.text);
+      if (action === "rename") await player.write("a cloud", { x: 250, y: 400 });
+      else {
+        const pose = player.renderer.lastFrame?.world.drawings.find((d) => d.id === drawing.id);
+        const point = drawing.strokes[0]?.[0];
+        if (pose === undefined || point === undefined) throw new Error("no drawing to erase");
+        await player.erase(poseToWorld(point, pose.pose));
+      }
+      expect(player.written).not.toContain(label.text);
+      const remaining = await player.store.load("wonderland");
+      expect(remaining.notes.map((note) => note.text)).toEqual(
+        action === "rename" ? ["a cloud"] : [],
+      );
+      if (action === "rename") expect(remaining.notes[0]?.drawingId).toBe(drawing.id);
+      const returning = new Player("wonderland", { store: player.store });
+      await returning.arrive();
+      expect(returning.written).not.toContain(label.text);
+    });
+  });
+
+  it("removes a consumed cake's label from the board and memory", async () => {
+    let player = new Player("wonderland");
+    player.game.onAutopilotToggled(false);
+    await player.arrive();
+    await player.draw(blob({ x: 260, y: 540 }, 18, 14));
+    await player.write("a cake", { x: 230, y: 450 });
+    player = await resume(player, "wonderland");
+    expect(player.written).toContain("a cake");
+    player.walk(1);
+    expect(await player.until(() => player.alice.size === "big")).toBe(true);
+    expect(player.written).not.toContain("a cake");
+    expect(await player.store.load("wonderland")).toEqual({ drawings: [], notes: [], rules: [] });
+    const returning = new Player("wonderland", { store: player.store });
+    await returning.arrive();
+    expect(returning.written).not.toContain("a cake");
+  });
+
+  it("removes a devoured drawing's label while retaining the ink-eater law", async () => {
+    const boardId = "hungry-board";
+    let player = new Player(boardId);
+    player.game.onAutopilotToggled(false);
+    await player.arrive();
+    await player.draw(blob({ x: 60, y: -5 }, 24, 24));
+    await player.write("a rock", { x: 40, y: -100 });
+    const rock = (await player.store.load(boardId)).drawings[0]?.drawing;
+    if (rock === undefined) throw new Error("no rock");
+    await player.draw(blob({ x: 240, y: -5 }, 24, 24));
+    await player.write("summon the ink eater", { x: 800, y: -300 });
+    player = await resume(player, boardId);
+    expect(player.written).toContain("a rock");
+    player.walk(1);
+    await player.wait(750);
+    player.walk(0);
+    expect(
+      await player.until(
+        () => !player.renderer.lastFrame?.world.drawings.some((d) => d.id === rock.id),
+      ),
+    ).toBe(true);
+    expect(player.written).not.toContain("a rock");
+    const saved = await player.store.load(boardId);
+    expect(saved.drawings).toHaveLength(1);
+    expect(saved.notes.map((note) => note.text)).toEqual(["summon the ink eater"]);
+    expect(saved.rules).toHaveLength(1);
+    const returning = new Player(boardId, { store: player.store });
+    await returning.arrive();
+    expect(returning.written).not.toContain("a rock");
+    expect(returning.laws.laws.map((law) => law.text)).toEqual(["summon the ink eater"]);
   });
 });
 
@@ -500,11 +694,53 @@ describe("Alice on her own", () => {
 });
 
 describe("Game with a model to think with", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   const RED_PLANET = "make it feel like the red planet";
   const MARS: CompiledRule = {
     effect: { governs: "gravity", x: 0, y: 0.38 },
     explanation: "gravity = 0.38 g (Mars)",
   };
+
+  it("orders same-millisecond laws by submission through late responses, reload and repeal", async () => {
+    const pending = Promise.withResolvers<CompiledRule | null>();
+    const store = new MemoryBoardStore();
+    const player = new Player("wonderland", {
+      store,
+      thoughts: { "a custom sky": pending.promise },
+    });
+    await player.arrive();
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
+    await player.write("a custom sky", { x: 200, y: 100 });
+    await player.write("night", { x: 200, y: 200 });
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    pending.resolve({ effect: { governs: "daylight", value: 1 }, explanation: "daylight" });
+    await player.wait(100);
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    const snapshot = await store.load("wonderland");
+    const ordered = snapshot.rules.toSorted((a, b) => a.createdAt - b.createdAt);
+    expect(ordered.map((rule) => rule.sourceText)).toEqual(["a custom sky", "night"]);
+    expect(ordered.map((rule) => rule.createdAt)).toEqual([1_000, 1_001]);
+    for (const rule of ordered) {
+      expect(rule.createdAt).toBe(
+        snapshot.notes.find((note) => note.id === rule.noteId)?.createdAt,
+      );
+    }
+
+    const reloaded = new Player("wonderland", { store });
+    await reloaded.arrive();
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(0.1);
+    const night = reloaded.renderer.lastFrame?.notes.find((note) => note.script.text === "night");
+    if (night === undefined) throw new Error("night note missing");
+    await reloaded.erase({ x: night.script.bounds.x + 1, y: night.script.bounds.y + 1 });
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(1);
+    await reloaded.write("night", { x: 200, y: 300 });
+    const newest = (await store.load("wonderland")).rules.find(
+      (rule) => rule.sourceText === "night",
+    );
+    expect(newest?.createdAt).toBe(1_002);
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(0.1);
+  });
 
   it("asks the model only about what nothing else understood", async () => {
     const player = new Player("wonderland", { thoughts: { [RED_PLANET]: MARS } });
@@ -606,6 +842,51 @@ describe("Game with Kami's eyes on the ink", () => {
       "a zebra?",
       "a mushroom?",
     ]);
+  });
+
+  it.each([
+    seen("baseball bat", "ink"),
+    seen("aircraft carrier", "heavy"),
+    seen("baseball", "bouncy"),
+    seen("asparagus", "grow"),
+  ])("carries $word's offered ruling through a tap, simulation and storage", async (sighting) => {
+    const offered = { ...sighting, strength: 1.7 };
+    const player = new Player("wonderland", { eyes: new Eyes([], [offered]) });
+    await player.arrive();
+    await player.draw(blob({ x: 300, y: 430 }, 30, 20));
+    await player.wait(100);
+    const guess = player.renderer.lastFrame?.notes.find(
+      (note) => note.tappable && note.script.text === `${offered.name}?`,
+    );
+    if (guess === undefined) throw new Error("No canonical guess to tap");
+    const { x, y, width, height } = guess.script.bounds;
+    player.game.tap({ x: x + width / 2, y: y + height / 2 });
+    await player.wait(100);
+
+    const expected = {
+      name: offered.name,
+      nature: offered.nature,
+      strength: offered.strength,
+      line: offered.line,
+      tags: [],
+    };
+    const board = await player.store.load("wonderland");
+    expect(board.drawings[0]?.ruling).toEqual(expected);
+    expect(player.renderer.lastFrame?.inks[0]?.nature).toBe(offered.nature);
+    expect(board.notes.some((note) => note.action !== undefined)).toBe(false);
+    expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(0);
+  });
+
+  it("never auto-accepts a certain partial sighting", async () => {
+    const player = new Player("wonderland", {
+      eyes: new Eyes([seen("aircraft carrier", "heavy", true)], []),
+    });
+    await player.arrive();
+    await sketch(player, blob({ x: 300, y: 430 }, 30, 20));
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
+    await player.wait(COMMIT_WAIT_MS);
+    expect((await player.store.load("wonderland")).drawings[0]?.ruling).toBeNull();
+    expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(3);
   });
 });
 
@@ -717,7 +998,7 @@ describe("Game with a pen that reads", () => {
     await player.arrive();
 
     await player.scrawl(scrawl({ x: 200, y: 200 }, 4));
-    expect(reader.asked).toEqual([1, 2, 3, 4]);
+    expect(reader.asked).toEqual([3, 4]);
     expect(player.written).toContain("no gravity");
     expect(player.renderer.lastFrame?.inks).toHaveLength(0);
     const board = await player.store.load("wonderland");
@@ -766,7 +1047,7 @@ describe("Game with a pen that reads", () => {
     const player = new Player("wonderland", { reader, eyes });
     await player.arrive();
 
-    await player.scrawl(scrawl({ x: 200, y: 200 }, 2));
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 2, 28));
     expect(player.written).not.toContain("a snake");
 
     reader.answerAll();
@@ -866,6 +1147,81 @@ describe("Game under a mode", () => {
     expect(player.hud.autopilot).toBe(false);
     await player.wait(1_500);
     expect(player.alice.center.x).toBeCloseTo(parked, 0);
+  });
+});
+
+describe("Game while a board is loading", () => {
+  it("pauses simulation and rejects drawing, naming, law and erase input until restore", async () => {
+    const store = new MemoryBoardStore();
+    const original = new Player("wonderland", { store });
+    await original.arrive();
+    await original.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await original.write("night", { x: 200, y: 200 });
+    const snapshot = await store.load("wonderland");
+    const pending = Promise.withResolvers<BoardSnapshot>();
+    vi.spyOn(store, "load").mockReturnValueOnce(pending.promise);
+    const player = new Player("wonderland", { store });
+    const arrival = player.arrive();
+    const prompt = vi.spyOn(player.hud, "promptText");
+    await player.wait(50);
+    const center = player.alice.center;
+    await player.draw(blob({ x: 400, y: 530 }, 30, 20));
+    player.use("write");
+    player.game.tap({ x: 200, y: 200 });
+    player.game.tap({ x: 300, y: 450 });
+    await player.erase({ x: 300, y: 530 });
+    expect(prompt).not.toHaveBeenCalled();
+    expect(player.alice.center).toEqual(center);
+    expect(player.written).toContain("Loading board…");
+    expect(await store.load("wonderland")).toEqual(snapshot);
+
+    pending.resolve(snapshot);
+    await arrival;
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(player.written).not.toContain("Loading board…");
+    await player.write("day", { x: 200, y: 300 });
+    expect((await store.load("wonderland")).notes.some((note) => note.text === "day")).toBe(true);
+  });
+
+  it("keeps the new board locked when an older board finishes loading", async () => {
+    const store = new MemoryBoardStore();
+    const first = Promise.withResolvers<BoardSnapshot>();
+    const second = Promise.withResolvers<BoardSnapshot>();
+    vi.spyOn(store, "load").mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const player = new Player("first", { store });
+    const arrival = player.arrive();
+    player.game.onOpenBoard("second");
+    first.resolve({ drawings: [], notes: [], rules: [] });
+    await arrival;
+    const prompt = vi.spyOn(player.hud, "promptText");
+    player.use("write");
+    player.game.tap({ x: 200, y: 200 });
+    expect(prompt).not.toHaveBeenCalled();
+    expect(player.written).toContain("Loading board…");
+    second.resolve({ drawings: [], notes: [], rules: [] });
+    await player.wait(50);
+    await player.write("night", { x: 200, y: 200 });
+    expect((await store.load("second")).rules).toHaveLength(1);
+  });
+
+  it("allows clearing during load and ignores the old snapshot after new edits", async () => {
+    const store = new MemoryBoardStore();
+    const original = new Player("wonderland", { store });
+    await original.arrive();
+    await original.draw(blob({ x: 300, y: 530 }, 30, 20));
+    const snapshot = await store.load("wonderland");
+    const pending = Promise.withResolvers<BoardSnapshot>();
+    vi.spyOn(store, "load").mockReturnValueOnce(pending.promise);
+    const player = new Player("wonderland", { store });
+    const arrival = player.arrive();
+    player.game.onClearBoard();
+    await player.write("night", { x: 200, y: 200 });
+    pending.resolve(snapshot);
+    await arrival;
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    expect((await store.load("wonderland")).rules).toHaveLength(1);
   });
 });
 

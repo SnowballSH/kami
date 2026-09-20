@@ -33,6 +33,34 @@ const dropPebble = (sim: Simulation, x: number): void =>
   sim.addDrawing(drawingOf("pebble", blob(x, GROUND - 5, 20, 20)));
 
 describe("laws about Alice", () => {
+  it("rejects unsafe physics before changing bodies and can still restore and repeal laws", () => {
+    const sim = enter(board);
+    for (const changes of [
+      { clones: -1 },
+      { clones: 0.5 },
+      { clones: 1e9 },
+      { aliceSize: 0 },
+      { inkEater: -1 },
+      { inkEater: 2 },
+      { timeScale: Number.POSITIVE_INFINITY },
+    ]) {
+      expect(() => sim.setPhysics({ ...EARTH, ...changes })).toThrow(RangeError);
+      expect(sim.snapshot().twins).toEqual([]);
+      expect(sim.snapshot().sumikui).toBeNull();
+    }
+    sim.setPhysics({ ...EARTH, clones: 8, aliceSize: 0.25, inkEater: 1 });
+    runSteps(sim, 60);
+    expect(sim.snapshot().twins).toHaveLength(8);
+    expect(sim.snapshot().alice.height).toBeCloseTo(ALICE_BASE.height * 0.25);
+    expect(sim.snapshot().sumikui).not.toBeNull();
+    sim.setPhysics(EARTH);
+    runSteps(sim, 60);
+    expect(sim.snapshot().twins).toEqual([]);
+    expect(sim.snapshot().sumikui).toBeNull();
+    expect(sim.snapshot().alice.height).toBeCloseTo(ALICE_BASE.height);
+    expect(Number.isFinite(feetOf(sim).y)).toBe(true);
+  });
+
   it("lets her rise straight up off the ground while flying, and drops her when the law goes", () => {
     const sim = enter(board);
     sim.setPhysics({ ...EARTH, flight: 1 });
