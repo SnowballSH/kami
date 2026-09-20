@@ -63,6 +63,22 @@ export const rectContains = (rect: Rect, point: Vec): boolean =>
 export const rectsOverlap = (a: Rect, b: Rect): boolean =>
   a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
+export const remainingColumns = (solid: Rect, cuts: readonly Rect[]): Rect[] => {
+  const edges = cuts
+    .filter((cut) => rectsOverlap(cut, solid))
+    .map((cut) => [cut.x, cut.x + cut.width] as const)
+    .sort(([a], [b]) => a - b);
+  const remains: Rect[] = [];
+  let from = solid.x;
+  for (const [left, right] of edges) {
+    if (left > from) remains.push({ ...solid, x: from, width: left - from });
+    from = Math.max(from, right);
+  }
+  const end = solid.x + solid.width;
+  if (end > from) remains.push({ ...solid, x: from, width: end - from });
+  return remains;
+};
+
 export const distanceToRect = (point: Vec, rect: Rect): number =>
   Math.hypot(
     Math.max(rect.x - point.x, 0, point.x - (rect.x + rect.width)),

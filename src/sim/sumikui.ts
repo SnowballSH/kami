@@ -216,7 +216,12 @@ export class Sumikui {
   private stillWorthy(quarry: Quarry, ground: HuntingGround): boolean {
     switch (quarry.kind) {
       case "ink":
-        return ground.inks.includes(quarry.ink) && !NATURES[quarry.ink.nature].pinned;
+        return (
+          ground.inks.includes(quarry.ink) &&
+          !NATURES[quarry.ink.nature].pinned &&
+          (!quarry.gulp ||
+            (quarry.ink.nature === "ink" && this.usedBy(quarry.ink, ground) === null))
+        );
       case "paper":
         return this.standsOnPaper(quarry.alice, ground) && !this.isHallowed(feetOf(quarry.alice));
       case "alice":

@@ -118,6 +118,17 @@ describe("the Sumikui, the ink eater", () => {
     expect(bite).toBeLessThanOrEqual(1);
   });
 
+  it.each(["hunting", "feeding"] as const)("spares untouched clutter renamed while %s", (phase) => {
+    const sim = summonOver(["bait", "more bait"]);
+    runSteps(sim, BEFORE_SWEEPING);
+    runUntil(sim, () => sumikuiOf(sim).phase === phase, A_MINUTE);
+    expect(sumikuiOf(sim).phase).toBe(phase);
+    sim.applyRuling(idOf("bait"), rulingOf("bouncy"));
+    const events = runSteps(sim, 120);
+    expect(devouredIds(events)).not.toContain(idOf("bait"));
+    expect(poseOf(sim, "bait")).toBeDefined();
+  });
+
   it("devours the drawing Alice leans on, and not the scribble beside it", () => {
     const sim = summonOver(["bait"]);
     pebble(sim, "her rock", 60);

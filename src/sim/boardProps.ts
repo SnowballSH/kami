@@ -1,6 +1,13 @@
 import Matter from "matter-js";
 import type { BoardDefinition, SolidMaterial } from "../board/types";
-import { distanceToRect, expandRect, type Rect, rectCenter, rectsOverlap } from "../core/geometry";
+import {
+  distanceToRect,
+  expandRect,
+  type Rect,
+  rectCenter,
+  rectsOverlap,
+  remainingColumns,
+} from "../core/geometry";
 import { KEY_RADIUS, REACH_RATIO, SOLID_FRICTION, SUMIKUI_SCAR_HEALS_MS } from "./constants";
 import { CATEGORY } from "./contacts";
 
@@ -24,23 +31,6 @@ interface Scar {
   readonly rect: Rect;
   readonly bittenAt: number;
 }
-
-/** The parts of `solid` left standing once the given columns are cut out of it. */
-const remainsOf = (solid: Rect, cuts: readonly Rect[]): Rect[] => {
-  const edges = cuts
-    .filter((cut) => rectsOverlap(cut, solid))
-    .map((cut) => [cut.x, cut.x + cut.width] as const)
-    .sort(([a], [b]) => a - b);
-  const remains: Rect[] = [];
-  let from = solid.x;
-  for (const [left, right] of edges) {
-    if (left > from) remains.push({ ...solid, x: from, width: left - from });
-    from = Math.max(from, right);
-  }
-  const end = solid.x + solid.width;
-  if (end > from) remains.push({ ...solid, x: from, width: end - from });
-  return remains;
-};
 
 /**
  * What was sketched on the board before the player arrived: solids, door, key and goal. The
@@ -146,7 +136,7 @@ export class BoardProps {
     );
     const cuts = this.bites;
     this.pieces = this.board.solids.flatMap((solid) =>
-      remainsOf(solid.rect, cuts).map((rect) => ({
+      remainingColumns(solid.rect, cuts).map((rect) => ({
         rect,
         body: staticRect(rect),
         material: solid.material,
