@@ -5,9 +5,11 @@ import type { Rect, Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 import { EARTH } from "../rules/types";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "../sim/flight";
+import { enter, runSteps } from "../sim/testSupport";
 import { ALICE_BASE, type AliceSize, type AliceSnapshot } from "../sim/types";
 import { CELL_PX, CellFlag, Chart } from "./chart";
 import { createAutopilot } from "./index";
+import { footprintFor } from "./pathfinder";
 import type { Scene, SceneInk } from "./types";
 
 const GROUND_Y = 400;
@@ -29,14 +31,16 @@ const board = (overrides: Partial<BoardDefinition> = {}): BoardDefinition => ({
   ...overrides,
 });
 
-const alice = (feet: Vec, size: AliceSize = "normal"): AliceSnapshot => {
-  const scale = size === "big" ? 2 : size === "small" ? 0.5 : 1;
+const alice = (feet: Vec, size: AliceSize = "normal", sizeMultiplier = 1): AliceSnapshot => {
+  const scale = (size === "big" ? 2 : size === "small" ? 0.5 : 1) * sizeMultiplier;
   const height = ALICE_BASE.height * scale;
   return {
     center: { x: feet.x, y: feet.y - height / 2 },
     width: ALICE_BASE.width * scale,
     height,
     size,
+    sizeMultiplier,
+    headingScale: scale,
     facing: 1,
     walking: false,
     grounded: true,
@@ -79,6 +83,82 @@ const scene = (overrides: Partial<Scene> = {}): Scene => ({
 });
 
 describe("Pilot", () => {
+  it("replans a low passage when a law enlarges Alice without changing her size state", () => {
+    const pilot = createAutopilot();
+    const passage = board({
+      solids: [
+        solid({ x: 0, y: GROUND_Y, width: 1000, height: 40 }),
+        solid({ x: 200, y: 0, width: 200, height: GROUND_Y - 80 }),
+      ],
+      goal: { x: 600, y: GROUND_Y - 60, width: 40, height: 60 },
+    });
+    pilot.drive(scene({ board: passage }));
+    expect(pilot.status.errand.kind).toBe("objective");
+
+    const resizing = {
+      ...alice({ x: 100, y: GROUND_Y }),
+      sizeMultiplier: 2,
+      headingScale: 2,
+    };
+    pilot.drive(scene({ board: passage, alice: resizing }));
+    expect(pilot.status.errand.kind).toBe("wait");
+    expect(pilot.status.stuck).toBe(true);
+  });
+
+  it("uses law-scaled meal footprints and retains the larger body during shrinking", () => {
+    const enlarged = alice({ x: 100, y: GROUND_Y }, "normal", 2);
+    expect(footprintFor(enlarged)).toEqual({ cols: 7, rows: 15 });
+    expect(footprintFor(enlarged, "big")).toEqual({ cols: 14, rows: 30 });
+    expect(footprintFor(enlarged, "small")).toEqual({ cols: 4, rows: 8 });
+    expect(footprintFor({ ...enlarged, sizeMultiplier: 1, headingScale: 1 })).toEqual({
+      cols: 7,
+      rows: 15,
+    });
+  });
+
+  it("walks out from a low ceiling before deferred law growth starts for Alice and her twin", () => {
+    const passage = board({
+      solids: [
+        solid({ x: 0, y: GROUND_Y, width: 1000, height: 40 }),
+        solid({ x: 0, y: GROUND_Y - 90, width: 300, height: 10 }),
+      ],
+      goal: { x: 700, y: GROUND_Y - 60, width: 40, height: 60 },
+    });
+    const sim = enter(passage);
+    sim.setPhysics({ ...EARTH, aliceSize: 2, clones: 1 });
+    runSteps(sim, 60);
+    const deferred = sim.snapshot();
+    for (const each of [deferred.alice, ...deferred.twins]) {
+      expect(each.height).toBeCloseTo(ALICE_BASE.height);
+      expect(each.headingScale).toBe(1);
+      expect(each.sizeMultiplier).toBe(2);
+    }
+    expect(footprintFor(deferred.alice, "big")).toEqual({ cols: 14, rows: 30 });
+
+    const pilot = createAutopilot();
+    const currentScene = (): Scene =>
+      scene({
+        board: passage,
+        alice: sim.snapshot().alice,
+        walkSpeed: sim.walkSpeed(),
+        jumpArc: sim.jumpArc(),
+      });
+    expect(pilot.drive(currentScene())).toEqual({ x: 1, y: 0 });
+    expect(pilot.status.errand.kind).toBe("objective");
+    for (let tick = 0; tick < 240; tick++) {
+      sim.setWalkIntent(pilot.drive(currentScene()));
+      sim.step();
+    }
+    const grown = sim.snapshot();
+    expect(grown.twins).toHaveLength(1);
+    for (const each of [grown.alice, ...grown.twins]) {
+      expect(each.center.x).toBeGreaterThan(400);
+      expect(each.width).toBeCloseTo(ALICE_BASE.width * 2);
+      expect(each.height).toBeCloseTo(ALICE_BASE.height * 2);
+      expect(each.headingScale).toBe(2);
+    }
+  });
+
   it("idles on a board with nothing to go for", () => {
     const pilot = createAutopilot();
 

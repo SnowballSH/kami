@@ -240,6 +240,8 @@ export class AliceController {
       width,
       height,
       size: this.currentSize,
+      sizeMultiplier: this.physics.aliceSize,
+      headingScale: this.headingScale,
       facing: this.facing,
       walking: this.walking,
       grounded: this.grounded,
