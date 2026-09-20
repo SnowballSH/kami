@@ -144,12 +144,15 @@ export class MatterSimulation implements Simulation {
   private bulletTime = 1;
   private readonly paper = new PaperTurn();
   private events: SimEvent[] = [];
+  /** False until the first step after a board opens: laws folded before then were born with the room. */
+  private underway = false;
 
   loadBoard(board: BoardDefinition): void {
     Matter.Engine.clear(this.world.engine);
     this.world = buildWorld(board, this.physics);
     this.roster = null;
     this.events = [];
+    this.underway = false;
   }
 
   setPhysics(physics: WorldPhysics): void {
@@ -161,7 +164,7 @@ export class MatterSimulation implements Simulation {
     twins.match(this.embodied ? physics.clones : 0, alice, physics);
     this.roster = null;
     inks.setPhysics(physics);
-    this.matchSumikui(physics.inkEater, { bides: false });
+    this.matchSumikui(physics.inkEater, { bides: !this.underway });
   }
 
   private matchSumikui(inkEater: number, { bides }: { readonly bides: boolean }): void {
@@ -244,6 +247,7 @@ export class MatterSimulation implements Simulation {
   }
 
   step(): readonly SimEvent[] {
+    this.underway = true;
     const timeScale = Math.max(this.bulletTime * this.physics.timeScale, MIN_TIME_SCALE);
     const ticks = Math.ceil(timeScale);
     for (let tick = 0; tick < ticks; tick++) this.tick(timeScale / ticks);
