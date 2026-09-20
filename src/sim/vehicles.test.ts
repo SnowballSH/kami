@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blankBoard } from "../board/boards/blank";
+import { endlessBoard } from "../board/boards/endless";
 import type { BoardDefinition } from "../board/types";
 import type { Stroke } from "../core/geometry";
 import { VEHICLE_SPEED, WALK_SPEED } from "./constants";
@@ -17,6 +18,7 @@ import {
   runSteps,
   runUntil,
   STAY,
+  saw,
 } from "./testSupport";
 import type { Simulation } from "./types";
 
@@ -28,6 +30,7 @@ const flatBoard: BoardDefinition = {
   ...blankBoard("flat"),
   solids: [{ rect: { x: -2000, y: 0, width: 4000, height: 36 }, material: "marker" }],
 };
+const endlessFlatBoard = endlessBoard("vehicle-endless");
 const ledgeBoard: BoardDefinition = {
   ...blankBoard("ledge"),
   solids: [{ rect: { x: -320, y: 0, width: 480, height: 36 }, material: "marker" }],
@@ -151,5 +154,20 @@ describe("ink ruled vehicle", () => {
     sim.setWalkIntent(RIGHT);
     runSteps(sim, 240);
     expect(Math.abs(poseOf(sim, "car")?.angle ?? 0)).toBeGreaterThan(0.3);
+  });
+
+  it("brings a ridden car back when Alice falls off an endless page", () => {
+    const sim = parkCar(endlessFlatBoard, cart());
+    climbAboard(sim);
+    sim.setWalkIntent(RIGHT);
+    const events = runUntil(sim, saw("fell"));
+    const car = poseOf(sim, "car");
+    const alice = aliceOf(sim);
+    expect(events.some((event) => event.type === "fell")).toBe(true);
+    expect(car).toBeDefined();
+    expect(
+      Math.hypot((car?.position.x ?? 0) - alice.center.x, (car?.position.y ?? 0) - alice.center.y),
+    ).toBeLessThan(60);
+    expect(Math.abs(car?.angle ?? Number.POSITIVE_INFINITY)).toBeLessThan(0.01);
   });
 });

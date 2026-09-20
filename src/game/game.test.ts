@@ -67,7 +67,7 @@ import {
   FakeVoice,
   MemoryBoardStore,
 } from "./testing/fakes";
-import { deafLine } from "./voiceLines";
+import { deafLine, FELL_OFF_PAGE_LINE } from "./voiceLines";
 
 const COMMIT_WAIT_MS = 1_200;
 const PATIENCE_MS = 40_000;
@@ -2069,6 +2069,16 @@ describe("Game in the Sandbox", () => {
     expect(player.renderer.board?.goal).toBeUndefined();
   });
 
+  it("says when Alice falls off the endless page", async () => {
+    const { player } = sandbox();
+    await player.arrive();
+    player.game.onAutopilotToggled(false);
+    player.walk(1);
+    expect(await player.until(() => player.written.includes(FELL_OFF_PAGE_LINE), 10_000)).toBe(
+      true,
+    );
+  });
+
   it("tells the player the page ends where the ground does, when asked for help at the edge", async () => {
     const { player, eyes } = sandbox();
     await player.arrive();
@@ -2173,9 +2183,11 @@ describe("Game in the Sandbox", () => {
     const { player } = sandbox();
     await player.arrive();
     player.walk(1);
-    expect(await player.until(() => player.alice.center.y > 1_000, 20_000)).toBe(true);
+    expect(await player.until(() => player.written.includes(FELL_OFF_PAGE_LINE), 20_000)).toBe(
+      true,
+    );
     player.walk(0);
-    expect(await player.until(() => player.alice.center.y < 0, 20_000)).toBe(true);
+    expect(player.alice.center.y).toBeLessThan(0);
     expect(player.alice.center.x).toBeLessThan(ENDLESS_GROUND.x + ENDLESS_GROUND.width);
     expect(player.alice.center.x).toBeGreaterThan(0);
   });

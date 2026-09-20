@@ -140,7 +140,7 @@ import type { Drift } from "./noteLayout";
 import { type Hire, type Page, Party } from "./party";
 import { groupedByNote, RuleBook } from "./ruleBook";
 import { StuckDetector } from "./stuckDetector";
-import { deafLine } from "./voiceLines";
+import { deafLine, FELL_OFF_PAGE_LINE } from "./voiceLines";
 
 const MAX_STEPS_PER_FRAME = 5;
 export const DEFAULT_TIDINESS = 0.5;
@@ -892,7 +892,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       case "goal-reached":
         return;
       case "fell":
-        if (event.who === this.party.selected) this.stuck.fell();
+        if (event.who === this.party.selected) {
+          this.stuck.fell();
+          if (this.director.mode.page === "endless")
+            this.remark(FELL_OFF_PAGE_LINE, HINT_LIFETIME_MS);
+        }
         return;
       case "zone-entered":
         this.enterZone(event.zoneId);

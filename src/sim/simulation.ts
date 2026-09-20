@@ -46,6 +46,7 @@ import {
   aliceDimensions,
   type BounceArc,
   type InkProvenance,
+  type Ride,
   type SimEvent,
   type Simulation,
   type WalkIntent,
@@ -140,6 +141,7 @@ export class MatterSimulation implements Simulation {
   private physics: WorldPhysics = EARTH;
   private world: BoardWorld = buildWorld(EMPTY_BOARD, EARTH);
   private intents: WalkIntent[] = [];
+  private readonly rides = new Map<AliceController, Ride>();
   private roster: Roster | null = null;
   private bulletTime = 1;
   private readonly paper = new PaperTurn();
@@ -152,6 +154,7 @@ export class MatterSimulation implements Simulation {
     this.world = buildWorld(board, this.physics);
     this.roster = null;
     this.events = [];
+    this.rides.clear();
     this.underway = false;
   }
 
@@ -336,6 +339,11 @@ export class MatterSimulation implements Simulation {
 
     this.growLawfully();
     const surroundings = this.surroundings();
+    for (const alice of alices) {
+      const ride = alice.snapshot().ride;
+      if (ride !== null) this.rides.set(alice, ride);
+      else if (alice.grounded) this.rides.delete(alice);
+    }
     for (const alice of alices) {
       alice.control(this.intentSheCanFollow(alice), surroundings, timeScale);
     }
@@ -686,16 +694,32 @@ export class MatterSimulation implements Simulation {
   }
 
   private resolveWhereabouts(): void {
-    const { alice, twins, checkpoints, lost, footing } = this.world;
+    const { alice, twins, checkpoints, inks, lost, footing } = this.world;
     const alices = this.bodied();
     if (alices.length === 0) return;
     const stood = alice.footingPoint();
     if (stood !== null) footing.stood(stood);
     for (const [who, each] of alices.entries()) {
       if (lost.has(each) || this.isOffTheBoard(each)) {
+        const ride = each.snapshot().ride ?? this.rides.get(each);
+        const respawn = this.respawnPoint();
         lost.delete(each);
         this.events.push({ type: "fell", who });
-        each.placeAt(this.respawnPoint());
+        each.placeAt(respawn);
+        this.rides.delete(each);
+        if (ride?.gait === "vehicle") {
+          const vehicle = inks.all.find((ink) => ink.id === ride.id);
+          if (vehicle !== undefined) {
+            Matter.Body.setAngle(vehicle.body, 0);
+            const bounds = exactBounds(vehicle.body);
+            Matter.Body.setPosition(vehicle.body, {
+              x: vehicle.body.position.x + respawn.x - (bounds.x + bounds.width / 2),
+              y: vehicle.body.position.y + respawn.y - bounds.y,
+            });
+            Matter.Body.setVelocity(vehicle.body, { x: 0, y: 0 });
+            Matter.Body.setAngularVelocity(vehicle.body, 0);
+          }
+        }
       }
     }
     twins.recallStrays(alice);
