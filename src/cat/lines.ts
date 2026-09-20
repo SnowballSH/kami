@@ -92,6 +92,11 @@ export const ACCEPTANCE: Readonly<Record<Nature, LineSet>> = {
     "Up it flaps. Stand on it if you dare.",
     "A flier. It keeps to its patch of sky.",
   ],
+  vehicle: [
+    "Something to drive. Step aboard and point her somewhere.",
+    "Wheels! Stand on it and it goes where she wants.",
+    "A ride. Faster than feet, and no one has to be the horse.",
+  ],
   attractor: [
     "Everything leans toward it now. Even her.",
     "A pull. Things will gather there whether they mean to or not.",

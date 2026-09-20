@@ -7,6 +7,8 @@ const standing = (x: number): AliceSnapshot => ({
   width: 28,
   height: 60,
   size: "normal",
+  sizeMultiplier: 1,
+  headingScale: 1,
   facing: 1,
   walking: false,
   grounded: true,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { blankBoard } from "../board/boards/blank";
 import { wonderland } from "../board/boards/wonderland";
 import type { BoardDefinition } from "../board/types";
+import { EARTH } from "../rules/types";
 import {
   blob,
   drawingOf,
@@ -224,6 +225,43 @@ describe("natures", () => {
     expect(happeningsOf(events)).toEqual(["grow-blocked"]);
     expect(sim.snapshot().alice.size).toBe("normal");
     expect(sim.snapshot().drawings).toHaveLength(1);
+  });
+
+  it("checks the law-scaled growth height under a ceiling", () => {
+    const sim = enter({
+      ...onThePlateau,
+      solids: [
+        ...wonderland.solids,
+        { rect: { x: 1700, y: 180, width: 300, height: 30 }, material: "marker" },
+      ],
+    });
+    sim.setPhysics({ ...EARTH, aliceSize: 2 });
+    runSteps(sim, 60);
+    expect(sim.snapshot().alice.height).toBeCloseTo(120);
+    sim.addDrawing(drawingOf("cake", blob(1830, PLATEAU_TOP - RESTING, 60, 24)));
+    sim.applyRuling(idOf("cake"), rulingOf("grow"));
+    sim.setWalkIntent(RIGHT);
+    const events = runSteps(sim, 60);
+    expect(happeningsOf(events)).toContain("grow-blocked");
+    expect(sim.snapshot().alice.size).toBe("normal");
+    expect(sim.snapshot().drawings).toHaveLength(1);
+  });
+
+  it("checks the full growth width beside a wall", () => {
+    const sim = enter({
+      ...blank,
+      spawn: { x: 100, y: 400 },
+      solids: [
+        { rect: { x: 0, y: 400, width: 1000, height: 40 }, material: "marker" },
+        { rect: { x: 120, y: 0, width: 40, height: 400 }, material: "marker" },
+      ],
+    });
+    runSteps(sim, 30);
+    sim.addDrawing(drawingOf("cake", blob(80, 395, 16, 24)));
+    sim.applyRuling(idOf("cake"), rulingOf("grow"));
+    const events = runSteps(sim, 60);
+    expect(happeningsOf(events)).toContain("grow-blocked");
+    expect(sim.snapshot().alice.size).toBe("normal");
   });
 });
 

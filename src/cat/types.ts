@@ -16,6 +16,7 @@ export const NATURES = [
   "walker",
   "hopper",
   "flier",
+  "vehicle",
   "attractor",
   "lantern",
   "solid",
@@ -26,7 +27,8 @@ export const NATURES = [
 
 /**
  * What a drawing is. The first ten are spirits (spec §4). Then three creatures, which move by
- * themselves: `walker` paces, `hopper` leaps, `flier` roams the air. Then two fields: an
+ * themselves: `walker` paces, `hopper` leaps, `flier` roams the air; a `vehicle` rolls where Alice
+ * steers it while she stands aboard. Then two fields: an
  * `attractor` pulls everything toward it, a `lantern` lights its patch at night. The last four are roles, for
  * sketching a new game: `solid` is ground that stays put wherever it was drawn, `goal` wins the board,
  * `hazard` sends Alice back to her checkpoint, `spawn` moves that checkpoint.

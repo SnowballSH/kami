@@ -1,6 +1,12 @@
 import { distanceToRect, expandRect, type Rect, rectsOverlap, type Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
-import { ALICE_BASE, ALICE_SCALE, type AliceSize, type BounceArc, KEY_PICKUP } from "../sim/types";
+import {
+  type AliceSize,
+  type AliceSnapshot,
+  aliceDimensions,
+  type BounceArc,
+  KEY_PICKUP,
+} from "../sim/types";
 import { CELL_PX, CellFlag, type CellRange, type Chart } from "./chart";
 import type { Objective, Scene } from "./types";
 
@@ -47,10 +53,15 @@ const DRIFT_MARGIN = 0.8;
 /** Nodes a single search may open before it gives up: the board is endless, her patience is not. */
 const SEARCH_BUDGET = 200_000;
 
-export const footprintFor = (size: AliceSize): Footprint => ({
-  cols: Math.ceil((ALICE_BASE.width * ALICE_SCALE[size]) / CELL_PX),
-  rows: Math.ceil((ALICE_BASE.height * ALICE_SCALE[size]) / CELL_PX),
-});
+export const footprintFor = (alice: AliceSnapshot, size: AliceSize = alice.size): Footprint => {
+  const target =
+    size === alice.size
+      ? aliceDimensions("normal", alice.headingScale)
+      : aliceDimensions(size, alice.sizeMultiplier);
+  const width = size === alice.size ? Math.max(alice.width, target.width) : target.width;
+  const height = size === alice.size ? Math.max(alice.height, target.height) : target.height;
+  return { cols: Math.ceil(width / CELL_PX), rows: Math.ceil(height / CELL_PX) };
+};
 
 export const nodeOfFeet = (feet: Vec, footprint: Footprint): Node => ({
   c0: Math.round(feet.x / CELL_PX - footprint.cols / 2),
