@@ -2,6 +2,7 @@ import { boundsOf, type Rect, type Stroke, type Vec } from "../core/geometry";
 import { INK_THICKNESS } from "../core/world";
 import type { Drawing, DrawingId, PlacementVerdict } from "../ink/types";
 import type { SimEvent } from "../sim/types";
+import { motionAllowed } from "./animation/motion";
 import { awakening, inkTint, isSettled, shiverOffset } from "./awakening";
 import { posedInView } from "./culling";
 import { INK_PEN, strokesPath } from "./inkPath";
@@ -152,7 +153,7 @@ export class InkPainter {
     nowMs: number,
   ): void {
     const startedAt = this.portalPulses.get(ink.drawing.id);
-    if (ink.nature !== "portal" || startedAt === undefined) return;
+    if (!motionAllowed() || ink.nature !== "portal" || startedAt === undefined) return;
     const progress = Math.max(0, Math.min(1, (nowMs - startedAt) / 400));
     const pulse = Math.sin(Math.PI * progress);
     if (pulse <= 0) return;

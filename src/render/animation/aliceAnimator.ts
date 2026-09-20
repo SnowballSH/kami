@@ -20,6 +20,7 @@ import {
   lerp,
   progressOf,
 } from "./easing";
+import { motionAllowed } from "./motion";
 
 /** What the simulation reported about her this frame that her position alone would not show. */
 export interface AliceCues {
@@ -275,6 +276,11 @@ export class AliceAnimator {
 
   private composeLanding(nowMs: number): void {
     if (this.landAtMs === null || nowMs < this.landAtMs) return;
+    if (!motionAllowed()) {
+      this.landAtMs = null;
+      this.landSquash = 0;
+      return;
+    }
     const t = progressOf(nowMs, this.landAtMs, LAND_MS);
     if (t >= 1) {
       this.landAtMs = null;
@@ -318,6 +324,11 @@ export class AliceAnimator {
   private composeArrival(nowMs: number): void {
     if (this.arrivalAtMs === null) return;
     const popping = this.arrivalKind === "pop";
+    if (!motionAllowed()) {
+      this.arrivalAtMs = null;
+      if (!popping) this.figure.inked = 1;
+      return;
+    }
     const t = progressOf(nowMs, this.arrivalAtMs, popping ? POP_MS : REINK_MS);
     if (t >= 1) {
       this.arrivalAtMs = null;
@@ -335,6 +346,10 @@ export class AliceAnimator {
 
   private composePortal(alice: AliceSnapshot, nowMs: number): void {
     if (this.portalAtMs === null) return;
+    if (!motionAllowed()) {
+      this.portalAtMs = null;
+      return;
+    }
     const elapsed = nowMs - this.portalAtMs;
     const { figure } = this;
     if (elapsed < PORTAL_ENTRY_MS) {
