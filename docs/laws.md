@@ -63,9 +63,12 @@ A drawing has its own dial set, its **motion**:
 
 ```
 Motion = { spin (turns/s, + clockwise), thrust: Vec (g, the push it gives itself),
-           mass (× its weight), bounce (0..1), grip (× its surface friction) }
-STILL : Motion = { 0, (0,0), 1, 0, 1 }
+           mass (× its weight), bounce (0..1), grip (× its surface friction),
+           pace (× how fast it moves of itself), wings (0 | 1, whether it flies), size (× its own size) }
+STILL : Motion = { 0, (0,0), 1, 0, 1, 1, 0, 1 }
 ```
+
+The last three are **powers**: the dials Alice has as world effects (`walkSpeed`, `flight`, `aliceSize`) given to any drawing by name — “the cat is twice as fast”, “the dog can fly”, “the rabbit is huge”. A sentence about Alice keeps her own dials; a sentence about a named drawing is a body effect like any other.
 
 A sentence about a drawing — “the wheel spins”, “the rock is twice as heavy”, “everything is slippery” — is a **body effect** `{ governs: d, of: Target, value }`, where
 
@@ -159,6 +162,7 @@ A **system** reads the folded state each tick and produces forces or state trans
 |---|---|---|
 | gravity / wind / drag | `gravity`, `wind`, `airDrag` | engine gravity, a push on every dynamic body, air friction |
 | motion | `bodies`; each drawing's name and own motion | `spin` sets a loose body's angular velocity (a held one turns in place; creatures and roles are exempt); `thrust` pushes the body by `mass × g` each tick; `mass`, `grip`, `bounce` scale the body's density and friction and raise its restitution — `materialMoved` over the world material |
+| powers | `bodies`; each drawing's nature | `pace` multiplies a creature's or vehicle's own speed; `wings` makes a walker or hopper fly (it climbs to perch height, then roams like a flier), holds a plain drawing in the air, and lets a vehicle take off once rolling (up/down steer it; still on the ground, up is a jump off as before); `size` scales the drawing about its own centre — strokes, body and pose alike, feet kept on the ground — and refolds back when the law goes |
 | Alice movement | `walkSpeed`, `flight`, `aliceSize` | her pace, whether air holds her like a ladder, her body scale |
 | attraction | `attraction`; `attractor` natures | `pullToward(center, g, bodies)` with `1/r²` falloff, capped up close |
 | weather | `temperature` | `slippery` melts above 30 °C, `floaty` burns off above 60 °C, after a dwell; emits `perished` |
@@ -186,6 +190,7 @@ The autopilot is a system too: `Scene.canFly` marks every cell of air climbable,
 | `the wheel spins` | `set(spin, 1) of named(wheel)` | `W.bodies ++ [{ wheel, { spin: 1 } }]` | motion: every drawing named “…wheel…” turns once a second |
 | `the cart accelerates` | `set(thrust, (0.5, 0)) of named(cart)` | `W.bodies ++ [...]` | motion: the cart pushes itself rightward at half a g |
 | `everything spins` then `the rock stops spinning` | `set(spin, 1) of all`, `set(spin, 0) of named(rock)` | both kept; `motion("rock") = { spin: 0 }`, `motion("wheel") = { spin: 1 }` | motion |
+| `the dog can fly` · `the cat is twice as fast` · `the rabbit is huge` | `set(wings, 1) of named(dog)` · `set(pace, 2) of named(cat)` · `set(size, 2) of named(rabbit)` | `W.bodies ++ [...]` | powers: the dog takes to the air, the cat paces twice as fast, the rabbit doubles about its centre; Alice can ride any of them |
 | `a spinning wheel` (as a name) | `null` (identity); the ruling carries `own = { spin: 1 }` | — | funnel names the drawing; motion turns it |
 | `a mushroom` | `null` (identity) | — | funnel falls through to naming |
 | `teleport us to the moon` | `[set(gravity,(0,.165)), set(airDrag,·), set(daylight,.3)]`, all of one note; props `moon`, `star ×3` | the three edits in order; erasing the note refolds without all three | gravity, drag, lighting; Kami inks the props above the words |

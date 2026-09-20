@@ -29,6 +29,7 @@ describe("findDrawingAt", () => {
       origin: { x: 50, y: 0 },
       position: { x: 300, y: 400 },
       angle: Math.PI / 2,
+      scale: 1,
     };
     const drawings = [posed("fallen", [HORIZONTAL], fallen)];
     expect(findDrawingAt({ x: 300, y: 440 }, drawings, 5)).toBe("fallen");

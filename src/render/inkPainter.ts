@@ -107,7 +107,7 @@ export class InkPainter {
         : settled.path;
     const progress = awakening(nowMs, ink.awakenedAtMs);
     const awake = ink.awakenedAtMs !== null;
-    const { origin, position, angle } = ink.pose;
+    const { origin, position, angle, scale } = ink.pose;
     ctx.save();
     if (isSettled(progress)) {
       ctx.translate(position.x, position.y);
@@ -118,6 +118,7 @@ export class InkPainter {
       ctx.fillStyle = rgbCss(inkTint(ink.nature, progress));
     }
     ctx.rotate(angle);
+    ctx.scale(scale, scale);
     ctx.translate(-origin.x, -origin.y);
     ctx.fill(path);
     if (awake && ink.nature === "solid") {

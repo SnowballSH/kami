@@ -120,6 +120,21 @@ const BODY_STYLES: Readonly<Record<BodyScalarGoverns, ScalarStyle>> = {
     gloss: (shown) => `grip = ${shown}x`,
     glossAtZero: "grip off, slick as ice",
   },
+  pace: {
+    range: { min: 0.1, max: 5 },
+    gloss: (shown) => `pace = ${shown}x`,
+    glossAtZero: null,
+  },
+  wings: {
+    range: { min: 0, max: 1 },
+    gloss: () => "can fly",
+    glossAtZero: "grounded",
+  },
+  size: {
+    range: { min: 0.25, max: 4 },
+    gloss: (shown) => `size = ${shown}x`,
+    glossAtZero: null,
+  },
 };
 
 const MAX_THRUST_IN_G = 3;

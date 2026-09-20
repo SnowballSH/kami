@@ -46,6 +46,8 @@ export interface AliceSurroundings {
   isInk(body: Matter.Body): boolean;
   isSlippery(body: Matter.Body): boolean;
   isClimbable(body: Matter.Body): boolean;
+  /** A vehicle under her that flies where she points, so up is not a jump. */
+  liftsHer(body: Matter.Body): boolean;
 }
 
 interface ResizeTween {
@@ -71,6 +73,7 @@ export class AliceController {
   private walking = false;
   private climbing = false;
   private onClimbable = false;
+  private piloting = false;
   private footing: readonly Contact[] = [];
   private ahead: readonly Contact[] = [];
   private passing: readonly Contact[] = [];
@@ -160,6 +163,7 @@ export class AliceController {
       intent.x === 0 ? [] : contactsAt(this.body, { x: intent.x * PROBE_AHEAD, y: 0 }, obstacles);
     this.passing = contactsWith(this.body, passables);
     this.onClimbable = this.passing.some((contact) => surroundings.isClimbable(contact.body));
+    this.piloting = this.footing.some((contact) => surroundings.liftsHer(contact.body));
     if (this.grounded) this.lastFootingY = bottomOf(this.bounds());
   }
 
@@ -176,13 +180,16 @@ export class AliceController {
       : this.walkVelocity(velocity.x, intent.x, surroundings);
 
     if (this.climbing) cancelGravity(this.body, accelerationOf(this.physics.gravity));
+    if (this.piloting) this.jumpArmed = false;
     const velocityY = this.climbing
       ? intent.y * CLIMB_SPEED
-      : this.takeOff(intent)
-        ? -jumpSpeedAt(this.currentScale)
-        : stepped
-          ? 0
-          : velocity.y;
+      : this.piloting
+        ? velocity.y
+        : this.takeOff(intent)
+          ? -jumpSpeedAt(this.currentScale)
+          : stepped
+            ? 0
+            : velocity.y;
     Matter.Body.setVelocity(this.body, { x: velocityX, y: velocityY });
   }
 
@@ -226,6 +233,7 @@ export class AliceController {
     this.ahead = [];
     this.passing = [];
     this.onClimbable = false;
+    this.piloting = false;
     this.blockedTicks = 0;
     this.jumpArmed = true;
     this.lastFootingY = feet.y;

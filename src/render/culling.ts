@@ -7,6 +7,6 @@ export const rectInView = (bounds: Rect, view: Rect, margin: number): boolean =>
   view.y < bounds.y + bounds.height + margin;
 
 export const posedInView = (drawnBounds: Rect, pose: Pose, view: Rect, margin: number): boolean => {
-  const reach = Math.hypot(drawnBounds.width, drawnBounds.height) / 2 + margin;
+  const reach = (Math.hypot(drawnBounds.width, drawnBounds.height) / 2) * pose.scale + margin;
   return distanceToRect(poseToWorld(rectCenter(drawnBounds), pose), view) <= reach;
 };

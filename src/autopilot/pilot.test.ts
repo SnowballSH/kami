@@ -56,7 +56,7 @@ const ink = (points: readonly Vec[], nature: Nature = "ink", strength = 1): Scen
     strokes: [points],
     cost: 0,
   },
-  pose: { origin: { x: 0, y: 0 }, position: { x: 0, y: 0 }, angle: 0 },
+  pose: { origin: { x: 0, y: 0 }, position: { x: 0, y: 0 }, angle: 0, scale: 1 },
   nature,
   strength,
 });

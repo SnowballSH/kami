@@ -37,6 +37,8 @@ export interface Mind {
   speed: number;
   /** Whether Alice is riding this vehicle. */
   aboard: boolean;
+  /** The height a flier is climbing to after touching ground; null once it is up. */
+  liftTo: number | null;
 }
 
 const hashOf = (id: DrawingId): number =>
@@ -49,6 +51,7 @@ export const freshMind = (id: DrawingId): Mind => ({
   rested: 0,
   speed: 0,
   aboard: false,
+  liftTo: null,
 });
 
 /** The world as a creature feels it: what its body would touch if nudged, and what lies under a point. */
@@ -57,7 +60,7 @@ export interface Feelers {
   groundBelow(ink: InkEntity, foot: Vec, drop: number): boolean;
 }
 
-const footing = (ink: InkEntity, feelers: Feelers): boolean =>
+export const footing = (ink: InkEntity, feelers: Feelers): boolean =>
   feelers.touches(ink, { x: 0, y: PROBE_BELOW }).length > 0;
 
 const wallAhead = (ink: InkEntity, feelers: Feelers): boolean =>
@@ -119,6 +122,9 @@ export const urgeOf = (ink: InkEntity, world: NatureWorld): Urge => {
 
 const haste = (urge: Urge): number => (urge === "away" ? FLEE_HASTE : 1);
 
+/** How quick it is right now: its own pace under the laws, and its hurry to get away. */
+const quickness = (ink: InkEntity, urge: Urge): number => ink.motion.pace * haste(urge);
+
 /**
  * Paces its ground, turning at walls and at drops. A follower stops short of a drop and waits
  * there for Alice rather than turn its back on her; a fleer turns, and so can be cornered.
@@ -137,7 +143,10 @@ export const walk = (ink: InkEntity, world: NatureWorld): void => {
     return;
   }
   if (blocked) turnAround(ink);
-  const velocity = { x: mind.facing * CREATURE_WALK_SPEED * ink.strength * haste(urge), y: fall };
+  const velocity = {
+    x: mind.facing * CREATURE_WALK_SPEED * ink.strength * quickness(ink, urge),
+    y: fall,
+  };
   setVelocity(ink, velocity);
   carryAlice(ink, world, { x: velocity.x, y: 0 });
 };
@@ -167,13 +176,21 @@ export const hop = (ink: InkEntity, world: NatureWorld): void => {
     turnAround(ink);
   }
   setVelocity(ink, {
-    x: mind.facing * HOP_FORWARD_SPEED * Math.sqrt(ink.strength) * haste(urge),
+    x: mind.facing * HOP_FORWARD_SPEED * Math.sqrt(ink.strength) * quickness(ink, urge),
     y: -HOP_UP_SPEED * Math.sqrt(ink.strength),
   });
 };
 
 const bob = (mind: Mind): number =>
   FLY_BOB_SPEED * Math.sin((mind.clock / FLY_BOB_PERIOD_TICKS) * Math.PI * 2);
+
+/** Bobs in the air; from the ground, climbs to a perch's height first. */
+const rise = (ink: InkEntity, world: NatureWorld): number => {
+  const { mind, body } = ink;
+  if (footing(ink, world.feelers)) mind.liftTo = body.position.y - PERCH_ABOVE_PX;
+  if (mind.liftTo !== null && body.position.y <= mind.liftTo) mind.liftTo = null;
+  return mind.liftTo === null ? bob(mind) : -FLY_SPEED * ink.strength * ink.motion.pace;
+};
 
 /** Makes for a perch just above Alice's head, and hovers there once it arrives. */
 const flyToAlice = (ink: InkEntity, world: NatureWorld): Vec => {
@@ -183,7 +200,7 @@ const flyToAlice = (ink: InkEntity, world: NatureWorld): Vec => {
   const dy = perch.y - ink.body.position.y;
   const distance = Math.hypot(dx, dy);
   if (distance <= HEEL_PX) return { x: 0, y: bob(ink.mind) };
-  const speed = FLY_SPEED * ink.strength;
+  const speed = FLY_SPEED * ink.strength * ink.motion.pace;
   return { x: (dx / distance) * speed, y: (dy / distance) * speed + bob(ink.mind) };
 };
 
@@ -207,7 +224,10 @@ export const fly = (ink: InkEntity, world: NatureWorld): void => {
   const strayed = body.position.x - ink.origin.x;
   const wandered = urge === "roam" && Math.abs(strayed) > FLY_ROAM_PX && strayed * mind.facing > 0;
   if (wallAhead(ink, world.feelers) || wandered) turnAround(ink);
-  const velocity = { x: mind.facing * FLY_SPEED * ink.strength * haste(urge), y: bob(mind) };
+  const velocity = {
+    x: mind.facing * FLY_SPEED * ink.strength * quickness(ink, urge),
+    y: rise(ink, world),
+  };
   setVelocity(ink, velocity);
   carryAlice(ink, world, velocity);
 };

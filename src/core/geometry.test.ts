@@ -52,7 +52,12 @@ describe("geometry", () => {
   });
 
   it("round-trips points through a pose", () => {
-    const pose: Pose = { origin: { x: 10, y: 10 }, position: { x: 50, y: 20 }, angle: Math.PI / 2 };
+    const pose: Pose = {
+      origin: { x: 10, y: 10 },
+      position: { x: 50, y: 20 },
+      angle: Math.PI / 2,
+      scale: 1,
+    };
     const world = poseToWorld({ x: 20, y: 10 }, pose);
     expect(world.x).toBeCloseTo(50);
     expect(world.y).toBeCloseTo(30);

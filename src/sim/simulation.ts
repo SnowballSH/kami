@@ -19,12 +19,13 @@ import {
   SUMIKUI_BITE_WIDTH,
 } from "./constants";
 import { type Contact, contactsAt, contactsWith, toContact } from "./contacts";
+import type { Feelers } from "./creatures";
 import { EMPTY_BOARD } from "./emptyBoard";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "./flight";
 import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
 import { moveOfItself } from "./motion";
-import { NATURES, type NatureWorld } from "./natures";
+import { NATURES, type NatureWorld, stepOf } from "./natures";
 import { isLooseInk, PaperTurn } from "./paper";
 import { centreOf, Portals } from "./portals";
 import { Sumikui } from "./sumikui";
@@ -38,6 +39,7 @@ import {
   type WalkIntent,
   type WorldSnapshot,
 } from "./types";
+import { liftsHer } from "./vehicles";
 import { weather } from "./weather";
 import { accelerationOf, push } from "./worldPhysics";
 
@@ -219,7 +221,7 @@ export class MatterSimulation implements Simulation {
     const surroundings = this.surroundings();
     alice.control(this.intent, surroundings, timeScale);
     twins.control(this.intent, surroundings, timeScale);
-    for (const ink of inks.all) NATURES[ink.nature].beforeStep?.(ink, natureWorld);
+    for (const ink of inks.all) stepOf(ink)?.(ink, natureWorld);
     moveOfItself(inks.all);
     this.blowWind();
     this.tumbleLooseInk();
@@ -268,8 +270,16 @@ export class MatterSimulation implements Simulation {
     }
   }
 
+  private feelers(): Feelers {
+    return {
+      touches: (ink, offset) => this.feltBy(ink, offset),
+      groundBelow: (ink, foot, drop) => this.groundBelow(ink, foot, drop),
+    };
+  }
+
   private surroundings(): AliceSurroundings {
     const { inks, props } = this.world;
+    const feelers = this.feelers();
     const solidInk = inks.all.filter((ink) => NATURES[ink.nature].solidToAlice);
     const passableInk = inks.all.filter((ink) => !NATURES[ink.nature].solidToAlice);
     const natureOf = (body: Matter.Body) => {
@@ -282,6 +292,10 @@ export class MatterSimulation implements Simulation {
       isInk: (body) => inks.find(body) !== undefined,
       isSlippery: (body) => natureOf(body)?.slippery ?? false,
       isClimbable: (body) => natureOf(body)?.climbable ?? false,
+      liftsHer: (body) => {
+        const ink = inks.find(body);
+        return ink !== undefined && ink.nature === "vehicle" && liftsHer(ink, feelers);
+      },
     };
   }
 
@@ -291,10 +305,7 @@ export class MatterSimulation implements Simulation {
       alice,
       gravity: accelerationOf(this.physics.gravity),
       intent: this.intent,
-      feelers: {
-        touches: (ink, offset) => this.feltBy(ink, offset),
-        groundBelow: (ink, foot, drop) => this.groundBelow(ink, foot, drop),
-      },
+      feelers: this.feelers(),
       emit: (event) => this.events.push(event),
       reachGoal: () => this.reachGoal(),
       loseAlice: () => {

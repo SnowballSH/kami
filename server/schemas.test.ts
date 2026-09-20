@@ -17,6 +17,9 @@ describe("persisted numeric domains", () => {
           case "mass":
           case "bounce":
           case "grip":
+          case "pace":
+          case "wings":
+          case "size":
             return { governs, of, value };
           default:
             return { governs, value };

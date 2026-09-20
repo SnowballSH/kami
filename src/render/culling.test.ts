@@ -38,6 +38,7 @@ describe("posedInView", () => {
       origin: { x: 130, y: 110 },
       position: { x: 5000, y: 110 },
       angle: 1,
+      scale: 1,
     };
     expect(posedInView(DRAWN, IDENTITY_POSE, VIEW, 0)).toBe(true);
     expect(posedInView(DRAWN, carriedAway, VIEW, 0)).toBe(false);
@@ -49,6 +50,7 @@ describe("posedInView", () => {
       origin: { x: -20, y: -20 },
       position: { x: -20, y: -20 },
       angle: Math.PI,
+      scale: 1,
     };
     expect(posedInView(tall, swung, VIEW, 0)).toBe(true);
   });
