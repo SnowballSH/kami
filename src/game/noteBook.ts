@@ -51,11 +51,22 @@ export class NoteBook {
     return this.inscribe(placed, nowMs, anchor ?? null, lifetimeMs).note;
   }
 
-  /** A note from a previous session: already on the board, fully written. */
-  restore(note: Note, nowMs: number): void {
+  /** A note from a previous session: already on the board, fully written, and soon to fade. */
+  restore(note: Note, nowMs: number, lifetimeMs: number): void {
     const anchor: NoteAnchor | null =
       note.drawingId === undefined ? null : { type: "drawing", id: note.drawingId };
     this.inscribe(note, nowMs - ALREADY_WRITTEN_MS, anchor);
+    this.release(note.id, nowMs, lifetimeMs);
+  }
+
+  /** Lets a note that was written to stay go after `lifetimeMs`, unless it was already leaving sooner. */
+  release(id: NoteId, nowMs: number, lifetimeMs: number): void {
+    const entry = this.entries.get(id);
+    if (entry === undefined) return;
+    const leavingAtMs = Math.max(nowMs, entry.writtenAtMs + entry.script.durationMs) + lifetimeMs;
+    const expiresAtMs =
+      entry.expiresAtMs === null ? leavingAtMs : Math.min(entry.expiresAtMs, leavingAtMs);
+    this.entries.set(id, { ...entry, expiresAtMs });
   }
 
   get(id: NoteId): Note | null {
@@ -105,10 +116,11 @@ export class NoteBook {
     this.entries.clear();
   }
 
-  expire(nowMs: number): void {
-    for (const entry of this.entries.values()) {
-      if (entry.expiresAtMs !== null && nowMs >= entry.expiresAtMs) this.remove(entry.note.id);
-    }
+  /** Removes every note whose time is up, with all that hung off them; returns all that went. */
+  expire(nowMs: number): readonly Note[] {
+    return [...this.entries.values()]
+      .filter((entry) => entry.expiresAtMs !== null && nowMs >= entry.expiresAtMs)
+      .flatMap((entry) => this.remove(entry.note.id));
   }
 
   at(point: Vec, matches: (note: Note) => boolean): Note | null {
