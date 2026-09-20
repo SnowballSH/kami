@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Rect, Vec } from "../core/geometry";
+import { INPUT_LIMITS } from "../core/inputLimits";
 import { createInkSession } from "./index";
 import type {
   Drawing,
@@ -39,6 +40,60 @@ describe("PenInkSession", () => {
     listener = new RecordingListener();
     session = createInkSession(listener);
     session.reset(600);
+  });
+
+  it("commits the exact aggregate budget and refunds an excess drawing before placement", () => {
+    session.reset(100_000);
+    const fullStroke = (offset: number) => {
+      session.penDown({ x: 0, y: offset });
+      for (let i = 1; i < INPUT_LIMITS.pointsPerStroke; i++)
+        session.penMove({ x: i * 3, y: offset });
+      session.penUp();
+    };
+    fullStroke(0);
+    fullStroke(10);
+    session.update(0, OPEN_PAGE);
+    session.update(900, OPEN_PAGE);
+    expect(listener.commits).toHaveLength(1);
+    const remaining = session.budget.remaining;
+    fullStroke(20);
+    fullStroke(30);
+    session.penDown({ x: 0, y: 40 });
+    session.update(1800, OPEN_PAGE);
+    expect(listener.commits).toHaveLength(1);
+    expect(listener.rejections).toEqual(["too-detailed"]);
+    expect(session.activeStrokes).toEqual([]);
+    expect(session.budget.remaining).toBe(remaining);
+  });
+
+  it("bounds dot strokes and a single dense stroke independently", () => {
+    session.reset(100_000);
+    for (let i = 0; i < INPUT_LIMITS.strokes; i++) {
+      session.penDown({ x: i, y: 0 });
+      session.penUp();
+    }
+    expect(session.activeStrokes).toHaveLength(INPUT_LIMITS.strokes);
+    session.penDown({ x: 0, y: 0 });
+    expect(listener.rejections).toEqual(["too-detailed"]);
+    session.penDown({ x: 0, y: 0 });
+    for (let i = 1; i <= INPUT_LIMITS.pointsPerStroke; i++) session.penMove({ x: i * 3, y: 0 });
+    expect(listener.rejections).toEqual(["too-detailed", "too-detailed"]);
+    expect(session.budget.remaining).toBe(100_000);
+  });
+
+  it("refunds invalid coordinates and frees point counts when a stroke is cancelled", () => {
+    session.reset(100_000);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      session.penDown({ x: 0, y: 0 });
+      for (let i = 1; i < INPUT_LIMITS.pointsPerStroke; i++) session.penMove({ x: i * 3, y: 0 });
+      session.penCancel();
+    }
+    expect(listener.rejections).toEqual([]);
+    session.penDown({ x: 0, y: 0 });
+    session.penMove({ x: 10, y: 0 });
+    session.penMove({ x: Infinity, y: 0 });
+    expect(listener.rejections).toEqual(["out-of-bounds"]);
+    expect(session.budget.remaining).toBe(100_000);
   });
 
   it("joins strokes drawn inside the commit window into one drawing", () => {

@@ -9,7 +9,12 @@ export interface Drawing {
   readonly cost: number;
 }
 
-export type PlacementVerdict = "ok" | "overlaps-alice" | "no-ink-zone";
+export type PlacementVerdict =
+  | "ok"
+  | "overlaps-alice"
+  | "no-ink-zone"
+  | "too-detailed"
+  | "out-of-bounds";
 export type PlacementRejection = Exclude<PlacementVerdict, "ok">;
 
 export interface PlacementRules {

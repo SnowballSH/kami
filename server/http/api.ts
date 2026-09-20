@@ -1,4 +1,5 @@
 import type { Stroke } from "../../src/core/geometry";
+import { INPUT_LIMITS } from "../../src/core/inputLimits";
 import type { RuleCompiler } from "../../src/rules/types";
 import type { Beautifier } from "../beautify/beautifier";
 import { controllerEventStream } from "../controllers/eventStream";
@@ -29,6 +30,7 @@ import {
   ok,
   type Parsed,
   parseJsonBody,
+  parseTextBody,
   parseWith,
 } from "./responses";
 import { Router } from "./router";
@@ -95,9 +97,15 @@ const parseEntity = async (
         (stored) => stored.drawing.id,
       );
     case "notes":
-      return identified(await parseJsonBody(request, noteSchema), (note) => note.id);
+      return identified(
+        await parseJsonBody(request, noteSchema, INPUT_LIMITS.textBytes),
+        (note) => note.id,
+      );
     case "rules":
-      return identified(await parseJsonBody(request, ruleSchema), (rule) => rule.id);
+      return identified(
+        await parseJsonBody(request, ruleSchema, INPUT_LIMITS.textBytes),
+        (rule) => rule.id,
+      );
   }
 };
 
@@ -169,13 +177,15 @@ export const createApi = ({
       return (await beautifier.beautify(body.value)) ?? notImplemented("no beautifier is attached");
     })
     .on("POST", "/api/compile", async ({ request }) => {
-      const body = await parseJsonBody(request, compileRequestSchema);
+      const body = await parseJsonBody(request, compileRequestSchema, INPUT_LIMITS.textBytes);
       return body.ok ? json({ rule: await compiler.compile(body.value.text) }) : body.response;
     })
     .on("GET", "/api/controllers", () => json(controllers.list()))
     .on("POST", "/api/controllers/:id/state", async ({ request, params }) => {
       if (!isControllerId(params.id)) return badRequest(INVALID_CONTROLLER_ID);
-      const reading = parseControllerReading(await request.text());
+      const body = await parseTextBody(request, INPUT_LIMITS.controllerBytes);
+      if (!body.ok) return body.response;
+      const reading = parseControllerReading(body.value);
       if (reading === null) return badRequest(INVALID_CONTROLLER_STATE);
       controllers.report(params.id, reading, "http");
       return noContent();

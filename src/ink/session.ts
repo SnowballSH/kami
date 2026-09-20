@@ -1,4 +1,5 @@
 import { distance, type Stroke, strokeLength, strokesLength, type Vec } from "../core/geometry";
+import { INPUT_LIMITS, isInputPoint } from "../core/inputLimits";
 import { InkLedger } from "./budget";
 import { COMMIT_DELAY_MS, MIN_DRAWING_LENGTH } from "./constants";
 import { DrawingIdSequence } from "./ids";
@@ -8,6 +9,7 @@ import type {
   InkBudget,
   InkSession,
   InkSessionListener,
+  PlacementRejection,
   PlacementRules,
   PlacementVerdict,
 } from "./types";
@@ -17,6 +19,7 @@ export class PenInkSession implements InkSession {
   readonly #ledger = new InkLedger();
   readonly #ids = new DrawingIdSequence();
   #strokes: Vec[][] = [];
+  #points = 0;
   #penIsDown = false;
   #liftedAtMs: number | null = null;
   #verdict: PlacementVerdict = "ok";
@@ -43,17 +46,35 @@ export class PenInkSession implements InkSession {
 
   penDown(point: Vec): void {
     if (this.#penIsDown || this.#ledger.isDry) return;
+    if (!isInputPoint(point)) {
+      this.#reject("out-of-bounds");
+      return;
+    }
+    if (this.#strokes.length >= INPUT_LIMITS.strokes || this.#points >= INPUT_LIMITS.points) {
+      this.#reject("too-detailed");
+      return;
+    }
     this.#penIsDown = true;
     this.#strokes.push([point]);
+    this.#points += 1;
   }
 
   penMove(point: Vec): void {
     const stroke = this.#strokes.at(-1);
     const last = stroke?.at(-1);
     if (!this.#penIsDown || stroke === undefined || last === undefined) return;
+    if (!isInputPoint(point)) {
+      this.#reject("out-of-bounds");
+      return;
+    }
     const next = nextInkPoint(last, point, this.#ledger.remaining);
     if (next === null) return;
+    if (stroke.length >= INPUT_LIMITS.pointsPerStroke || this.#points >= INPUT_LIMITS.points) {
+      this.#reject("too-detailed");
+      return;
+    }
     stroke.push(next);
+    this.#points += 1;
     this.#ledger.draw(distance(last, next));
   }
 
@@ -66,7 +87,9 @@ export class PenInkSession implements InkSession {
   penCancel(): void {
     if (!this.#penIsDown) return;
     this.#penIsDown = false;
-    this.#ledger.undraw(strokeLength(this.#strokes.pop() ?? []));
+    const cancelled = this.#strokes.pop() ?? [];
+    this.#points -= cancelled.length;
+    this.#ledger.undraw(strokeLength(cancelled));
   }
 
   update(nowMs: number, rules: PlacementRules): void {
@@ -101,9 +124,15 @@ export class PenInkSession implements InkSession {
 
   #dropPending(): void {
     this.#strokes = [];
+    this.#points = 0;
     this.#penIsDown = false;
     this.#liftedAtMs = null;
     this.#verdict = "ok";
     this.#ledger.dropPending();
+  }
+
+  #reject(reason: PlacementRejection): void {
+    this.#dropPending();
+    this.#listener.onReject(reason, []);
   }
 }

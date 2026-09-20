@@ -210,6 +210,16 @@ MongoDB start their own throwaway in-memory `mongod` (`testing/memoryDatabase.ts
 
 ## API contract (what the client may rely on)
 
+Input budgets come from `src/core/inputLimits.ts`: each drawing allows 256 strokes, 1024 points
+per stroke and 2048 points in total, with finite coordinates within ±1,000,000,000. Drawing and
+model requests are limited to 262,144 UTF-8 bytes; notes, rules and compile requests to 131,072
+bytes; controller state to 256 bytes. Text is limited to 4000 UTF-16 code units, completion names
+to 80. Byte excess returns `413 {"error"}` before JSON parsing; invalid counts/coordinates/text
+return `400 {"error"}` before persistence or model calls, including streamed requests without
+Content-Length. The pen and text prompt enforce matching limits before committing. Detailed
+drawings must be split into smaller drawings. The 2048-point aggregate bounds simplification
+and Matter.js construction, exercised by the maximum-size zigzag test in `src/sim/inkBody.test.ts`.
+
 Same origin, JSON unless noted. Additive changes only; anything else is announced in `AGENTS.md`.
 
 | Route | Request | Response |

@@ -1,34 +1,26 @@
 import { z } from "zod";
 import { NATURES, type Ruling } from "../src/cat/types";
-import type { Stroke, Vec } from "../src/core/geometry";
+import { strokesSchema, textSchema, vecSchema } from "../src/core/input";
+import { INPUT_LIMITS } from "../src/core/inputLimits";
 import type { Drawing, DrawingId } from "../src/ink/types";
 import type { Note, NoteAction, NoteId } from "../src/notes/types";
 import type { StoredDrawing } from "../src/persistence/types";
 import type { CompiledRule, Rule, RuleEffect, RuleId } from "../src/rules/types";
 
 const MAX_ID_LENGTH = 200;
-const MAX_TEXT_LENGTH = 4000;
-const MAX_STROKES = 2000;
-const MAX_POINTS_PER_STROKE = 20000;
+
+export { strokeSchema, strokesSchema, vecSchema } from "../src/core/input";
 
 const isId = (value: unknown): boolean =>
   typeof value === "string" && value.length > 0 && value.length <= MAX_ID_LENGTH;
 
 const brandedId = <Id extends string>() => z.custom<Id>(isId, "expected a non-empty id");
 
-const text = z.string().max(MAX_TEXT_LENGTH);
+const text = textSchema;
 
 export const boardIdSchema = z.string().min(1).max(MAX_ID_LENGTH);
 
 export const entityIdSchema = z.string().min(1).max(MAX_ID_LENGTH);
-
-export const vecSchema = z.object({ x: z.number(), y: z.number() }) satisfies z.ZodType<Vec>;
-
-export const strokeSchema = z
-  .array(vecSchema)
-  .max(MAX_POINTS_PER_STROKE) satisfies z.ZodType<Stroke>;
-
-export const strokesSchema = z.array(strokeSchema).max(MAX_STROKES);
 
 export const drawingSchema = z.looseObject({
   id: brandedId<DrawingId>(),
@@ -125,13 +117,13 @@ export const recognizeRequestSchema = z.object({
   partial: z.boolean().optional(),
 });
 
-const MAX_NAME_LENGTH = 80;
-
 export const beautifyRequestSchema = z.object({
   strokes: strokesSchema,
-  name: z.string().trim().min(1).max(MAX_NAME_LENGTH).exactOptional(),
+  name: z.string().trim().min(1).max(INPUT_LIMITS.name).exactOptional(),
 });
 
 export const compileRequestSchema = z.object({ text: text.min(1) });
 
-export const transcribeRequestSchema = z.object({ strokes: strokesSchema.min(1) });
+export const transcribeRequestSchema = z.object({
+  strokes: strokesSchema.refine((strokes) => strokes.length > 0, "expected at least one stroke"),
+});

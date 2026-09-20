@@ -1,7 +1,8 @@
 // @vitest-environment node
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Ruling } from "../../src/cat/types";
 import type { Stroke } from "../../src/core/geometry";
+import { INPUT_LIMITS } from "../../src/core/inputLimits";
 import type { DrawingId } from "../../src/ink/types";
 import type { Note, NoteId } from "../../src/notes/types";
 import type { BoardSnapshot, StoredDrawing } from "../../src/persistence/types";
@@ -138,6 +139,76 @@ afterAll(async () => {
 beforeEach(async () => {
   await connection.db.dropDatabase();
   await new BoardRepository(connection.db).ensureIndexes();
+});
+
+describe("input budgets", () => {
+  const stroke = Array.from({ length: INPUT_LIMITS.pointsPerStroke }, () => ({ x: 0, y: 0 }));
+  const excess = [stroke, stroke, [{ x: 0, y: 0 }]];
+
+  it("rejects aggregate excess before recognition, transcription or beautification", async () => {
+    const read = vi.fn(async () => ({ ranking: [], certainAbove: null }));
+    const beautify = vi.fn(async () => null);
+    const transcribe = vi.fn(async () => null);
+    api = createApi({
+      ...apiParts(),
+      recognizer: { read },
+      beautifier: { beautify },
+      transcriber: { transcribe, warmUp: async () => true },
+    });
+    for (const route of ["recognize", "transcribe", "beautify"]) {
+      const response = await call("POST", `/api/${route}`, { strokes: excess });
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain("points per drawing");
+    }
+    expect(read).not.toHaveBeenCalled();
+    expect(beautify).not.toHaveBeenCalled();
+    expect(transcribe).not.toHaveBeenCalled();
+    api = createApi({ ...apiParts(), beautifier });
+  });
+
+  it("accepts exact stored drawing/text boundaries and rejects excess without saving", async () => {
+    const stored = storedDrawing("bounded");
+    const drawing = { ...stored, drawing: { ...stored.drawing, strokes: [stroke, stroke] } };
+    expect((await call("PUT", "/api/boards/demo/drawings/bounded", drawing)).status).toBe(200);
+    expect(
+      (
+        await call("PUT", "/api/boards/demo/drawings/bounded", {
+          ...drawing,
+          drawing: { ...drawing.drawing, strokes: excess },
+        })
+      ).status,
+    ).toBe(400);
+    expect((await loadBoard("demo")).drawings[0]?.drawing.strokes).toHaveLength(2);
+    expect(
+      (
+        await call(
+          "PUT",
+          "/api/boards/demo/notes/limit",
+          note("limit", "x".repeat(INPUT_LIMITS.text), 1),
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await call(
+          "PUT",
+          "/api/boards/demo/notes/excess",
+          note("excess", "x".repeat(INPUT_LIMITS.text + 1), 1),
+        )
+      ).status,
+    ).toBe(400);
+    expect((await loadBoard("demo")).notes).toHaveLength(1);
+  });
+
+  it.each([
+    ["/api/recognize", INPUT_LIMITS.sketchBytes],
+    ["/api/beautify", INPUT_LIMITS.sketchBytes],
+    ["/api/transcribe", INPUT_LIMITS.sketchBytes],
+    ["/api/compile", INPUT_LIMITS.textBytes],
+    ["/api/controllers/pen/state", INPUT_LIMITS.controllerBytes],
+  ])("rejects excessive bytes on %s before parsing", async (path, bytes) => {
+    expect((await call("POST", path, " ".repeat(bytes + 1))).status).toBe(413);
+  });
 });
 
 describe("board memory", () => {

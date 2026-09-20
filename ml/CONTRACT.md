@@ -43,6 +43,17 @@ Listens on `127.0.0.1:8790` (`KAMI_EYE_PORT`), loads `KAMI_EYE_MODEL` (an artifa
 
 Strokes arrive raw, in world px; the sidecar owns rendering. Bad input → `400 {"error"}`; never a crash.
 
+The game, Bun API and sidecar share these per-drawing limits: 256 strokes (including empty strokes),
+1024 points per stroke, 2048 points in total, finite coordinates within ±1,000,000,000, and 262,144
+UTF-8 request bytes. Aggregate counts are checked before converting points or running models.
+The sidecar requires a positive Content-Length; Bun also counts streamed bodies without that header.
+`src/core/inputLimits.ts` is the client/API contract; the pure sidecar budget test checks parity.
+Text notes allow 4000 UTF-16 code units and use a 131,072-byte envelope; controller readings allow
+256 bytes. Names allow 80 UTF-16 code units. Limits include both ends. Oversized ink is rejected
+with feedback and its pending ink refunded; split detailed sketches into smaller drawings.
+Completion results must fit the same combined drawing budget before the client applies them.
+Already stored drawings over budget cannot create physics bodies; they are not silently rewritten.
+
 ## Completion — "Kami finishes your drawing"
 
 Given a rough sketch, finished or half-drawn, and optionally the name the player gave it, the sidecar
@@ -88,7 +99,7 @@ none); it is never an error.
 
 ### `POST /complete`
 
-Same body limits, validation and logging as `/recognize`. `name` is optional, a string of at most 200
+Same body limits, validation and logging as `/recognize`. `name` is optional, a string of at most 80
 characters; `null` and `""` mean no name.
 
 1. **Category.** The name — lower-cased, whitespace collapsed, a leading "a", "an" or "the" dropped

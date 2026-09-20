@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import type { WalkIntent } from "../sim/types";
 import { DomHud } from "./hud";
 import type { BoardListing, HudHandlers, Tool } from "./types";
@@ -251,6 +252,24 @@ describe("DomHud", () => {
       prompt.blur();
 
       await expect(answer).resolves.toBe("a ladder");
+    });
+
+    it("explains the text budget before committing and keeps excess text editable", async () => {
+      const { hud, prompt, root } = setup();
+      const answer = hud.promptText({ x: 0, y: 0 });
+      const feedback = find<HTMLElement>(root, ".kami-prompt-limit");
+      expect(prompt.maxLength).toBe(INPUT_LIMITS.text);
+      expect(feedback.hidden).toBe(false);
+      expect(feedback.textContent).toContain(String(INPUT_LIMITS.text));
+      prompt.value = "x".repeat(INPUT_LIMITS.text + 1);
+      prompt.dispatchEvent(key("keydown", { key: "Enter" }));
+      expect(prompt.hidden).toBe(false);
+      expect(prompt.getAttribute("aria-invalid")).toBe("true");
+      expect(feedback.textContent).toBe(TEXT_LIMIT_MESSAGE);
+      prompt.value = "x".repeat(INPUT_LIMITS.text);
+      prompt.dispatchEvent(key("keydown", { key: "Enter" }));
+      await expect(answer).resolves.toHaveLength(INPUT_LIMITS.text);
+      expect(feedback.hidden).toBe(true);
     });
 
     it("abandons the first prompt when a second opens", async () => {
