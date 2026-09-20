@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import { clamp, type Rect, type Vec } from "../core/geometry";
+import { inEffectDomain } from "../rules/effectDomains";
 import type { WorldPhysics } from "../rules/types";
 import { bottomOf, exactBounds } from "./bodyBounds";
 import {
@@ -123,6 +124,7 @@ export class AliceController {
   }
 
   applyPhysics(physics: WorldPhysics): void {
+    if (!inEffectDomain("aliceSize", physics.aliceSize)) throw new RangeError("Invalid Alice size");
     this.physics = physics;
     this.body.frictionAir = airFrictionUnder(physics, ALICE_AIR_FRICTION);
     this.body.restitution = physics.bounciness;
@@ -208,6 +210,14 @@ export class AliceController {
     });
   }
 
+  /** Aboard something she steers: it moves, and she goes exactly with it. */
+  drive(vehicleVelocity: Vec): void {
+    Matter.Body.setVelocity(this.body, {
+      x: vehicleVelocity.x,
+      y: Math.min(this.velocity.y, vehicleVelocity.y),
+    });
+  }
+
   placeAt(feet: Vec): void {
     const { height } = this.bounds();
     Matter.Body.setPosition(this.body, { x: feet.x, y: feet.y - height / 2 });
@@ -244,6 +254,8 @@ export class AliceController {
       width,
       height,
       size: this.currentSize,
+      sizeMultiplier: this.physics.aliceSize,
+      headingScale: this.headingScale,
       facing: this.facing,
       walking: this.walking,
       grounded: this.grounded,

@@ -95,6 +95,17 @@ The model-backed compiler on the server is asked to emit the same shape. `server
 
 Every dial `d` has a closed range `[lo_d, hi_d]` (`src/rules/effects.ts`; the server's wider table in `effectRanges.ts`). `set(d, v)` is only admitted with `v := clamp(v, lo_d, hi_d)` and the gloss says “(capped)” when clamping bit. Because the fold only ever composes admitted dial sets, `physics(R)` lies inside the product of the ranges for *any* `R` — the invariant the simulation relies on, and the reason a model or a mischievous player cannot produce a world the engine cannot simulate.
 
+Persisted values use `src/rules/effectDomains.ts`: gravity ±30 g per axis, wind ±3 g per
+axis, time 0.1–3, drag/friction 0–10, bounce/daylight/flight/inkEater 0–1, temperature
+−100–1000 °C, walking 0.1–5, size 0.25–4, attraction ±3 g, and integer clones 0–8.
+These domains include both compilers' outputs. The offline grammar deliberately retains
+its narrower vector magnitude caps (gravity 5 g, wind 2 g) and friction cap of 5.
+Both compilers round clone counts to the nearest integer after clamping. Flight and
+inkEater retain their existing positive-means-enabled behavior within 0–1.
+Persistence rejects out-of-domain values rather than clamping stored player intent.
+The fold ignores invalid numeric effects from historic rules; simulation entry points
+reject unsafe physics before modifying bodies. Ruling strength must stay in 0.5–2.
+
 ## 6. Drawings: natures as morphisms on one body
 
 A drawing's state is its **nature** and **strength**: `ruling : Drawing → Drawing` sets both (`sim.applyRuling`). Natures are presets — “mushroom” is `bouncy`, “black hole” is `attractor`, “lantern” is `lantern` — chosen by the Cat from the player's words and scaled by their adjectives. They compose like dial sets on one subject: the newest ruling wins, erasing the drawing removes it entirely.
@@ -136,7 +147,7 @@ The autopilot is a system too: `Scene.canFly` marks every cell of air climbable,
 
 What each of the remaining ideas is, in this vocabulary, and what it costs:
 
-- **Vehicles** (“a car”): a `vehicle` *nature* whose `beforeStep` moves the body with Alice's intent while she stands on it; Alice movement yields to it. One nature record, one `NatureWorld` capability (`intent`).
+- **Vehicles** (“a car”) — *built*: a `vehicle` nature whose `beforeStep` (`sim/vehicles.ts`) reads the new `NatureWorld.intent` capability and rolls the body toward `intent.x × VEHICLE_SPEED × strength` while Alice is aboard; `alice.drive` makes her movement yield to it, and jumping dismounts. One nature record, one capability, exactly as costed.
 - **Follow / flee** (“a dog”, “a mouse”): creature natures whose mind reads `world.alice` and turns toward or away. Two nature records over the existing `Feelers`.
 - **Portals**: a `portal` nature; the system pairs portal bodies and teleports whatever touches one to its partner. One nature, one hook.
 - **Per-drawing physics** (“the rock is twice as heavy”): a third subject with its own dials. `RuleEffect` gains `{ target: DrawingId, governs, value }`; `physics(R)` becomes a map `DrawingId → Overrides` alongside the world product. Same fold, same later-wins, same clamps.
