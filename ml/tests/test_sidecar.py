@@ -30,6 +30,8 @@ def call(url: str, body: object | None = None, raw: bytes | None = None) -> tupl
 def test_health(sidecar_url: str) -> None:
     status, body = call(f"{sidecar_url}/health")
     assert status == 200
+    artifact_id = body.pop("artifactId")
+    assert isinstance(artifact_id, str) and len(artifact_id) == 64
     assert body == {
         "ok": True,
         "classes": len(TINY_LABELS),
