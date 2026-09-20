@@ -799,10 +799,27 @@ describe("controllers", () => {
 });
 
 describe("CORS", () => {
-  it("answers preflights and marks responses as readable from any origin", async () => {
-    const preflight = await call("OPTIONS", "/api/boards/demo/notes/note-1");
+  it("allows same-origin demo requests without exposing the API to arbitrary origins", async () => {
+    const preflight = await api.handle(
+      new Request(`${ORIGIN}/api/boards/demo/notes/note-1`, {
+        method: "OPTIONS",
+        headers: { origin: ORIGIN, "access-control-request-method": "PUT" },
+      }),
+    );
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("access-control-allow-methods")).toContain("PUT");
-    expect((await call("GET", "/api/boards")).headers.get("access-control-allow-origin")).toBe("*");
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    expect((await call("GET", "/api/boards")).headers.has("access-control-allow-origin")).toBe(
+      false,
+    );
+    expect(
+      (
+        await api.handle(
+          new Request(`${ORIGIN}/api/boards`, {
+            headers: { origin: "https://untrusted.test" },
+          }),
+        )
+      ).status,
+    ).toBe(403);
   });
 });

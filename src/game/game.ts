@@ -817,7 +817,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
 
     const asked = summonsOf(text);
-    if (asked !== null) {
+    if (asked !== null && !this.awaitsAName(note.id)) {
       await this.summon(asked, note, stillHere);
       return;
     }
@@ -1246,6 +1246,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       if (isPlayers(note) || this.labelsByKami.delete(note.id))
         this.modules.store.deleteNote(this.board.id, note.id);
     }
+  }
+
+  /** Words beside ink that has no name yet are a name for it, even "draw a boat". */
+  private awaitsAName(noteId: NoteId): boolean {
+    return this.drawingNear(noteId)?.ruling === null;
   }
 
   private drawingNear(noteId: NoteId): InkRecord | null {

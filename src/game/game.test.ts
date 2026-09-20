@@ -1195,6 +1195,18 @@ describe("Game with a Kami who draws", () => {
     return eyes;
   };
 
+  it("takes words beside unnamed ink as its name, even when they sound like a request to draw", async () => {
+    const eyes = drawer();
+    eyes.pictures.set("a ladder", RABBIT);
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("draw a ladder", { x: 300, y: 500 });
+    expect(eyes.summoned).toEqual([]);
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["climbable"]);
+  });
+
   it("inks the picture asked for above the words, stroke by stroke, and names it", async () => {
     const eyes = drawer();
     const player = new Player("wonderland", { eyes });

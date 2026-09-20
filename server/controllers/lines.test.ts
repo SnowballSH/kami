@@ -11,10 +11,20 @@ describe("LineBuffer", () => {
     expect(buffer.push(" arcade 5 5\n")).toEqual(["kami arcade 5 5"]);
   });
 
-  it("drops noise that never ends a line instead of growing", () => {
+  it("drops an entire overlong line, including a plausible suffix in the next chunk", () => {
     const buffer = new LineBuffer();
     expect(buffer.push("x".repeat(10_000))).toEqual([]);
-    expect(buffer.push("kami arcade 1 1\n")).toEqual(["kami arcade 1 1"]);
+    expect(buffer.push("kami arcade 1 1\n")).toEqual([]);
+    expect(buffer.push("kami arcade 0 0\n")).toEqual(["kami arcade 0 0"]);
+  });
+
+  it("enforces the same length limit within a single chunk and at a chunk boundary", () => {
+    const buffer = new LineBuffer();
+    expect(buffer.push(`${"x".repeat(257)}\rS,1,0,0,0,0\n`)).toEqual(["S,1,0,0,0,0"]);
+    expect(buffer.push("x".repeat(256))).toEqual([]);
+    expect(buffer.push("\n")).toEqual(["x".repeat(256)]);
+    expect(buffer.push("x".repeat(256))).toEqual([]);
+    expect(buffer.push("x\n")).toEqual([]);
   });
 });
 

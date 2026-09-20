@@ -12,13 +12,32 @@ joystick x,y ─► Uno R4 ──UDP :8788 (Wi-Fi)──────┐
 
 In the game the stick is one more source for `WalkIntentMerger` (`src/ui/walkIntent.ts`), beside the arrow
 keys and the on-screen thumbstick: it reports the set of held directions, nothing else changes. The
-Arduino sends the raw axes; **the server decides what counts as "held"**, so the dead zone is tuned in one
-place and the sketch stays trivial.
+Arduino sends the axes; **the server decides what counts as "held"**, so the dead zone is tuned in one
+place. The cabinet's microswitch sketch uses a serial adapter described below.
+
+## Cabinet readiness
+
+The checked-in `hardware/cabinet/cabinet.ino` uses the pins in [hardware.md](hardware.md), **not**
+the analog joystick wiring in the illustrative Wi-Fi sketch below. Its UNO R4 WiFi compile is verified
+with pinned dependencies via `scripts/checkCabinet.sh`; physical booth validation is outstanding.
+
+Its USB frames are `S,<dir>,<ink>,<cat>,<px>,<py>` at 50 Hz. The serial listener accepts them as
+`arcade`: direction mask (left 1, right 2, up 4, down 8) → ±100 axes; opposite directions cancel.
+INK becomes unbound button `b`, CAT becomes unbound button `x`; knob values are validated, then
+discarded. Firmware debounces all six switches for 20 ms. Invalid fields and lines longer than
+256 characters are discarded through their terminator. `kami` frames remain supported unchanged.
+`S` frames are not accepted by UDP/HTTP.
+
+This supports the walking path only. Knob drawing, button gestures, cabinet-triggered speech,
+game-driven LEDs and a visible connection status/retry UI are deferred. The server reads USB and the browser uses SSE;
+no Web Serial adapter or "Connect cabinet" button exists. Automatic device rescans and EventSource
+reconnects are already implemented. Use `GET /api/controllers` and server logs during bring-up.
+The actual booth host, browser, power and wiring still need the checklist in [hardware.md](hardware.md).
 
 ## The one message
 
-Every transport carries the same thing: **the whole current state, never a delta** — so a lost message
-heals itself on the next one.
+The named-controller protocol carries **the whole current state, never a delta** — so a lost message
+heals itself on the next one. USB additionally accepts the cabinet format above.
 
 ```
 kami <controller> <x> <y> [buttons]\n
@@ -80,7 +99,11 @@ Every open game hears the same stick — fine for one table, one stick.
 Not protected: anyone on the network can send `kami arcade 100 0`. Acceptable for the demo; a shared token is
 the obvious next step.
 
-## The Arduino sketch (Uno R4 WiFi; on a Minima delete the Wi-Fi lines and keep `Serial`)
+## Illustrative analog joystick sketch (separate from the cabinet)
+
+This Wi-Fi example is not included in the cabinet compilation check and has not been hardware-verified.
+Use an Uno R4 WiFi; on a Minima delete the Wi-Fi lines and keep `Serial`. It sends raw buttons without
+debounce; port the cabinet's debouncer before relying on microswitch buttons.
 
 Axes on `A0`/`A1`; buttons between their pin and **GND** (internal pull-ups, so held = `LOW`). The stick
 must be at rest while the board starts: that reading becomes the centre.
@@ -161,7 +184,7 @@ void loop() {
 
 | | |
 |---|---|
-| `server/controllers/` | `types.ts` (the contract), `message.ts` (the parser), `hub.ts` (hysteresis, staleness, subscribers), `udpListener.ts`, `serialListener.ts` (+ `tty.ts`, `lines.ts`), `eventStream.ts` (the SSE response), `index.ts` (`startControllers`) |
+| `server/controllers/` | `types.ts` (the contract), `message.ts` (named-controller parser), `cabinet.ts` (USB cabinet adapter), `hub.ts` (hysteresis, staleness, subscribers), `udpListener.ts`, `serialListener.ts` (+ `tty.ts`, `lines.ts`), `eventStream.ts` (the SSE response), `index.ts` (`startControllers`) |
 | `server/http/api.ts` | the three routes above |
 | `src/controller/` | the browser side: `EventSource` → the merger's `PressedListener` |
 | `server/config.ts` | `KAMI_CONTROLLER_UDP_PORT` (8788, `off` disables), `KAMI_CONTROLLER_SERIAL` (`auto`, a device path, or `off`) |

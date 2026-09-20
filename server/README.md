@@ -6,14 +6,15 @@ model on the GX10 to compile physics notes the offline grammar did not understan
 
 Nothing in `src/` imports this directory. The browser reaches it through the thin clients in
 `src/persistence` and `src/recognition`, on the same origin (`/api`, proxied by Vite in dev). If the
-server is down, recognition falls back to geometry and model features return no answer.
+server is down, choose **Play without server** at startup (it is not remembered): recognition falls
+back to geometry and model features return no answer.
 Persistence failures are visible: reopening a board retains its in-session snapshot if available,
 and a failed first load leaves the board editable with the failure shown. Failed writes stay in
 the tab's outbox until explicitly retried; closing the tab can lose them.
 
 Start with the [current integration guide](../docs/architecture.md) for ownership, gameplay flow,
-controller wiring, [security status](../docs/architecture.md#deployment-and-security-status) and
-verification limits. The access modes in pending R12/#40 are not installed in this base revision.
+controller wiring and verification limits, and [the trust model](../docs/access.md) for the two access
+modes: `demo` (the default: an unauthenticated trusted LAN, what the GX10 runs) and `shared`.
 
 ## Run
 
@@ -30,6 +31,13 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | Env | |
 |---|---|
 | `PORT` | HTTP port, default `8787` (what `vite.config.ts` proxies `/api` to) |
+| `KAMI_ACCESS_MODE` | `demo` (default, trusted LAN only) or `shared` (scoped authentication). See [access and deployment](../docs/access.md). |
+| `KAMI_BIND_HOST` | HTTP bind address: `0.0.0.0` in demo, `127.0.0.1` in shared mode. |
+| `KAMI_WEB_HOST` | Vite development bind address, default `0.0.0.0`; use `127.0.0.1` for local-only development. |
+| `KAMI_ALLOWED_ORIGINS` | Comma-separated exact origins, no trailing slash or wildcard. Shared mode requires HTTPS origins. Demo also permits same-origin requests. |
+| `KAMI_CREDENTIALS` | Shared-only JSON credentials with `id`, `token`, `boards`, `controllers`, and `models` grants; keep outside version control. |
+| `KAMI_MODEL_REQUESTS_PER_MINUTE` | Positive integer, default `6000`, shared across all model routes and callers per process. One iPad posts a live guess and a handwriting read on every pen lift — several a second while drawing — so the default leaves room for a few devices; lower it for shared hosting. |
+| `KAMI_MODEL_CONCURRENCY` | Positive integer, default `32`, held through complete model responses. Requests over the limit are refused with `429`, not queued, and an open voice socket holds a slot for as long as it listens. |
 | `MONGODB_URI` | Use this MongoDB instead of the embedded one, e.g. the Atlas `mongodb+srv://…` string. Database `kami`. |
 | `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile` and `/api/transcribe`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
 | `KAMI_LLM_MODEL` | Compiler model name; also the fallback handwriting model. Compilation is **off** unless both URL and model are set. |
@@ -45,6 +53,9 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 
 | Route | Answer |
 |---|---|
+| `GET /api/session` | `{ mode, authenticated, boards, controllers }`; anonymous callers receive no grants |
+| `POST /api/session` | Exchange `Authorization: Bearer …` for an eight-hour secure HTTP-only session cookie |
+| `DELETE /api/session` | Revoke the current browser session and clear its cookie |
 | `GET /api/boards` | `{ boards: BoardSummary[] }` |
 | `GET /api/boards/:board` | `{ drawings: StoredDrawing[], notes: Note[], rules: Rule[] }`, oldest first; an unknown board is empty |
 | `PUT /api/boards/:board/{drawings,notes,rules}/:id` | upsert; the body is the client's object and its id must match the path |
@@ -64,9 +75,10 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 Entity/model JSON bodies are validated with Zod (`schemas.ts` re-exports the browser-safe entity
 schemas in `src/persistence/schemas.ts` and defines request-specific schemas). Controller text has
 its own parser. Invalid values return `400`; excessive body bytes return `413` before JSON parsing.
-Entities are loose objects: unknown additive fields are stored and returned untouched. The base
-revision has wildcard CORS and no client authorization; it is for an isolated trusted LAN, not
-shared hosting. Pending R12 changes that boundary as described in the integration guide.
+Entities are loose objects: unknown additive fields are stored and returned untouched. Origin policy,
+credentials and board/controller grants are enforced before route handling; shared credentials
+restrict listings too. See [the trust model](../docs/access.md) before exposing a server beyond a
+trusted demo LAN.
 
 Collections `drawings`, `notes`, `rules` hold the client's objects as they are plus `boardId`
 (and, for drawings, a top-level `id` copied from `drawing.id`), with a unique `{ boardId, id }`

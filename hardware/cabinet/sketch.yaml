@@ -1,0 +1,7 @@
+profiles:
+  uno-r4-wifi:
+    fqbn: arduino:renesas_uno:unor4wifi
+    platforms:
+      - platform: arduino:renesas_uno (1.5.3)
+    libraries:
+      - Adafruit NeoPixel (1.15.1)

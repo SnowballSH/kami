@@ -25,6 +25,7 @@ import {
 } from "../schemas";
 import type { HandwritingTranscriber } from "../transcribe/llmTranscriber";
 import type { Speaker } from "../voice/types";
+import { ApiAccess } from "./access";
 import {
   audio,
   badRequest,
@@ -66,6 +67,7 @@ const recognitionOf = ({ ranking, certainAbove }: Reading, natures: NatureTable)
 };
 
 export interface ApiDependencies {
+  readonly access?: ApiAccess;
   readonly boards: BoardRepository;
   readonly recognizer: SketchRecognizer;
   readonly compiler: RuleCompiler;
@@ -152,9 +154,13 @@ export const createApi = ({
   natures = quickdrawNatureTable,
   exemplars = NO_EXEMPLARS,
   scenes = NO_SCENES,
+  access = new ApiAccess(),
 }: ApiDependencies): Router =>
-  new Router()
-    .on("GET", "/api/boards", async () => json({ boards: await boards.summaries() }))
+  new Router(access)
+    .on("GET", "/api/boards", async ({ request }) => {
+      const summaries = await boards.summaries();
+      return json({ boards: access.visible(request, "boards", summaries) });
+    })
     .on("GET", "/api/boards/:board", async ({ params }) => {
       const boardId = parseWith(boardIdSchema, params.board, "board id");
       return boardId.ok ? json(await boards.snapshot(boardId.value)) : boardId.response;
@@ -206,7 +212,9 @@ export const createApi = ({
       const body = await parseJsonBody(request, compileRequestSchema, INPUT_LIMITS.textBytes);
       return body.ok ? json({ scene: await scenes.compile(body.value.text) }) : body.response;
     })
-    .on("GET", "/api/controllers", () => json(controllers.list()))
+    .on("GET", "/api/controllers", ({ request }) =>
+      json(access.visible(request, "controllers", controllers.list())),
+    )
     .on("POST", "/api/controllers/:id/state", async ({ request, params }) => {
       if (!isControllerId(params.id)) return badRequest(INVALID_CONTROLLER_ID);
       const body = await parseTextBody(request, INPUT_LIMITS.controllerBytes);
@@ -218,7 +226,10 @@ export const createApi = ({
     })
     .on("GET", "/api/controllers/:id/events", ({ request, params }) =>
       isControllerId(params.id)
-        ? controllerEventStream(controllers, params.id, { signal: request.signal })
+        ? controllerEventStream(controllers, params.id, {
+            signal: request.signal,
+            authorized: () => access.allowsController(request, params.id),
+          })
         : badRequest(INVALID_CONTROLLER_ID),
     )
     .on("POST", "/api/transcribe", async ({ request }) => {
