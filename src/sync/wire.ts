@@ -16,7 +16,7 @@ export const PEER_ID_PATTERN = /^[a-z0-9-]{1,64}$/;
 /** One device on a shared page. Minted per tab; never an account. */
 export type PeerId = string & { readonly __brand: "PeerId" };
 
-/** Another device's Alice, as last heard of. Only Kami's own sketch of her crosses the wire, never a drawn body. */
+/** Another device's Alice, as last heard of. */
 export type Ghost = AliceSnapshot;
 
 /** A drawn body stays on its own page: ghosts always wear Kami's sketch on the wire. */
