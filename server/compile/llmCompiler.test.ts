@@ -123,6 +123,14 @@ describe("createLlmCompiler", () => {
     });
   });
 
+  it("rounds fractional model clone counts after clamping", async () => {
+    const compiler = createLlmCompiler(
+      CONFIG,
+      modelSaying('{"effect":{"governs":"clones","value":2.5}}'),
+    );
+    expect((await compiler.compile("copies"))?.effect).toEqual({ governs: "clones", value: 3 });
+  });
+
   it.each([
     ["not a rule", '{"effect":null}'],
     ["a drawing law with no target", '{"effect":{"governs":"spin","value":1},"explanation":"x"}'],

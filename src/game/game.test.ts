@@ -1,13 +1,13 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
 import { rectsOverlap, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
-import type { HandwritingReader } from "../persistence/types";
+import type { BoardSnapshot, HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
-import type { LiveRecognizer, Sighting } from "../recognition/types";
+import type { Completion, LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import type { CompiledRule } from "../rules/types";
 import { createSimulation } from "../sim";
@@ -44,7 +44,7 @@ const blob = (center: Vec, rx: number, ry: number): Vec[] =>
     y: center.y + ry * Math.sin((i / 24) * Math.PI * 2),
   }));
 
-type Thoughts = Readonly<Record<string, CompiledRule>>;
+type Thoughts = Readonly<Record<string, CompiledRule | Promise<CompiledRule | null>>>;
 
 interface PlayerOptions {
   readonly store?: MemoryBoardStore;
@@ -82,8 +82,13 @@ class Eyes implements LiveRecognizer {
     return Promise.resolve(partial ? this.glimpsed : this.settled);
   }
 
-  complete(): Promise<null> {
-    return Promise.resolve(null);
+  /** How Kami would tidy whatever is sent; null leaves the player's ink alone. */
+  tidy: ((strokes: readonly Vec[][]) => Completion | null) | null = null;
+  readonly tidiedAs: (string | undefined)[] = [];
+
+  complete(strokes: readonly Vec[][], name?: string): Promise<Completion | null> {
+    this.tidiedAs.push(name);
+    return Promise.resolve(this.tidy?.(strokes) ?? null);
   }
 }
 
@@ -137,6 +142,7 @@ class Player {
         sim: createSimulation(),
         autopilot: createAutopilot(),
         cat: createCat(eyes),
+        ...(eyes === undefined ? {} : { finisher: eyes }),
         renderer: this.renderer,
         handwriting: new FakeHandwriting(),
         compiler: createRuleCompiler(),
@@ -489,11 +495,53 @@ describe("Alice on her own", () => {
 });
 
 describe("Game with a model to think with", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   const RED_PLANET = "make it feel like the red planet";
   const MARS: CompiledRule = {
     effect: { governs: "gravity", x: 0, y: 0.38 },
     explanation: "gravity = 0.38 g (Mars)",
   };
+
+  it("orders same-millisecond laws by submission through late responses, reload and repeal", async () => {
+    const pending = Promise.withResolvers<CompiledRule | null>();
+    const store = new MemoryBoardStore();
+    const player = new Player("wonderland", {
+      store,
+      thoughts: { "a custom sky": pending.promise },
+    });
+    await player.arrive();
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
+    await player.write("a custom sky", { x: 200, y: 100 });
+    await player.write("night", { x: 200, y: 200 });
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    pending.resolve({ effect: { governs: "daylight", value: 1 }, explanation: "daylight" });
+    await player.wait(100);
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    const snapshot = await store.load("wonderland");
+    const ordered = snapshot.rules.toSorted((a, b) => a.createdAt - b.createdAt);
+    expect(ordered.map((rule) => rule.sourceText)).toEqual(["a custom sky", "night"]);
+    expect(ordered.map((rule) => rule.createdAt)).toEqual([1_000, 1_001]);
+    for (const rule of ordered) {
+      expect(rule.createdAt).toBe(
+        snapshot.notes.find((note) => note.id === rule.noteId)?.createdAt,
+      );
+    }
+
+    const reloaded = new Player("wonderland", { store });
+    await reloaded.arrive();
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(0.1);
+    const night = reloaded.renderer.lastFrame?.notes.find((note) => note.script.text === "night");
+    if (night === undefined) throw new Error("night note missing");
+    await reloaded.erase({ x: night.script.bounds.x + 1, y: night.script.bounds.y + 1 });
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(1);
+    await reloaded.write("night", { x: 200, y: 300 });
+    const newest = (await store.load("wonderland")).rules.find(
+      (rule) => rule.sourceText === "night",
+    );
+    expect(newest?.createdAt).toBe(1_002);
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(0.1);
+  });
 
   it("asks the model only about what nothing else understood", async () => {
     const player = new Player("wonderland", { thoughts: { [RED_PLANET]: MARS } });
@@ -598,6 +646,107 @@ describe("Game with Kami's eyes on the ink", () => {
   });
 });
 
+describe("Game with a Kami who tidies", () => {
+  const lifted = (strokes: readonly Vec[][]): Vec[][] =>
+    strokes.map((stroke) => stroke.map(({ x, y }) => ({ x, y: y - 3 })));
+  const flourish: Vec[] = [
+    { x: 300, y: 480 },
+    { x: 310, y: 470 },
+    { x: 320, y: 480 },
+  ];
+
+  it("glides a named drawing into its tidied strokes, draws in what was missing, and saves it", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
+    eyes.tidy = (strokes) => ({
+      tidied: lifted(strokes),
+      added: [flourish],
+      word: "mushroom",
+      confidence: 0.9,
+    });
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    expect(eyes.tidiedAs).toEqual(["a mushroom"]);
+    const drawn = (await player.store.load("wonderland")).drawings[0]?.drawing.strokes ?? [];
+    expect(drawn).toHaveLength(2);
+    expect(drawn[1]).toEqual(flourish);
+
+    await player.wait(800);
+    const shown = player.renderer.lastFrame?.inks[0]?.drawing.strokes ?? [];
+    expect(shown).toEqual(drawn);
+    expect(player.renderer.lastFrame?.inks[0]?.nature).toBe("bouncy");
+  });
+
+  it("shows the ink on its way there, never jumping", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
+    eyes.tidy = (strokes) => ({
+      tidied: lifted(strokes),
+      added: [],
+      word: "mushroom",
+      confidence: 1,
+    });
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    const saved = (await player.store.load("wonderland")).drawings[0]?.drawing.strokes ?? [];
+    const onTheWay = player.renderer.lastFrame?.inks[0]?.drawing.strokes ?? [];
+    const lift = (saved[0]?.[0]?.y ?? 0) - (onTheWay[0]?.[0]?.y ?? 0);
+    expect(onTheWay[0]).toHaveLength(saved[0]?.length ?? -1);
+    expect(Math.abs(lift)).toBeLessThanOrEqual(3);
+  });
+
+  it("tidies toward the name that stands, not one the player corrected meanwhile", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
+    const answers: ((completion: Completion | null) => void)[] = [];
+    eyes.complete = (strokes, name) => {
+      eyes.tidiedAs.push(name);
+      return new Promise((resolve) => {
+        answers.push((completion) =>
+          resolve(completion ?? { ...tidyAs(strokes), word: name ?? "" }),
+        );
+      });
+    };
+    const tidyAs = (strokes: readonly Vec[][]) => ({
+      tidied: lifted(strokes),
+      added: [],
+      word: "",
+      confidence: 1,
+    });
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("a ladder", { x: 300, y: 500 });
+    expect(eyes.tidiedAs).toEqual(["a mushroom"]);
+
+    answers.shift()?.(null);
+    await player.wait(50);
+    expect(eyes.tidiedAs).toEqual(["a mushroom", "a ladder"]);
+    const untouched = (await player.store.load("wonderland")).drawings[0]?.drawing.strokes ?? [];
+
+    answers.shift()?.(null);
+    await player.wait(50);
+    const saved = (await player.store.load("wonderland")).drawings[0];
+    expect(saved?.ruling?.nature).toBe("climbable");
+    expect(saved?.drawing.strokes[0]?.[0]?.y).toBe((untouched[0]?.[0]?.y ?? 0) - 3);
+  });
+
+  it("leaves the player's ink exactly as drawn when Kami has nothing to offer", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.wait(800);
+    expect(eyes.tidiedAs).toEqual(["a mushroom"]);
+    const saved = (await player.store.load("wonderland")).drawings[0]?.drawing.strokes ?? [];
+    expect(player.renderer.lastFrame?.inks[0]?.drawing.strokes).toEqual(saved);
+    expect(saved).toHaveLength(1);
+  });
+});
+
 describe("Game with a pen that reads", () => {
   it("reads a scrawl as words while the pen is still up, and never lands it as ink", async () => {
     const reader = new ScriptedReader("no gravity");
@@ -674,6 +823,81 @@ describe("Game with a pen that reads", () => {
     expect(reader.asked).toEqual([1]);
     expect((await player.store.load("wonderland")).drawings).toHaveLength(2);
     expect(player.written).not.toContain("never");
+  });
+});
+
+describe("Game while a board is loading", () => {
+  it("pauses simulation and rejects drawing, naming, law and erase input until restore", async () => {
+    const store = new MemoryBoardStore();
+    const original = new Player("wonderland", { store });
+    await original.arrive();
+    await original.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await original.write("night", { x: 200, y: 200 });
+    const snapshot = await store.load("wonderland");
+    const pending = Promise.withResolvers<BoardSnapshot>();
+    vi.spyOn(store, "load").mockReturnValueOnce(pending.promise);
+    const player = new Player("wonderland", { store });
+    const arrival = player.arrive();
+    const prompt = vi.spyOn(player.hud, "promptText");
+    await player.wait(50);
+    const center = player.alice.center;
+    await player.draw(blob({ x: 400, y: 530 }, 30, 20));
+    player.use("write");
+    player.game.tap({ x: 200, y: 200 });
+    player.game.tap({ x: 300, y: 450 });
+    await player.erase({ x: 300, y: 530 });
+    expect(prompt).not.toHaveBeenCalled();
+    expect(player.alice.center).toEqual(center);
+    expect(player.written).toContain("Loading board…");
+    expect(await store.load("wonderland")).toEqual(snapshot);
+
+    pending.resolve(snapshot);
+    await arrival;
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(player.written).not.toContain("Loading board…");
+    await player.write("day", { x: 200, y: 300 });
+    expect((await store.load("wonderland")).notes.some((note) => note.text === "day")).toBe(true);
+  });
+
+  it("keeps the new board locked when an older board finishes loading", async () => {
+    const store = new MemoryBoardStore();
+    const first = Promise.withResolvers<BoardSnapshot>();
+    const second = Promise.withResolvers<BoardSnapshot>();
+    vi.spyOn(store, "load").mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const player = new Player("first", { store });
+    const arrival = player.arrive();
+    player.game.onOpenBoard("second");
+    first.resolve({ drawings: [], notes: [], rules: [] });
+    await arrival;
+    const prompt = vi.spyOn(player.hud, "promptText");
+    player.use("write");
+    player.game.tap({ x: 200, y: 200 });
+    expect(prompt).not.toHaveBeenCalled();
+    expect(player.written).toContain("Loading board…");
+    second.resolve({ drawings: [], notes: [], rules: [] });
+    await player.wait(50);
+    await player.write("night", { x: 200, y: 200 });
+    expect((await store.load("second")).rules).toHaveLength(1);
+  });
+
+  it("allows clearing during load and ignores the old snapshot after new edits", async () => {
+    const store = new MemoryBoardStore();
+    const original = new Player("wonderland", { store });
+    await original.arrive();
+    await original.draw(blob({ x: 300, y: 530 }, 30, 20));
+    const snapshot = await store.load("wonderland");
+    const pending = Promise.withResolvers<BoardSnapshot>();
+    vi.spyOn(store, "load").mockReturnValueOnce(pending.promise);
+    const player = new Player("wonderland", { store });
+    const arrival = player.arrive();
+    player.game.onClearBoard();
+    await player.write("night", { x: 200, y: 200 });
+    pending.resolve(snapshot);
+    await arrival;
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    expect((await store.load("wonderland")).rules).toHaveLength(1);
   });
 });
 

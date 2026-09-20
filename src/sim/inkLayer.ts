@@ -1,5 +1,5 @@
 import Matter from "matter-js";
-import type { Ruling } from "../cat/types";
+import { type Ruling, STRENGTH_RANGE } from "../cat/types";
 import type { Rect, Stroke } from "../core/geometry";
 import type { Drawing, DrawingId } from "../ink/types";
 import { motionOf } from "../rules/motion";
@@ -79,6 +79,13 @@ export class InkLayer {
   }
 
   applyRuling(id: DrawingId, ruling: Ruling): void {
+    if (
+      !Number.isFinite(ruling.strength) ||
+      ruling.strength < STRENGTH_RANGE.min ||
+      ruling.strength > STRENGTH_RANGE.max
+    ) {
+      throw new RangeError("Invalid ruling strength");
+    }
     const ink = this.inks.get(id);
     if (ink === undefined) return;
     ink.nature = ruling.nature;

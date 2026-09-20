@@ -72,4 +72,19 @@ describe("resolvePhysics", () => {
     expect(physics.bodies).toEqual([{ of: WHEEL, edit: { spin: 1 } }]);
     expect(physics.gravity).toEqual({ x: 0, y: 0.165 });
   });
+
+  it("ignores unsafe historic effects without hiding a valid older law or its repeal", () => {
+    const standing = rule("clones", 100, { governs: "clones", value: 2 });
+    for (const effect of [
+      { governs: "clones", value: -1 },
+      { governs: "clones", value: 0.5 },
+      { governs: "clones", value: 1000 },
+      { governs: "aliceSize", value: 0 },
+      { governs: "inkEater", value: -1 },
+    ] satisfies RuleEffect[]) {
+      const broken = rule("historic", 200, effect);
+      expect(resolvePhysics([standing, broken])).toEqual({ ...EARTH, clones: 2 });
+      expect(resolvePhysics([broken])).toEqual(EARTH);
+    }
+  });
 });

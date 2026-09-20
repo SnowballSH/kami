@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { NATURES, type Ruling } from "../src/cat/types";
+import { NATURES, type Ruling, STRENGTH_RANGE } from "../src/cat/types";
 import type { Stroke, Vec } from "../src/core/geometry";
 import type { Drawing, DrawingId } from "../src/ink/types";
 import type { Note, NoteAction, NoteId } from "../src/notes/types";
 import type { StoredDrawing } from "../src/persistence/types";
+import { validEffect } from "../src/rules/effectDomains";
 import type {
   CompiledRule,
   MotionEdit,
@@ -54,7 +55,7 @@ export const motionEditSchema = z.object({
 export const rulingSchema = z.looseObject({
   name: text,
   nature: z.enum(NATURES),
-  strength: z.number(),
+  strength: z.number().min(STRENGTH_RANGE.min).max(STRENGTH_RANGE.max),
   tags: z.array(text),
   line: text,
   motion: motionEditSchema.exactOptional(),
@@ -114,7 +115,7 @@ const bodyVectorEffect = <Governs extends "thrust">(governs: Governs) =>
 const bodyScalarEffect = <Governs extends "spin" | "mass" | "bounce" | "grip">(governs: Governs) =>
   z.object({ governs: z.literal(governs), of: targetSchema, value: z.number() });
 
-export const ruleEffectSchema = z.discriminatedUnion("governs", [
+export const rawRuleEffectSchema = z.discriminatedUnion("governs", [
   vectorEffect("gravity"),
   vectorEffect("wind"),
   scalarEffect("timeScale"),
@@ -135,6 +136,10 @@ export const ruleEffectSchema = z.discriminatedUnion("governs", [
   bodyScalarEffect("bounce"),
   bodyScalarEffect("grip"),
 ]) satisfies z.ZodType<RuleEffect>;
+
+export const ruleEffectSchema = rawRuleEffectSchema.refine(validEffect, {
+  message: "effect is outside its supported domain",
+});
 
 export const compiledRuleSchema = z.object({
   effect: ruleEffectSchema,

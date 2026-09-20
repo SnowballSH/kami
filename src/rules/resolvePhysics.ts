@@ -1,3 +1,4 @@
+import { validEffect } from "./effectDomains";
 import { lawOf } from "./motion";
 import { EARTH, isBodyEffect, type Rule, type WorldPhysics } from "./types";
 
@@ -12,4 +13,7 @@ const enact = (physics: WorldPhysics, { effect }: Rule): WorldPhysics => {
 };
 
 export const foldOverEarth = (rules: readonly Rule[]): WorldPhysics =>
-  rules.toSorted(oldestFirst).reduce(enact, EARTH);
+  rules
+    .filter(({ effect }) => validEffect(effect))
+    .toSorted(oldestFirst)
+    .reduce(enact, EARTH);

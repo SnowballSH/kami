@@ -165,7 +165,8 @@ export const windRule = (field: Vec): CompiledRule => {
 
 export const scalarRule = (governs: ScalarGoverns, requested: number): CompiledRule => {
   const { range, gloss, glossAtZero } = SCALAR_STYLES[governs];
-  const value = rounded(clamp(requested, range.min, range.max), EFFECT_DECIMALS);
+  const bounded = clamp(requested, range.min, range.max);
+  const value = governs === "clones" ? Math.round(bounded) : rounded(bounded, EFFECT_DECIMALS);
   const cap = requested < range.min || requested > range.max ? CAPPED : null;
   const said = value === 0 && glossAtZero !== null ? glossAtZero : gloss(shownNumber(value));
   return { effect: { governs, value }, explanation: annotated(said, [cap]) };
