@@ -375,6 +375,23 @@ describe("Game on the Wonderland board", () => {
     for (const line of unspoken) expect(player.written).not.toContain(line);
   });
 
+  it("places the lore below the toolbar without overlapping the intro or earlier notes", async () => {
+    player.hud.toolbarBottomY = 350;
+    await player.write("summon the ink eater", { x: 200, y: 200 });
+    await player.wait(SUMIKUI_LORE_LINE_DELAY_MS * 2 + 100);
+    const notes = player.renderer.lastFrame?.notes ?? [];
+    const lore = notes.filter((note) => SUMIKUI_SUMMONED_LINES.includes(note.script.text));
+    expect(lore).toHaveLength(SUMIKUI_SUMMONED_LINES.length);
+    for (const note of lore) {
+      expect(note.script.bounds.y).toBeGreaterThan(player.hud.toolbarBottomY);
+      expect(
+        notes.some(
+          (other) => other.id !== note.id && rectsOverlap(note.script.bounds, other.script.bounds),
+        ),
+      ).toBe(false);
+    }
+  });
+
   it("summons the Sumikui with its lore, keeps it while the law stands, and seals it when erased", async () => {
     await player.write("summon the ink eater", { x: 200, y: 200 });
     expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
