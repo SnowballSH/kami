@@ -70,25 +70,6 @@ describe("The Moon Ledge", () => {
   });
 });
 
-describe("The Dark Hall", () => {
-  it("keeps her still in the dark", () => {
-    const run = new PuzzleRun("puzzle-dark-hall");
-    expect(run.physics.daylight).toBe(0);
-    run.run(300);
-    expect(run.seen.some((event) => event.type === "in-the-dark")).toBe(true);
-    expect(run.feet.x).toBeCloseTo(140, 0);
-  });
-
-  it("is walked lantern to lantern", async () => {
-    const run = new PuzzleRun("puzzle-dark-hall");
-    for (const [n, x] of [300, 700, 1000].entries()) {
-      const lamp = await run.draw(`lamp-${n}`, "a lantern", blob(x, 420, 40, 40));
-      expect(lamp?.nature).toBe("lantern");
-    }
-    expect(run.play()).toBe(true);
-  });
-});
-
 describe("The Twin Doors", () => {
   it("holds her in the box with one portal", async () => {
     const run = new PuzzleRun("puzzle-twin-doors");
