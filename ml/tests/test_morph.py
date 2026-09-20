@@ -59,17 +59,21 @@ def test_half_a_circle_gets_a_whole_circle_of_the_right_size_around_it() -> None
 
 def test_only_the_missing_half_is_added() -> None:
     player = [arc(np.pi, 2 * np.pi)]
-    settings = MorphSettings(fit_scales=(1.0,), fit_offsets=(0.0,))
-    exemplar = [
-        127.5
-        + 127.5 * np.column_stack([np.cos(a := np.linspace(0, 2 * np.pi, 80)), 0.5 * np.sin(a)])
-    ]
-    result = morph(player, exemplar, settings)
+    result = morph(player, unit_circle())
     assert result is not None and len(result.added) >= 1
     added = np.concatenate(result.added)
-    player_cloud = player[0]
-    gaps = np.linalg.norm(added[:, None, :] - player_cloud[None, :, :], axis=2).min(axis=1)
-    assert gaps.min() > settings.cover_radius * float(np.hypot(2 * RADIUS, RADIUS)) * 0.9
+    gaps = np.linalg.norm(added[:, None, :] - player[0][None, :, :], axis=2).min(axis=1)
+    assert gaps.min() > 0.9 * DEFAULT.cover_radius * float(np.hypot(2 * RADIUS, RADIUS))
+    assert (added[:, 1] > CENTRE[1] - 0.3 * RADIUS).all()
+
+
+def test_nothing_is_added_on_a_loose_fit() -> None:
+    zigzag = [
+        np.column_stack([np.linspace(300, 500, 40), 300 + 60 * np.sign(np.sin(np.arange(40)))])
+    ]
+    result = morph(zigzag, unit_circle())
+    assert result is not None
+    assert result.misfit > DEFAULT.max_misfit_to_add and result.added == []
 
 
 def test_ink_the_exemplar_does_not_have_is_left_alone() -> None:

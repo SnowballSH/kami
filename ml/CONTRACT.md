@@ -39,7 +39,7 @@ Listens on `127.0.0.1:8790` (`KAMI_EYE_PORT`), loads `KAMI_EYE_MODEL` (an artifa
 | `GET /health` | | `{ "ok": true, "classes": K, "model": "<name>", "exemplars": N }` — `N` is 0 when the model has no exemplar set |
 | `POST /recognize` | `{ "strokes": [[{"x":1,"y":2},...],...], "partial": false, "top": 5 }` | `{ "labels": [...], "probs": [...] }` — best first, temperature-scaled softmax, `top` entries (default 5) |
 | `POST /embed` | `{ "strokes": ... }` | `{ "embedding": [512 floats, L2-normalised] }` |
-| `POST /complete` | `{ "strokes": ..., "name": "a mushroom" }` (`name` optional) | `{ "strokes": [[{"x":..,"y":..},...],...], "category": "mushroom", "confidence": 0.93, "similarity": 0.81 }`, or `404 {"error"}` — see Completion |
+| `POST /complete` | `{ "strokes": ..., "name": "a mushroom" }` (`name` optional) | `{ "tidied": [[{"x":..,"y":..},...],...], "added": [...], "category": "mushroom", "confidence": 0.93, "similarity": 0.81, "exemplar": "5152802093400064" }`, or `404 {"error"}` — see Completion |
 
 Strokes arrive raw, in world px; the sidecar owns rendering. Bad input → `400 {"error"}`; never a crash.
 
@@ -92,21 +92,34 @@ Same body limits, validation and logging as `/recognize`. `name` is optional, a 
 characters; `null` and `""` mean no name.
 
 1. **Category.** The name — lower-cased, whitespace collapsed, a leading "a", "an" or "the" dropped
-   (labels are compared the same way, so "eiffel tower" finds "The Eiffel Tower") — when it is
-   exactly one of the labels. Otherwise the model's top-1 when its calibrated probability is ≥ 0.5.
+   (labels are compared the same way, so "eiffel tower" finds "The Eiffel Tower") — when it is one
+   of the labels, or ends with one ("a bouncy mushroom" is a mushroom; the longest such ending
+   wins). Otherwise the model's top-1 when its calibrated probability is ≥ 0.5.
    Otherwise no answer.
 2. **Exemplar.** Among that category's exemplars, the highest
    `cosine(sketch, exemplar) + 0.05 × exemplar probability`.
-3. **Placement.** The exemplar's strokes, scaled by one factor for both axes (its aspect ratio is
-   kept) as large as fits the bounding box of the player's ink, centred on that box, rounded to
-   0.01 world px and never outside the box. Stroke order and point order are the human's.
+3. **Morph** (`morph.py`) — the drawing stays the player's; nothing of theirs is replaced.
+   - *Fit.* The exemplar is laid over the player's ink at one scale for both axes (never rotated):
+     diagonals matched and centred, then the best of a small grid of scales and shifts, then a few
+     rounds of scale-and-shift least squares on nearest points. What counts is the player's ink lying
+     on the exemplar; the exemplar lying on their ink counts a tenth as much, so a half-drawn sketch
+     gets a whole exemplar of the right size around it rather than one squeezed into its bounds.
+   - *Tidy.* Every point of the player's moves toward the nearest point of the fitted exemplar:
+     by `strength` (0.5) of the way, smoothed along the stroke so lines bend rather than jitter, never
+     more than 6 % of the ink's bounding-box diagonal, and not at all when the exemplar has nothing
+     within 12 % of it (ink the exemplar does not have is left alone).
+   - *Add.* Runs of the fitted exemplar farther than 8 % of the diagonal from any of the player's ink,
+     and at least 10 % of it long, become new strokes. A finished drawing usually gets none.
 
-`200 { "strokes", "category", "confidence", "similarity" }`: `confidence` is the model's calibrated
-probability of `category` for the player's sketch (it can be low when the name decided), `similarity`
-the cosine to the chosen exemplar. `404 {"error"}` when the model has no exemplar set or there is no
-answer: no known name and an unsure model, a category without exemplars, ink with a zero-size
-bounding box, or ink that is flat where the exemplar is not. The Bun server turns any non-200 into
-`501`, and the game keeps the player's own ink.
+`200 { "tidied", "added", "category", "confidence", "similarity", "exemplar" }`. **`tidied` has exactly
+the request's shape** — the same strokes in the same order, each with the same number of points — so a
+client can tween point for point from the ink to it. `added` is the missing parts, to be drawn in; they
+may lie outside the ink's bounds. Both are in the request's world space, rounded to 0.01 px.
+`confidence` is the model's calibrated probability of `category` for the player's sketch (it can be low
+when the name decided), `similarity` the cosine to the chosen exemplar, `exemplar` that drawing's
+Quick, Draw! `key_id` as a string. `404 {"error"}` when the model has no exemplar set or there is no
+answer: no known name and an unsure model, a category without exemplars, or ink with a zero-size
+bounding box. The Bun server turns any non-200 into `501`, and the game keeps the player's own ink.
 
 ## The Bun server
 

@@ -23,8 +23,10 @@ class MorphSettings:
     reach: float = 0.12
     max_shift: float = 0.06
     smoothing_window: int = 9
-    cover_radius: float = 0.08
-    min_added_length: float = 0.10
+    cover_radius: float = 0.10
+    min_added_length: float = 0.15
+    max_misfit_to_add: float = 0.03
+    max_added_share: float = 1.5
     bridge_points: int = 2
     sample_spacing: float = 0.02
     fit_scales: tuple[float, ...] = (0.85, 1.0, 1.2, 1.5, 2.0)
@@ -38,6 +40,7 @@ class MorphSettings:
 class Morph:
     tidied: list[Points]
     added: list[Points]
+    misfit: float
 
 
 DEFAULT_SETTINGS = MorphSettings()
@@ -116,10 +119,9 @@ def fit_exemplar(
     """The exemplar laid over the player's ink: uniform scale, centred, then adjusted to fit."""
     low, high = _bounds(player)
     exemplar_low, exemplar_high = _bounds(exemplar)
-    exemplar_size = np.maximum(exemplar_high - exemplar_low, 1e-9)
-    base_scale = float(np.min(np.maximum(high - low, 1e-9) / exemplar_size))
     centre, exemplar_centre = (low + high) / 2, (exemplar_low + exemplar_high) / 2
     diagonal = max(_diagonal(player), 1e-9)
+    base_scale = diagonal / max(_diagonal(exemplar), 1e-9)
     spacing = settings.sample_spacing * diagonal
     player_cloud = np.concatenate([resample(stroke, spacing) for stroke in player])
 
@@ -200,22 +202,46 @@ def _missing(
     return added
 
 
+def _length(strokes: list[Points]) -> float:
+    return float(sum(np.hypot(*np.diff(stroke, axis=0).T).sum() for stroke in strokes))
+
+
+def _worth_adding(
+    missing: list[Points], inked: list[Points], misfit: float, settings: MorphSettings
+) -> list[Points]:
+    """Nothing is added on a loose fit (the parts would land in the wrong place), nor when it
+    would be more Kami's drawing than the player's."""
+    if misfit > settings.max_misfit_to_add:
+        return []
+    if _length(missing) > settings.max_added_share * _length(inked):
+        return []
+    return missing
+
+
 def morph(
     player: list[Points], exemplar: list[Points], settings: MorphSettings = DEFAULT_SETTINGS
 ) -> Morph | None:
-    """None when either drawing has no extent to work with."""
-    player = [stroke for stroke in player if len(stroke) > 0]
+    """None when either drawing has no extent to work with. `tidied` always has the player's shape:
+    the same strokes in the same order, each with the same number of points."""
+    inked = [stroke for stroke in player if len(stroke) > 0]
     exemplar = [stroke for stroke in exemplar if len(stroke) > 0]
-    if not player or not exemplar:
+    if not inked or not exemplar:
         return None
-    diagonal = _diagonal(player)
+    diagonal = _diagonal(inked)
     if not np.isfinite(diagonal) or diagonal <= 0.0 or _diagonal(exemplar) <= 0.0:
         return None
-    fitted = fit_exemplar(exemplar, player, settings)
+    fitted = fit_exemplar(exemplar, inked, settings)
     spacing = settings.sample_spacing * diagonal
     target = np.concatenate([resample(stroke, spacing) for stroke in fitted])
-    player_cloud = np.concatenate([resample(stroke, spacing) for stroke in player])
+    player_cloud = np.concatenate([resample(stroke, spacing) for stroke in inked])
+    misfit = float(_nearest(player_cloud, target)[1].mean() / diagonal)
     return Morph(
-        tidied=[_tidy(stroke, target, diagonal, settings) for stroke in player],
-        added=_missing(fitted, player_cloud, diagonal, settings),
+        tidied=[
+            _tidy(stroke, target, diagonal, settings) if len(stroke) > 0 else stroke.copy()
+            for stroke in player
+        ],
+        added=_worth_adding(
+            _missing(fitted, player_cloud, diagonal, settings), inked, misfit, settings
+        ),
+        misfit=misfit,
     )

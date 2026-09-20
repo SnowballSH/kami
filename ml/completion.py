@@ -1,4 +1,4 @@
-"""Kami finishes your drawing: the exemplar most like the player's sketch, placed on their ink."""
+"""Kami finishes your drawing: its own strokes, tidied toward the exemplar most like it."""
 
 from __future__ import annotations
 
@@ -11,8 +11,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from exemplar_set import ExemplarSet
+from morph import Points, morph
 from recognizer import Reading
-from render import Point, Stroke, Strokes
+from render import Strokes
 
 MIN_TOP1_PROBABILITY = 0.5
 PROBABILITY_BONUS = 0.05
@@ -27,19 +28,30 @@ class SketchReader(Protocol):
     def read(self, strokes: Strokes) -> Reading: ...
 
 
+def _as_json(strokes: Sequence[Points]) -> list[list[dict[str, float]]]:
+    return [
+        [{"x": float(x), "y": float(y)} for x, y in np.round(stroke, COORDINATE_DECIMALS)]
+        for stroke in strokes
+    ]
+
+
 @dataclass(frozen=True, slots=True)
 class Completion:
-    strokes: list[list[Point]]
+    tidied: list[Points]
+    added: list[Points]
     category: str
     confidence: float
     similarity: float
+    exemplar_key_id: int
 
     def to_json(self) -> dict[str, object]:
         return {
-            "strokes": [[{"x": x, "y": y} for x, y in stroke] for stroke in self.strokes],
+            "tidied": _as_json(self.tidied),
+            "added": _as_json(self.added),
             "category": self.category,
             "confidence": self.confidence,
             "similarity": self.similarity,
+            "exemplar": str(self.exemplar_key_id),
         }
 
 
@@ -66,30 +78,13 @@ class Bounds:
         return Bounds(points.min(axis=0), points.max(axis=0))
 
 
+def _as_arrays(strokes: Strokes | Sequence[NDArray[np.uint8]]) -> list[Points]:
+    return [np.asarray(stroke, dtype=np.float64).reshape(-1, 2) for stroke in strokes]
+
+
 def category_key(name: str) -> str:
     """How names are compared: lower case, single spaces, no leading article."""
     return _LEADING_ARTICLE.sub("", " ".join(name.lower().split()))
-
-
-def place(exemplar: Strokes, onto: Bounds) -> list[list[Point]] | None:
-    """The exemplar at one scale for both axes, as large as fits inside `onto`, centred on it.
-
-    None when no positive scale fits: a dot for an exemplar, or ink flat where the exemplar is not.
-    """
-    source = Bounds.of(exemplar)
-    if source is None:
-        return None
-    spans = source.size > 0
-    scale = float((onto.size[spans] / source.size[spans]).min(initial=np.inf))
-    if not 0 < scale < np.inf:
-        return None
-    offset = onto.centre - source.centre * scale
-
-    def fitted(stroke: Stroke) -> list[Point]:
-        moved = np.round(np.asarray(stroke, dtype=np.float64) * scale + offset, COORDINATE_DECIMALS)
-        return [(float(x), float(y)) for x, y in np.clip(moved, onto.low, onto.high)]
-
-    return [fitted(stroke) for stroke in exemplar if len(stroke) > 0]
 
 
 class SketchCompleter:
@@ -116,22 +111,33 @@ class SketchCompleter:
         if best is None:
             return None
         index, similarity = best
-        placed = place(self._exemplars.strokes(index), ink)
-        if placed is None:
+        shaped = morph(_as_arrays(strokes), _as_arrays(self._exemplars.strokes(index)))
+        if shaped is None:
             return None
         return Completion(
-            strokes=placed,
+            tidied=shaped.tidied,
+            added=shaped.added,
             category=self._exemplars.categories[label],
             confidence=float(reading.probabilities[0, label]),
             similarity=similarity,
+            exemplar_key_id=int(self._exemplars.key_ids[index]),
         )
 
     def _choose_label(self, probabilities: NDArray[np.float64], name: str | None) -> int | None:
-        named = self._label_of.get(category_key(name)) if name else None
+        named = self._named_label(name) if name else None
         if named is not None:
             return named
         top = int(probabilities.argmax())
         return top if probabilities[top] >= MIN_TOP1_PROBABILITY else None
+
+    def _named_label(self, name: str) -> int | None:
+        """The label the name ends with: "a bouncy mushroom" is a mushroom, adjectives and all."""
+        words = category_key(name).split()
+        for start in range(len(words)):
+            label = self._label_of.get(" ".join(words[start:]))
+            if label is not None:
+                return label
+        return None
 
     def _most_alike(self, label: int, embedding: NDArray[np.float32]) -> tuple[int, float] | None:
         rows = self._exemplars.of_label(label)

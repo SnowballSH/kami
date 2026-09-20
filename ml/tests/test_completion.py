@@ -4,8 +4,9 @@ from dataclasses import dataclass, field
 import numpy as np
 import pytest
 
-from completion import MIN_TOP1_PROBABILITY, Bounds, SketchCompleter, category_key, place
+from completion import MIN_TOP1_PROBABILITY, SketchCompleter, category_key
 from exemplar_set import EMBEDDING_SIZE, Exemplar, ExemplarSet
+from morph import DEFAULT_SETTINGS
 from recognizer import Reading
 from render import Point, Strokes
 
@@ -64,7 +65,7 @@ def test_the_named_category_wins_over_what_the_model_sees() -> None:
     assert completion.category == "mushroom"
     assert completion.confidence == pytest.approx(0.15)
     assert completion.similarity == pytest.approx(0.8 / np.hypot(0.8, 0.2), abs=1e-3)
-    assert len(completion.strokes) == 2
+    assert completion.exemplar_key_id == 2
 
 
 @pytest.mark.parametrize("name", ["a mushroom", "The  Mushroom", " MUSHROOM ", "an mushroom"])
@@ -98,6 +99,21 @@ def test_an_unsure_model_and_no_known_name_is_no_answer() -> None:
     assert completer(reader).complete(SKETCH, "my best friend") is None
 
 
+@pytest.mark.parametrize(
+    "name", ["a bouncy mushroom", "big red Mushroom", "the eiffel tower mushroom"]
+)
+def test_a_name_with_adjectives_is_the_thing_it_ends_with(name: str) -> None:
+    reader = ScriptedReader([0.7, 0.1, 0.15, 0.05], axis(0))
+    completion = completer(reader).complete(SKETCH, name)
+    assert completion is not None and completion.category == "mushroom"
+
+
+def test_the_longest_ending_that_is_a_label_wins() -> None:
+    reader = ScriptedReader([0.7, 0.1, 0.15, 0.05], axis(2))
+    completion = completer(reader).complete(SKETCH, "a tall eiffel tower")
+    assert completion is not None and completion.category == "The Eiffel Tower"
+
+
 def test_a_category_without_exemplars_is_no_answer() -> None:
     reader = ScriptedReader([0.01, 0.01, 0.01, 0.97], axis(0))
     assert completer(reader).complete(SKETCH) is None
@@ -109,8 +125,8 @@ def test_the_exemplar_most_like_the_sketch_is_chosen() -> None:
     towards_first = ScriptedReader([0, 0, 1, 0], between(0, 1, 0.6))
     second = completer(towards_second).complete(SKETCH)
     first = completer(towards_first).complete(SKETCH)
-    assert second is not None and len(second.strokes) == 2
-    assert first is not None and len(first.strokes) == 1
+    assert second is not None and second.exemplar_key_id == 2
+    assert first is not None and first.exemplar_key_id == 1
 
 
 def test_a_surer_exemplar_wins_only_when_likeness_is_almost_equal() -> None:
@@ -120,8 +136,8 @@ def test_a_surer_exemplar_wins_only_when_likeness_is_almost_equal() -> None:
     apart = SketchCompleter(
         ScriptedReader([0, 0, 1, 0], between(0, 1, 0.6)), exemplar_set
     ).complete(SKETCH)
-    assert level is not None and len(level.strokes) == 3
-    assert apart is not None and len(apart.strokes) == 1
+    assert level is not None and level.exemplar_key_id == 5
+    assert apart is not None and apart.exemplar_key_id == 1
 
 
 @pytest.mark.parametrize(
@@ -141,9 +157,10 @@ def test_degenerate_ink_is_no_answer_and_never_reaches_the_model(strokes: Stroke
     assert reader.reads == 0
 
 
-def test_flat_ink_cannot_hold_an_exemplar_that_is_not_flat() -> None:
+def test_flat_ink_is_tidied_like_any_other() -> None:
     reader = ScriptedReader([0, 0, 1, 0], axis(0))
-    assert completer(reader).complete([[(0.0, 7.0), (90.0, 7.0)]], "mushroom") is None
+    completion = completer(reader).complete([[(0.0, 7.0), (90.0, 7.0)]], "mushroom")
+    assert completion is not None and [len(one) for one in completion.tidied] == [2]
 
 
 def test_an_exemplar_set_for_other_labels_is_refused() -> None:
@@ -153,63 +170,22 @@ def test_an_exemplar_set_for_other_labels_is_refused() -> None:
         )
 
 
-def bounds_of(strokes: Strokes) -> Bounds:
-    bounds = Bounds.of(strokes)
-    assert bounds is not None
-    return bounds
-
-
-def test_a_wide_exemplar_fills_the_width_and_is_centred_in_the_height() -> None:
-    onto = Bounds(np.asarray([100.0, 200.0]), np.asarray([300.0, 400.0]))
-    placed = place([stroke([(0, 0), (255, 0), (255, 100)])], onto)
-    assert placed is not None
-    half_height = 50 * 200 / 255
-    assert len(placed) == 1
-    assert np.asarray(placed[0]) == pytest.approx(
-        np.asarray(
-            [[100.0, 300 - half_height], [300.0, 300 - half_height], [300.0, 300 + half_height]]
-        ),
-        abs=0.01,
-    )
-
-
-def test_a_tall_exemplar_fills_the_height_and_is_centred_in_the_width() -> None:
-    onto = Bounds(np.asarray([-50.0, -1000.0]), np.asarray([50.0, -900.0]))
-    placed = bounds_of(place([stroke([(10, 0), (60, 250)])], onto) or [])
-    assert placed.size == pytest.approx([20.0, 100.0], abs=0.01)
-    assert placed.centre == pytest.approx(onto.centre, abs=0.01)
-
-
-@pytest.mark.parametrize("seed", range(20))
-def test_placement_keeps_the_aspect_is_centred_and_stays_inside(seed: int) -> None:
-    rng = np.random.default_rng(seed)
-    lengths = rng.integers(2, 9, 3).tolist()
-    exemplar = [rng.integers(0, 256, (length, 2)).astype(np.uint8) for length in lengths]
-    corner = rng.uniform(-5000, 5000, 2)
-    onto = Bounds(corner, corner + rng.uniform(0.37, 900, 2))
-    source = bounds_of(exemplar)
-
-    placed_strokes = place(exemplar, onto)
-    assert placed_strokes is not None
-    placed = bounds_of(placed_strokes)
-
-    assert [len(one) for one in placed_strokes] == [len(one) for one in exemplar]
-    assert np.all(placed.low >= onto.low) and np.all(placed.high <= onto.high)
-    assert placed.centre == pytest.approx(onto.centre, abs=0.011)
-    scales = placed.size / source.size
-    assert scales[0] == pytest.approx(scales[1], abs=0.02 / source.size.min())
-    assert np.isclose(placed.size, onto.size, atol=0.011).any()
-
-
-def test_a_dot_of_an_exemplar_cannot_be_placed() -> None:
-    onto = Bounds(np.zeros(2), np.ones(2))
-    assert place([stroke([(9, 9)])], onto) is None
-    assert place([], onto) is None
+def test_the_drawing_stays_the_players_stroke_for_stroke_and_point_for_point() -> None:
+    completion = completer(ScriptedReader([0, 0, 1, 0], axis(0))).complete(SKETCH)
+    assert completion is not None
+    assert [len(one) for one in completion.tidied] == [len(one) for one in SKETCH]
+    diagonal = float(np.hypot(200.0, 60.0))
+    for tidied, drawn in zip(completion.tidied, SKETCH, strict=True):
+        moved = np.linalg.norm(tidied - np.asarray(drawn), axis=1)
+        assert moved.max() <= DEFAULT_SETTINGS.max_shift * diagonal + 1e-9
 
 
 def test_the_answer_serialises_to_the_routes_shape() -> None:
     completion = completer(ScriptedReader([0, 0, 1, 0], axis(0))).complete(SKETCH)
     assert completion is not None
     body = completion.to_json()
-    assert set(body) == {"strokes", "category", "confidence", "similarity"}
-    assert body["strokes"] == [[{"x": x, "y": y} for x, y in one] for one in completion.strokes]
+    assert set(body) == {"tidied", "added", "category", "confidence", "similarity", "exemplar"}
+    assert body["exemplar"] == str(completion.exemplar_key_id)
+    assert body["tidied"] == [
+        [{"x": float(x), "y": float(y)} for x, y in np.round(one, 2)] for one in completion.tidied
+    ]
