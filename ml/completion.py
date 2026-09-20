@@ -124,11 +124,20 @@ class SketchCompleter:
         )
 
     def _choose_label(self, probabilities: NDArray[np.float64], name: str | None) -> int | None:
-        named = self._label_of.get(category_key(name)) if name else None
+        named = self._named_label(name) if name else None
         if named is not None:
             return named
         top = int(probabilities.argmax())
         return top if probabilities[top] >= MIN_TOP1_PROBABILITY else None
+
+    def _named_label(self, name: str) -> int | None:
+        """The label the name ends with: "a bouncy mushroom" is a mushroom, adjectives and all."""
+        words = category_key(name).split()
+        for start in range(len(words)):
+            label = self._label_of.get(" ".join(words[start:]))
+            if label is not None:
+                return label
+        return None
 
     def _most_alike(self, label: int, embedding: NDArray[np.float32]) -> tuple[int, float] | None:
         rows = self._exemplars.of_label(label)
