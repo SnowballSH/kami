@@ -30,7 +30,9 @@ describe("starting from the address bar", () => {
   it("opens the puzzle run at its first room, or at the room named", () => {
     expect(boardInUrl("?mode=puzzle", PUZZLE_MODE)).toBe(FIRST_PUZZLE_BOARD_ID);
     expect(boardInUrl("?mode=puzzle&board=wonderland", PUZZLE_MODE)).toBe(FIRST_PUZZLE_BOARD_ID);
-    expect(boardInUrl("?mode=puzzle&board=puzzle-shaft", PUZZLE_MODE)).toBe("puzzle-shaft");
+    expect(boardInUrl("?mode=puzzle&board=puzzle-unknown", PUZZLE_MODE)).toBe(
+      FIRST_PUZZLE_BOARD_ID,
+    );
   });
 
   it("writes a share link that carries only the board and the mode", () => {

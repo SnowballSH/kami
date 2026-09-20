@@ -825,7 +825,7 @@ describe("Game on the Wonderland board", () => {
     });
   });
 
-  it("is completable start to goal through all six rooms", async () => {
+  it("is completable from start to goal across Wonderland", async () => {
     await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
     await player.draw(blob({ x: 1430, y: 540 }, 30, 18));
     await player.write("a bouncy mushroom", { x: 1380, y: 440 });
