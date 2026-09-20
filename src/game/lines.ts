@@ -29,6 +29,12 @@ export const PONDERING_LINE = "hmm...";
 export const CANNOT_DRAW_LINE = (what: string): string =>
   `I've never seen ${what}. Draw one for me, and I'll learn its name.`;
 export const OFFER_HELP_HINT = "(write 'help' anywhere)";
+export const NOWHERE_LINE = (where: string): string =>
+  `I don't know the way to ${where}. Tell me what it's like there and I'll make it.`;
+
+/** The gloss under "teleport us to the moon": the place, then every law it brought. */
+export const sceneGlossOf = (place: string, laws: readonly string[]): string =>
+  glossOf(laws.length === 0 ? place : `${place}: ${laws.join(", ")}`);
 
 /**
  * The Sumikui, the ink eater. Kami is the paper; ink is its lifeblood. Long ago something under the

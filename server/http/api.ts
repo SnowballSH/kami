@@ -1,6 +1,6 @@
 import type { Stroke } from "../../src/core/geometry";
 import { INPUT_LIMITS } from "../../src/core/inputLimits";
-import type { RuleCompiler } from "../../src/rules/types";
+import type { RuleCompiler, SceneCompiler } from "../../src/rules/types";
 import type { Beautifier } from "../beautify/beautifier";
 import { controllerEventStream } from "../controllers/eventStream";
 import { isControllerId, parseControllerReading } from "../controllers/message";
@@ -78,9 +78,12 @@ export interface ApiDependencies {
   readonly natures?: NatureTable;
   /** Drawings for Kami to ink himself ("summon a rabbit"); without one, every summons is 404. */
   readonly exemplars?: ExemplarSource;
+  /** Places the atlas has never heard of ("teleport us to a chocolate factory"), made by a model. */
+  readonly scenes?: SceneCompiler;
 }
 
 const NO_EXEMPLARS: ExemplarSource = { exemplar: () => Promise.resolve(null) };
+const NO_SCENES: SceneCompiler = { compile: () => Promise.resolve(null) };
 
 const INVALID_CONTROLLER_ID = "a controller id is 1–32 of a-z, 0-9 and '-'";
 const INVALID_CONTROLLER_STATE = "the body is '<x> <y> [buttons]', e.g. '100 0 A'";
@@ -148,6 +151,7 @@ export const createApi = ({
   speaker = null,
   natures = quickdrawNatureTable,
   exemplars = NO_EXEMPLARS,
+  scenes = NO_SCENES,
 }: ApiDependencies): Router =>
   new Router()
     .on("GET", "/api/boards", async () => json({ boards: await boards.summaries() }))
@@ -197,6 +201,10 @@ export const createApi = ({
     .on("POST", "/api/compile", async ({ request }) => {
       const body = await parseJsonBody(request, compileRequestSchema, INPUT_LIMITS.textBytes);
       return body.ok ? json({ rule: await compiler.compile(body.value.text) }) : body.response;
+    })
+    .on("POST", "/api/scene", async ({ request }) => {
+      const body = await parseJsonBody(request, compileRequestSchema, INPUT_LIMITS.textBytes);
+      return body.ok ? json({ scene: await scenes.compile(body.value.text) }) : body.response;
     })
     .on("GET", "/api/controllers", () => json(controllers.list()))
     .on("POST", "/api/controllers/:id/state", async ({ request, params }) => {

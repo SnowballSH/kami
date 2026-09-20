@@ -45,8 +45,8 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
  pointer → InkSession → PenReader → words? → text funnel
                          └ no words → sim + ledger + store → Cat.look → naming
  typing / voice transcript ───────────────→ text funnel
- text funnel: offline compile → summons → nearby non-ink naming → remote compile
-               └ law              └ Kami inks an exemplar   └ ruling     └ law / plain-ink name / shrug
+ text funnel: offline compile → scene → summons → nearby non-ink naming → remote compile
+               └ law              └ laws + props   └ Kami inks an exemplar   └ ruling     └ law / plain-ink name / shrug
  keyboard / stick / controller SSE → WalkIntentMerger → sim
  optional autopilot ──────────────────────────────────→ sim (when manual input is idle)
  persistent entities → BoardStore → Bun API → MongoDB
@@ -253,6 +253,16 @@ The player writes with the pen like they draw with it; nothing is selected first
   (`InkLedger.conjure`) and named by the server's word through the same `cat.name` → `name` path as
   the player's ink, minus the tidy it does not need — or Kami asks the player to draw what he has
   never seen. Laws come first so "summon the ink eater" stays a law.
+  Before a summons, a scene (`rules/scenes/`: `destinationOf` reads "teleport us to the moon",
+  "let's go underwater", "welcome to Candy Land"; `AtlasSceneCompiler` answers from the offline
+  atlas of ~25 places and otherwise asks the remote `scenes` compiler, `POST /api/scene`) →
+  `Game.travel`: the scene's laws become rules all sharing the travel note (`enactAll`; the mode
+  policy is applied to the bundle, so a scene is enacted whole or refused whole) and listed as one
+  entry in the laws panel; then `dress` fetches an exemplar per prop and conjures each above the
+  words, clear of Alice, staggered by `PROP_STAGGER_MS`, named by its word. Erasing the note repeals
+  every rule of the scene at once (`RuleBook.repealByNote` returns them all); the props stay as
+  ordinary ink. A travel sentence nobody can make falls through the rest of the funnel and ends in
+  "I don't know the way" instead of a shrug.
   Otherwise try `cat.name` on the nearest drawing. A non-`ink` ruling wins immediately. Only then
   ask the remote `thinker`; if it returns a law, apply the mode policy and stop. If it returns
   `null`, use the available plain-ink ruling or write a shrug. A forbidden law remains plain
