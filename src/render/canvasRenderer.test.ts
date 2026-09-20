@@ -44,12 +44,17 @@ const ALICE: AliceSnapshot = {
   look: { kind: "alice" },
 };
 
-const frame = (eraserActive: boolean, ghosts?: readonly AliceSnapshot[]): RenderFrame => ({
+const frame = (
+  eraserActive: boolean,
+  ghosts?: readonly AliceSnapshot[],
+  alice: AliceSnapshot = ALICE,
+  soul: { at: Vec } | null = null,
+): RenderFrame => ({
   nowMs: 0,
   camera: { center: { x: 20, y: 20 }, zoom: 2, angle: 0 },
   world: {
-    alice: ALICE,
-    soul: null,
+    alice,
+    soul,
     tear: null,
     twins: [],
     sumikui: null,
@@ -78,6 +83,7 @@ const setup = () => {
     {
       get: (_, key) =>
         state.get(key) ??
+        (key === "createRadialGradient" ? () => ({ addColorStop: () => {} }) : undefined) ??
         ((...args: unknown[]) => {
           calls.push({ method: String(key), args });
         }),
@@ -168,5 +174,24 @@ describe("CanvasRenderer ghosts", () => {
     calls.length = 0;
     renderer.render(frame(false));
     expect(faintStrokes(calls)).toBe(-1);
+  });
+});
+
+describe("CanvasRenderer spirit opening", () => {
+  it("paints the heart without painting the placeholder Alice controller", () => {
+    const { renderer, calls } = setup();
+    const visible = { ...ALICE, center: { x: 20, y: 20 } };
+    renderer.render(frame(false, undefined, visible));
+    const embodiedPaint = calls.filter(
+      ({ method }) => method === "fill" || method === "stroke",
+    ).length;
+
+    calls.length = 0;
+    renderer.render(frame(false, undefined, visible, { at: { x: 20, y: 20 } }));
+    const spiritPaint = calls.filter(
+      ({ method }) => method === "fill" || method === "stroke",
+    ).length;
+
+    expect(embodiedPaint).toBeGreaterThan(spiritPaint);
   });
 });

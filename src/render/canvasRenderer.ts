@@ -164,7 +164,7 @@ export class CanvasRenderer implements Renderer {
       ctx.restore();
     }
     if (world.soul !== null) paintSoul(ctx, world.soul, nowMs);
-    if (world.alice !== null) {
+    if (world.soul === null && world.alice !== null) {
       const figure = this.troupe.figureOf(ALICE_HERSELF, world.alice, events, nowMs, portalCenters);
       if (aliceInView(world.alice, view)) {
         ctx.save();

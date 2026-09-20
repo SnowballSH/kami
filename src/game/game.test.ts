@@ -2121,6 +2121,16 @@ describe("Game in the Sandbox", () => {
     expect(player.renderer.board?.goal).toBeUndefined();
   });
 
+  it("quietly drops ink beneath the endless page ground", async () => {
+    const { player } = sandbox();
+    await player.arrive();
+    await player.draw(line({ x: 100, y: 100 }, { x: 220, y: 100 }));
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+
+    await player.draw(line({ x: 100, y: -40 }, { x: 220, y: -40 }));
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+  });
+
   it("keeps Kami's reply to a name clear of the ground and Alice", async () => {
     const { player } = sandbox(["dog"]);
     await player.arrive();
