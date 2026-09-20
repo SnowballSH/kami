@@ -55,6 +55,11 @@ Collections `drawings`, `notes`, `rules` hold the client's objects as they are p
 (and, for drawings, a top-level `id` copied from `drawing.id`), with a unique `{ boardId, id }`
 index. `_id` and `boardId` never leave the server.
 
+Drawing labels carry an optional `Note.drawingId`, a board-local deletion association. The client
+removes those labels on rename, erase, consumption or devouring, including after reload. Older notes
+without it remain unassociated; their target is not guessed from their text or position. This does
+not make labels follow moving drawings. Passing remarks and guess notes remain transient.
+
 ## Quick, Draw!
 
 ```sh
