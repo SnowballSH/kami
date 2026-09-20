@@ -71,6 +71,18 @@ const blob = (center: Vec, rx: number, ry: number): Vec[] =>
     y: center.y + ry * Math.sin((i / 24) * Math.PI * 2),
   }));
 
+const box = (bottomCentre: Vec, width: number, height: number): Vec[] => {
+  const left = { x: bottomCentre.x - width / 2, y: bottomCentre.y };
+  const right = { x: bottomCentre.x + width / 2, y: bottomCentre.y };
+  const top = bottomCentre.y - height;
+  return [
+    ...line(left, { x: left.x, y: top }),
+    ...line({ x: left.x, y: top }, { x: right.x, y: top }),
+    ...line({ x: right.x, y: top }, right),
+    ...line(right, left),
+  ];
+};
+
 type Thoughts = Readonly<Record<string, CompiledRule | Promise<CompiledRule | null>>>;
 
 interface PlayerOptions {
@@ -699,7 +711,7 @@ describe("Game on the Wonderland board", () => {
     });
   });
 
-  it("is completable start to goal: bridge, bouncy mushroom, cake, key, bottle, door", async () => {
+  it("is completable start to goal through all seven rooms", async () => {
     await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
     await player.draw(blob({ x: 1430, y: 540 }, 30, 18));
     await player.write("a bouncy mushroom", { x: 1380, y: 440 });
@@ -722,13 +734,40 @@ describe("Game on the Wonderland board", () => {
     player.walk(0);
     await player.draw(blob({ x: 2300, y: 324 }, 18, 14));
     await player.write("drink me", { x: 2270, y: 250 });
+    await player.draw(blob({ x: 3490, y: 460 }, 30, 10));
+    await player.write("a springy toadstool", { x: 3400, y: 400 });
+    await player.draw(blob({ x: 3760, y: 324 }, 18, 14));
+    await player.write("eat me", { x: 3730, y: 250 });
     player.walk(1);
+    expect(await player.until(() => player.alice.size === "small")).toBe(true);
+    expect(await player.until(() => player.alice.center.x > 2560)).toBe(true);
+    expect(await player.until(() => player.alice.center.x > 3660 && player.alice.grounded)).toBe(
+      true,
+    );
+    expect(await player.until(() => player.alice.size === "big")).toBe(true);
+    expect(await player.until(() => player.alice.center.x > 4560 && player.alice.grounded)).toBe(
+      true,
+    );
+    player.walk(1, -1);
+    expect(await player.until(() => player.alice.center.x > 4620 && player.alice.grounded)).toBe(
+      true,
+    );
+
+    player.walk(0);
+    await player.draw(blob({ x: 5100, y: 194 }, 12, 15));
+    await player.write("a bottle", { x: 5070, y: 120 });
+    await player.draw(box({ x: 5975, y: 295 }, 130, 80));
+    await player.write("an anvil", { x: 5940, y: 150 });
+    player.walk(1);
+    expect(await player.until(() => player.alice.size === "small")).toBe(true);
     expect(
       await player.until(() => player.written.some((text) => text.includes("rabbit hole"))),
     ).toBe(true);
     expect((await player.store.load("wonderland")).drawings.map((d) => d.ruling?.name)).toEqual([
       undefined,
       "a bouncy mushroom",
+      "a springy toadstool",
+      "an anvil",
     ]);
   });
 });
@@ -882,6 +921,23 @@ describe("Alice on her own", () => {
 
     await player.draw(blob({ x: 2300, y: 324 }, 18, 14));
     await player.write("drink me", { x: 2270, y: 250 });
+    await player.draw(blob({ x: 3490, y: 460 }, 30, 10));
+    await player.write("a springy toadstool", { x: 3400, y: 400 });
+    await player.draw(blob({ x: 3760, y: 324 }, 18, 14));
+    await player.write("eat me", { x: 3730, y: 250 });
+    await player.draw(blob({ x: 5100, y: 194 }, 12, 15));
+    await player.write("a bottle", { x: 5070, y: 120 });
+    await player.draw(box({ x: 5975, y: 295 }, 130, 80));
+    await player.write("an anvil", { x: 5940, y: 150 });
+
+    expect(await player.until(() => player.alice.center.x > 2560)).toBe(true);
+    expect(await player.until(() => player.alice.center.x > 3660 && player.alice.grounded)).toBe(
+      true,
+    );
+    expect(await player.until(() => player.alice.center.x > 4620 && player.alice.grounded)).toBe(
+      true,
+    );
+    expect(await player.until(() => player.alice.size === "small")).toBe(true);
     expect(
       await player.until(() => player.written.some((text) => text.includes("rabbit hole"))),
     ).toBe(true);

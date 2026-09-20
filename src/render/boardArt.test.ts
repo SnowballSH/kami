@@ -12,6 +12,7 @@ const blank = boardFor("my-own-game");
 const HATCH_SLACK_PX = 4;
 const NO_INK_ZONE = { x: 400, y: 300, width: 120, height: 80 };
 const withNoInkZone: BoardDefinition = { ...blank, noInkZones: [NO_INK_ZONE] };
+const solidsOnly: BoardDefinition = { ...wonderland, noInkZones: [] };
 
 const isHatched = ({ sets }: Drawable): boolean => sets.some((set) => set.type === "fillSketch");
 const hatchedIn = (pieces: readonly ArtPiece[]): readonly Drawable[] =>
@@ -24,13 +25,14 @@ describe("composeBoardArt", () => {
 
   it("hatches marker solids and the rabbit hole, and leaves glass clear", () => {
     const markerSolids = wonderland.solids.filter((solid) => solid.material === "marker");
-    const { scenery } = composeBoardArt(wonderland);
+    const glassSolids = wonderland.solids.filter((solid) => solid.material === "glass");
+    const { scenery } = composeBoardArt(solidsOnly);
     expect(scenery).toHaveLength(wonderland.solids.length + 1);
     expect(hatchedIn(scenery)).toHaveLength(markerSolids.length + 1);
     const glass = scenery.filter(
       (piece) => piece.drawable.options.stroke === BOARD_COLORS.glassEdge,
     );
-    expect(glass).toHaveLength(1);
+    expect(glass).toHaveLength(glassSolids.length);
     expect(hatchedIn(glass)).toHaveLength(0);
   });
 
@@ -46,7 +48,7 @@ describe("composeBoardArt", () => {
   });
 
   it("bounds every piece generously enough to cull by", () => {
-    const { scenery } = composeBoardArt(wonderland);
+    const { scenery } = composeBoardArt(solidsOnly);
     wonderland.solids.forEach((solid, index) => {
       const bounds = scenery[index]?.bounds;
       expect(bounds).toBeDefined();
@@ -59,7 +61,7 @@ describe("composeBoardArt", () => {
   });
 
   it("keeps every hatch line inside the solid it shades", () => {
-    const { scenery } = composeBoardArt(wonderland);
+    const { scenery } = composeBoardArt(solidsOnly);
     wonderland.solids.forEach((solid, index) => {
       const art = scenery[index];
       expect(art).toBeDefined();
