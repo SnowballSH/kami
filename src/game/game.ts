@@ -1,4 +1,5 @@
 import type { Autopilot, Scene } from "../autopilot/types";
+import { endlessBoard } from "../board";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
 import {
@@ -24,7 +25,14 @@ import type {
   PlacementRejection,
   PosedDrawing,
 } from "../ink/types";
-import { allowsLaw, createDirector, EMBODIED_MODE, EmbodiedDirector } from "../modes";
+import {
+  allowsLaw,
+  createDirector,
+  EMBODIED_MODE,
+  EMBODIED_MODE_ID,
+  EmbodiedDirector,
+  refusalLine,
+} from "../modes";
 import type { GameMode, ModeDirector } from "../modes/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore } from "../persistence/types";
@@ -35,6 +43,7 @@ import { destinationOf, placeCalled } from "../rules";
 import type {
   CompiledRule,
   Scene as Destination,
+  Governs,
   Rule,
   RuleCompiler,
   RuleId,
@@ -224,8 +233,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     private readonly modules: GameModules,
     initialBoardId: string,
   ) {
-    this.board = modules.boardFor(initialBoardId);
     this.director = directorFor(modules.mode ?? EMBODIED_MODE);
+    this.board = this.sketch(initialBoardId);
     this.selfDriving = (modules.selfDriving ?? true) && this.walksHerself();
     this.tidiness = clamp(modules.tidiness ?? DEFAULT_TIDINESS, 0, 1);
     this.notes = new NoteBook(modules.handwriting);
@@ -273,7 +282,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.notes.expire(nowMs);
     this.speakDueRecital();
     if (this.retidyDueAtMs !== null && nowMs >= this.retidyDueAtMs) this.retidyTheBoard();
-    if (this.stuck.isStuck(nowMs)) this.offerHelp();
+    if (this.director.mode.help === "offered" && this.stuck.isStuck(nowMs)) this.offerHelp();
     this.camera.follow(sim.aliceBounds(), renderer.viewport());
     this.camera.turnTo(sim.paperAngle());
 
@@ -463,13 +472,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private async open(boardId: string, { remember = true } = {}): Promise<void> {
-    const { sim, cat, renderer, store, boardFor, onBoardOpened } = this.modules;
+    const { sim, cat, renderer, store, onBoardOpened } = this.modules;
     this.epoch += 1;
     const epoch = this.epoch;
     this.loading = remember;
     this.voiceReady = false;
     this.voice?.cancel();
-    this.board = boardFor(boardId);
+    this.board = this.sketch(boardId);
 
     sim.loadBoard(this.board);
     this.director.open(this.board);
@@ -498,6 +507,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const [firstZone] = this.board.zones;
     if (firstZone === undefined) cat.enterRoom(BLANK_BOARD_BRIEF);
     else this.introduce(firstZone);
+    if (this.director.mode.id !== EMBODIED_MODE_ID) {
+      this.remark(this.director.mode.card.opening, HINT_LIFETIME_MS);
+    }
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
@@ -936,8 +948,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    */
   private async travel(scene: Destination, note: Note, stillHere: () => boolean): Promise<void> {
     const rules = scene.laws.map((law) => this.ruleFrom(law, note));
-    if (!rules.every((rule) => this.allowsRule(rule))) {
-      this.refuseLaw(note.id);
+    const forbidden = rules.find((rule) => !this.allowsRule(rule));
+    if (forbidden !== undefined) {
+      this.refuseLaw(note.id, forbidden.effect.governs);
       return;
     }
     this.enactAll(
@@ -1029,14 +1042,18 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private enactIfAllowed(rule: Rule): void {
     if (this.allowsRule(rule)) this.enact(rule);
-    else this.refuseLaw(rule.noteId);
+    else this.refuseLaw(rule.noteId, rule.effect.governs);
   }
 
-  private refuseLaw(noteId: NoteId): void {
+  private refuseLaw(noteId: NoteId, dial?: Governs): void {
     this.notes.restyle(noteId, "plain");
     const under = this.notes.below(noteId);
+    const line =
+      dial === undefined
+        ? LAW_OUTSIDE_MODE_LINE
+        : refusalLine(this.director.mode, dial, LAW_OUTSIDE_MODE_LINE);
     if (under !== null) {
-      this.kamiWrites(LAW_OUTSIDE_MODE_LINE, under, {
+      this.kamiWrites(line, under, {
         anchor: { type: "note", id: noteId },
         lifetimeMs: REMARK_LIFETIME_MS,
         drift: "down",
@@ -1190,6 +1207,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       tone: "understood",
       drift: "down",
     });
+  }
+
+  /** The board under an id, read as the mode reads it: the room sketched there, or an endless page. */
+  private sketch(boardId: string): BoardDefinition {
+    return this.director.mode.page === "endless"
+      ? endlessBoard(boardId)
+      : this.modules.boardFor(boardId);
   }
 
   private writeWordmark(): void {

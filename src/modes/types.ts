@@ -1,4 +1,4 @@
-import type { BoardDefinition } from "../board/types";
+import type { BoardDefinition, PageKind } from "../board/types";
 import type { AllowedNatures, Ruling } from "../cat/types";
 import type { DrawingId } from "../ink/types";
 import type { Governs } from "../rules/types";
@@ -48,6 +48,18 @@ export type LawPolicy =
 /** Narrows the board's own `RoomBrief.allowedNatures`; never widens it. */
 export type NaturePolicy = AllowedNatures;
 
+/**
+ * When Kami helps unasked. `offered`: the stuck detector climbs the hint ladder when she has made
+ * no progress for a while. `on-request`: he only answers when the player writes for help.
+ */
+export type HelpPolicy = "offered" | "on-request";
+
+/**
+ * Whether the board is played alone or with everyone who has it open. `live`: other devices' ink,
+ * notes and laws arrive as they happen, and their Alices walk the page as ghosts.
+ */
+export type SharingPolicy = "alone" | "live";
+
 /** What the title card and Kami say about the mode. */
 export interface ModeCard {
   readonly title: string;
@@ -70,6 +82,12 @@ export interface GameMode {
   readonly natures: NaturePolicy;
   /** Whether she may walk herself; a spirit's drawn Alice may be meant to be steered by hand. */
   readonly autopilot: "allowed" | "forbidden";
+  /** How the board id is read: as the room sketched under it, or as an endless page. */
+  readonly page: PageKind;
+  readonly help: HelpPolicy;
+  readonly sharing: SharingPolicy;
+  /** What Kami says instead of the stock refusal when a law turns a dial this mode forbids. */
+  readonly refusals?: Readonly<Partial<Record<Governs, string>>>;
 }
 
 /** What the player is right now, as opposed to at the opening. */

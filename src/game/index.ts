@@ -1,5 +1,5 @@
 import { createAutopilot } from "../autopilot";
-import { boardFor, DEMO_BOARD_ID } from "../board";
+import { boardFor } from "../board";
 import { createCat } from "../cat";
 import { createHandwriting } from "../handwriting";
 import { createInkSession, findDrawingAt } from "../ink";
@@ -20,8 +20,8 @@ import { Summoner } from "../summoning";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
 import { createVoice } from "../voice";
 import { DEFAULT_TIDINESS, Game } from "./game";
+import { BOARD_PARAM, boardInUrl, modeInUrl } from "./launch";
 
-const BOARD_PARAM = "board";
 const AUTOPILOT_PARAM = "autopilot";
 const AUTOPILOT_MEMORY = "kami.autopilot";
 const ON = "on";
@@ -64,9 +64,6 @@ const rememberTidiness = (tidiness: number): void => {
   } catch {}
 };
 
-const boardInUrl = (): string =>
-  new URLSearchParams(window.location.search).get(BOARD_PARAM) ?? DEMO_BOARD_ID;
-
 const rememberBoardInUrl = (boardId: string): void => {
   const url = new URL(window.location.href);
   url.searchParams.set(BOARD_PARAM, boardId);
@@ -81,6 +78,7 @@ export function startGame(root: HTMLElement): void {
   const store = createBoardStore();
   guardUnsavedChanges(window, store);
   const recognizer = createRecognizer();
+  const mode = modeInUrl(window.location.search);
   const game = new Game(
     {
       sim: createSimulation(),
@@ -103,12 +101,13 @@ export function startGame(root: HTMLElement): void {
       createLawsPanel: (handlers) => createLawsPanel(root, handlers),
       findDrawingAt,
       onBoardOpened: rememberBoardInUrl,
+      mode,
       selfDriving: startsSelfDriving(),
       onSelfDrivingChanged: rememberSelfDriving,
       tidiness: rememberedTidiness(),
       onTidinessChanged: rememberTidiness,
     },
-    boardInUrl(),
+    boardInUrl(window.location.search, mode),
   );
 
   attachCanvasInput(canvas, () => game.currentTool, game);
