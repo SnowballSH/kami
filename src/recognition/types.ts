@@ -29,11 +29,19 @@ export interface SightOptions {
   readonly partial?: boolean;
 }
 
-/** A clean drawing of what the player sketched, placed where they sketched it. */
+/**
+ * The player's own drawing, tidied, and what it was missing. It stays theirs: nothing is replaced.
+ */
 export interface Completion {
-  /** World space, fitted inside the bounds of the player's own ink. */
-  readonly strokes: readonly Stroke[];
-  /** The Quick, Draw! word it was drawn as. */
+  /**
+   * The player's strokes again — the same number of strokes, each with the same number of points,
+   * in the same order — every point nudged a small, bounded distance toward a clean drawing of the
+   * same thing. Tween point for point from the ink to these.
+   */
+  readonly tidied: readonly Stroke[];
+  /** Parts a finished drawing of this would have and theirs does not, to be drawn in. Often none. */
+  readonly added: readonly Stroke[];
+  /** The Quick, Draw! word it was tidied as. */
   readonly word: string;
   /** 0–1: how sure Kami is of the word. */
   readonly confidence: number;
@@ -47,9 +55,8 @@ export interface LiveRecognizer extends Recognizer {
    */
   sight(strokes: readonly Stroke[], options?: SightOptions): Promise<readonly Sighting[]>;
   /**
-   * Kami finishes the drawing: a tidy sketch of the same thing, to be drawn over (or instead of) the
-   * player's ink. `name` is what the player called it, when they have. Null when he has nothing
-   * better to offer or is offline — keep the player's ink. Never rejects.
+   * Kami tidies and finishes the drawing. `name` is what the player called it, when they have.
+   * Null when he has nothing to offer or is offline — keep the player's ink. Never rejects.
    */
   complete(strokes: readonly Stroke[], name?: string): Promise<Completion | null>;
 }
