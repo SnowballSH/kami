@@ -109,3 +109,11 @@ whole boards.
 
 Built in a weekend by a small team with two coding agents working side by side, Claude Code and Devin;
 [AGENTS.md](AGENTS.md) is the agreement they worked under.
+
+## Licence and credits
+
+Kami's code, documentation and artwork are under the [MIT License](LICENSE). Kami learnt to see from
+[The Quick, Draw! Dataset](https://github.com/googlecreativelab/quickdraw-dataset), made available by
+Google, Inc. under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the dataset is not in this
+repository, and the drawings Kami summons, and those in Figure 5 of the results, are its contributors'
+work. His handwriting is a subset of EMS Readability (SIL OFL 1.1). Details in [NOTICE.md](NOTICE.md).
