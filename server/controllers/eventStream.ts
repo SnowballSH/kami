@@ -1,4 +1,3 @@
-import { CROSS_ORIGIN_HEADERS } from "./responses";
 import type { ControllerHub, ControllerState } from "./types";
 
 /**
@@ -12,7 +11,6 @@ const EVENT_STREAM_HEADERS = {
   "content-type": "text/event-stream",
   "cache-control": "no-cache, no-transform",
   "x-accel-buffering": "no",
-  ...CROSS_ORIGIN_HEADERS,
 } as const;
 
 const KEEP_ALIVE_COMMENT = ": keep-alive\n\n";
@@ -21,6 +19,7 @@ const eventOf = (state: ControllerState): string => `data: ${JSON.stringify(stat
 
 export interface EventStreamSettings {
   readonly keepAliveMs: number;
+  readonly authorized: () => boolean;
   /** The request's signal: a client that goes away without the stream being cancelled still unsubscribes. */
   readonly signal: AbortSignal;
 }
@@ -29,13 +28,43 @@ export interface EventStreamSettings {
 export const controllerEventStream = (
   hub: ControllerHub,
   id: string,
-  { keepAliveMs = KEEP_ALIVE_MS, signal }: Partial<EventStreamSettings> = {},
+  {
+    keepAliveMs = KEEP_ALIVE_MS,
+    signal,
+    authorized = () => true,
+  }: Partial<EventStreamSettings> = {},
 ): Response => {
   const encoder = new TextEncoder();
   let release = (): void => {};
   const body = new ReadableStream<Uint8Array>({
     start: (stream) => {
+      let closed = false;
+      let unsubscribe = (): void => {};
+      let keepAlive: ReturnType<typeof setInterval> | undefined;
+      const close = (): void => {
+        if (closed) return;
+        closed = true;
+        release();
+        try {
+          stream.close();
+        } catch {}
+      };
+      release = () => {
+        clearInterval(keepAlive);
+        unsubscribe();
+        signal?.removeEventListener("abort", close);
+        release = () => {};
+      };
+      if (signal?.aborted || !authorized()) {
+        close();
+        return;
+      }
       const send = (text: string): void => {
+        if (closed) return;
+        if (!authorized()) {
+          close();
+          return;
+        }
         try {
           stream.enqueue(encoder.encode(text));
         } catch {
@@ -43,14 +72,14 @@ export const controllerEventStream = (
         }
       };
       send(reconnectField);
-      const unsubscribe = hub.subscribe(id, (state) => send(eventOf(state)));
-      const keepAlive = setInterval(() => send(KEEP_ALIVE_COMMENT), keepAliveMs);
-      release = () => {
-        clearInterval(keepAlive);
+      if (closed) return;
+      unsubscribe = hub.subscribe(id, (state) => send(eventOf(state)));
+      if (closed) {
         unsubscribe();
-        release = () => {};
-      };
-      signal?.addEventListener("abort", () => release(), { once: true });
+        return;
+      }
+      keepAlive = setInterval(() => send(KEEP_ALIVE_COMMENT), keepAliveMs);
+      signal?.addEventListener("abort", close, { once: true });
     },
     cancel: () => release(),
   });

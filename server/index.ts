@@ -6,6 +6,7 @@ import { startControllers } from "./controllers";
 import { BoardRepository } from "./db/boardRepository";
 import { connectDatabase } from "./db/connect";
 import { createExemplarSource } from "./exemplar/exemplars";
+import { ApiAccess } from "./http/access";
 import { createApi } from "./http/api";
 import { createStaticSite } from "./http/staticSite";
 import { quickdrawNatureTable } from "./natures/natureTable";
@@ -36,8 +37,10 @@ const controllers = await startControllers(config.controllers, {
 
 const compiler = createLlmCompiler(config.llm);
 const transcriber = createLlmTranscriber(config.transcribe);
-const voice = voiceSockets(config.voice);
+const access = new ApiAccess(config.access);
+const voice = voiceSockets(config.voice, access);
 const api = createApi({
+  access,
   boards,
   recognizer: eye.recognizer,
   compiler,
@@ -57,9 +60,9 @@ const isVoiceSocket = (request: Request): boolean =>
 const server = Bun.serve<VoiceSocketData>({
   maxRequestBodySize: INPUT_LIMITS.sketchBytes,
   port: config.port,
-  hostname: "0.0.0.0",
+  hostname: config.hostname,
   fetch: async (request, listening) => {
-    if (isVoiceSocket(request) && voice.upgrade(request, listening)) return undefined;
+    if (isVoiceSocket(request)) return voice.upgrade(request, listening);
     return isApiCall(request) || site === null
       ? api.handle(request)
       : ((await site(request)) ?? api.handle(request));
@@ -67,7 +70,7 @@ const server = Bun.serve<VoiceSocketData>({
   websocket: voice.websocket,
 });
 
-console.log(`Kami server on http://localhost:${server.port}`);
+console.log(`Kami server on http://${config.hostname}:${server.port} (${config.access.mode})`);
 console.log(`  memory: ${connection.description}`);
 console.log(`  game: ${config.webDirectory ?? "not built (Vite serves it in development)"}`);
 console.log(
