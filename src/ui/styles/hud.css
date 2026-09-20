@@ -406,3 +406,58 @@
     display: none;
   }
 }
+
+.kami-room-card {
+  position: absolute;
+  top: 26%;
+  left: 50%;
+  max-width: min(520px, calc(100vw - 48px));
+  padding: 18px 26px;
+  transform: translateX(-50%);
+  text-align: center;
+  font-family: var(--kami-hand);
+  color: var(--kami-ink);
+  background: rgb(255 255 255 / 0.82);
+  border-radius: var(--kami-radius);
+  opacity: 1;
+  transition: opacity 0.9s ease;
+}
+
+.kami-room-card.is-fading {
+  opacity: 0;
+}
+
+.kami-room-card-heading {
+  display: block;
+  font-family: var(--kami-ui);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: var(--kami-ink-soft);
+}
+
+.kami-room-card-title {
+  margin: 6px 0 4px;
+  font-size: 34px;
+  font-weight: normal;
+  line-height: 1.1;
+}
+
+.kami-room-card-line {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.kami-room-mark {
+  position: absolute;
+  top: var(--kami-safe-top);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--kami-ink-soft);
+  background: rgb(255 255 255 / 0.7);
+  border-radius: var(--kami-radius-inner);
+}

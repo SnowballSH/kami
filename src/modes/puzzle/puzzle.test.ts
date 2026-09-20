@@ -82,6 +82,6 @@ describe("the puzzle director", () => {
     const director = opened("wonderland");
     expect(director.room).toBeNull();
     expect(director.state).toEqual({ kind: "body" });
-    expect(director.won({ type: "goal-reached" })).toBe(true);
+    expect(director.won({ type: "goal-reached", who: 0 })).toBe(true);
   });
 });

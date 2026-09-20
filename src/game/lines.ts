@@ -74,6 +74,7 @@ export const WARPED_LINES: readonly string[] = [
   "There she goes. Here she is.",
 ];
 export const PORTAL_LONELY_LINE = "It leads nowhere yet. Draw it a twin.";
+export const IN_THE_DARK_LINE = "She won't take a step she can't see.";
 export const SUMIKUI_SEALED_LINE = "Sealed. It waits under the page, with the one it came from.";
 export const SUMIKUI_LORE_LINE_DELAY_MS = 3_200;
 

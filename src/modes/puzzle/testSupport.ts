@@ -171,6 +171,8 @@ export class PuzzleRun {
     return {
       board: this.board,
       alice: world.alice,
+      others: [],
+      sumikui: world.sumikui,
       inks: this.sceneInks(world),
       bites: world.bites,
       keyTaken: world.keyTaken,
