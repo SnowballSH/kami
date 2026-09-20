@@ -62,6 +62,8 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `PUT /api/boards/:board/{drawings,notes,rules}/:id` | upsert; the body is the client's object and its id must match the path |
 | `DELETE /api/boards/:board/{drawings,notes,rules}/:id` | remove one (idempotent) |
 | `DELETE /api/boards/:board` | clear the board |
+| `GET /api/boards/:board/events?peer=<id>[&since=<seq>]` | Server-Sent Events: every put/delete/clear on the board as it happens, numbered; who else is on it. See the API contract below. |
+| `POST /api/boards/:board/presence` `{ peer, alice }` | `204`; where this device's Alice is, relayed to everyone else on the board |
 | `POST /api/recognize` `{ strokes: {x,y}[][], partial?: boolean }` | Structured parallel arrays plus `certain`; at most three, best first. See the API contract below. |
 | `POST /api/beautify` `{ strokes, name? }` | Upstream model response; the current browser validates point-for-point `{ tidied, added, category, confidence }` into its `Completion` type. |
 | `POST /api/compile` `{ text }` | `{ rule: CompiledRule \| null }` |
@@ -284,9 +286,16 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 | `POST /api/scene` | `{ text }` — the whole travel sentence ("teleport us to the moon") | `{ scene: Scene \| null }` where `Scene = { place: string, laws: CompiledRule[], props: { word: string, at: {x,y}, size: number }[], line: string }`. `laws` are ordinary compiled rules (at most five, one per setting, clamped to `effectRanges`); `props` are Quick, Draw! categories with where to stand them relative to the note (`at.x` ±450, `at.y` −350 … −40, y up is negative) and a size factor 0.3–2; `line` is what Kami says on arrival. `null` when the text asks to go nowhere or the model cannot make the place. Only asked for places the client's own atlas lacks (`src/rules/scenes/atlas.ts`). |
 | `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no model is configured or its image warm-up has not passed (`KAMI_LLM_URL` and `KAMI_TRANSCRIBE_MODEL`, falling back to `KAMI_LLM_MODEL`). Stateless; the client may abort a request (the read of a prefix) freely. |
 | boards, drawings, notes, rules | see the table above | |
+| `GET /api/boards/:board/events` | `?peer=<id>` (`[a-z0-9-]{1,64}`, this device's name on the board, optional) and `?since=<seq>` or the browser's own `Last-Event-ID` on reconnect | `text/event-stream`: `retry: 1000`, then the board's changes as `id: <seq>` + `data: {"seq","type":"put","kind":"drawings"\|"notes"\|"rules","id","entity"}`, `{"seq","type":"delete","kind","id"}` or `{"seq","type":"clear"}` — first everything after `since` that the server still holds (the last 2000 per board, in memory), else `data: {"type":"resync","seq"}` meaning *reload the board, then follow from `seq`*; without `since`, `data: {"type":"cursor","seq"}` says where the feed stands. `data: {"type":"presence","peer","alice"}` for every peer on the board on connect and on every report, with `alice: null` when one leaves (its stream closed). `: keep-alive` every 5 s. Every `PUT`/`DELETE` on the board's entities and `DELETE` of the board is echoed to every stream, the sender's included; the schemas are `src/sync/wire.ts` (`feedMessageSchema`) |
+| `POST /api/boards/:board/presence` | `{ peer: string, alice: AliceSnapshot }` — `alice` is the client's own `sim` snapshot of her (`src/sim/types.ts`) with `look: { kind: "alice" }` — a drawn body stays on its own page (`ghostOf`, `src/sync/wire.ts`) | `204`; `400` `{ error }` for a bad peer or snapshot. Relayed as a `presence` message; nothing is stored |
 | `POST /api/controllers/:id/state` | `text/plain` `<x> <y> [buttons]`, e.g. `100 0 A`: axes -100 … 100 (y up), then the letters of the buttons held (`A` `B` `X` `Y`). `:id` is `[a-z0-9-]{1,32}` | `204`, or `400` `{ error }` |
 | `GET /api/controllers/:id/events` | — | `text/event-stream`: `retry: 1000`, then `data: {"x":-0.7,"y":0.85,"held":["left","up"],"buttons":["a"]}` on connect and on every change (`x`, `y` -1 … 1; `held` of `left` `right` `up` `down`, with `up` also while `a` is held; everything let go after 1 s without a message), and `: keep-alive` every 5 s |
 | `GET /api/controllers` | — | `[{ id, x, y, held, buttons, transport: "udp" \| "serial" \| "http", idleMs }]`, forgotten after a minute of silence |
+
+The board feed (`server/sync/`) is in-memory and per process: sequence numbers restart with the server, so a
+client resuming from a cursor the log does not hold gets `resync` and reloads through `GET /api/boards/:board`.
+In `shared` access mode both routes are board routes and need a credential that grants the board id
+(`docs/access.md`).
 
 The controller routes are the HTTP face of `server/controllers/` (UDP `:8788` and USB serial feed the same
 hub); the whole protocol, the Arduino sketch included, is `docs/controllers.md`.

@@ -12,7 +12,7 @@ export {
   SPIRIT_MODE,
   SPIRIT_MODE_ID,
 } from "./modes";
-export { allowsLaw, naturesAllowed, opensWithAlice, wonBy } from "./policy";
+export { allowsLaw, naturesAllowed, opensWithAlice, refusalLine, wonBy } from "./policy";
 export {
   FIRST_PUZZLE_BOARD_ID,
   isPuzzleBoard,
@@ -22,5 +22,6 @@ export {
   PuzzleDirector,
   puzzleBoardIdFor,
 } from "./puzzle";
+export { NOTHING_HUNGRY_LINE, SANDBOX_MODE, SANDBOX_MODE_ID } from "./sandboxMode";
 export { SpiritDirector } from "./spiritDirector";
 export * from "./types";

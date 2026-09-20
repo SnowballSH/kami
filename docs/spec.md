@@ -147,6 +147,8 @@ One book, six pages, each a page deeper. The Rabbit runs the room first — his 
 | 6 | **The Trial** | Everything at once | A wall of cards. A ceiling too low to grow under. | Drop something heavy on the lever to raise the ceiling → cake → grow enormous → walk straight through. *"You're nothing but a pack of cards!"* | — |
 | ∞ | **The Mad Tea Party** | Nothing. It's a party. | No exit, endless ink, endless enchantments. | Free play — the original "say anything and it happens" toy, safely outside the puzzles. | — |
 
+**The Sandbox** (`?mode=sandbox`, [modes.md](modes.md)) is the Tea Party as built: an endless page with no rabbit hole and no edges, a strip of ground under Alice and nothing else until someone draws. Everyone who opens the same page id draws on the same paper and sees each other's ink, notes and laws as they happen; each device has its own Alice and sees the others' as faint ghosts. She wanders toward the newest ink on her own. Kami keeps quiet unless asked — *help*, *what can I do?*, *how do I get across?*, *give me an idea* — and then answers with a sketch (the start of a bridge over a gap, a ladder against a wall, a friend to name) or a law to try. Nothing hungry lives on this page: the Sumikui cannot be summoned there. The only chrome is a title card and a share button with the link and a QR.
+
 **Ending.** Alice wakes on the riverbank. The credits are a flip-through of **everything the player drew**, each captioned with what they called it. It is always funny, and it is theirs.
 
 **Teacups.** Each room awards up to three: cleared · under the ink par · no hints. Costs nothing to build and gives a reason to replay.
@@ -166,6 +168,7 @@ A **mode** is how the player *is* on a page ([modes.md](modes.md)): embodied (Al
 - **A yellowed book page.** Room art in black ink, Tenniel-ish, drawn by whoever on the team draws best. The player's ink is blue fountain pen — always visibly *theirs* on top of the printed world.
 - **The rabbit hole is torn through the paper.** Dropping a room is falling through a ragged hole to the page beneath. Earlier pages peek through at the edges.
 - **Alice and the Rabbit** are two-frame flipbook doodles. The Cat is a grin that fades in before the rest of him.
+- **Alice moves like a doodle, not a sprite.** Every change of state gets a short beat, and nothing moves that the world did not move: she hops into a car and sits with her hands on the wheel, leaps astride a creature and sways, crouches or bobs with its gait, squashes on landing in proportion to the fall, flips edge-on to turn round, puffs out as she grows, pops out of a portal from small, drips off the page where she fell and is inked back in at her checkpoint, and snatches the key into her hand while the door swings off its hinge. Clones get the same treatment. The physics never see any of it.
 - **More than one Alice.** "Clone Alice" (or "Alice has three clones") puts real second Alices on the page, each with a mind of her own: she finds her own way to the rabbit hole, or strolls about when there is none, rides whichever creature she reaches and takes whichever portal she steps into. Each clone wears a tinted, numbered ribbon so you know who is who. The stick walks the one you last tapped (a small caret marks her); the rest keep going by themselves. The room is won when *any* of them reaches the goal, and Kami says which. The Sumikui swallows only the one it catches; only the one who fell comes back.
 - **When ink wakes up** it shivers and takes a tint — pink for bouncy, gold for grow, and so on. That shimmer *is* the AI latency, turned into a beat.
 - **Sound:** pen scratch while drawing, paper rustle on transitions, a music box underneath. The Cat's voice is the only speech.
@@ -208,7 +211,7 @@ Still needed from the desk: a breadboard, a USB-C data cable, a way onto the sti
 |---|---|
 | **Floor** — a complete, themed, AI-load-bearing game | Rooms 1–3 · natures · the Cat in captions with the hint ladder · typed names and guess chips · ink meter, erase, bullet-time, no death |
 | **Target** — what we expect to show | Voice both ways · adjectives · Rooms 4–5 · teacups · torn-page transitions and sound · the cabinet with ink-meter LEDs · booth mode |
-| **Stretch** | Enchantments + the Mad Tea Party · Room 6 + the ending flip-through · trace-over guides · Cat stripes / fall pulse on the strip · "how others solved this page" gallery · the Queen's RFID cards |
+| **Stretch** | Enchantments + the Mad Tea Party (built as the Sandbox, §7) · Room 6 + the ending flip-through · trace-over guides · Cat stripes / fall pulse on the strip · "how others solved this page" gallery · the Queen's RFID cards |
 
 **Cut from the top of this list:** gallery → RFID → LED effects beyond the ink meter → trace-over guides → Room 6 and ending → Tea Party and enchantments → Room 5 → Room 4 → the Cat's spoken voice (captions remain) → cabinet knobs, then stick → voice input (chips and typing remain). **Never cut the floor.**
 

@@ -74,12 +74,159 @@ export const writeWord = (text: string, seed: number, lineHeight = LINE_HEIGHT):
   return { strokes: script.strokes, bounds: script.bounds, emSize: lineHeight * 0.8 };
 };
 
-/** The wordmark: "kami" written by Kami, cropped to the ink with a little paper around it. */
-export const wordmarkSvg = (seed = WORDMARK_SEED): string => {
+const union = (a: Rect, b: Rect): Rect => {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return {
+    x,
+    y,
+    width: Math.max(a.x + a.width, b.x + b.width) - x,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
+  };
+};
+
+const strokesBounds = (strokes: readonly Stroke[]): Rect => {
+  const points = strokes.flat();
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+};
+
+const WORDMARK_STEM = WORDMARK_TEXT.slice(0, -1);
+const ALICE_HALF_WIDTH = 12.5;
+const ALICE_PEN_SHARE = 0.45;
+const ALICE_NUDGE_RIGHT = 0.04;
+const SUMIKUI_DOT_SHARE = 0.105;
+const SUMIKUI_GAP = 0.07;
+
+interface Wordmark {
+  readonly body: string;
+  readonly bounds: Rect;
+  readonly emSize: number;
+}
+
+interface DottedLetter {
+  readonly stem: Rect;
+  readonly dot: Rect;
+}
+
+const splitDotted = (strokes: readonly Stroke[]): DottedLetter => {
+  const [first, second] = strokes.map((stroke) => strokesBounds([stroke]));
+  if (first === undefined || second === undefined) throw new Error("the i needs a stem and a dot");
+  return first.height >= second.height
+    ? { stem: first, dot: second }
+    : { stem: second, dot: first };
+};
+
+/**
+ * "kam" in Kami's hand, and where the "i" would be: Alice as the stem, standing on the baseline, only as
+ * tall as the letter's stem; the Sumikui as the dot above her, in the same ink. `phase` (0..1) is a moment
+ * of the Sumikui's breathing, for animated frames.
+ */
+const wordmark = (seed: number, phase: number): Wordmark => {
   const word = writeWord(WORDMARK_TEXT, seed);
+  const stem = writeWord(WORDMARK_STEM, seed);
+  const letters = word.strokes.slice(0, stem.strokes.length);
+  const dotted = splitDotted(word.strokes.slice(stem.strokes.length));
   const pen = word.emSize * PEN_SHARE_OF_EM;
-  const box = pad(word.bounds, word.emSize * PADDING_SHARE);
-  return svg(box, inkPath(word.strokes, pen), WORDMARK_TEXT);
+  const baseline = dotted.stem.y + dotted.stem.height;
+  const scale = dotted.stem.height / ALICE_HEIGHT;
+  const centreX = dotted.stem.x + dotted.stem.width / 2 + word.emSize * ALICE_NUDGE_RIGHT;
+  const at = { x: centreX, y: baseline - ALICE_FOOT.y * scale };
+  const alice: Rect = {
+    x: centreX - ALICE_HALF_WIDTH * scale,
+    y: dotted.stem.y,
+    width: 2 * ALICE_HALF_WIDTH * scale,
+    height: dotted.stem.height,
+  };
+  const radius = word.emSize * SUMIKUI_DOT_SHARE;
+  const perch = {
+    x: centreX + (dotted.dot.x + dotted.dot.width / 2 - centreX) * 0.5,
+    y: dotted.stem.y - word.emSize * SUMIKUI_GAP - radius,
+  };
+  const dotAt = { x: perch.x, y: perch.y + Math.sin(phase * TAU) * radius * SUMIKUI_BOB };
+  const reach = radius * (SUMIKUI_REACH + SUMIKUI_BOB);
+  const sumikui: Rect = {
+    x: perch.x - reach,
+    y: perch.y - reach,
+    width: 2 * reach,
+    height: 2 * reach,
+  };
+  return {
+    body:
+      inkPath(letters, pen) +
+      aliceSvg(at, scale, (pen * ALICE_PEN_SHARE) / scale) +
+      sumikuiSvg(dotAt, radius, phase),
+    bounds: union(union(stem.bounds, alice), sumikui),
+    emSize: word.emSize,
+  };
+};
+
+/** The wordmark, cropped to the ink with a little paper around it; `phase` picks a frame of the Sumikui. */
+export const wordmarkSvg = (seed = WORDMARK_SEED, phase = 0): string => {
+  const mark = wordmark(seed, phase);
+  return svg(pad(mark.bounds, mark.emSize * PADDING_SHARE), mark.body, WORDMARK_TEXT);
+};
+
+export const WORDMARK_FRAMES = 24;
+
+/** One breath of the Sumikui as frames of the wordmark, for the animated logo. */
+export const wordmarkFrames = (seed = WORDMARK_SEED, frames = WORDMARK_FRAMES): readonly string[] =>
+  Array.from({ length: frames }, (_, index) => wordmarkSvg(seed, index / frames));
+
+const SUMIKUI_LOBES = 7;
+const SUMIKUI_WOBBLE = 0.2;
+const SUMIKUI_REACH = 1.12 * (1 + SUMIKUI_WOBBLE);
+const SUMIKUI_BOB = 0.12;
+const SUMIKUI_EYE = { x: 0.3, y: -0.12, radius: 0.27, pupil: 0.13 } as const;
+const SUMIKUI_BLINK = { at: 0.72, span: 0.08 } as const;
+const TAU = Math.PI * 2;
+
+const polar = (angle: number, radius: number): Vec => ({
+  x: Math.cos(angle) * radius,
+  y: Math.sin(angle) * radius,
+});
+
+const blotPath = (radius: number, phase: number): string => {
+  const lobe = (index: number): number =>
+    radius * (1 + SUMIKUI_WOBBLE * Math.sin(phase * TAU + (index % SUMIKUI_LOBES) * 1.9));
+  const start = polar(0, lobe(0));
+  const parts = [`M${round(start.x)} ${round(start.y)}`];
+  for (let index = 1; index <= SUMIKUI_LOBES; index++) {
+    const angle = (index / SUMIKUI_LOBES) * TAU;
+    const previous = ((index - 1) / SUMIKUI_LOBES) * TAU;
+    const control = polar((angle + previous) / 2, ((lobe(index - 1) + lobe(index)) / 2) * 1.12);
+    const point = polar(angle, lobe(index));
+    parts.push(`Q${round(control.x)} ${round(control.y)} ${round(point.x)} ${round(point.y)}`);
+  }
+  parts.push("Z");
+  return parts.join("");
+};
+
+const blinkSquint = (phase: number): number => {
+  const distance = Math.abs(phase - SUMIKUI_BLINK.at);
+  return distance >= SUMIKUI_BLINK.span ? 1 : Math.max(distance / SUMIKUI_BLINK.span, 0.1);
+};
+
+/** The Sumikui as the game draws it: a breathing blot of ink with one eye that watches Alice below. */
+export const sumikuiSvg = (at: Vec, radius: number, phase = 0): string => {
+  const eye = {
+    x: SUMIKUI_EYE.x * radius,
+    y: SUMIKUI_EYE.y * radius,
+    radius: SUMIKUI_EYE.radius * radius,
+    pupil: SUMIKUI_EYE.pupil * radius,
+  };
+  const squint = blinkSquint(phase);
+  return (
+    `<g transform="translate(${round(at.x)} ${round(at.y)})">` +
+    `<path fill="${INK}" d="${blotPath(radius, phase)}"/>` +
+    `<g transform="translate(${round(eye.x)} ${round(eye.y)}) scale(1 ${round(squint)})">` +
+    `<circle r="${round(eye.radius)}" fill="${PAPER}"/>` +
+    `<circle cx="${round(eye.radius * 0.2)}" cy="${round(eye.radius * 0.25)}" r="${round(eye.pupil)}" fill="${INK}"/>` +
+    "</g></g>"
+  );
 };
 
 const MARK_SIZE = 64;
@@ -107,13 +254,16 @@ const ALICE_HIP = { x: 3.5, y: 13 } as const;
 const ALICE_HAND = { x: 8, y: 3 } as const;
 const ALICE_FOOT = { x: 4, y: 28.5 } as const;
 const ALICE_TOE = 3.5;
+const ALICE_HEIGHT = ALICE_FOOT.y - (ALICE_HEAD.y - ALICE_HEAD.radius);
+const ALICE_HAIR_WEIGHT = 1.45;
 
 const line = (from: Vec, to: Vec): string =>
   `M${round(from.x)} ${round(from.y)}L${round(to.x)} ${round(to.y)}`;
 
 /** Alice as the game draws her, standing, facing right, feet on y = 28.5 of her own frame. */
-export const aliceSvg = (at: Vec, scale: number): string => {
-  const stroke = `fill="none" stroke="${INK}" stroke-width="${ALICE_LINE_WIDTH}" stroke-linecap="round" stroke-linejoin="round"`;
+export const aliceSvg = (at: Vec, scale: number, lineWidth = ALICE_LINE_WIDTH): string => {
+  const width = round(lineWidth);
+  const stroke = `fill="none" stroke="${INK}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"`;
   const leg = (hip: Vec, foot: Vec): string => `${line(hip, foot)}l${ALICE_TOE} 0`;
   const limbs = [
     line({ x: -3, y: -ALICE_SHOULDER }, { x: -ALICE_HAND.x, y: ALICE_HAND.y }),
@@ -126,10 +276,10 @@ export const aliceSvg = (at: Vec, scale: number): string => {
   return (
     `<g transform="translate(${round(at.x)} ${round(at.y)}) scale(${scale})">` +
     `<path ${stroke} d="${limbs}"/>` +
-    `<path fill="${PAPER}" stroke="${INK}" stroke-width="${ALICE_LINE_WIDTH}" stroke-linejoin="round" d="${dress}"/>` +
-    `<circle cx="${ALICE_HEAD.x}" cy="${ALICE_HEAD.y}" r="${ALICE_HEAD.radius}" fill="${PAPER}" stroke="${INK}" stroke-width="${ALICE_LINE_WIDTH}"/>` +
+    `<path fill="${PAPER}" stroke="${INK}" stroke-width="${width}" stroke-linejoin="round" d="${dress}"/>` +
+    `<circle cx="${ALICE_HEAD.x}" cy="${ALICE_HEAD.y}" r="${ALICE_HEAD.radius}" fill="${PAPER}" stroke="${INK}" stroke-width="${width}"/>` +
     `<circle cx="${ALICE_EYE.x}" cy="${ALICE_EYE.y}" r="${ALICE_EYE.radius}" fill="${INK}"/>` +
-    `<path fill="none" stroke="${INK}" stroke-width="3.2" d="M${round(ALICE_HEAD.x + ALICE_HEAD.radius * Math.cos(1.1 * Math.PI))} ${round(ALICE_HEAD.y + ALICE_HEAD.radius * Math.sin(1.1 * Math.PI))}A${ALICE_HEAD.radius} ${ALICE_HEAD.radius} 0 0 1 ${round(ALICE_HEAD.x + ALICE_HEAD.radius * Math.cos(1.75 * Math.PI))} ${round(ALICE_HEAD.y + ALICE_HEAD.radius * Math.sin(1.75 * Math.PI))}"/>` +
+    `<path fill="none" stroke="${INK}" stroke-width="${round(lineWidth * ALICE_HAIR_WEIGHT)}" d="M${round(ALICE_HEAD.x + ALICE_HEAD.radius * Math.cos(1.1 * Math.PI))} ${round(ALICE_HEAD.y + ALICE_HEAD.radius * Math.sin(1.1 * Math.PI))}A${ALICE_HEAD.radius} ${ALICE_HEAD.radius} 0 0 1 ${round(ALICE_HEAD.x + ALICE_HEAD.radius * Math.cos(1.75 * Math.PI))} ${round(ALICE_HEAD.y + ALICE_HEAD.radius * Math.sin(1.75 * Math.PI))}"/>` +
     `<path ${stroke} d="${frontArm}"/>` +
     "</g>"
   );
@@ -192,8 +342,7 @@ export const markSvg = (seed = MARK_SEED): string => {
 
 /** Wordmark and mark side by side on one line, for READMEs and headers. */
 export const lockupSvg = (seed = WORDMARK_SEED): string => {
-  const word = writeWord(WORDMARK_TEXT, seed);
-  const pen = word.emSize * PEN_SHARE_OF_EM;
+  const word = wordmark(seed, 0);
   const markScale = (word.bounds.height * 1.15) / MARK_SIZE;
   const markLeft = word.bounds.x - MARK_SIZE * markScale - word.emSize * 0.35;
   const markTop = word.bounds.y + word.bounds.height / 2 - (MARK_SIZE * markScale) / 2;
@@ -204,8 +353,7 @@ export const lockupSvg = (seed = WORDMARK_SEED): string => {
   const mark = markSvg().replace(/^<svg[^>]*>|<\/svg>\n$/g, "");
   return svg(
     box,
-    `<g transform="translate(${round(markLeft)} ${round(markTop)}) scale(${round(markScale)})">${mark}</g>` +
-      inkPath(word.strokes, pen),
+    `<g transform="translate(${round(markLeft)} ${round(markTop)}) scale(${round(markScale)})">${mark}</g>${word.body}`,
     WORDMARK_TEXT,
   );
 };

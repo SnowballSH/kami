@@ -35,6 +35,10 @@ export const wonBy = (rule: WinRule, event: SimEvent): boolean => {
   }
 };
 
+/** Kami's line when a law turns a dial the mode forbids: the mode's own, or `stock`. */
+export const refusalLine = (mode: GameMode, dial: Governs, stock: string): string =>
+  mode.refusals?.[dial] ?? stock;
+
 /** Whether the mode ever puts an Alice on the board without the player drawing her. */
 export const opensWithAlice = (mode: GameMode): boolean =>
   mode.opening.player === "body" || mode.opening.incarnation.kind === "born";

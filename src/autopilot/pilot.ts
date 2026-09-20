@@ -1,7 +1,7 @@
 import { distance, type Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 import type { AliceSize, Axis, WalkIntent } from "../sim/types";
-import { Chart } from "./chart";
+import { boundsOfInk, Chart, WINDOW_PX } from "./chart";
 import { afterTheMeal, chewedIn, dreadIn, SAFE_PX } from "./dread";
 import {
   type Footprint,
@@ -103,6 +103,15 @@ const standBack = (
   return path.slice(0, end);
 };
 
+/** Where an endless page pulls her: the top of the newest ink, else the edge of the paper she faces. */
+const frontierOf = (scene: Scene): Vec => {
+  const feet = feetOfScene(scene);
+  const newest = scene.inks.at(-1);
+  if (newest === undefined) return { x: feet.x + scene.alice.facing * WINDOW_PX.x, y: feet.y };
+  const bounds = boundsOfInk(newest);
+  return { x: bounds.x + bounds.width / 2, y: bounds.y };
+};
+
 const sizeAfterEating = (ink: SceneInk): AliceSize | null =>
   ink.nature === "grow" ? "big" : ink.nature === "shrink" ? "small" : null;
 
@@ -117,6 +126,9 @@ const sameErrand = (a: Errand, b: Errand): boolean => {
   if (a.kind !== b.kind) return false;
   if (a.kind === "eat") return b.kind === "eat" && a.drawingId === b.drawingId;
   if (a.kind === "wander") return b.kind === "wander" && a.heading === b.heading;
+  if (a.kind === "explore") {
+    return b.kind === "explore" && a.toward.x === b.toward.x && a.toward.y === b.toward.y;
+  }
   if (a.kind === "objective" || a.kind === "wait") {
     return "objective" in b && a.objective === b.objective;
   }
@@ -224,9 +236,11 @@ export class Pilot implements Autopilot {
     const plan =
       threat !== null
         ? this.fleePlan(scene, footprint, threat)
-        : objective === null
-          ? this.strollOrIdle(scene, footprint)
-          : this.planFor(scene, footprint, objective);
+        : objective !== null
+          ? this.planFor(scene, footprint, objective)
+          : scene.board.page === "endless"
+            ? this.explore(scene, footprint)
+            : this.strollOrIdle(scene, footprint);
 
     const last = plan.path?.at(-1);
     const freshStart =
@@ -287,6 +301,16 @@ export class Pilot implements Autopilot {
         standBack(finder.nearestTo(start, pointOf(scene, objective)), footprint),
       )
     );
+  }
+
+  private explore(scene: Scene, footprint: Footprint): Plan {
+    const errand: Errand = { kind: "explore", toward: frontierOf(scene) };
+    const chart = this.options.charter(scene);
+    if (chart === null) return this.remember(scene, footprint, errand, null);
+    const finder = new Pathfinder(chart, scene, footprint);
+    const way = finder.nearestTo(nodeOfFeet(feetOfScene(scene), footprint), errand.toward);
+    const path = scene.inks.length === 0 ? standBack(way, footprint) : way;
+    return this.remember(scene, footprint, errand, path);
   }
 
   private dash(
@@ -460,7 +484,8 @@ export class Pilot implements Autopilot {
   /** At the last node: keep leaning into whatever she came for, so touching it registers. */
   private nudge(scene: Scene, errand: Errand): WalkIntent {
     const towards = (x: number): WalkIntent => ({ x: sign(x - scene.alice.center.x), y: 0 });
-    if (errand.kind === "wait" || errand.kind === "idle" || errand.kind === "flee") return IDLE;
+    if (errand.kind === "wait" || errand.kind === "idle") return IDLE;
+    if (errand.kind === "flee" || errand.kind === "explore") return IDLE;
     if (errand.kind === "wander") {
       this.lookAbout();
       return IDLE;

@@ -1,8 +1,8 @@
 # Game modes
 
-A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, and which laws and natures the page will take. The everyday way to play — Alice stands at the spawn and you draw for her — is written down as `EMBODIED_MODE`. `PUZZLE_MODE` (`?mode=puzzle`) plays seven rooms in a row, each staged so that one drawn or written idea is the way through, with the Sumikui loose from the first frame ([puzzles.md](puzzles.md)). `SPIRIT_MODE` opens the room as a spirit with no body: you draw Alice, name her, and she is yours. `BOSS_MODE` ([boss.md](boss.md)) is the spirit opening for two players, with a servant of the one under the page coming through a tear to snip the body apart.
+A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, which laws and natures the page will take, whether the board id names a room or an endless page, when Kami helps, and whether other devices share the page. The everyday way to play — Alice stands at the spawn and you draw for her — is written down as `EMBODIED_MODE`. `SANDBOX_MODE` (`?mode=sandbox`) is an endless page with no edges that everyone who opens it draws on together. `PUZZLE_MODE` (`?mode=puzzle`) plays seven rooms in a row, each staged so that one drawn or written idea is the way through, with the Sumikui loose from the first frame ([puzzles.md](puzzles.md)). `SPIRIT_MODE` opens the room as a spirit with no body: you draw Alice, name her, and she is yours. `BOSS_MODE` ([boss.md](boss.md)) is the spirit opening for two players, with a servant of the one under the page coming through a tear to snip the body apart.
 
-This document is the architecture. Embodied, puzzle, spirit and boss are all playable; the columns at the end say which seams of the spirit groundwork are built and which are not.
+This document is the architecture. Embodied, sandbox, puzzle, spirit and boss are all playable; the columns at the end say which seams of the spirit groundwork are built and which are not.
 
 ## The contract (`src/modes/types.ts`)
 
@@ -16,6 +16,10 @@ interface GameMode {
   laws: LawPolicy;                          // all | only(dials) | except(dials)
   natures: NaturePolicy;                    // "all" | Nature[] — narrows the room's own list
   autopilot: "allowed" | "forbidden";       // may she walk herself
+  page: PageKind;                           // room | endless — what the board id names
+  help: HelpPolicy;                         // offered (the hint ladder) | on-request (only when asked)
+  sharing: SharingPolicy;                   // alone | live — other devices' ink, notes, laws and Alices
+  refusals?: Partial<Record<Governs, string>>; // Kami's line instead of the stock refusal, per forbidden dial
 }
 
 type Opening =
@@ -27,7 +31,7 @@ type Incarnation =
   | { kind: "drawn"; names: string[] };                 // a drawing named one of these becomes her body
 ```
 
-Modes are **data**. Adding one is a new constant in `modes.ts`, not new code, until it asks for an `Incarnation`, `LossRule` or `WinRule` variant nobody has built. The types are closed unions on purpose: the game can `switch` over them exhaustively, and a new variant is a type error everywhere it must be handled.
+Modes are **data**. Adding one is a new constant in `modes.ts` (or its own file beside it, as `sandboxMode.ts`), not new code, until it asks for an `Incarnation`, `LossRule` or `WinRule` variant nobody has built. The types are closed unions on purpose: the game can `switch` over them exhaustively, and a new variant is a type error everywhere it must be handled.
 
 ### The director
 
@@ -79,25 +83,45 @@ A director that stages rooms fills `room` in `open(board)`; the others leave it 
 - in a spirit-opening mode lets ink touch her (elsewhere strokes over Alice are refused), and hands any committed drawing that reaches a drawn body to `sim.graft(strokes)` before it can become a drawing of its own — that is how a snipped part is redrawn;
 - runs every written law through `allowsLaw(room?.laws ?? mode.laws, effect.governs)` before enacting it — a forbidden law stays plain writing and Kami says *"Not in this game. The page won't take that law here."* beneath it;
 - suspends saved laws the current mode forbids: they do not affect physics or appear as active laws, but remain saved for modes that allow them; erasing their note still repeals them;
-- keeps Alice from walking herself when `autopilot` is `"forbidden"`, whatever the HUD switch says.
+- keeps Alice from walking herself when `autopilot` is `"forbidden"`, whatever the HUD switch says;
+- reads the board id as `endlessBoard(id)` when `page` is `"endless"`, and as `boardFor(id)` otherwise;
+- runs the stuck detector and the hint ladder only when `help` is `"offered"`; with `"on-request"` Kami answers written requests for help instead (`counsel/`);
+- follows the board through `BoardLink` when `sharing` is `"live"`, applies what arrives, reports Alice's position, paints the other devices' Alices as ghosts, and swaps the board menu for the share affordance;
+- shows the title card from `mode.card` when the mode is not the embodied one.
 
-Nothing else changes. The embodied mode is exactly the game as it was.
+The embodied mode is exactly the game as it was.
+
+## Sandbox (`src/modes/sandboxMode.ts`)
+
+`?mode=sandbox`. The board id (`?board=<id>`, default `sandbox`) names an endless page rather than a room; everyone who opens the same id draws on the same paper.
+
+- **An endless page** (`board/boards/endless.ts`). `PageKind` is `"room" | "endless"`. An endless board has one solid — a strip of ground `ENDLESS_GROUND` under the spawn — no zones, no goal, no rabbit hole and `killY` of infinity: there is no edge to fall off. Beyond the strip there is nothing until someone draws. The camera follows her to any coordinate (`cameraRig.test.ts` walks her to ±5,000,000). Falling `FALL_LIMIT` below the last place she stood is falling off the page; `LastFooting` (`sim/footing.ts`) puts her back on the ink she last stood on, once — if that ink is gone too, the second fall returns her to the spawn.
+- **Wandering.** The chart is windowed `WINDOW_PX` around every Alice on the page, never board-sized. With no errand her pilot `explore`s: the errand is the top of the newest ink, or the edge of the paper she faces when nothing has been drawn; on an empty page she stands back from the end of the strip rather than walking off it. Threats and objectives (a goal someone draws and names) still take precedence, as in a room.
+- **Shared.** `sharing: "live"` — see [architecture.md](architecture.md) `sync/` and `server/`. Every device has its own Alice; the others' are ghosts, faint and never solid.
+- **Kami on request.** `help: "on-request"`. The stuck detector and hint ladder are off. Writing *help*, *what can I do?*, *how do I get across?*, *give me an idea*, *I'm bored* asks Kami to read what is around Alice (`counsel/surroundings.ts`: a `gap` in the ground ahead, a `wall` too tall to jump, a `drop` where the ink ends, or `open` page) and answer: for a gap he sketches the start of a bridge across it and says *"A gap. A bridge would do — here is the start of one. Draw it stronger."*; for a wall he leans a ladder against it; for a drop he suggests drawing the ground onward or writing *she can fly*; on open page he takes the next idea in turn — a friend to draw and name (he sketches one), a law to write (`g = moon`), a mushroom and *bouncy*, a cat that follows her, wind and a cloud. Sketches go through the same summoning path as the player's own *draw me a rabbit*.
+- **No Sumikui.** `laws: except inkEater`. *ink eater* stays plain writing and Kami says the mode's refusal, `NOTHING_HUNGRY_LINE`: *"Nothing hungry lives on this page."* Saved `inkEater` laws are suspended, as any forbidden law is.
+- **Title card and share.** The card (`ui/titleCard.ts`) shows `card.title` and `card.tagline` for `TITLE_CARD_SHOWN_MS` or until tapped. The board menu is replaced by one **share** button (`ui/sharePanel.ts`): the board id, the link `?board=<id>&mode=sandbox`, a QR of it, how many others are on the page, and copy.
+
+**Not built.** Pages are as persistent as any board (the store keeps them); there is no list of shared pages, no names for peers, no chat, no conflict handling beyond last-write-wins per entity, and no cursor or pen trails for the other devices — only their Alices. Laws written on the page apply to every Alice on it, including the ghosts' owners, since a page has one physics.
 
 ## The modes
 
-| | `EMBODIED_MODE` | `PUZZLE_MODE` | `SPIRIT_MODE` | `BOSS_MODE` |
-|---|---|---|---|---|
-| status | built | built — [puzzles.md](puzzles.md) | built | built — [boss.md](boss.md) |
-| url | (default) | `?mode=puzzle` (`&board=<room id>` to start mid-run) | `?mode=spirit` | `?mode=boss` |
-| opening | `body` — she stands at the spawn | `body` | `spirit`, incarnation `drawn`, names `alice · her · me` + any body noun | same as spirit |
-| win | `reach-goal` | `reach-goal` → the next room | `reach-goal` | `defeat-foe` — the tear closes |
-| loss | `respawn` — the sim's own checkpoint path | `respawn` | `unmade` — the body is gone; you are a spirit again | `board-restarts` — the heart is swallowed; the room reopens |
-| laws | `all` | `only inkEater`, widened per room to its dials | `except clones` — one body at a time | `except clones, inkEater` — the servant is foe enough |
-| natures | `all` | `all` — each room's zone narrows to one or none | `all` | `all` |
-| autopilot | `allowed` | `allowed`, on by default | `forbidden` — a body you drew is a body you steer | `forbidden` — the second player steers |
-| world | Earth | Earth with `inkEater: 1`, plus the room's own (the Dark Hall: `daylight: 0`) | Earth | Earth |
-| persistence | saved | none — every room opens blank (`ForgetfulBoardStore`) | saved, except the body | saved, except the body |
-| card | title, tagline, opening | room card per room | title, tagline, opening | + two `roles` lines, one per player |
+| | `EMBODIED_MODE` | `SANDBOX_MODE` | `PUZZLE_MODE` | `SPIRIT_MODE` | `BOSS_MODE` |
+|---|---|---|---|---|---|
+| status | built | built | built — [puzzles.md](puzzles.md) | built | built — [boss.md](boss.md) |
+| url | (default) | `?mode=sandbox` (`&board=<id>`, default `sandbox`) | `?mode=puzzle` (`&board=<room id>` to start mid-run) | `?mode=spirit` | `?mode=boss` |
+| opening | `body` — she stands at the spawn | `body` — on the strip of ground | `body` | `spirit`, incarnation `drawn`, names `alice · her · me` + any body noun | same as spirit |
+| win | `reach-goal` | `endless` | `reach-goal` → the next room | `reach-goal` | `defeat-foe` — the tear closes |
+| loss | `respawn` — the sim's own checkpoint path | `respawn` — onto the last ink she stood on | `respawn` | `unmade` — the body is gone; you are a spirit again | `board-restarts` — the heart is swallowed; the room reopens |
+| laws | `all` | `except inkEater` — *"Nothing hungry lives on this page."* | `only inkEater`, widened per room to its dials | `except clones` — one body at a time | `except clones, inkEater` — the servant is foe enough |
+| natures | `all` | `all` | `all` — each room's zone narrows to one or none | `all` | `all` |
+| autopilot | `allowed` | `allowed` — explores toward the newest ink | `allowed`, on by default | `forbidden` — a body you drew is a body you steer | `forbidden` — the second player steers |
+| page | `room` | `endless` | `room` | `room` | `room` |
+| help | `offered` | `on-request` | `offered` | `offered` | `offered` |
+| sharing | `alone` | `live` | `alone` | `alone` | `alone` |
+| world | Earth | Earth | Earth with `inkEater: 1`, plus the room's own (the Dark Hall: `daylight: 0`) | Earth | Earth |
+| persistence | saved | saved, shared by board id | none — every room opens blank (`ForgetfulBoardStore`) | saved, except the body | saved, except the body |
+| card | title, tagline, opening | title, tagline, opening | room card per room | title, tagline, opening | + two `roles` lines, one per player |
 
 ## The spirit groundwork: built and not
 

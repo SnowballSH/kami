@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { Vec } from "../core/geometry";
 import type { Handwriting } from "../handwriting/types";
+import type { AliceSnapshot } from "../sim/types";
 import { TAU } from "./canvas2d";
-import { CanvasRenderer } from "./canvasRenderer";
+import { CanvasRenderer, GHOST_ALPHA } from "./canvasRenderer";
 import { ERASER_RING } from "./eraserRing";
 import type { RenderFrame } from "./types";
 
@@ -25,24 +27,28 @@ const SILENT: Handwriting = {
 const CANVAS_ORIGIN = { x: 100, y: 50 };
 const FAR_AWAY = 1e6;
 
-const frame = (eraserActive: boolean): RenderFrame => ({
+const ALICE: AliceSnapshot = {
+  center: { x: FAR_AWAY, y: FAR_AWAY },
+  velocity: { x: 0, y: 0 },
+  width: 40,
+  height: 80,
+  size: "normal",
+  sizeMultiplier: 1,
+  headingScale: 1,
+  facing: 1,
+  walking: false,
+  grounded: true,
+  climbing: false,
+  hasKey: false,
+  ride: null,
+  look: { kind: "alice" },
+};
+
+const frame = (eraserActive: boolean, ghosts?: readonly AliceSnapshot[]): RenderFrame => ({
   nowMs: 0,
   camera: { center: { x: 20, y: 20 }, zoom: 2, angle: 0 },
   world: {
-    alice: {
-      center: { x: FAR_AWAY, y: FAR_AWAY },
-      width: 40,
-      height: 80,
-      size: "normal",
-      sizeMultiplier: 1,
-      headingScale: 1,
-      facing: 1,
-      walking: false,
-      grounded: true,
-      climbing: false,
-      hasKey: false,
-      look: { kind: "alice" },
-    },
+    alice: ALICE,
     soul: null,
     tear: null,
     twins: [],
@@ -59,7 +65,10 @@ const frame = (eraserActive: boolean): RenderFrame => ({
   activeVerdict: "ok",
   heldInks: [],
   eraserActive,
+  ...(ghosts === undefined ? {} : { ghosts }),
 });
+
+const ghostAt = (center: Vec): AliceSnapshot => ({ ...ALICE, center });
 
 const setup = () => {
   const calls: Call[] = [];
@@ -74,6 +83,7 @@ const setup = () => {
         }),
       set: (_, key, value) => {
         state.set(key, value);
+        calls.push({ method: `set ${String(key)}`, args: [value] });
         return true;
       },
     },
@@ -130,5 +140,33 @@ describe("CanvasRenderer eraser cursor", () => {
     renderer.render(frame(true));
 
     expect(rings()).toEqual([]);
+  });
+});
+
+describe("CanvasRenderer ghosts", () => {
+  const faintStrokes = (calls: readonly Call[]): number => {
+    const faded = calls.findIndex(
+      ({ method, args }) => method === "set globalAlpha" && args[0] === GHOST_ALPHA,
+    );
+    if (faded === -1) return -1;
+    const restored = calls.findIndex(({ method }, index) => index > faded && method === "restore");
+    return calls
+      .slice(faded, restored)
+      .filter(({ method }) => method === "fill" || method === "stroke").length;
+  };
+
+  it("paints other devices' Alices faint, when they are in view", () => {
+    const { renderer, calls } = setup();
+    renderer.render(frame(false, [ghostAt({ x: 30, y: 30 })]));
+    expect(faintStrokes(calls)).toBeGreaterThan(0);
+  });
+
+  it("skips ghosts far off screen, and sets no faintness when there are none", () => {
+    const { renderer, calls } = setup();
+    renderer.render(frame(false, [ghostAt({ x: -FAR_AWAY, y: -FAR_AWAY })]));
+    expect(faintStrokes(calls)).toBe(0);
+    calls.length = 0;
+    renderer.render(frame(false));
+    expect(faintStrokes(calls)).toBe(-1);
   });
 });

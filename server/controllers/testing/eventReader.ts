@@ -29,8 +29,8 @@ export const readEvents = (response: Response): EventReader => {
 
   const nextEvent = async (): Promise<unknown> => {
     for (;;) {
-      const block = await nextBlock();
-      if (block.startsWith(DATA_FIELD)) return JSON.parse(block.slice(DATA_FIELD.length));
+      const data = (await nextBlock()).split("\n").find((line) => line.startsWith(DATA_FIELD));
+      if (data !== undefined) return JSON.parse(data.slice(DATA_FIELD.length));
     }
   };
 
