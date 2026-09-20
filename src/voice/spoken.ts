@@ -6,7 +6,7 @@
 const HESITATION = /\b(?:u+h+m*|u+m+|m+h+m*|h+m+|e+r+m*|a+h+)\b[\s,.…]*/gi;
 
 const RUN_UP =
-  /^(?:\s*(?:hey|hi|ok|okay|alright|so|well|now|yeah|yes|please|can you|could you|would you|i want you to|i'd like you to)\b[\s,]*)+/i;
+  /^(?:[\s,.!?…]*(?:hey|hi|ok|okay|alright|so|well|now|then|yeah|yes|please|can you|could you|would you|i want you to|i'd like you to)\b[\s,.!?…]*)+/i;
 
 const POLITENESS = /[\s,]*\b(?:please|thanks|thank you)\b[\s.!?,]*$/i;
 
@@ -19,4 +19,5 @@ export const spoken = (text: string): string =>
     .replace(POLITENESS, "")
     .replace(TIDY, " ")
     .replace(/^[\s,.]+/, "")
+    .replace(/[\s.!?…]+$/, "")
     .trim();

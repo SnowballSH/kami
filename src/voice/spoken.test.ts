@@ -17,6 +17,11 @@ describe("spoken", () => {
     expect(spoken("Hey, can you make her small")).toBe("make her small");
   });
 
+  it("drops a run-up that Deepgram punctuated into sentences", () => {
+    expect(spoken("Okay. Now turn gravity off, please.")).toBe("turn gravity off");
+    expect(spoken("Okay. Then turn gravity off.")).toBe("turn gravity off");
+  });
+
   it("drops politeness at the end", () => {
     expect(spoken("turn gravity off, please.")).toBe("turn gravity off");
   });
