@@ -151,20 +151,30 @@ characters; `null` and `""` mean no name.
      rounds of scale-and-shift least squares on nearest points. What counts is the player's ink lying
      on the exemplar; the exemplar lying on their ink counts a tenth as much, so a half-drawn sketch
      gets a whole exemplar of the right size around it rather than one squeezed into its bounds.
-   - *Tidy.* Every point of the player's moves toward the nearest point of the fitted exemplar,
-     smoothed along the stroke so lines bend rather than jitter, and not at all when the exemplar has
-     nothing within 12 % of the diagonal (ink the exemplar does not have is left alone). **How firmly
+   - *Tidy.* Every point of the player's moves toward the point of the fitted exemplar it belongs
+     to, smoothed along the stroke so lines bend rather than jitter, and not at all when the exemplar
+     has nothing within 12 % of the diagonal (ink the exemplar does not have is left alone). Where a
+     point belongs is its nearest point, chosen along the whole stroke at once: a pick that lands
+     further from the last one than the pen itself travelled pays for the difference, so a line drawn
+     between two of the exemplar's lines settles on one instead of hopping between them. **How firmly
      depends on how sure Kami is**: `boldness` = smoothstep(confidence, 0.3 → 0.9) ×
      (1 − smoothstep(misfit, 3 % → 8 % of the diagonal)), where confidence is the model's calibrated
      probability of the category and misfit the mean distance from the player's ink to the fitted
      exemplar. At boldness 0 a point moves half of the way and never more than 6 % of the diagonal;
      at boldness 1, nine tenths of the way and never more than 10 %. A name the model does not
      believe, or an exemplar that lies loosely, keeps his hand light.
-     The request's optional `strength` (0–1, default 0.5) is the player's say on top of that: 0.5 is
-     the numbers above, 1 doubles them (strengths capped at a full snap, moves up to 12–20 % of the
-     diagonal, reach up to 25 %), 0 moves nothing. Anything else is a `400`.
-   - *Add.* Runs of the fitted exemplar farther than 8 % of the diagonal from any of the player's ink,
-     and at least 10 % of it long, become new strokes. A finished drawing usually gets none.
+   - *Add.* Runs of the fitted exemplar farther than 10 % of the diagonal from any of the tidied ink,
+     and at least 15 % of it long, become new strokes — only on a tight fit (misfit ≤ 3 %) and never
+     more than one and a half times the player's own ink. A finished drawing usually gets none.
+   - *The player's slider.* The request's optional `strength` (0–1, default 0.5) runs **from the
+     player's drawing to the dataset's**. 0 moves nothing and adds nothing. Up to 0.5 it scales the
+     tidying above; 0.5 is exactly the numbers above. Past 0.5 Kami takes over, whatever his
+     certainty: the pull goes to a full snap, the limits on a move and on reach open to the whole
+     drawing, the smoothing narrows to the point itself, the cover radius and shortest addition
+     shrink to 4 % and 3 %, and the two gates on adding open (each ÷ (1 − takeover), takeover =
+     (strength − 0.5) / 0.5). At 1 every point of theirs lies on the exemplar and every part of it
+     they did not draw is added: the drawing is the dataset's, in the player's place and size, drawn
+     with the player's strokes first. Anything outside 0–1 is a `400`.
 
 `200 { "tidied", "added", "category", "confidence", "similarity", "boldness", "exemplar" }`. **`tidied` has exactly
 the request's shape** — the same strokes in the same order, each with the same number of points — so a

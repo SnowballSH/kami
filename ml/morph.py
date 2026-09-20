@@ -1,13 +1,14 @@
 """Morph a sketch toward a clean exemplar: the player's strokes, tidied, plus what is missing.
 
-The player's drawing stays theirs. Every stroke and every point of it survives, each nudged a
-bounded distance toward the nearest part of the exemplar; only the parts of the exemplar that
-nothing of theirs covers are added. The rules are in CONTRACT.md, "Completion".
+Every stroke and every point of the player's survives, each moved toward the part of the exemplar
+it belongs to, and the parts of the exemplar that nothing of theirs covers are added. How far is the
+player's slider: from their drawing untouched, through a bounded nudge as bold as Kami is sure, to
+the exemplar itself in their drawing's place. The rules are in CONTRACT.md, "Completion".
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
@@ -33,8 +34,12 @@ class MorphSettings:
     min_added_length: float = 0.15
     max_misfit_to_add: float = 0.03
     max_added_share: float = 1.5
-    bridge_points: int = 2
+    exact_cover_radius: float = 0.04
+    exact_min_added_length: float = 0.03
     sample_spacing: float = 0.02
+    match_run: int = 8
+    match_options: int = 5
+    hop_weight: float = 1.0
     fit_scales: tuple[float, ...] = (0.85, 1.0, 1.2, 1.5, 2.0)
     fit_offsets: tuple[float, ...] = (-0.18, 0.0, 0.18)
     coverage_weight: float = 0.1
@@ -43,20 +48,51 @@ class MorphSettings:
 
 
 DEFAULT_FIRMNESS = 0.5
-MAX_REACH = 0.25
+UNBOUNDED = 4.0
+BRIDGE_POINTS = 2
 
 
-def firmed(settings: MorphSettings, firmness: float) -> MorphSettings:
-    """The player's say in it: 0 leaves the ink alone, 0.5 is these settings, 1 is twice as firm:
-    strengths up to a full snap, points allowed twice as far, ink a little further off pulled in."""
-    scale = min(1.0, max(0.0, firmness)) / DEFAULT_FIRMNESS
-    return replace(
-        settings,
-        gentle_strength=min(1.0, settings.gentle_strength * scale),
-        bold_strength=min(1.0, settings.bold_strength * scale),
-        gentle_shift=settings.gentle_shift * scale,
-        bold_shift=settings.bold_shift * scale,
-        reach=min(MAX_REACH, settings.reach * max(1.0, scale)),
+@dataclass(frozen=True, slots=True)
+class Hand:
+    """How Kami's hand moves for one drawing: the player's slider and his own certainty, resolved.
+    Distances are shares of the ink's bounding-box diagonal."""
+
+    strength: float
+    max_shift: float
+    reach: float
+    smoothing_window: int
+    cover_radius: float
+    min_added_length: float
+    max_misfit_to_add: float
+    max_added_share: float
+
+
+def hand_for(firmness: float, boldness: float, settings: MorphSettings) -> Hand:
+    """The slider runs from the player's drawing to the dataset's. Up to the middle it scales the
+    tidying Kami would do of his own accord (0 moves nothing; 0.5 is `settings` as written, as bold
+    as he is sure). Past the middle he takes over: every limit opens up until, at 1, each point of
+    theirs lies on the exemplar and every part of the exemplar they did not draw is added."""
+    firmness = min(1.0, max(0.0, firmness))
+    care = min(1.0, firmness / DEFAULT_FIRMNESS)
+    takeover = max(0.0, firmness - DEFAULT_FIRMNESS) / (1.0 - DEFAULT_FIRMNESS)
+    opening = np.inf if takeover >= 1.0 else 1.0 / (1.0 - takeover)
+
+    def toward(own: float, exemplars: float) -> float:
+        return own + takeover * (exemplars - own)
+
+    strength = settings.gentle_strength + boldness * (
+        settings.bold_strength - settings.gentle_strength
+    )
+    shift = settings.gentle_shift + boldness * (settings.bold_shift - settings.gentle_shift)
+    return Hand(
+        strength=toward(care * strength, 1.0),
+        max_shift=toward(care * shift, UNBOUNDED),
+        reach=toward(settings.reach, UNBOUNDED),
+        smoothing_window=max(1, round(toward(settings.smoothing_window, 1))),
+        cover_radius=toward(settings.cover_radius, settings.exact_cover_radius),
+        min_added_length=toward(settings.min_added_length, settings.exact_min_added_length),
+        max_misfit_to_add=settings.max_misfit_to_add * opening,
+        max_added_share=settings.max_added_share * opening,
     )
 
 
@@ -192,19 +228,52 @@ def boldness_of(certainty: float, misfit: float, settings: MorphSettings) -> flo
     return sure * close
 
 
+def _runs_of(target: Points, run: int) -> list[slice]:
+    return [slice(start, min(start + run, len(target))) for start in range(0, len(target), run)]
+
+
+def _along(stroke: Points, target: Points, settings: MorphSettings) -> Points:
+    """Where on the exemplar each point of a stroke belongs. The nearest point alone makes a line
+    drawn between two of the exemplar's lines hop from one to the other and back; so each point
+    picks among the nearest point of each of its closest stretches of exemplar, and a pick that
+    lands further from the last one than the pen itself travelled pays for the difference."""
+    between = np.linalg.norm(stroke[:, None, :] - target[None, :, :], axis=2)
+    runs = _runs_of(target, settings.match_run)
+    closest_in_run = np.stack([run.start + between[:, run].argmin(axis=1) for run in runs], axis=1)
+    apart = np.take_along_axis(between, closest_in_run, axis=1)
+    keep = min(settings.match_options, len(runs))
+    best_runs = np.argsort(apart, axis=1)[:, :keep]
+    options = np.take_along_axis(closest_in_run, best_runs, axis=1)
+    costs = np.take_along_axis(apart, best_runs, axis=1)
+
+    travelled = np.linalg.norm(np.diff(stroke, axis=0), axis=1)
+    total = costs[0].copy()
+    came_from = np.zeros_like(options)
+    for index in range(1, len(stroke)):
+        hop = np.linalg.norm(
+            target[options[index]][:, None, :] - target[options[index - 1]][None, :, :], axis=2
+        )
+        excess = np.maximum(0.0, hop - travelled[index - 1]) * settings.hop_weight
+        through = total[None, :] + excess
+        came_from[index] = through.argmin(axis=1)
+        total = costs[index] + through.min(axis=1)
+
+    picks = np.empty(len(stroke), dtype=np.intp)
+    picks[-1] = total.argmin()
+    for index in range(len(stroke) - 1, 0, -1):
+        picks[index - 1] = came_from[index, picks[index]]
+    matched: Points = target[options[np.arange(len(stroke)), picks]]
+    return matched
+
+
 def _tidy(
-    stroke: Points, target: Points, diagonal: float, boldness: float, settings: MorphSettings
+    stroke: Points, target: Points, diagonal: float, hand: Hand, settings: MorphSettings
 ) -> Points:
-    strength = settings.gentle_strength + boldness * (
-        settings.bold_strength - settings.gentle_strength
-    )
-    max_shift = settings.gentle_shift + boldness * (settings.bold_shift - settings.gentle_shift)
-    nearest, distance = _nearest(stroke, target)
-    shifts = target[nearest] - stroke
-    shifts[distance > settings.reach * diagonal] = 0.0
-    shifts = _smoothed(shifts, settings.smoothing_window) * strength
+    shifts = _along(stroke, target, settings) - stroke
+    shifts[np.linalg.norm(shifts, axis=1) > hand.reach * diagonal] = 0.0
+    shifts = _smoothed(shifts, hand.smoothing_window) * hand.strength
     lengths = np.linalg.norm(shifts, axis=1, keepdims=True)
-    shifts *= np.minimum(1.0, max_shift * diagonal / np.maximum(lengths, 1e-12))
+    shifts *= np.minimum(1.0, hand.max_shift * diagonal / np.maximum(lengths, 1e-12))
     return stroke + shifts
 
 
@@ -228,19 +297,15 @@ def _uncovered_runs(covered: NDArray[np.bool_], bridge: int) -> list[tuple[int, 
 
 
 def _missing(
-    exemplar: list[Points], player_cloud: Points, diagonal: float, settings: MorphSettings
+    exemplar: list[Points], ink_cloud: Points, diagonal: float, spacing: float, hand: Hand
 ) -> list[Points]:
     added: list[Points] = []
-    spacing = settings.sample_spacing * diagonal
     for stroke in exemplar:
         dense = resample(stroke, spacing)
-        covered = _nearest(dense, player_cloud)[1] <= settings.cover_radius * diagonal
-        for start, end in _uncovered_runs(covered, settings.bridge_points):
+        covered = _nearest(dense, ink_cloud)[1] <= hand.cover_radius * diagonal
+        for start, end in _uncovered_runs(covered, BRIDGE_POINTS):
             piece = dense[start:end]
-            if (
-                len(piece) >= 2
-                and (len(piece) - 1) * spacing >= settings.min_added_length * diagonal
-            ):
+            if len(piece) >= 2 and (len(piece) - 1) * spacing >= hand.min_added_length * diagonal:
                 added.append(piece)
     return added
 
@@ -250,13 +315,13 @@ def _length(strokes: list[Points]) -> float:
 
 
 def _worth_adding(
-    missing: list[Points], inked: list[Points], misfit: float, settings: MorphSettings
+    missing: list[Points], inked: list[Points], misfit: float, hand: Hand
 ) -> list[Points]:
-    """Nothing is added on a loose fit (the parts would land in the wrong place), nor when it
-    would be more Kami's drawing than the player's."""
-    if misfit > settings.max_misfit_to_add:
+    """Left to himself Kami adds nothing on a loose fit (the parts would land in the wrong place)
+    nor when it would be more his drawing than the player's; the slider opens both limits."""
+    if misfit > hand.max_misfit_to_add:
         return []
-    if _length(missing) > settings.max_added_share * _length(inked):
+    if _length(missing) > hand.max_added_share * _length(inked):
         return []
     return missing
 
@@ -270,7 +335,6 @@ def morph(
 ) -> Morph | None:
     """None when either drawing has no extent to work with. `tidied` always has the player's shape:
     the same strokes in the same order, each with the same number of points."""
-    settings = firmed(settings, firmness)
     inked = [stroke for stroke in player if len(stroke) > 0]
     exemplar = [stroke for stroke in exemplar if len(stroke) > 0]
     if not inked or not exemplar:
@@ -284,16 +348,16 @@ def morph(
     player_cloud = np.concatenate([resample(stroke, spacing) for stroke in inked])
     misfit = float(_nearest(player_cloud, target)[1].mean() / diagonal)
     boldness = boldness_of(certainty, misfit, settings)
+    hand = hand_for(firmness, boldness, settings)
+    tidied = [
+        _tidy(stroke, target, diagonal, hand, settings) if len(stroke) > 0 else stroke.copy()
+        for stroke in player
+    ]
+    tidied_cloud = np.concatenate([resample(stroke, spacing) for stroke in tidied if len(stroke)])
+    missing = _missing(fitted, tidied_cloud, diagonal, spacing, hand)
     return Morph(
-        tidied=[
-            _tidy(stroke, target, diagonal, boldness, settings)
-            if len(stroke) > 0
-            else stroke.copy()
-            for stroke in player
-        ],
-        added=_worth_adding(
-            _missing(fitted, player_cloud, diagonal, settings), inked, misfit, settings
-        ),
+        tidied=tidied,
+        added=_worth_adding(missing, inked, misfit, hand),
         misfit=misfit,
         boldness=boldness,
     )
