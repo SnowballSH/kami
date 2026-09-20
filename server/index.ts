@@ -145,7 +145,15 @@ const once = (task: () => Promise<void>): (() => Promise<void>) => {
   };
 };
 
+/**
+ * Closing politely can wait for ever on a socket that will not close (a voice stream held open to
+ * Deepgram did, with the https listener already gone). Everything that must survive lives in
+ * MongoDB, a process of its own, so after a short grace the server simply leaves.
+ */
+const SHUTDOWN_GRACE_MS = 3000;
+
 const shutDown = once(async () => {
+  setTimeout(() => process.exit(0), SHUTDOWN_GRACE_MS).unref();
   await controllers.close();
   await tlsServer?.stop(true);
   await server.stop(true);
