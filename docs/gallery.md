@@ -225,3 +225,77 @@ transitions, physics changed by presentation, stale state after respawn/room cha
 - [ ] J1 Wordmark/tagline placement · J2 Guess/hint/remark lifetimes · J3 Overlap avoidance under load · J4 Room/title card vs live play
 - [ ] J5 Zoom/back-to-Alice/autopilot toggle · J6 Tidy slider · J7 Talk button feedback (deaf line locally) · J8 Persistence status
 - [ ] J9 Share panel (sandbox) · J10 Small window / touch layout
+
+## Sweep 2 — summons (fresh API), creatures, Puzzle rooms, Boss, rotation, boats (contact sheets)
+
+### summon2 — fresh-API summons
+![Sweep 2 summons](gallery/sweep2-summon2.png)
+- **Scenario:** On a fresh Sandbox board, summon a rabbit, request a car, visit the Moon, and return home.
+- **Expected:** Rabbit and car are drawn and named; Moon/home transitions work.
+- **Observed:** Rabbit works with the restarted API and is inked stroke by stroke. “summon a car” produces
+  “I've never seen a car. Draw one for me, and I can learn its name.” Moon/home scene transitions work;
+  “take us home” leaves both laws listed, as in sweep 1. Persistence timeout warnings still appear.
+- **Finding:** There is no local exemplar category for car; the GX10 model path is not testable locally.
+- **Status:** Open for car recognition and persistence timeout.
+- **Recommendation:** Add or expose a car exemplar/category, and investigate the persistence timeout.
+
+### creatures2 — named creatures and riding
+![Sweep 2 creatures](gallery/sweep2-creatures2.png)
+- **Scenario:** Draw and name a dog, draw and name a distant shy mouse, issue chase and flight laws, then walk Alice over the dog.
+- **Expected:** A bare name attaches to the intended drawing; creatures follow their laws and Alice can ride the dog.
+- **Observed:** In this run, “a dog” was written about one second after the circle and fell through to “hmm…” and model guesses;
+  the guess chips stayed with the black label. A direct re-probe after a 1.5-second pause names the dog correctly and Alice rides it
+  (`sweep2-note-avoids-ground-before.png` / `sweep2-note-avoids-ground-after.png`). Mouse guesses crowd the right edge and
+  notes crossed the ground in the captured run; the latter is fixed by the note-obstacle change. “the mouse chases me” becomes
+  “the mouse: follows Alice”, and “the dog can fly” works.
+- **Finding:** A bare-name note can arrive before the drawing has landed and miss it; the right-edge and ground placement issues
+  are addressed in this sweep. Model-dependent recognition is not testable locally.
+- **Status:** Naming race open; free-note placement fixed.
+- **Recommendation:** Hold a bare-name note until pending drawing ink lands, or widen `drawingNear` to include in-flight ink.
+
+### puzzle-rooms — seven Puzzle rooms
+![Sweep 2 Puzzle rooms](gallery/sweep2-puzzle-rooms.png)
+- **Scenario:** Enter fresh Puzzle mode, idle in each room, then attempt the documented drawing/law solution in order.
+- **Expected:** Each solution advances to the next room and shows its room card.
+- **Observed:** Room 1’s “The Wall” title card is correct, and quiet entry has no Sumikui/ground bite before first ink.
+  The scripted bouncy blob did not get Alice over the wall; the corrected attempt remained blocked, so rooms 2–7 were not reached.
+  “alice is tiny” was correctly refused in room 1. The definitions used were `src/board/boards/puzzles/index.ts` and
+  `src/board/boards/puzzles/{theWall,theKeyhole,theMoonLedge,theDarkHall,theTwinDoors,theShaft,thePit}.ts`.
+- **Finding:** The scripted solve did not solve room 1; this is a script limitation, not a confirmed game bug.
+- **Status:** Coverage gap for rooms 2–7.
+- **Recommendation:** Re-run with a room-1 drawing placed at the wall foot, then exercise each remaining room. Sumikui/model behavior
+  beyond this local scripted path is not testable locally.
+
+### boss2 — Boss combat flow
+![Sweep 2 Boss](gallery/sweep2-boss2.png)
+- **Scenario:** Draw a body around the soul, attempt the `Alice?` chip, incarnate with `alice`, steer, and redraw parts for 60 seconds.
+- **Expected:** The chip incarnates Alice, servant waves and snips remove parts, grafts restore them, and a terminal result appears.
+- **Observed:** Writing `alice` incarnates successfully, but tapping `Alice?` alone leaves “Is this her? Write who she is.” plus the chip.
+  The tear recital text crosses the body. Alice is lost by about 15 seconds; only the soul remains. Redraws over 20–60 seconds
+  do not re-incarnate her; no servant wave, graft, or terminal win/loss screen appears.
+- **Finding:** The second-incarnation/graft/win-loss flow was not reachable in this run; the chip should incarnate directly, and tear-note
+  layout remains open despite being partly addressed by the obstacle change.
+- **Status:** Open, highest-priority follow-up.
+- **Recommendation:** Make the `Alice?` chip invoke direct incarnation, then re-run graft and terminal combat. GX10/model/Deepgram-dependent
+  behavior is not testable locally.
+
+### rotation — world rotation and pointer mapping
+![Sweep 2 rotation](gallery/sweep2-rotation.png)
+- **Scenario:** Rotate upside down and sideways, draw at screen `(600,300)`, exercise toolbar/zoom controls, and restore upright.
+- **Expected:** World content rotates while HUD controls remain usable; pointer input lands at the requested screen location.
+- **Observed:** Upside-down and sideways rendering work, the laws panel stays upright, and toolbar controls remain clickable.
+  The stroke lands at approximately screen `x=599–700, y=299–300` in both rotated states, preserving screen position.
+  Restoring upright leaves the rotation laws listed.
+- **Finding:** Pointer-to-world mapping and controls are correct; law cleanup remains open.
+- **Status:** Rotation behavior passes; cleanup open.
+- **Recommendation:** Repeal superseded rotation laws when upright is restored.
+
+### boat — boat naming and buoyancy
+![Sweep 2 boat](gallery/sweep2-boat.png)
+- **Scenario:** Draw a closed boat-like hull in Sandbox, name it “a boat”, and attempt to board and drive it.
+- **Expected:** The boat resolves as a vehicle, Alice boards, and buoyancy/driving can be exercised.
+- **Observed:** The hull draws, but “a boat” is not accepted as a vehicle name; guesses include “a plank?”, “a platform?”, and
+  “a trampoline?”. Alice walks past it and it does not move.
+- **Finding:** Inspect the lexicon so “boat” resolves to vehicle. Sandbox has no water, so buoyancy is not testable locally.
+- **Status:** Open for boat lexicon; water behavior not testable locally.
+- **Recommendation:** Add the boat mapping and re-run in a board with a water region.
