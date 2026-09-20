@@ -1,6 +1,7 @@
 import type { Vec } from "../core/geometry";
 import { ALICE_BASE, type AliceSnapshot } from "../sim/types";
-import { ALICE_POSES, type AlicePose, alicePoseName } from "./alicePose";
+import { ALICE_POSES, type AlicePose, alicePoseName, BACK_HIP, FRONT_HIP } from "./alicePose";
+import type { AliceFigure, Ghost } from "./animation/aliceFigure";
 import { TAU } from "./canvas2d";
 import { paintKey } from "./keyShape";
 import { BOARD_COLORS } from "./palette";
@@ -16,9 +17,10 @@ const HAIR = {
 } as const;
 const FRONT_SHOULDER: Vec = { x: 3, y: -11.5 };
 const BACK_SHOULDER: Vec = { x: -3, y: -11.5 };
-const FRONT_HIP: Vec = { x: 3.5, y: 13 };
-const BACK_HIP: Vec = { x: -3.5, y: 13 };
 const TOE_LENGTH = 3.5;
+const SOLES_Y = ALICE_BASE.height / 2;
+/** A box round her whole figure, key included, that the ink-in reveal wipes down through. */
+const INK_BOX = { x: -24, y: -42, width: 48, height: 76 } as const;
 const KEY_HOLD: Vec = { x: 11, y: -7 };
 const CARRIED_KEY = { length: 13, angle: -Math.PI / 2 } as const;
 const RIBBON_HUE_STEP = 137;
@@ -48,16 +50,18 @@ const traceLimb = (ctx: CanvasRenderingContext2D, from: Vec, to: Vec): void => {
   ctx.lineTo(to.x, to.y);
 };
 
-const traceLeg = (ctx: CanvasRenderingContext2D, hip: Vec, foot: Vec): void => {
-  traceLimb(ctx, hip, foot);
+const traceLeg = (ctx: CanvasRenderingContext2D, hip: Vec, knee: Vec, foot: Vec): void => {
+  ctx.moveTo(hip.x, hip.y);
+  ctx.lineTo(knee.x, knee.y);
+  ctx.lineTo(foot.x, foot.y);
   ctx.lineTo(foot.x + TOE_LENGTH, foot.y);
 };
 
 const paintBehindDress = (ctx: CanvasRenderingContext2D, pose: AlicePose): void => {
   ctx.beginPath();
   traceLimb(ctx, BACK_SHOULDER, pose.backHand);
-  traceLeg(ctx, BACK_HIP, pose.backFoot);
-  traceLeg(ctx, FRONT_HIP, pose.frontFoot);
+  traceLeg(ctx, BACK_HIP, pose.backKnee, pose.backFoot);
+  traceLeg(ctx, FRONT_HIP, pose.frontKnee, pose.frontFoot);
   ctx.moveTo(HAIR.start.x, HAIR.start.y);
   ctx.quadraticCurveTo(HAIR.bend.x, HAIR.bend.y, HAIR.end.x, HAIR.end.y);
   ctx.stroke();
@@ -103,7 +107,7 @@ const paintHead = (ctx: CanvasRenderingContext2D, look: AliceLook): void => {
 const paintLook = (ctx: CanvasRenderingContext2D, facing: number, look: AliceLook): void => {
   if (look.ribbon === null && !look.selected) return;
   ctx.save();
-  ctx.scale(facing, 1);
+  ctx.scale(1 / facing, 1);
   if (look.ribbon !== null) {
     ctx.fillStyle = ribbonColour(look.ribbon);
     ctx.font = RIBBON_NUMBER.font;
@@ -124,17 +128,14 @@ const paintLook = (ctx: CanvasRenderingContext2D, facing: number, look: AliceLoo
   ctx.restore();
 };
 
-export const paintAlice = (
+const paintBody = (
   ctx: CanvasRenderingContext2D,
-  alice: AliceSnapshot,
-  nowMs: number,
-  look: AliceLook = HERSELF,
+  pose: AlicePose,
+  hasKey: boolean,
+  keyScale: number,
+  look: AliceLook,
 ): void => {
-  const pose = ALICE_POSES[alicePoseName(alice, nowMs)];
-  const frontHand = alice.hasKey ? KEY_HOLD : pose.frontHand;
-  ctx.save();
-  ctx.translate(alice.center.x, alice.center.y);
-  ctx.scale((alice.facing * alice.width) / ALICE_BASE.width, alice.height / ALICE_BASE.height);
+  const frontHand = hasKey ? KEY_HOLD : pose.frontHand;
   ctx.lineWidth = LINE_WIDTH;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -143,7 +144,81 @@ export const paintAlice = (
   paintDress(ctx);
   paintHead(ctx, look);
   paintFrontArm(ctx, frontHand);
-  if (alice.hasKey) paintKey(ctx, frontHand, CARRIED_KEY.length, CARRIED_KEY.angle);
+  if (hasKey && keyScale > 0)
+    paintKey(ctx, frontHand, CARRIED_KEY.length * keyScale, CARRIED_KEY.angle);
+};
+
+/** Into her base box: origin at her middle, x flipped to face the way she does. */
+const enterBody = (
+  ctx: CanvasRenderingContext2D,
+  center: Vec,
+  width: number,
+  height: number,
+  facing: number,
+): void => {
+  ctx.translate(center.x, center.y);
+  ctx.scale((facing * width) / ALICE_BASE.width, height / ALICE_BASE.height);
+};
+
+/** Squashes, stretches and tilts about her soles, so her feet stay where the ground is. */
+const deformAboutSoles = (
+  ctx: CanvasRenderingContext2D,
+  stretch: Vec,
+  lean: number,
+  facing: number,
+): void => {
+  ctx.translate(0, SOLES_Y);
+  ctx.rotate(lean * Math.sign(facing));
+  ctx.scale(stretch.x, stretch.y);
+  ctx.translate(0, -SOLES_Y);
+};
+
+const clipInked = (ctx: CanvasRenderingContext2D, inked: number): void => {
+  ctx.beginPath();
+  ctx.rect(INK_BOX.x, INK_BOX.y, INK_BOX.width, INK_BOX.height * inked);
+  ctx.clip();
+};
+
+const paintGhost = (ctx: CanvasRenderingContext2D, ghost: Ghost, pose: AlicePose): void => {
+  ctx.save();
+  ctx.globalAlpha *= ghost.alpha;
+  enterBody(ctx, ghost.center, ghost.width, ghost.height, ghost.facing);
+  ctx.translate(0, -SOLES_Y);
+  ctx.scale(1, 1 + ghost.drip);
+  ctx.translate(0, SOLES_Y);
+  paintBody(ctx, pose, false, 1, HERSELF);
+  ctx.restore();
+};
+
+/** Paints her as the animation layer says she looks this frame, ghost of where she was and all. */
+export const paintAliceFigure = (
+  ctx: CanvasRenderingContext2D,
+  alice: AliceSnapshot,
+  figure: AliceFigure,
+  look: AliceLook = HERSELF,
+): void => {
+  if (figure.ghost !== null) paintGhost(ctx, figure.ghost, figure.pose);
+  ctx.save();
+  ctx.globalAlpha *= figure.alpha;
+  ctx.translate(figure.offset.x, figure.offset.y);
+  enterBody(ctx, alice.center, alice.width, alice.height, figure.facing);
+  if (figure.inked < 1) clipInked(ctx, figure.inked);
+  deformAboutSoles(ctx, figure.stretch, figure.lean, figure.facing);
+  paintBody(ctx, figure.pose, alice.hasKey, figure.keyScale, look);
+  paintLook(ctx, figure.facing, look);
+  ctx.restore();
+};
+
+/** Paints her still, straight from the snapshot, with no beats playing. */
+export const paintAlice = (
+  ctx: CanvasRenderingContext2D,
+  alice: AliceSnapshot,
+  nowMs: number,
+  look: AliceLook = HERSELF,
+): void => {
+  ctx.save();
+  enterBody(ctx, alice.center, alice.width, alice.height, alice.facing);
+  paintBody(ctx, ALICE_POSES[alicePoseName(alice, nowMs)], alice.hasKey, 1, look);
   paintLook(ctx, alice.facing, look);
   ctx.restore();
 };

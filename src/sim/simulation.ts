@@ -43,7 +43,7 @@ import {
   type WalkIntent,
   type WorldSnapshot,
 } from "./types";
-import { liftsHer } from "./vehicles";
+import { liftsHer, rideOn } from "./vehicles";
 import { weather } from "./weather";
 import { accelerationOf, push } from "./worldPhysics";
 
@@ -367,6 +367,10 @@ export class MatterSimulation implements Simulation {
       liftsHer: (body) => {
         const ink = inks.find(body);
         return ink !== undefined && ink.nature === "vehicle" && liftsHer(ink, feelers);
+      },
+      rideOn: (body) => {
+        const ink = inks.find(body);
+        return ink === undefined ? null : rideOn(ink);
       },
     };
   }
