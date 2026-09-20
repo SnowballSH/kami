@@ -158,6 +158,7 @@ One book, six pages, each a page deeper. The Rabbit runs the room first — his 
 - **A yellowed book page.** Room art in black ink, Tenniel-ish, drawn by whoever on the team draws best. The player's ink is blue fountain pen — always visibly *theirs* on top of the printed world.
 - **The rabbit hole is torn through the paper.** Dropping a room is falling through a ragged hole to the page beneath. Earlier pages peek through at the edges.
 - **Alice and the Rabbit** are two-frame flipbook doodles. The Cat is a grin that fades in before the rest of him.
+- **More than one Alice.** "Clone Alice" (or "Alice has three clones") puts real second Alices on the page, each with a mind of her own: she finds her own way to the rabbit hole, or strolls about when there is none, rides whichever creature she reaches and takes whichever portal she steps into. Each clone wears a tinted, numbered ribbon so you know who is who. The stick walks the one you last tapped (a small caret marks her); the rest keep going by themselves. The room is won when *any* of them reaches the goal, and Kami says which. The Sumikui swallows only the one it catches; only the one who fell comes back.
 - **When ink wakes up** it shivers and takes a tint — pink for bouncy, gold for grow, and so on. That shimmer *is* the AI latency, turned into a beat.
 - **Sound:** pen scratch while drawing, paper rustle on transitions, a music box underneath. The Cat's voice is the only speech.
 
