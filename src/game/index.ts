@@ -120,7 +120,10 @@ export function startGame(root: HTMLElement): void {
   );
 
   attachCanvasInput(canvas, () => game.currentTool, game);
-  new ResizeObserver(() => renderer.resize()).observe(canvas);
+  new ResizeObserver(() => {
+    renderer.resize();
+    game.onResize();
+  }).observe(canvas);
   renderer.resize();
 
   const tick = (nowMs: number): void => {

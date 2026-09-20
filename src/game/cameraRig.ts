@@ -17,6 +17,9 @@ export interface Viewport {
   readonly height: number;
 }
 
+export const framingZoom = (viewport: Viewport): number =>
+  clamp(viewport.width / FRAMING_WIDTH, FRAMING_ZOOM.min, FRAMING_ZOOM.max);
+
 type ToWorld = (client: Vec, camera: Camera) => Vec;
 
 const leanToward = (subject: Vec, company: readonly Vec[], reach: number): Vec => {
@@ -38,16 +41,23 @@ const leanToward = (subject: Vec, company: readonly Vec[], reach: number): Vec =
 export class CameraRig {
   private current: Camera = { center: { x: 0, y: 0 }, zoom: 1, angle: 0 };
   private following = true;
+  private pinned = false;
 
   get camera(): Camera {
     return this.current;
   }
 
   frame(subjectFeet: Vec, viewport: Viewport): void {
-    const zoom = clamp(viewport.width / FRAMING_WIDTH, FRAMING_ZOOM.min, FRAMING_ZOOM.max);
+    const zoom = framingZoom(viewport);
     const { angle } = this.current;
     this.current = { center: { x: subjectFeet.x, y: subjectFeet.y - HEADROOM }, zoom, angle };
     this.following = true;
+    this.pinned = false;
+  }
+
+  pin(center: Vec, zoom: number): void {
+    this.current = { ...this.current, center, zoom };
+    this.pinned = true;
   }
 
   /** The paper turns about the camera's centre; the sim owns how far. */
@@ -88,12 +98,13 @@ export class CameraRig {
   }
 
   resumeFollowing(): void {
+    if (this.pinned) return;
     this.following = true;
   }
 
   /** Keeps `subject` in frame, leaning gently toward any `company` close enough to share it. */
   follow(subject: Rect, viewport: Viewport, company: readonly Rect[] = []): void {
-    if (!this.following) return;
+    if (this.pinned || !this.following) return;
     const { center, zoom, angle } = this.current;
     const target = leanToward(
       rectCenter(subject),

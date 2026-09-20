@@ -77,6 +77,10 @@ export interface ModeCard {
     readonly title: string;
     readonly tagline: string;
   };
+  readonly won?: {
+    readonly title: string;
+    readonly tagline: string;
+  };
 }
 
 /**

@@ -2422,7 +2422,10 @@ describe("Game in Boss mode", () => {
 
   it("opens as a soul, tells both players their part, and will not walk her by herself", async () => {
     expect(player.renderer.lastFrame?.world.alice).toBeNull();
-    expect(soulOf(player).x).toBeCloseTo(boardFor("wonderland").spawn.x, 0);
+    expect(soulOf(player).x).toBeCloseTo(
+      BOSS_MODE.page === "arena" ? 0 : boardFor("wonderland").spawn.x,
+      0,
+    );
     expect(player.written).not.toContain(SOUL_WAITS_LINE);
     expect(player.written).not.toContain(BOSS_MODE.card.opening);
     expect(player.written).not.toContain("She can hop, not fly. You can draw.");
@@ -2644,6 +2647,16 @@ describe("Game in Boss mode", () => {
       title: "Again",
       tagline:
         "It took the heart. Draw her a body around it and write who she is — faster this time.",
+    });
+  });
+
+  it("shows the Boss win card when the tear closes", async () => {
+    (player.game as unknown as { celebrate: (event: { type: "tear-closed" }) => void }).celebrate({
+      type: "tear-closed",
+    });
+    expect(player.hud.cards.at(-1)).toMatchObject({
+      title: "The tear is closed",
+      tagline: "It went back under the page. She is whole enough. Draw on, or start again.",
     });
   });
 });

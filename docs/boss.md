@@ -2,7 +2,7 @@
 
 Two players at one board. One holds the pen; the other holds the keys (or the on-screen thumbstick, or the Arduino joystick — [controllers.md](controllers.md)). The room opens with nobody on it: a small blue heart pulsing at the spawn. The drawer draws a body around it and names it — *alice*, *me*, *a knight*, *my cat*, any body noun — and the strokes become the body. Then the page tears open above the heart and something comes through to snip the body apart, one part at a time. The drawer redraws what is snipped; the player dodges and swings whatever the drawer arms them with. Hurt it until the tear closes.
 
-`?mode=boss`. The mode is `BOSS_MODE` in `src/modes/modes.ts`, built on the spirit groundwork described in [modes.md](modes.md). Everything below is client-side (`src/sim/body`, `src/sim/boss`, `src/modes/spiritDirector.ts`, `src/render/bossPainter.ts`, `src/game/bossLines.ts`).
+`?mode=boss`. The mode is `BOSS_MODE` in `src/modes/modes.ts`, built on the spirit groundwork described in [modes.md](modes.md). Boss now uses a screen-sized arena with a pinned camera; a newly drawn body is rested above its floor, and closing the tear shows a dedicated win card. Everything below is client-side (`src/sim/body`, `src/sim/boss`, `src/modes/spiritDirector.ts`, `src/render/bossPainter.ts`, `src/game/bossLines.ts`).
 
 ## Lore
 
@@ -35,7 +35,7 @@ Movement scales with the body: the controller is built with the drawing's frame,
 
 **One body, one heart.** The drawn body is Alice herself's (`ALICE_HERSELF`) and nobody else's. While the player is a soul, `sim.alices()` is empty: the `Party` hires no pilot, drives nobody, and a `clones` law makes no twins of a heart. Boss mode forbids `clones` outright; in Spirit mode, where a clone law may stand, her twins are Kami's own sketch of her (the plain `AliceLook`), not copies of the drawn strokes — the ink is authoritative for exactly one body, and cutting a copy would mean nothing. The servant's prey is her body alone; a twin falling or being eaten does not unmake her, since the heart is in her. The drawing that became her leaves the ink ledger the moment it is named, so it is never sent to Kami to be tidied and the tidiness slider never moves it: grafts join the body directly (`Game.land` → `sim.graft`) and never become drawings.
 
-The soul hovers `SOUL_HOVER_PX` (40 px) above the heart's standing seat until a drawing gives it a body. That keeps the heart visible above the ground and leaves room for a natural body to settle onto the page under gravity.
+The soul hovers `SOUL_HOVER_PX` (40 px) above the heart's standing seat until a drawing gives it a body. That keeps the heart visible above the ground and leaves room for a natural body to settle onto the page under gravity. When the drawing overlaps the floor, incarnation raises its feet to the highest overlapping solid.
 
 ## The servant (`src/sim/boss/snipper.ts`)
 

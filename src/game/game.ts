@@ -1,5 +1,5 @@
 import type { Scene } from "../autopilot/types";
-import { endlessBoard } from "../board";
+import { arenaBoard, endlessBoard } from "../board";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
 import {
@@ -97,7 +97,7 @@ import {
   TEAR_OPENS_LINES,
   UNMADE_LINE,
 } from "./bossLines";
-import { CameraRig } from "./cameraRig";
+import { CameraRig, framingZoom } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
 import { HeldInkBook } from "./heldInk";
 import { IdMint } from "./idMint";
@@ -519,6 +519,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.camera.frame(this.aliceFeet(), this.modules.renderer.viewport());
   }
 
+  onResize(): void {
+    if (this.board.page !== "arena" || this.modules.sim.snapshot().soul === null) return;
+    const viewport = this.modules.renderer.viewport();
+    this.board = this.arena(this.board.id);
+    this.modules.sim.loadBoard(this.board);
+    this.modules.renderer.setBoard(this.board);
+    this.pinArena(viewport);
+  }
+
   onOpenBoard(boardId: string): void {
     void this.open(boardId);
   }
@@ -619,7 +628,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.introduced.clear();
     this.hasAskedWhatItIs = false;
     this.stuck.reset(this.nowMs);
-    this.camera.frame(this.board.spawn, renderer.viewport());
+    if (this.board.page === "arena") this.pinArena(renderer.viewport());
+    else this.camera.frame(this.board.spawn, renderer.viewport());
     this.followPage(boardId);
     this.writeWordmark();
     const [firstZone] = this.board.zones;
@@ -1010,6 +1020,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private celebrate(event: SimEvent): void {
     const room = this.director.room;
     if (room === null) {
+      if (event.type === "tear-closed" && this.director.mode.win.kind === "defeat-foe") {
+        const { won } = this.director.mode.card;
+        if (won !== undefined) this.hud.showTitleCard({ ...this.director.mode.card, ...won });
+      }
       this.remark(this.goalLine(event), HINT_LIFETIME_MS);
       return;
     }
@@ -1739,9 +1753,22 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   /** The board under an id, read as the mode reads it: the room sketched there, or an endless page. */
   private sketch(boardId: string): BoardDefinition {
-    return this.director.mode.page === "endless"
-      ? (this.modules.endlessPageFor ?? endlessBoard)(boardId)
-      : this.modules.boardFor(boardId);
+    if (this.director.mode.page === "endless")
+      return (this.modules.endlessPageFor ?? endlessBoard)(boardId);
+    if (this.director.mode.page === "arena") return this.arena(boardId);
+    return this.modules.boardFor(boardId);
+  }
+
+  private arena(boardId: string): BoardDefinition {
+    const viewport = this.modules.renderer.viewport();
+    const zoom = framingZoom(viewport);
+    return arenaBoard(boardId, { width: viewport.width / zoom, height: viewport.height / zoom });
+  }
+
+  private pinArena(viewport: { readonly width: number; readonly height: number }): void {
+    const zoom = framingZoom(viewport);
+    const height = this.board.killY - 200;
+    this.camera.pin({ x: 0, y: -height / 2 + 18 }, zoom);
   }
 
   private writeWordmark(): void {

@@ -92,6 +92,7 @@ export class AliceController {
   /** How much bigger than Kami's Alice she was drawn; 1 for Alice herself. */
   private readonly innate: number;
   private form: DrawnBody | null = null;
+  private shuffleAllowed = false;
   private name = "";
   private clock = 0;
   private currentSize: AliceSize = "normal";
@@ -176,6 +177,8 @@ export class AliceController {
   /** The strokes a player drew become her; she is `name` from now on. */
   wear(body: DrawnBody, name: string): void {
     this.form = body;
+    this.shuffleAllowed =
+      !abilitiesOf(body).walk && body.strokes.some(({ part }) => part === "torso");
     this.name = name;
   }
 
@@ -272,8 +275,9 @@ export class AliceController {
 
   control(wanted: WalkIntent, surroundings: AliceSurroundings, timeScale: number): void {
     const can = this.abilities;
+    const shuffles = this.shuffleAllowed && !can.walk;
     const intent: WalkIntent = {
-      x: can.walk ? wanted.x : 0,
+      x: can.walk || shuffles ? wanted.x : 0,
       y: can.jump || can.climb || this.flying ? wanted.y : 0,
     };
     if (intent.x !== 0) this.facing = intent.x;
@@ -414,7 +418,10 @@ export class AliceController {
 
   private walkVelocity(current: number, direction: Axis, surroundings: AliceSurroundings): number {
     if (direction === 0 && !this.grounded && !this.climbing) return current;
-    const target = direction * walkSpeedAt(this.currentScale, this.physics.walkSpeed);
+    const target =
+      direction *
+      walkSpeedAt(this.currentScale, this.physics.walkSpeed) *
+      (this.abilities.walk ? 1 : 0.35);
     const onSlipperyInk = this.footing.some((contact) => surroundings.isSlippery(contact.body));
     const traction = onSlipperyInk ? 0 : Math.max(this.physics.friction, 0);
     return traction >= 1 ? target : approach(current, target, SLIDE_ACCELERATION / (1 - traction));

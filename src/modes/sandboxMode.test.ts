@@ -38,7 +38,9 @@ describe("the sandbox mode", () => {
   });
 
   it("today's modes are rooms played alone with help offered", () => {
-    for (const mode of GAME_MODES.filter((candidate) => candidate !== SANDBOX_MODE)) {
+    for (const mode of GAME_MODES.filter(
+      (candidate) => candidate !== SANDBOX_MODE && candidate.page !== "arena",
+    )) {
       expect(mode.page).toBe("room");
       expect(mode.sharing).toBe("alone");
       expect(mode.help).toBe("offered");

@@ -24,7 +24,7 @@ export interface Zone extends RoomBrief {
  * and a line below which she falls back to a checkpoint. An `endless` page has none of that; it
  * is drawn as far as anyone has drawn it, and falling puts her back on the last ink she stood on.
  */
-export type PageKind = "room" | "endless";
+export type PageKind = "room" | "endless" | "arena";
 
 /**
  * A board is one endless whiteboard. Everything here is what was sketched on it before

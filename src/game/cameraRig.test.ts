@@ -13,6 +13,16 @@ const settled = (subject: Rect, company: readonly Rect[]): number => {
 };
 
 describe("CameraRig among several Alices", () => {
+  it("pins the arena and ignores following until it is framed again", () => {
+    const rig = new CameraRig();
+    rig.pin({ x: 10, y: -20 }, 0.8);
+    rig.follow(body(3000), VIEWPORT);
+    rig.resumeFollowing();
+    expect(rig.camera).toMatchObject({ center: { x: 10, y: -20 }, zoom: 0.8 });
+    rig.frame({ x: 40, y: 50 }, VIEWPORT);
+    expect(rig.camera.center).toEqual({ x: 40, y: 50 - 170 });
+  });
+
   it("keeps framing the selected Alice, leaning a little toward company close by", () => {
     const alone = settled(body(1000), []);
     const withCompany = settled(body(1000), [body(1400)]);

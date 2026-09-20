@@ -353,3 +353,20 @@ The Dark Hall ate the **named lantern drawing**, not a separate light effect; re
 | Puzzle fresh | Clear button and an empty laws affordance are visible | Both remain visible over the room card and room scenery | Pass/fixed |
 | Boss fresh | Clear button and an empty laws affordance are visible without covering the heart/health strip | Both remain visible; panel sits below the toolbar band | Pass/fixed |
 | Sandbox clear | Clear removes two drawings and one law while keeping the page | Before/after frames show the drawings and law disappearing; empty laws hint remains | Pass/fixed |
+
+## Sweep 6 — Boss arena, floor placement, and tear result
+
+![Sweep 6 Boss opening](gallery/sweep6-boss-open.png)
+![Sweep 6 Boss body on floor](gallery/sweep6-boss-body-floor.png)
+![Sweep 6 Boss named body](gallery/sweep6-boss-named.png)
+![Sweep 6 Boss fight](gallery/sweep6-boss-fight.png)
+![Sweep 6 Boss result](gallery/sweep6-boss-result.png)
+
+| Scenario | Expected | Observed | Status |
+| --- | --- | --- | --- |
+| Fresh Boss opening | Screen-sized arena with walls at both edges | Fresh 1280×800 opening shows the floor and both edge walls behind the Boss card | Pass |
+| Body crossing floor | Drawn body rests above the arena floor | Full body strokes crossing the floor remain visible on the floor line | Pass |
+| Naming and movement | Name Alice and steer her with the keyboard | Body and keyboard movement were captured; this scripted run did not reliably complete incarnation | Inconclusive |
+| Fight and result | Servant fight ends in a win card, or loss shows Again | Arena fight-state frames were captured, but this run did not script a terminal card | Inconclusive |
+
+The exact floor-embedding freeze was not reproduced in the browser probe: the overlapping body stood and moved. Simulation coverage still raises incarnated feet above overlapping solids, and torso-only bodies shuffle slowly when they lack leg strokes.

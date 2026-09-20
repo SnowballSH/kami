@@ -70,6 +70,10 @@ export const BOSS_MODE: GameMode = {
       tagline:
         "It took the heart. Draw her a body around it and write who she is — faster this time.",
     },
+    won: {
+      title: "The tear is closed",
+      tagline: "It went back under the page. She is whole enough. Draw on, or start again.",
+    },
     roles: [
       "Drawer: draw a body around the heart, name it, and redraw whatever gets snipped off.",
       "Player: steer with the keys, the thumbstick or the joystick; dodge the wind-up, swing what is drawn.",
@@ -85,7 +89,7 @@ export const BOSS_MODE: GameMode = {
   laws: { kind: "except", dials: ["clones", "inkEater"] },
   natures: "all",
   autopilot: "forbidden",
-  page: "room",
+  page: "arena",
   help: "offered",
   sharing: "alone",
 };

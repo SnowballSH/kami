@@ -36,6 +36,7 @@ import { NATURES, type NatureWorld, stepOf } from "./natures";
 import { seesHerWay } from "./nightfall";
 import { isLooseInk, PaperTurn } from "./paper";
 import { centreOf, Portals } from "./portals";
+import { restingFeet } from "./restingFeet";
 import { Sumikui } from "./sumikui";
 import { Twins } from "./twins";
 import {
@@ -205,15 +206,26 @@ export class MatterSimulation implements Simulation {
   }
 
   incarnate(id: DrawingId, name: string, strokes?: readonly Stroke[]): boolean {
-    const { inks, engine, alice, twins } = this.world;
+    const { inks, engine, alice, twins, props } = this.world;
     const ink = inks.all.find((each) => each.id === id);
     if (ink === undefined) return false;
     const seat = this.world.soul ?? alice.heart();
     const born = incarnate(strokes ?? ink.worldStrokes, seat, name, engine.timing.timestamp);
     this.forgetInk(id);
     Matter.Composite.remove(engine.world, alice.body);
+    const bornFrame = {
+      x: born.centre.x - born.body.frame.width / 2,
+      y: born.centre.y - born.body.frame.height / 2,
+      width: born.body.frame.width,
+      height: born.body.frame.height,
+    };
+    const solidInk = inks.all.filter((each) => NATURES[each.nature].solidToAlice);
+    const feet = restingFeet(bornFrame, [
+      ...props.solidRects,
+      ...solidInk.map((each) => exactBounds(each.body)),
+    ]);
     const embodied = new AliceController(
-      { x: born.centre.x, y: born.centre.y + born.body.frame.height / 2 },
+      { x: born.centre.x, y: feet },
       this.physics,
       born.body.frame,
     );
@@ -239,7 +251,11 @@ export class MatterSimulation implements Simulation {
 
   openTear(): void {
     const heart = this.world.soul ?? this.world.alice.heart();
-    this.world.tear = new Tear({ x: heart.x, y: heart.y - TEAR_TUNING.aboveHeart });
+    const top = this.world.board.page === "arena" ? -(this.world.board.killY - 200) : -Infinity;
+    this.world.tear = new Tear({
+      x: heart.x,
+      y: Math.max(heart.y - TEAR_TUNING.aboveHeart, top + 120),
+    });
   }
 
   setWalkIntent(intent: WalkIntent, who: AliceIndex = ALICE_HERSELF): void {

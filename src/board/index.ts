@@ -29,3 +29,4 @@ export {
   endlessBoard,
   endlessPage,
 } from "./boards/endless";
+export { arenaBoard } from "./boards/arena";

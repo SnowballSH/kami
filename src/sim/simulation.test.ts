@@ -32,6 +32,27 @@ const blank = blankBoard("sketchbook");
 const onThePlateau: BoardDefinition = { ...wonderland, spawn: { x: 1760, y: PLATEAU_TOP } };
 
 describe("a freshly loaded board", () => {
+  it("raises an incarnated body out of an overlapping floor", () => {
+    const sim = enter(blank);
+    const heart = { x: 0, y: -20 };
+    sim.disembody();
+    sim.addDrawing(drawingOf("body", blob(heart.x, 30, 50, 100)));
+    expect(sim.incarnate(idOf("body"), "alice")).toBe(true);
+    expect(feetOf(sim).y).toBeCloseTo(blank.solids[0]?.rect.y ?? 0, 0);
+  });
+
+  it("shuffles a torso even without leg strokes", () => {
+    const sim = enter(blank);
+    const heart = { x: 0, y: -20 };
+    sim.disembody();
+    sim.addDrawing(drawingOf("body", blob(heart.x, 0, 40, 40)));
+    expect(sim.incarnate(idOf("body"), "alice")).toBe(true);
+    const parked = feetOf(sim).x;
+    sim.setWalkIntent(RIGHT);
+    runSteps(sim, 60);
+    expect(feetOf(sim).x).toBeGreaterThan(parked + 5);
+  });
+
   it("stands Alice on her spawn at normal size", () => {
     const sim = enter(wonderland);
     runSteps(sim, 30);
