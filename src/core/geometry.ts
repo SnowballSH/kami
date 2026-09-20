@@ -11,7 +11,12 @@ export interface Rect {
   readonly height: number;
 }
 
-export type Stroke = readonly Vec[];
+/** A point the pen passed through. `pressure` is 0–1 where the hardware reports it; a mouse or a finger leaves it out. */
+export interface PenPoint extends Vec {
+  readonly pressure?: number;
+}
+
+export type Stroke = readonly PenPoint[];
 
 /**
  * Where a rigid thing is now relative to where it was made.

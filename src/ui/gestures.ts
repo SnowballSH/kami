@@ -1,4 +1,4 @@
-import { clamp, distance, type Vec } from "../core/geometry";
+import { clamp, distance, type PenPoint, type Vec } from "../core/geometry";
 import type { CanvasInputSink, Tool } from "./types";
 
 export type PointerKind = "mouse" | "pen" | "touch";
@@ -6,7 +6,7 @@ export type PointerKind = "mouse" | "pen" | "touch";
 export interface PointerPress {
   readonly id: number;
   readonly kind: PointerKind;
-  readonly client: Vec;
+  readonly client: PenPoint;
   readonly button: number;
 }
 
@@ -91,7 +91,7 @@ export class GestureMachine {
     else this.pressMouse(pointer);
   }
 
-  move(pointerId: number, samples: readonly Vec[]): void {
+  move(pointerId: number, samples: readonly PenPoint[]): void {
     const latest = samples.at(-1);
     if (latest === undefined) return;
     if (this.touches.has(pointerId)) this.touches.set(pointerId, latest);
@@ -164,7 +164,7 @@ export class GestureMachine {
     if (mode === "ink") this.sink.penDown(client);
   }
 
-  private advanceDrag(drag: Drag, samples: readonly Vec[], latest: Vec): void {
+  private advanceDrag(drag: Drag, samples: readonly PenPoint[], latest: Vec): void {
     drag.travelled ||= samples.some((sample) => distance(drag.start, sample) >= TAP_SLOP_PX);
     if (drag.mode === "ink") {
       for (const sample of samples) this.sink.penMove(sample);

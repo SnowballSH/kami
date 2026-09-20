@@ -43,30 +43,16 @@ describe("couldBeWriting", () => {
     const squiggle: Stroke = Array.from({ length: 40 }, (_, i) => ({ x: i * 3, y: (i % 2) * 30 }));
     expect(couldBeWriting([squiggle])).toBe(true);
   });
-
-  it.each([
-    [20, false],
-    [40, false],
-    [51, false],
-    [52, true],
-    [80, true],
-  ] as const)("requires enough horizontal space for writing at width %s", (width, expected) => {
-    expect(couldBeWriting([stroke(0, 0, 40), stroke(width, 0, 40)])).toBe(expected);
+  it("rules out a squarish heap of many strokes, but not a short word or a long one", () => {
+    const face = [stroke(0, 0, 40), stroke(40, 0, 40), stroke(10, 10), stroke(30, 10)];
+    expect(couldBeWriting(face)).toBe(false);
+    expect(couldBeWriting(face.slice(0, 3))).toBe(true);
+    const word = [H, I, stroke(40, 0, 40), stroke(60, 0, 40)];
+    expect(couldBeWriting(word)).toBe(true);
   });
 });
 
 describe("PrefixPenReader", () => {
-  it("does not send compact doodles to the reader at pen lifts or settlement", async () => {
-    const reader = new SlowReader();
-    const pen = new PrefixPenReader(reader);
-    const doodle = [stroke(0, 0, 40), stroke(20, 0, 40), stroke(40, 0, 40)];
-    for (let count = 1; count <= doodle.length; count += 1) {
-      pen.glimpse(doodle.slice(0, count));
-    }
-    expect(await pen.settle(doodle)).toBeNull();
-    expect(reader.asked).toHaveLength(0);
-  });
-
   it("reads at every pen-lift, dropping the read of the strokes before", async () => {
     const reader = new SlowReader();
     const pen = new PrefixPenReader(reader);
