@@ -1,4 +1,4 @@
-import type { Pose, Rect, Stroke, Vec } from "../core/geometry";
+import type { PenPoint, Pose, Rect, Stroke } from "../core/geometry";
 
 export type DrawingId = string & { readonly __brand: "DrawingId" };
 
@@ -40,8 +40,8 @@ export interface InkSession {
   readonly activeStrokes: readonly Stroke[];
   readonly activeVerdict: PlacementVerdict;
   readonly budget: InkBudget;
-  penDown(point: Vec): void;
-  penMove(point: Vec): void;
+  penDown(point: PenPoint): void;
+  penMove(point: PenPoint): void;
   penUp(): void;
   /** Abandons the stroke in progress (a second finger landed: it was a pinch, not a line). */
   penCancel(): void;

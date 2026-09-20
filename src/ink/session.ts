@@ -1,4 +1,10 @@
-import { distance, type Stroke, strokeLength, strokesLength, type Vec } from "../core/geometry";
+import {
+  distance,
+  type PenPoint,
+  type Stroke,
+  strokeLength,
+  strokesLength,
+} from "../core/geometry";
 import { INPUT_LIMITS, isInputPoint } from "../core/inputLimits";
 import { InkLedger } from "./budget";
 import { COMMIT_DELAY_MS, MIN_DRAWING_LENGTH } from "./constants";
@@ -18,7 +24,7 @@ export class PenInkSession implements InkSession {
   readonly #listener: InkSessionListener;
   readonly #ledger = new InkLedger();
   readonly #ids = new DrawingIdSequence();
-  #strokes: Vec[][] = [];
+  #strokes: PenPoint[][] = [];
   #points = 0;
   #penIsDown = false;
   #liftedAtMs: number | null = null;
@@ -44,7 +50,7 @@ export class PenInkSession implements InkSession {
     return this.#ledger.budget;
   }
 
-  penDown(point: Vec): void {
+  penDown(point: PenPoint): void {
     if (this.#penIsDown || this.#ledger.isDry) return;
     if (!isInputPoint(point)) {
       this.#reject("out-of-bounds");
@@ -59,7 +65,7 @@ export class PenInkSession implements InkSession {
     this.#points += 1;
   }
 
-  penMove(point: Vec): void {
+  penMove(point: PenPoint): void {
     const stroke = this.#strokes.at(-1);
     const last = stroke?.at(-1);
     if (!this.#penIsDown || stroke === undefined || last === undefined) return;

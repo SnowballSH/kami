@@ -91,6 +91,7 @@ export class CanvasRenderer implements Renderer {
     for (const twin of world.twins) if (aliceInView(twin, view)) paintAlice(ctx, twin, nowMs);
     if (aliceInView(world.alice, view)) paintAlice(ctx, world.alice, nowMs);
     if (world.sumikui !== null) paintSumikui(ctx, world.sumikui, nowMs);
+    this.inkPainter.paintHeld(ctx, frame.heldInks);
     this.inkPainter.paintActive(ctx, frame.activeStrokes, frame.activeVerdict);
     this.nightPainter.paint(
       ctx,

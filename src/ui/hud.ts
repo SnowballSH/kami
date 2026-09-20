@@ -58,6 +58,10 @@ export class DomHud implements Hud {
     ];
   }
 
+  toolbarBottom(): number {
+    return this.toolbar.element.getBoundingClientRect().bottom;
+  }
+
   setAutopilot(enabled: boolean): void {
     this.zoom.setAutopilot(enabled);
   }

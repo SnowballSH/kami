@@ -4,10 +4,10 @@ import { KAMI_GLYPHS } from "./strokeFont/kamiGlyphs";
 import { licenceNotice } from "./strokeFont/licenceNotice";
 import { parseSvgFont } from "./strokeFont/svgFont";
 
-const SOURCE_PATH = "node_modules/hersheytext/svg_fonts/EMSFelix.svg";
+const SOURCE_PATH = "node_modules/hersheytext/svg_fonts/EMSReadability.svg";
 const OUTPUT_DIRECTORY = "src/handwriting/fonts";
-const FONT_FILE = "emsFelix.json";
-const LICENCE_FILE = "LICENSE-EMSFelix.md";
+const FONT_FILE = "emsReadability.json";
+const LICENCE_FILE = "LICENSE-EMSReadability.md";
 
 const projectFile = (path: string): URL => new URL(`../${path}`, import.meta.url);
 
