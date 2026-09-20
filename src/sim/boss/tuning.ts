@@ -80,7 +80,7 @@ export const TEAR_TUNING = {
   hitInvulnerableMs: 500,
   perishMs: 900,
   weaponMinSpeed: 3,
-  hitDamage: 12,
+  hitDamage: 34,
   heavyMultiplier: 2,
   spinMultiplier: 1.5,
   knockback: 9,
