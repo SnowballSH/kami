@@ -24,8 +24,8 @@ const IDLE: WalkIntent = { x: 0, y: 0 };
  */
 const REPLAN_TICKS = 30;
 const WAITING_REPLAN_TICKS = 120;
-/** Running from the Sumikui, which moves, she checks her escape far more often. */
-const FLEEING_REPLAN_TICKS = 10;
+/** Running from the Sumikui, which moves, she checks her escape more often — three times a second, not more: each look costs a fifth of a frame on a tablet. */
+const FLEEING_REPLAN_TICKS = 20;
 /** Ticks on the ground without the way ahead getting any shorter before she gives up and waits. */
 const STALL_TICKS = 240;
 /** Ticks she sulks after a stall before trying the board again on her own. */
