@@ -16,6 +16,7 @@ const alice = (x: number): AliceSnapshot => ({
   grounded: true,
   climbing: false,
   hasKey: false,
+  look: { kind: "alice" },
 });
 
 const BRIDGE: Drawing = {
@@ -53,6 +54,8 @@ const world = (eater: SumikuiSnapshot | null): WorldSnapshot => ({
   alice: alice(0),
   twins: [alice(300)],
   sumikui: eater,
+  soul: null,
+  tear: null,
   drawings: [],
   bites: [],
   keyTaken: false,
