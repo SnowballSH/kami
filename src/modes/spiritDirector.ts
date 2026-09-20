@@ -23,6 +23,9 @@ const spiritOf = (incarnation: Incarnation): PlayerState => ({ kind: "spirit", i
 export class SpiritDirector implements ModeDirector {
   state: PlayerState;
   readonly room = null;
+  get bodyNames(): readonly string[] {
+    return this.incarnation.kind === "drawn" ? this.incarnation.names : [];
+  }
 
   constructor(
     readonly mode: GameMode,

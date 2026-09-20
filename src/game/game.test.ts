@@ -37,6 +37,7 @@ import type { Tool } from "../ui/types";
 import {
   HEART_SWALLOWED_LINE,
   INCARNATED_LINE,
+  INCARNATED_PARTS_LINE,
   PART_RESTORED_LINE,
   SERVANT_CAME_LINE,
   SOUL_WAITS_LINE,
@@ -2353,6 +2354,15 @@ describe("Game in Boss mode", () => {
     expect(player.written).toContain(SERVANT_CAME_LINE);
   });
 
+  it("names a body from anywhere on the page when the player is still a soul", async () => {
+    const heart = soulOf(player);
+    player.game.onCommit(drawingOf("body", ringAround(heart, 30)));
+    await player.wait(50);
+    await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
+    expect(player.renderer.lastFrame?.world.soul).toBeNull();
+    expect(drawnLook(player).body.strokes).toHaveLength(1);
+  });
+
   it("never sends her body to be tidied: not when named, nor when the slider comes to rest", async () => {
     const eyes = new Eyes([], []);
     const twoPlayers = new Player("wonderland", { eyes, mode: BOSS_MODE });
@@ -2371,11 +2381,24 @@ describe("Game in Boss mode", () => {
 
   it("grafts legs drawn onto a legless body, and says so", async () => {
     const heart = soulOf(player);
-    player.game.onCommit(drawingOf("body", ...figureAround(heart).slice(0, 4)));
+    const legless = figureAround(heart)
+      .slice(0, 4)
+      .map((stroke, index) =>
+        index < 2 ? stroke : stroke.map((point) => ({ ...point, y: point.y - 10 })),
+      );
+    player.game.onCommit(drawingOf("body", ...legless));
     await player.write("alice", { x: heart.x, y: heart.y + 15 });
     expect(drawnLook(player).abilities.walk).toBe(false);
+    expect(player.written).toContain(INCARNATED_PARTS_LINE(["head", "arms"]));
 
-    const legs = legsBelow(heart);
+    await player.wait(500);
+    const current = player.alice;
+    if (current.look.kind !== "drawn") throw new Error("drawing did not incarnate");
+    const bodyHeart = {
+      x: current.center.x + current.look.body.heart.x * current.look.scale,
+      y: current.center.y + current.look.body.heart.y * current.look.scale,
+    };
+    const legs = legsBelow(bodyHeart);
     await player.scrawl(legs.map((stroke) => [...stroke]));
     expect(drawnLook(player).abilities.walk).toBe(true);
     expect(drawnLook(player).body.strokes).toHaveLength(6);

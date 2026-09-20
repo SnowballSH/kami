@@ -11,6 +11,7 @@ import {
   heartInWorld,
   incarnate,
   namesWings,
+  partOf,
   partReach,
   snip,
   toBodySpace,
@@ -57,8 +58,36 @@ describe("incarnating a drawing", () => {
     expect(partsOf(figure())).toEqual(["head", "torso", "arms", "arms", "legs", "legs"]);
   });
 
+  it("uses frame-relative bands when the heart sits low in the body", () => {
+    const lowHeart = { x: 100, y: 75 };
+    const body = incarnate(
+      [
+        line({ x: 100, y: 0 }, { x: 100, y: 2 }),
+        ring(lowHeart, 8),
+        line({ x: 92, y: 80 }, { x: 88, y: 100 }),
+        line({ x: 108, y: 80 }, { x: 112, y: 100 }),
+      ],
+      lowHeart,
+      "alice",
+      0,
+    ).body;
+    expect(partsOf(body).slice(-2)).toEqual(["legs", "legs"]);
+    expect(abilitiesOf(body).walk).toBe(true);
+    expect(
+      partOf(
+        line({ x: 0, y: 50 }, { x: 0, y: 60 }),
+        { x: 0, y: 25 },
+        {
+          width: 100,
+          height: 100,
+        },
+        false,
+      ),
+    ).toBe("legs");
+  });
+
   it("calls a stroke sticking up and out a wing, and is quicker to when the name has wings", () => {
-    const wing = line({ x: 115, y: 80 }, { x: 160, y: 40 });
+    const wing = line({ x: 140, y: 80 }, { x: 180, y: 40 });
     const shortWing = line({ x: 112, y: 82 }, { x: 130, y: 50 });
     expect(partsOf(incarnate([...FIGURE, wing], HEART, "alice", 0).body).at(-1)).toBe("wings");
     expect(partsOf(incarnate([...FIGURE, shortWing], HEART, "alice", 0).body).at(-1)).toBe("head");
@@ -163,7 +192,7 @@ describe("snipping", () => {
 
   it("takes only the wings when a cut crosses both wings and torso", () => {
     const winged = incarnate(
-      [TORSO, line({ x: 115, y: 80 }, { x: 160, y: 40 })],
+      [TORSO, line({ x: 140, y: 80 }, { x: 180, y: 40 })],
       HEART,
       "a bird",
       0,
@@ -183,7 +212,7 @@ describe("snipping", () => {
 
   it("takes only the torso when a cut crosses both torso and wings", () => {
     const winged = incarnate(
-      [TORSO, line({ x: 115, y: 80 }, { x: 160, y: 40 })],
+      [TORSO, line({ x: 140, y: 80 }, { x: 180, y: 40 })],
       HEART,
       "a bird",
       0,
@@ -223,7 +252,7 @@ describe("grafting", () => {
   });
 
   it("grows a part she never had: wings drawn onto her let her fly", () => {
-    const wings = local(line({ x: 115, y: 80 }, { x: 160, y: 40 }));
+    const wings = local(line({ x: 140, y: 80 }, { x: 180, y: 40 }));
     const grafted = graft(figure(), [wings], 0);
     expect(grafted?.restored).toEqual(["wings"]);
     expect(abilitiesOf(grafted?.body ?? legless).fly).toBe(true);

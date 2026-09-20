@@ -4,6 +4,31 @@ import type { SnipperRank } from "../sim/boss/tuning";
 export const SOUL_WAITS_LINE = "Only a heart, so far. Draw it a body, and write who it is.";
 export const INCARNATED_LINE = (name: string): string =>
   `There. The ink is ${name} now — walk it, and keep it whole.`;
+export const INCARNATED_PARTS_LINE = (alive: readonly BodyPartKind[]): string | null => {
+  const missing = (["legs", "arms", "head"] as const).filter((part) => !alive.includes(part));
+  if (missing.length === 0) return null;
+  if (missing.length === 1) {
+    switch (missing[0]) {
+      case "legs":
+        return "No legs that I can see — she will not walk until you draw some.";
+      case "arms":
+        return "No arms — she cannot climb.";
+      case "head":
+        return "No head — she cannot see far.";
+    }
+  }
+  const labels = missing.map((part) => PART_NAMES[part]);
+  const joined =
+    labels.length === 2
+      ? `${labels[0]} or ${labels[1]}`
+      : `${labels.slice(0, -1).join(", ")}, or ${labels.at(-1)}`;
+  const abilities = missing.map((part) => ({ legs: "walk", arms: "climb", head: "see far" })[part]);
+  const actions =
+    abilities.length === 2
+      ? `${abilities[0]} or ${abilities[1]}`
+      : `${abilities.slice(0, -1).join(", ")}, or ${abilities.at(-1)}`;
+  return `No ${joined} — she cannot ${actions} until you draw them.`;
+};
 export const UNMADE_LINE = "Gone back into the pen. Draw her again.";
 
 export const TEAR_OPENS_LINES: readonly string[] = [

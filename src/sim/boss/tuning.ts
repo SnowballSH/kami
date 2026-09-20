@@ -5,8 +5,8 @@ import type { BodyPartKind } from "../body/types";
 export const BODY_TUNING = {
   heartRadius: 9,
   torsoHug: 0.2,
-  legsBelow: 0.12,
-  headAbove: 0.12,
+  legsBelow: 0.18,
+  headAbove: 0.18,
   wingsOut: 0.3,
   namedWingsOut: 0.15,
   armsOut: 0.12,
@@ -14,6 +14,8 @@ export const BODY_TUNING = {
   graftReach: 14,
   graftGlowMs: 1_400,
 } as const;
+
+export const SOUL_HOVER_PX = 40;
 
 export const SNIPPER_RANKS = ["servant", "lesser"] as const;
 export type SnipperRank = (typeof SNIPPER_RANKS)[number];

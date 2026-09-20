@@ -27,7 +27,14 @@ import type {
   PlacementRejection,
   PosedDrawing,
 } from "../ink/types";
-import { allowsLaw, createDirector, EMBODIED_MODE, EMBODIED_MODE_ID, refusalLine } from "../modes";
+import {
+  allowsLaw,
+  createDirector,
+  EMBODIED_MODE,
+  EMBODIED_MODE_ID,
+  namesABody,
+  refusalLine,
+} from "../modes";
 import type { EmbodimentTransition, GameMode, ModeDirector } from "../modes/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore, StoredDrawing } from "../persistence/types";
@@ -70,6 +77,7 @@ import type { EarsHandlers, Voice } from "../voice/types";
 import {
   HEART_SWALLOWED_LINE,
   INCARNATED_LINE,
+  INCARNATED_PARTS_LINE,
   PART_RESTORED_LINE,
   SERVANT_CAME_LINE,
   SERVANT_PERISHED_LINE,
@@ -1008,6 +1016,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         this.camera.resumeFollowing();
         this.stuck.reset(this.nowMs);
         this.remark(INCARNATED_LINE(name), HINT_LIFETIME_MS);
+        const alice = sim.snapshot().alice;
+        const alive =
+          alice?.look.kind === "drawn"
+            ? [
+                ...(alice.look.abilities.walk ? (["legs"] as const) : []),
+                ...(alice.look.abilities.climb ? (["arms"] as const) : []),
+                ...(alice.look.abilities.see ? (["head"] as const) : []),
+              ]
+            : [];
+        const partsLine = INCARNATED_PARTS_LINE(alive);
+        if (partsLine !== null) this.remark(partsLine, HINT_LIFETIME_MS);
         return;
       }
       case "tear-opens":
@@ -1251,7 +1270,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       }
     }
 
-    const subject = this.drawingNear(note.id);
+    const subject = this.bodyNamedNearSoul(text) ?? this.drawingNear(note.id);
     const nameless = subject !== null && subject.ruling === null;
     const wish = (await this.modules.summoner?.wish(text)) ?? null;
     if (!stillHere()) return;
@@ -1855,6 +1874,29 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       .filter(({ gap }) => gap <= NAMING_REACH)
       .sort((a, b) => a.gap - b.gap);
     return nearest[0]?.record ?? null;
+  }
+
+  private bodyNamedNearSoul(text: string): InkRecord | null {
+    if (
+      this.embodied ||
+      this.director.bodyNames.length === 0 ||
+      !namesABody(text, this.director.bodyNames)
+    )
+      return null;
+    const snapshot = this.modules.sim.snapshot();
+    const soul = snapshot.soul;
+    if (soul === null) return null;
+    const soulRect: Rect = { x: soul.at.x - 0.5, y: soul.at.y - 0.5, width: 1, height: 1 };
+    return (
+      snapshot.drawings
+        .flatMap((pose) => {
+          const record = this.ledger.get(pose.id);
+          return record?.ruling === null
+            ? [{ record, gap: rectGap(soulRect, currentBounds(record.drawing, pose)) }]
+            : [];
+        })
+        .sort((a, b) => a.gap - b.gap)[0]?.record ?? null
+    );
   }
 
   private aliceFeet(): Vec {

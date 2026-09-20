@@ -23,7 +23,7 @@ type BodyPartKind = "head" | "torso" | "arms" | "legs" | "wings";
 interface Abilities { walk; jump; climb; fly; see }
 ```
 
-**Segmentation** (`partOf`) is by a stroke's centroid relative to the heart, in fractions of the body frame (`BODY_TUNING`): within `torsoHug` (0.2 of the smaller side) of the heart is torso; more than `legsBelow` (0.12 of height) under it is legs; more than `headAbove` above it is head, unless it is also out to the side by more than `wingsOut` (0.3 of width) — then wings; anything else more than `armsOut` to the side is arms. A body whose *name* is winged (*a bird*, *an angel*, *a fairy*, *a dragon*…) needs only `namedWingsOut` (0.15) to count something up-and-out as wings: a bird's wings are closer in than an angel's.
+**Segmentation** (`partOf`) keeps the torso band around the heart, then reads the other stroke centroids from the frame centre: more than `legsBelow` (0.18 of height) below it is legs; more than `headAbove` (0.18 of height) above it is head, unless it is also out to the side by more than `wingsOut` (0.3 of width) — then wings; anything else is arms. A body whose *name* is winged (*a bird*, *an angel*, *a fairy*, *a dragon*…) needs only `namedWingsOut` (0.15) to count something up-and-out as wings: a bird's wings are closer in than an angel's. This frame-relative reading keeps legs usable when the soul sits low in a tall drawing.
 
 **Abilities** (`abilitiesOf`): legs → walk and jump; arms → climb (and the push and grab that climbing gives); wings → fly (the `flight` law's semantics, without the law); head → see. A part is *alive* while it keeps at least `partAliveRatio` (half) of the most ink it ever had. A body with no legs still has a heart and a torso: it can be pushed and it can fall, but it cannot go anywhere by itself. A body with no head sees dimly: the renderer veils the screen edges (`paintDimVeil`).
 
@@ -34,6 +34,8 @@ interface Abilities { walk; jump; climb; fly; see }
 Movement scales with the body: the controller is built with the drawing's frame, and `aliceSize` semantics (and their clamps) do the rest — a tall body strides and jumps further, a tiny one is quick to turn and easy to miss.
 
 **One body, one heart.** The drawn body is Alice herself's (`ALICE_HERSELF`) and nobody else's. While the player is a soul, `sim.alices()` is empty: the `Party` hires no pilot, drives nobody, and a `clones` law makes no twins of a heart. Boss mode forbids `clones` outright; in Spirit mode, where a clone law may stand, her twins are Kami's own sketch of her (the plain `AliceLook`), not copies of the drawn strokes — the ink is authoritative for exactly one body, and cutting a copy would mean nothing. The servant's prey is her body alone; a twin falling or being eaten does not unmake her, since the heart is in her. The drawing that became her leaves the ink ledger the moment it is named, so it is never sent to Kami to be tidied and the tidiness slider never moves it: grafts join the body directly (`Game.land` → `sim.graft`) and never become drawings.
+
+The soul hovers `SOUL_HOVER_PX` (40 px) above the heart's standing seat until a drawing gives it a body. That keeps the heart visible above the ground and leaves room for a natural body to settle onto the page under gravity.
 
 ## The servant (`src/sim/boss/snipper.ts`)
 

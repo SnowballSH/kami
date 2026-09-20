@@ -14,7 +14,7 @@ import type { BodyPartKind, Cut } from "./body/types";
 import { exactBounds } from "./bodyBounds";
 import type { Prey } from "./boss/snipper";
 import { Tear, type TearDeed } from "./boss/tear";
-import { TEAR_TUNING } from "./boss/tuning";
+import { SOUL_HOVER_PX, TEAR_TUNING } from "./boss/tuning";
 import { blowFrom } from "./boss/weapons";
 import { Checkpoints } from "./checkpoints";
 import {
@@ -188,7 +188,8 @@ export class MatterSimulation implements Simulation {
 
   disembody(): void {
     const { alice, engine, board, twins } = this.world;
-    const seat = this.world.soul ?? alice.heart();
+    const heart = alice.heart();
+    const seat = this.world.soul ?? { x: heart.x, y: heart.y - SOUL_HOVER_PX };
     Matter.Composite.remove(engine.world, alice.body);
     const soul = new AliceController(board.spawn, this.physics);
     soul.placeAt({ x: seat.x, y: seat.y + soul.bounds().height / 2 });

@@ -80,12 +80,10 @@ export const partOf = (
   const hug = BODY_TUNING.torsoHug * Math.min(frame.width, frame.height);
   if (encloses(stroke, heart) || distanceToStroke(heart, stroke) <= hug) return "torso";
   const centroid = centroidOf(stroke);
-  const dx = centroid.x - heart.x;
-  const dy = centroid.y - heart.y;
-  if (dy > BODY_TUNING.legsBelow * frame.height) return "legs";
-  if (dy < -BODY_TUNING.headAbove * frame.height) {
+  if (centroid.y > BODY_TUNING.legsBelow * frame.height) return "legs";
+  if (centroid.y < -BODY_TUNING.headAbove * frame.height) {
     const out = (winged ? BODY_TUNING.namedWingsOut : BODY_TUNING.wingsOut) * frame.width;
-    return Math.abs(dx) > out ? "wings" : "head";
+    return Math.abs(centroid.x) > out ? "wings" : "head";
   }
   return "arms";
 };
