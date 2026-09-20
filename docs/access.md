@@ -125,9 +125,8 @@ driving a browser or running inference.
 
 ## GX10 network verification before shared use
 
-These are deployment requirements, **not claims about the live GX10**. No service, firewall or
-model was changed to validate this PR, and the session could not resolve the `gx10` SSH alias.
-An authorized operator must verify the real network before enabling shared use:
+These are deployment requirements, **not claims about any live box**: they have not been validated
+against a deployment. An authorized operator must verify the real network before enabling shared use:
 
 1. Inspect listening addresses with `ss -lntup` and the active firewall with `sudo ufw status
    verbose` or the host's equivalent. Only the intended HTTPS proxy should be reachable from

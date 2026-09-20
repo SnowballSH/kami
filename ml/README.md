@@ -132,8 +132,8 @@ KAMI_EYE_MODEL=artifacts/kami-eye .venv/bin/python -m pytest tests/test_golden.p
 The separately managed serving sidecar uses `KAMI_RECOGNIZER_URL=http://127.0.0.1:8790` in the
 game's server. It needs `numpy`, `opencv-python-headless` and `onnxruntime`, and never imports
 torch. `KAMI_EYE_PORT` changes the port; `KAMI_EYE_MODEL` defaults to `artifacts/kami-eye`.
-Pending [R18](https://github.com/SnowballSH/kami/pull/42) adds a guarded revision/artifact check
-command; use its check guide when that implementation is integrated.
+`bun run check:gx10 <full-commit-sha> <artifact-name>` runs the full ML checks, golden parity included,
+on the box against a named artifact ([scripts/ci/README.md](../scripts/ci/README.md)).
 
 Sidecar behaviour beyond the contract's table: `partial` is validated and otherwise ignored (the one
 model reads prefixes and finished drawings alike); `top` is 1–1000 and capped at K; a drawing with

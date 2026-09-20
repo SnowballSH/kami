@@ -375,9 +375,9 @@ See [screen.md](screen.md).
 
 ## Deployment and security status
 
-At the base revision above, the API/Vite are LAN-oriented, API CORS is wildcard, and there is no
-client authentication, board/controller authorization or aggregate model quota. Anyone who can
-reach the API can modify boards, submit controller state and consume configured upstreams.
+In demo mode, the default, the API and Vite are LAN-oriented and there is no client
+authentication or board/controller authorization. Anyone who can reach the API can modify boards,
+submit controller state and consume configured upstreams.
 Use this build only on an isolated trusted network; keeping a service key off the browser does
 not protect an unauthenticated proxy.
 
@@ -388,19 +388,17 @@ The server runs in one of two access modes ([access.md](access.md)):
 | `KAMI_ACCESS_MODE=demo` (default) | Trusted reachable LAN peers; explicit browser-origin checks, no participant authentication. API/Vite remain LAN-accessible unless explicitly bound to loopback. |
 | `KAMI_ACCESS_MODE=shared` | Loopback API default behind a same-origin HTTPS proxy; exact allowed HTTPS origins; credentials grant exact boards/controllers and model permission. Browser token exchange uses an HttpOnly/Secure/SameSite cookie; non-browser clients use bearer credentials. Unauthenticated UDP is disabled; local serial is trusted host input. |
 
-The inspected R12 revision also protects voice: sketch/text model routes, `voice/speak` and
+Voice is inside the same limits: sketch/text model routes, `voice/speak` and
 voice-listening upgrades share a per-process request/concurrency budget in both modes. A listening
 socket holds a concurrency slot until closed, including continuous wake-word listening.
 Its upgrade path checks origin, credentials and model permission through the same access object;
 the WebSocket transport does not pass through the ordinary HTTP router. These are process-local
 limits; cold-start pen traffic plus an active microphone still needs GX10 capacity testing.
 
-After security integration, an operator must still verify actual bind addresses/firewall,
-private database/model ports, HTTPS certificates, origin handling and SSE/WebSocket proxying
-on the intended iPad/booth network. No live GX10 configuration is established by repository tests.
-The user has [kept #40 open for their deployment gate](https://github.com/SnowballSH/kami/pull/40#issuecomment-5746417102):
-demo-mode deployment on GX10, live guessing under the limits, controller SSE and iPad cold start.
-Its local access/voice tests do not release that hold or establish production readiness.
+Before shared use an operator must still verify the actual bind addresses and firewall, private
+database and model ports, HTTPS certificates, origin handling and SSE/WebSocket proxying on the
+network the iPads will use. Repository tests establish none of that, and passing them is not
+production readiness.
 
 ## Product scope and verification
 

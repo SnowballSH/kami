@@ -41,6 +41,8 @@ echo
 printf '%s' "$wifi_password" | "${SSH[@]}" 'umask 077; cat > ~/kami/run/wifi.secret'
 unset wifi_password
 
+# Optional: this Mac's address on the venue Wi-Fi in .gx10/mac-venue-ip (`ipconfig getifaddr en0` once it
+# has joined), so the box can check that it can reach the Mac before it gives up its hotspot.
 mac_venue_ip=$(cat .gx10/mac-venue-ip 2>/dev/null || true)
 "${SSH[@]}" -t "bash ~/kami/box/wifi.sh join $(printf '%q' "$SSID") $(printf '%q' "$mac_venue_ip")"
 

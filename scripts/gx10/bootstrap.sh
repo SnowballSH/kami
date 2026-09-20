@@ -4,6 +4,7 @@
 #   bootstrap.sh                          find the box on its hotspot (its name in .gx10/box-hotspot-name)
 #   bootstrap.sh <address>                the box is at this address
 #   bootstrap.sh <address> --new-identity [user]
+#       (the login on the box is [user], else the name in .gx10/box-user, else yours here)
 #       the box was set up again, reset or swapped, so its SSH identity changed: forget the old one —
 #       but only if you read the address off the box's own screen, or checked the fingerprint there
 #       (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub).

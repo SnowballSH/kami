@@ -41,7 +41,7 @@ before you finish, tidies your lines, talks back, and helps when you are stuck.
 
 ## Ways to play
 
-The start screen offers three; the address picks any of them directly.
+The start screen offers the first three; the address picks any of them directly.
 
 | Mode | Address | What it is |
 |---|---|---|
@@ -49,6 +49,7 @@ The start screen offers three; the address picks any of them directly.
 | Puzzle | `?mode=puzzle` | Staged rooms, each solved by one drawn or written idea, with an ink eater loose |
 | Boss | `?mode=boss` | Two players, one draws and one moves; you start as a heart with no body, and something is coming to snip it |
 | Wonderland | `?mode=embodied` | The original adventure in seven stretches, from the Riverbank through the Hall of Doors and the Pool of Tears to the Mad Tea Party |
+| Spirit | `?mode=spirit` | There is no Alice: draw one, name her, and she is yours |
 
 Add `&board=<name>` to open or create a particular board. Open `/?screen` on a monitor and it shows,
 live, whichever device is being drawn on ([docs/screen.md](docs/screen.md)).
