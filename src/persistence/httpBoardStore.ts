@@ -10,8 +10,10 @@ import {
   type FetchLike,
   JSON_HEADERS,
 } from "./api";
+import { parseBoardResponse, rejectBoardResponse } from "./boardResponse";
 import { PersistenceError, persistenceFailure } from "./persistenceError";
 import { withRequestDeadline } from "./requestDeadline";
+import { boardSnapshotSchema, boardSummaryListSchema } from "./schemas";
 import type {
   BoardSnapshot,
   BoardStore,
@@ -26,18 +28,6 @@ const EMPTY_SNAPSHOT: BoardSnapshot = { drawings: [], notes: [], rules: [] };
 
 const UNREACHABLE_WARNING =
   "Kami's memory (the server behind /api) is unreachable; this board will not be remembered.";
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null;
-
-const isSnapshot = (body: unknown): body is BoardSnapshot =>
-  isRecord(body) &&
-  Array.isArray(body.drawings) &&
-  Array.isArray(body.notes) &&
-  Array.isArray(body.rules);
-
-const isSummaryList = (body: unknown): body is { readonly boards: readonly BoardSummary[] } =>
-  isRecord(body) && Array.isArray(body.boards);
 
 interface Mutation {
   readonly key: string;
@@ -98,10 +88,12 @@ export class HttpBoardStore implements BoardStore {
     try {
       return await this.#queue.enqueueBarrier(boardId, async () => {
         try {
-          const body = await this.#read(boardPath(boardId), "load");
-          if (!isSnapshot(body)) {
-            throw new PersistenceError({ operation: "load", reason: "invalid-response" });
-          }
+          const path = boardPath(boardId);
+          const body: BoardSnapshot = parseBoardResponse(
+            boardSnapshotSchema,
+            path,
+            await this.#read(path, "load"),
+          );
           memory.snapshot = [...memory.pending.values()].reduce(
             (snapshot, mutation) => mutation.apply(snapshot),
             body,
@@ -122,10 +114,8 @@ export class HttpBoardStore implements BoardStore {
 
   async listBoards(): Promise<readonly BoardSummary[]> {
     try {
-      const body = await this.#read(boardsPath(), "list");
-      if (!isSummaryList(body)) {
-        throw new PersistenceError({ operation: "list", reason: "invalid-response" });
-      }
+      const path = boardsPath();
+      const body = parseBoardResponse(boardSummaryListSchema, path, await this.#read(path, "list"));
       this.#listError = null;
       return body.boards;
     } catch (error) {
@@ -275,7 +265,12 @@ export class HttpBoardStore implements BoardStore {
     return withRequestDeadline(async (signal) => {
       const response = await this.#fetch(path, { signal });
       this.#checkResponse(response, operation);
-      return await response.json();
+      try {
+        return await response.json();
+      } catch (error) {
+        if (error instanceof SyntaxError) rejectBoardResponse(path, ["response: invalid JSON"]);
+        throw error;
+      }
     });
   }
 

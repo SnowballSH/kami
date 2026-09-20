@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # On the GX10: is Kami up, and what has it been saying?
-cd ~/kami || exit 1
+cd -P "$(dirname "$0")/.." || exit 1
+echo "release: $PWD"
 EYE_PORT=${KAMI_EYE_PORT:-8790}
 for service in mongod eye server; do
   pid=$(cat run/$service.pid 2>/dev/null || true)

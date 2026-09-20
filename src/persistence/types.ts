@@ -39,6 +39,7 @@ export interface BoardStore {
   readonly hasUnsavedChanges: boolean;
   state(boardId: string): PersistenceState;
   retry(boardId: string): Promise<void>;
+  /** Malformed saved data rejects instead of being presented as an empty board. */
   load(boardId: string): Promise<BoardSnapshot>;
   listBoards(): Promise<readonly BoardSummary[]>;
   saveDrawing(boardId: string, stored: StoredDrawing): void;

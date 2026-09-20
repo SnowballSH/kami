@@ -9,10 +9,11 @@ from serving import serving
 from synthetic import EMPTY_CATEGORY, PER_CLASS, random_drawing
 from tiny_model import TINY_LABELS, TINY_TEMPERATURE, build_tiny_model
 
+from artifacts import seal_bundle
 from exemplars import DEFAULT_MIN_PROBABILITY, Selection, write_exemplars
 from quickdraw_bin import Drawing, category_path, write_drawings
 from recognizer import SketchRecognizer
-from render import from_xy_arrays, render, render_source_sha256
+from render import CANVAS, MARGIN, SIZE, THICKNESS, from_xy_arrays, render, render_source_sha256
 
 POOL_SIZE = 400
 
@@ -24,8 +25,19 @@ def tiny_artifacts(tmp_path_factory: pytest.TempPathFactory) -> Path:
     build_tiny_model(artifacts_dir / "model.onnx")
     (artifacts_dir / "labels.json").write_text(json.dumps(TINY_LABELS))
     (artifacts_dir / "preprocess.json").write_text(
-        json.dumps({"temperature": TINY_TEMPERATURE, "renderSha256": render_source_sha256()})
+        json.dumps(
+            {
+                "temperature": TINY_TEMPERATURE,
+                "renderSha256": render_source_sha256(),
+                "size": SIZE,
+                "canvas": CANVAS,
+                "margin": MARGIN,
+                "thickness": THICKNESS,
+            }
+        )
     )
+    (artifacts_dir / "golden.json").write_text('[{"fixture": true}]')
+    seal_bundle(artifacts_dir)
     return artifacts_dir
 
 

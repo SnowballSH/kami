@@ -125,6 +125,12 @@ describe("ScriptedCat", () => {
       expect(await cat.name("a hero", SKETCH)).toMatchObject({ nature: "walker", name: "a hero" });
     });
 
+    it("hears a car as something to drive", async () => {
+      cat.enterRoom(hallOfDoors);
+      expect(await cat.name("a car", SKETCH)).toMatchObject({ nature: "vehicle", name: "a car" });
+      expect(await cat.name("a boat", SKETCH)).toMatchObject({ nature: "vehicle", name: "a boat" });
+    });
+
     it("maps the book's labels onto size", async () => {
       cat.enterRoom(hallOfDoors);
       expect(await cat.name("eat me", SKETCH)).toMatchObject({ nature: "grow", name: "eat me" });

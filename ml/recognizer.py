@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,11 +10,24 @@ import numpy as np
 import onnxruntime as ort
 from numpy.typing import NDArray
 
-from render import Image, Strokes, render, render_source_sha256, to_model_input
+from artifacts import (
+    MODEL_FILE,
+    TensorSpec,
+    load_metadata,
+    validate_tensors,
+)
+from render import (
+    CANVAS,
+    MARGIN,
+    SIZE,
+    THICKNESS,
+    Image,
+    Strokes,
+    render,
+    render_source_sha256,
+    to_model_input,
+)
 
-MODEL_FILE = "model.onnx"
-LABELS_FILE = "labels.json"
-PREPROCESS_FILE = "preprocess.json"
 INPUT_NAME = "image"
 OUTPUT_NAMES = ["logits", "embedding"]
 DEFAULT_TOP = 5
@@ -48,16 +60,31 @@ def unit_rows(vectors: NDArray[np.float32]) -> NDArray[np.float32]:
 
 class SketchRecognizer:
     def __init__(self, artifacts_dir: Path, threads: int | None = None) -> None:
-        preprocess = json.loads((artifacts_dir / PREPROCESS_FILE).read_text())
-        self.name = artifacts_dir.resolve().name
-        self.labels: list[str] = json.loads((artifacts_dir / LABELS_FILE).read_text())
-        self.temperature = float(preprocess["temperature"])
-        self.render_matches = preprocess.get("renderSha256") == render_source_sha256()
+        self.name = artifacts_dir.name
+        artifacts_dir = artifacts_dir.resolve(strict=True)
+        metadata = load_metadata(
+            artifacts_dir,
+            {
+                "size": SIZE,
+                "canvas": CANVAS,
+                "margin": MARGIN,
+                "thickness": THICKNESS,
+                "renderSha256": render_source_sha256(),
+            },
+        )
+        self.labels = list(metadata.labels)
+        self.temperature = metadata.temperature
+        self.render_matches = True
         options = ort.SessionOptions()
         if threads is not None:
             options.intra_op_num_threads = threads
         self._session = ort.InferenceSession(
             str(artifacts_dir / MODEL_FILE), options, providers=["CPUExecutionProvider"]
+        )
+        validate_tensors(
+            [TensorSpec(node.name, node.type, node.shape) for node in self._session.get_inputs()],
+            [TensorSpec(node.name, node.type, node.shape) for node in self._session.get_outputs()],
+            len(self.labels),
         )
 
     def _run(self, strokes: Strokes) -> tuple[NDArray[np.float32], NDArray[np.float32]]:

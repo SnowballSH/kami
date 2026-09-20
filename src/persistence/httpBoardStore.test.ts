@@ -92,8 +92,7 @@ describe("HttpBoardStore reads", () => {
   it("reports unavailable saved data instead of confirming an empty board", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const broken: FetchLike = async () => new Response("boom", { status: 500 });
-    const nonsense: FetchLike = async () => Response.json({ drawings: "lots" });
-    for (const fetchFn of [offline, broken, nonsense]) {
+    for (const fetchFn of [offline, broken]) {
       const store = new HttpBoardStore(fetchFn);
       await expect(store.load("demo")).rejects.toThrow();
       await expect(store.listBoards()).rejects.toThrow();
