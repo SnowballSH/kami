@@ -49,6 +49,7 @@ export class DomHud implements Hud {
       this.stick.element,
       this.zoom.element,
       this.prompt.element,
+      this.prompt.feedback,
     );
     root.append(this.overlay);
     this.detachers = [

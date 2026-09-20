@@ -1,3 +1,4 @@
+import { INPUT_LIMITS } from "../core/inputLimits";
 import type { CompiledRule, Governs, RuleCompiler, RuleEffect, Target } from "../rules/types";
 import { browserFetch, compilePath, type FetchLike, JSON_HEADERS } from "./api";
 
@@ -69,6 +70,7 @@ export class RemoteRuleCompiler implements RuleCompiler {
   }
 
   async compile(text: string): Promise<CompiledRule | null> {
+    if (text.length > INPUT_LIMITS.text) return null;
     try {
       const response = await this.#fetch(compilePath(), {
         method: "POST",

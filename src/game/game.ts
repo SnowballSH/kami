@@ -10,6 +10,7 @@ import {
   type Stroke,
   type Vec,
 } from "../core/geometry";
+import { INPUT_LIMITS, isInputPoint, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
 import type { Handwriting } from "../handwriting/types";
 import type {
@@ -299,7 +300,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   onReject(reason: PlacementRejection, strokes: readonly Stroke[]): void {
-    if (this.penReader === null) {
+    if (this.penReader === null || reason === "too-detailed" || reason === "out-of-bounds") {
       this.remark(REJECTION_LINES[reason]);
       return;
     }
@@ -718,6 +719,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    * Whatever is instant is tried first; the model is only asked about what nothing else understood.
    */
   private async interpret(text: string, position: Vec): Promise<void> {
+    if (text.length > INPUT_LIMITS.text) {
+      this.remark(TEXT_LIMIT_MESSAGE);
+      return;
+    }
+    if (!isInputPoint(position)) {
+      this.remark(REJECTION_LINES["out-of-bounds"]);
+      return;
+    }
     if (isHelpRequest(text)) {
       this.kamiWrites(this.modules.cat.hint().line, position, { lifetimeMs: HINT_LIFETIME_MS });
       return;

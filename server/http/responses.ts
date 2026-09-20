@@ -1,4 +1,6 @@
 import type { z } from "zod";
+import { INPUT_LIMITS } from "../../src/core/inputLimits";
+import { BodyTooLargeError, readBoundedText } from "../../src/core/readBody";
 
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
@@ -44,9 +46,31 @@ export const parseWith = <Schema extends z.ZodType>(
 export const parseJsonBody = async <Schema extends z.ZodType>(
   request: Request,
   schema: Schema,
+  maxBytes: number = INPUT_LIMITS.sketchBytes,
 ): Promise<Parsed<z.output<Schema>>> => {
-  const body: unknown = await request.json().catch(() => undefined);
-  return body === undefined
-    ? { ok: false, response: badRequest("body is not JSON") }
-    : parseWith(schema, body, "body");
+  const text = await parseTextBody(request, maxBytes);
+  if (!text.ok) return text;
+  try {
+    const body: unknown = JSON.parse(text.value);
+    return parseWith(schema, body, "body");
+  } catch {
+    return { ok: false, response: badRequest("body is not JSON") };
+  }
+};
+
+export const parseTextBody = async (
+  request: Request,
+  maxBytes: number,
+): Promise<Parsed<string>> => {
+  try {
+    return { ok: true, value: await readBoundedText(request, maxBytes) };
+  } catch (error) {
+    return {
+      ok: false,
+      response:
+        error instanceof BodyTooLargeError
+          ? json({ error: error.message }, 413)
+          : badRequest("body could not be read"),
+    };
+  }
 };

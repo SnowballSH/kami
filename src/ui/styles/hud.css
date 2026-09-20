@@ -290,6 +290,15 @@
   color: var(--kami-ink-soft);
 }
 
+.kami-prompt-limit {
+  position: absolute;
+  max-width: min(340px, calc(100vw - 24px));
+  padding: 2px 4px;
+  background: var(--kami-board);
+  color: var(--kami-ink);
+  font-size: 13px;
+}
+
 @media (max-width: 640px) {
   .kami-board-title {
     display: none;

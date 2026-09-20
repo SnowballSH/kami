@@ -1,3 +1,4 @@
+import { INPUT_LIMITS } from "../src/core/inputLimits";
 import { createBeautifier } from "./beautify/beautifier";
 import { createLlmCompiler } from "./compile/llmCompiler";
 import { readConfig } from "./config";
@@ -45,6 +46,7 @@ const isApiCall = (request: Request): boolean =>
   new URL(request.url).pathname.startsWith(API_PREFIX);
 
 const server = Bun.serve({
+  maxRequestBodySize: INPUT_LIMITS.sketchBytes,
   port: config.port,
   hostname: "0.0.0.0",
   fetch: async (request) =>

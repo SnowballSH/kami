@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { INPUT_LIMITS } from "../src/core/inputLimits";
 import { strokesSchema, textSchema } from "../src/persistence/schemas";
 
 export {
@@ -23,13 +24,13 @@ export const recognizeRequestSchema = z.object({
   partial: z.boolean().optional(),
 });
 
-const MAX_NAME_LENGTH = 80;
-
 export const beautifyRequestSchema = z.object({
   strokes: strokesSchema,
-  name: z.string().trim().min(1).max(MAX_NAME_LENGTH).exactOptional(),
+  name: z.string().trim().min(1).max(INPUT_LIMITS.name).exactOptional(),
 });
 
 export const compileRequestSchema = z.object({ text: textSchema.min(1) });
 
-export const transcribeRequestSchema = z.object({ strokes: strokesSchema.min(1) });
+export const transcribeRequestSchema = z.object({
+  strokes: strokesSchema.refine((strokes) => strokes.length > 0, "expected at least one stroke"),
+});

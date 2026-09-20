@@ -3,6 +3,7 @@ import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
 import { poseToWorld, rectsOverlap, type Vec } from "../core/geometry";
+import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
 import { EMBODIED_MODE } from "../modes";
@@ -416,6 +417,14 @@ describe("Game on the Wonderland board", () => {
     await player.erase({ x: 210, y: 215 });
     expect((await player.store.load("wonderland")).rules).toHaveLength(0);
     expect(player.written.some((text) => text.startsWith("kami: gravity"))).toBe(false);
+  });
+
+  it("rejects oversized notes before drawing or persisting them", async () => {
+    const tooLong = "x".repeat(INPUT_LIMITS.text + 1);
+    await player.write(tooLong, { x: 200, y: 200 });
+    expect(player.written.some((text) => text.includes(tooLong))).toBe(false);
+    expect(player.written.some((text) => text.includes(TEXT_LIMIT_MESSAGE))).toBe(true);
+    expect((await player.store.load("wonderland")).notes).toHaveLength(0);
   });
 
   it("lists the standing laws in order, and a tap on one repeals it and erases its note", async () => {

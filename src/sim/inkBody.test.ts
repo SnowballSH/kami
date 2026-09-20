@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { INPUT_LIMITS } from "../core/inputLimits";
 import { INK_THICKNESS } from "../core/world";
 import { exactBounds } from "./bodyBounds";
 import { SOLID_TO_ALL } from "./contacts";
@@ -34,6 +35,20 @@ describe("simplifyStroke", () => {
 });
 
 describe("buildInkBody", () => {
+  it("bounds a worst-case zigzag at the maximum accepted aggregate", () => {
+    const stroke = Array.from({ length: INPUT_LIMITS.pointsPerStroke }, (_, i) => ({
+      x: i * 10,
+      y: i % 2 === 0 ? 0 : 100,
+    }));
+    const started = performance.now();
+    const body = buildInkBody([stroke, stroke], OPTIONS);
+    const elapsed = performance.now() - started;
+    expect(body).not.toBeNull();
+    expect(body?.parts.length).toBeLessThanOrEqual(INPUT_LIMITS.points + 1);
+    expect(elapsed).toBeLessThan(2000);
+    expect(buildInkBody([stroke, stroke, [{ x: 0, y: 0 }]], OPTIONS)).toBeNull();
+  });
+
   it("makes one compound as thick as the ink", () => {
     const body = buildInkBody([line({ x: 100, y: 100 }, { x: 300, y: 100 })], OPTIONS);
     expect(body).not.toBeNull();
