@@ -2082,9 +2082,19 @@ describe("Game in the Sandbox", () => {
       notebook.fleetingBy("kami").some(({ id }) => id === note.id),
     );
     const alice = player.sim.aliceBounds(0);
+    const viewport = player.renderer.viewport();
+    const visible = { x: 0, y: 0, width: viewport.width, height: viewport.height };
     for (const note of notes) {
       expect(rectsOverlap(note.script.bounds, ENDLESS_GROUND)).toBe(false);
       expect(rectsOverlap(note.script.bounds, alice)).toBe(false);
+      expect(note.script.bounds.x).toBeGreaterThanOrEqual(visible.x);
+      expect(note.script.bounds.y).toBeGreaterThanOrEqual(visible.y);
+      expect(note.script.bounds.x + note.script.bounds.width).toBeLessThanOrEqual(
+        visible.x + visible.width,
+      );
+      expect(note.script.bounds.y + note.script.bounds.height).toBeLessThanOrEqual(
+        visible.y + visible.height,
+      );
     }
   });
 

@@ -37,6 +37,7 @@ export interface NotePlacement {
   readonly drift?: Drift;
   readonly minY?: number;
   readonly obstacles?: readonly Rect[];
+  readonly within?: Rect;
 }
 
 /** Everything written on the board, as pen scripts ready to be revealed stroke by stroke. */
@@ -47,9 +48,9 @@ export class NoteBook {
   constructor(private readonly handwriting: Handwriting) {}
 
   /** Inscribes the note and returns it as placed, which may sit above or below where it was asked for. */
-  write({ note, nowMs, lifetimeMs, anchor, drift, minY, obstacles }: NotePlacement): Note {
+  write({ note, nowMs, lifetimeMs, anchor, drift, minY, obstacles, within }: NotePlacement): Note {
     const placed =
-      drift === undefined ? note : this.clearSpotFor(note, drift, minY, obstacles ?? []);
+      drift === undefined ? note : this.clearSpotFor(note, drift, minY, obstacles ?? [], within);
     return this.inscribe(placed, nowMs, anchor ?? null, lifetimeMs).note;
   }
 
@@ -164,10 +165,11 @@ export class NoteBook {
     drift: Drift,
     minY: number | undefined,
     obstacles: readonly Rect[],
+    within: Rect | undefined,
   ): Note {
     const wanted = this.scriptFor(note, this.seed + 1).bounds;
     const taken = [...this.entries.values()].map((entry) => entry.script.bounds).concat(obstacles);
-    const settled = settle(wanted, taken, drift, minY);
+    const settled = settle(wanted, taken, drift, minY, within);
     const position = {
       x: note.position.x + settled.x - wanted.x,
       y: note.position.y + settled.y - wanted.y,

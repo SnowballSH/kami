@@ -1781,7 +1781,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       ...(lifetimeMs === undefined ? {} : { lifetimeMs }),
       ...(anchor === undefined ? {} : { anchor }),
       ...(minY === undefined ? {} : { minY }),
-      ...(anchor === undefined ? { obstacles: this.obstacles() } : {}),
+      ...(anchor === undefined
+        ? { obstacles: this.obstacles(), within: this.visibleWorldRect() }
+        : {}),
     });
   }
 

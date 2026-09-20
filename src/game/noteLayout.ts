@@ -14,15 +14,18 @@ export const settle = (
   taken: readonly Rect[],
   drift: Drift,
   minY = Number.NEGATIVE_INFINITY,
+  within?: Rect,
 ): Vec => {
   const origin = { x: wanted.x, y: Math.max(wanted.y, minY) };
   if (clearOf({ ...wanted, ...origin }, taken)) return origin;
+  const inside = (y: number): boolean =>
+    within === undefined || (y >= within.y && y + wanted.height <= within.y + within.height);
   const edges = taken
     .flatMap((rect) => [
       rect.y - wanted.height - BREATHING_ROOM,
       rect.y + rect.height + BREATHING_ROOM,
     ])
-    .filter((y) => y >= minY);
+    .filter((y) => y >= minY && inside(y));
   const priority = (y: number): number => {
     const distance = y - origin.y;
     if (Math.abs(distance) > (wanted.height + BREATHING_ROOM) * PREFERRED_LINE_DISTANCE) return 2;
