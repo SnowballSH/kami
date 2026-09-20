@@ -148,12 +148,8 @@ export const createApi = ({
 }: ApiDependencies): Router =>
   new Router(access)
     .on("GET", "/api/boards", async ({ request }) => {
-      const scope = access.scope(request);
       const summaries = await boards.summaries();
-      return json({
-        boards:
-          scope === null ? summaries : summaries.filter(({ id }) => scope.boards.includes(id)),
-      });
+      return json({ boards: access.visible(request, "boards", summaries) });
     })
     .on("GET", "/api/boards/:board", async ({ params }) => {
       const boardId = parseWith(boardIdSchema, params.board, "board id");
@@ -196,12 +192,9 @@ export const createApi = ({
       const body = await parseJsonBody(request, compileRequestSchema, INPUT_LIMITS.textBytes);
       return body.ok ? json({ rule: await compiler.compile(body.value.text) }) : body.response;
     })
-    .on("GET", "/api/controllers", ({ request }) => {
-      const scope = access.scope(request);
-      return json(
-        controllers.list().filter(({ id }) => scope === null || scope.controllers.includes(id)),
-      );
-    })
+    .on("GET", "/api/controllers", ({ request }) =>
+      json(access.visible(request, "controllers", controllers.list())),
+    )
     .on("POST", "/api/controllers/:id/state", async ({ request, params }) => {
       if (!isControllerId(params.id)) return badRequest(INVALID_CONTROLLER_ID);
       const body = await parseTextBody(request, INPUT_LIMITS.controllerBytes);

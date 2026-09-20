@@ -55,12 +55,18 @@ coordinated across replicas. Do not enable proxy/header logging of Authorization
 The iPad's startup form exchanges its token for an opaque `__Host-kami` cookie: `HttpOnly`,
 `Secure`, `SameSite=Strict`, `Path=/`, eight-hour lifetime. The token field is cleared, and tokens
 are not saved in local storage or appended to SSE URLs. Same-origin fetch clients—including
-recognition, completion, compilation and handwriting—and native EventSource use this cookie
+recognition, completion, compilation, handwriting and speech—and native EventSource/WebSocket use this cookie
 without changing their payload contracts. The initial board/controller comes from the grant
 unless the URL already selects one. An explicit URL selection never expands its grant.
 Sign out revokes the cookie session; existing controller streams recheck before each state or
 five-second heartbeat and close when authorization expires. Previously delivered board data
 cannot be recalled.
+
+Voice listening (`/api/voice/listen`) checks the same origin, session and `models` grant before
+the WebSocket upgrade or any upstream connection. It rechecks before forwarding audio or
+transcripts and every 15 seconds while idle; expired or signed-out sessions close both ends.
+Voice speaking (`POST /api/voice/speak`) also requires `models`. The proxy must support WebSocket
+upgrades in addition to SSE. Browser microphone capture requires a secure context.
 
 Non-browser clients send `Authorization: Bearer <token>` on each request, including HTTP
 controller reports. Query-string tokens are ignored. Browser cookies are designed for same-origin
@@ -74,12 +80,15 @@ only in the open tab.
 
 ## Limits and expected responses
 
-All four model routes (`recognize`, `beautify`, `compile`, `transcribe`) share a per-process
-fixed-window budget of 600 POSTs per minute and four concurrent requests by default, in both
+Model routes (`recognize`, `beautify`, `compile`, `transcribe`, `voice/speak`) and voice-listening
+upgrades share a per-process fixed-window budget of 600 requests per minute and four concurrent
+operations by default, in both
 modes. Tune `KAMI_MODEL_REQUESTS_PER_MINUTE` and `KAMI_MODEL_CONCURRENCY` for the GX10 and expected
 pen traffic. A slot stays occupied while the model response is read; response bodies have an
 8 MiB ceiling and 30-second read deadline. Upstream inference/request deadlines remain those of
-the individual adapters. Restart resets the counters. Board/controller traffic is not charged
+the individual adapters. A listening socket, including continuous wake-word listening, occupies
+one concurrent slot for its entire lifetime; closing it releases the slot. Opening it counts
+once against the rate limit, rather than once per audio frame. Restart resets the counters. Board/controller traffic is not charged
 against the model budget. The login endpoint allows 30 attempts per minute and at most 128 active
 sessions per process. These limits bound work; they do not replace proxy connection/body limits
 or a firewall.
@@ -96,7 +105,8 @@ or a firewall.
 
 Automated coverage in `server/http/access.test.ts` checks these cases with a temporary local
 database and mocked models, cookie expiry/logout, controller SSE, bounded model work, and demo
-requests. `src/ui/accessGate.test.ts` covers startup, token clearing and scope defaults without
+requests. `server/voice/socket.test.ts` uses mocked upstream sockets to verify handshake denial,
+cookie/bearer access, shared work limits and revocation. `src/ui/accessGate.test.ts` covers startup, token clearing and scope defaults without
 driving a browser or running inference.
 
 ## GX10 network verification before shared use
@@ -111,12 +121,15 @@ An authorized operator must verify the real network before enabling shared use:
    or explicitly isolated networks; disable external UDP 8788 in shared mode.
 2. From the intended iPad network, open the HTTPS site and verify sign-in, own-board save/load,
    controller updates and SSE. Configure the proxy to preserve the public Host/Origin and permit
-   SSE without buffering. Verify the TLS certificate is trusted on the iPad.
+   SSE without buffering and WebSocket upgrades. Verify the TLS certificate is trusted on the iPad.
 3. From another peer, check unauthenticated denial and a credential scoped to a different board.
    Confirm direct internal ports are unreachable. Test model requests only on the GX10 under
    operator authorization and check that excess requests receive `429`.
 4. For demo mode, verify the intended iPad and controller network is isolated, that both dev/API
    ports are restricted to trusted peers, and that there is no router port-forwarding exposure.
+   Cold-start the iPad, draw repeatedly at the expected pen-lift rate while voice listening is
+   active, and verify live guesses and controller SSE. Tune the finite model budgets from that
+   GX10 run; mocked tests do not establish suitable limits for a live demo.
 
 The repository's GX10 start script exports its own variables. Ensure the actual service process
 receives the access settings from protected deployment configuration; a developer shell export

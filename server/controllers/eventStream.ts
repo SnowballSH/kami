@@ -38,9 +38,12 @@ export const controllerEventStream = (
   let release = (): void => {};
   const body = new ReadableStream<Uint8Array>({
     start: (stream) => {
+      let closed = false;
       let unsubscribe = (): void => {};
       let keepAlive: ReturnType<typeof setInterval> | undefined;
       const close = (): void => {
+        if (closed) return;
+        closed = true;
         release();
         try {
           stream.close();
@@ -57,6 +60,7 @@ export const controllerEventStream = (
         return;
       }
       const send = (text: string): void => {
+        if (closed) return;
         if (!authorized()) {
           close();
           return;
@@ -68,7 +72,12 @@ export const controllerEventStream = (
         }
       };
       send(reconnectField);
+      if (closed) return;
       unsubscribe = hub.subscribe(id, (state) => send(eventOf(state)));
+      if (closed) {
+        unsubscribe();
+        return;
+      }
       keepAlive = setInterval(() => send(KEEP_ALIVE_COMMENT), keepAliveMs);
       signal?.addEventListener("abort", close, { once: true });
     },

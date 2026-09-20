@@ -77,4 +77,16 @@ describe("the controller event stream", () => {
     request.abort();
     expect(hub.listeners.size).toBe(0);
   });
+
+  it("does not leave subscriptions when authorization expires during stream setup", async () => {
+    const hub = new OneControllerHub();
+    let checks = 0;
+    const response = controllerEventStream(hub, "arcade", {
+      authorized: () => ++checks < 3,
+    });
+    const reader = response.body?.getReader();
+    await reader?.read();
+    expect((await reader?.read())?.done).toBe(true);
+    expect(hub.listeners.size).toBe(0);
+  });
 });

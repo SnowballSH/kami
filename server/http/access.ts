@@ -3,13 +3,25 @@ import { badRequest, json, notFound, preflight } from "./responses";
 import { Sessions } from "./sessions";
 import { WorkLimit } from "./workLimit";
 
-const MODEL_ROUTES = new Set(["recognize", "beautify", "compile", "transcribe"]);
+const MODEL_ROUTES = new Set([
+  "/api/recognize",
+  "/api/beautify",
+  "/api/compile",
+  "/api/transcribe",
+  "/api/voice/speak",
+  "/api/voice/listen",
+]);
 const METHODS = "GET, PUT, POST, DELETE, OPTIONS";
 const HEADERS = new Set(["content-type", "authorization"]);
 const MODEL_BODY_TIMEOUT_MS = 30_000;
 const MAX_MODEL_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 export type Respond = (request: Request) => Promise<Response>;
+
+export interface ModelStream {
+  readonly authorized: () => boolean;
+  readonly release: () => void;
+}
 
 const denied = (): Response => json({ error: "access denied" }, 403);
 const unauthorized = (): Response =>
@@ -45,23 +57,24 @@ export class ApiAccess {
     return this.config.mode === "demo" || (this.scope(request)?.controllers.includes(id) ?? false);
   }
 
+  visible<T extends { readonly id: string }>(
+    request: Request,
+    resource: "boards" | "controllers",
+    items: readonly T[],
+  ): readonly T[] {
+    if (this.config.mode === "demo") return items;
+    const scope = this.scope(request);
+    return scope === null ? [] : items.filter(({ id }) => scope[resource].includes(id));
+  }
+
   async handle(request: Request, respond: Respond): Promise<Response> {
     const origin = request.headers.get("origin");
     const url = new URL(request.url);
-    const allowedOrigin =
-      origin !== null &&
-      (this.config.origins.includes(origin) ||
-        (this.config.mode === "demo" && origin === url.origin));
-    if (
-      (origin !== null && !allowedOrigin) ||
-      (origin === null && request.headers.get("sec-fetch-site") === "cross-site")
-    ) {
-      return denied();
-    }
+    if (!this.#allowsOrigin(request)) return denied();
     const response = await this.#handle(request, url, respond);
     response.headers.set("vary", "Origin");
     response.headers.set("cache-control", "no-store");
-    if (allowedOrigin) {
+    if (origin !== null) {
       response.headers.set("access-control-allow-origin", origin);
       response.headers.set("access-control-allow-credentials", "true");
       response.headers.set("access-control-allow-methods", METHODS);
@@ -69,6 +82,31 @@ export class ApiAccess {
       response.headers.set("access-control-max-age", "600");
     }
     return response;
+  }
+
+  openModelStream(request: Request): ModelStream | Response {
+    if (!this.#allowsOrigin(request)) return denied();
+    const url = new URL(request.url);
+    if (request.method !== "GET" || url.pathname !== "/api/voice/listen") return notFound();
+    const scope = this.scope(request);
+    if (this.config.mode === "shared") {
+      if (scope === null) return unauthorized();
+      if (!scope.models) return denied();
+    }
+    const release = this.#models.enter();
+    if (release === null) return busy();
+    return {
+      authorized: () => this.config.mode === "demo" || (this.scope(request)?.models ?? false),
+      release,
+    };
+  }
+
+  #allowsOrigin(request: Request): boolean {
+    const origin = request.headers.get("origin");
+    return origin === null
+      ? request.headers.get("sec-fetch-site") !== "cross-site"
+      : this.config.origins.includes(origin) ||
+          (this.config.mode === "demo" && origin === new URL(request.url).origin);
   }
 
   async #handle(request: Request, url: URL, respond: Respond): Promise<Response> {
@@ -91,14 +129,15 @@ export class ApiAccess {
       return badRequest("malformed path");
     }
     const [api, resource, id] = segments;
+    const path = `/${segments.join("/")}`;
     if (api !== "api") return notFound();
     if (resource === "session" && segments.length === 2) return this.#session(request);
     const scope = this.scope(request);
     if (this.config.mode === "shared") {
       if (scope === null) return unauthorized();
-      if (!this.#permits(scope, resource, id)) return denied();
+      if (!this.#permits(scope, path, resource, id)) return denied();
     }
-    if (request.method !== "POST" || !MODEL_ROUTES.has(resource ?? "")) return respond(request);
+    if (request.method !== "POST" || !MODEL_ROUTES.has(path)) return respond(request);
     const release = this.#models.enter();
     if (release === null) return busy();
     try {
@@ -109,10 +148,10 @@ export class ApiAccess {
     }
   }
 
-  #permits(scope: Credential, resource?: string, id?: string): boolean {
+  #permits(scope: Credential, path: string, resource?: string, id?: string): boolean {
     if (resource === "boards") return id === undefined || scope.boards.includes(id);
     if (resource === "controllers") return id === undefined || scope.controllers.includes(id);
-    return resource !== undefined && MODEL_ROUTES.has(resource) && scope.models;
+    return MODEL_ROUTES.has(path) && scope.models;
   }
 
   #session(request: Request): Response {

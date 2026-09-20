@@ -36,9 +36,10 @@ const controllers = await startControllers(config.controllers, {
 
 const compiler = createLlmCompiler(config.llm);
 const transcriber = createLlmTranscriber(config.transcribe);
-const voice = voiceSockets(config.voice);
+const access = new ApiAccess(config.access);
+const voice = voiceSockets(config.voice, access);
 const api = createApi({
-  access: new ApiAccess(config.access),
+  access,
   boards,
   recognizer: eye.recognizer,
   compiler,
@@ -59,7 +60,7 @@ const server = Bun.serve<VoiceSocketData>({
   port: config.port,
   hostname: config.hostname,
   fetch: async (request, listening) => {
-    if (isVoiceSocket(request) && voice.upgrade(request, listening)) return undefined;
+    if (isVoiceSocket(request)) return voice.upgrade(request, listening);
     return isApiCall(request) || site === null
       ? api.handle(request)
       : ((await site(request)) ?? api.handle(request));
