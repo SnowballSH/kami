@@ -79,7 +79,7 @@ Every number the fight is tuned by lives in that one file. The reasoning:
 | `circleMs` | 3400 / 1900 | The breath between snips; with `recoverMs` it gives ~5.3 s per servant snip at the start, ~2.8 s at full ramp. |
 | `speedRampPerSnip`, `maxSpeedRamp` | 0.06, 1.6 | Ten landed snips to reach the cap; the ramp rewards a drawer who keeps up, never a runaway. |
 | `orbitRadius` | 150 / 105 | Far enough that the telegraph starts well outside the body; near enough to be watched. |
-| `health`, `hitDamage` | 100, 12 | Nine plain blows; five heavy ones; a spinning hammer in three or four. |
+| `health`, `hitDamage` | 100, 34 | Three plain blows; two heavy ones; a spinning hammer in two. |
 | `hitInvulnerableMs` | 500 | A hammer resting on it is not a beating; it has to be swung again. |
 | `waves` | 0.6 → 1, 0.3 → 2 | The first lesser arrives once the players have shown they can hurt it; the pair arrives for the finish. Three blades at once is the most two people can track. |
 | `entryDelayMs` | 3000 | Kami's two tear lines and a first look at the body before anything moves. |

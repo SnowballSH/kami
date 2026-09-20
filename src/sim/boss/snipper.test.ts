@@ -157,6 +157,15 @@ describe("hurting it", () => {
     expect(snipper.snapshot().cut).toBeNull();
   });
 
+  it("falls in three plain blows", () => {
+    const snipper = new Snipper("servant", FAR);
+    for (let hit = 0; hit < 3; hit += 1) {
+      expect(snipper.hurt(TEAR_TUNING.hitDamage, HEART)).toBe(true);
+      if (hit < 2) snipper.tick(TEAR_TUNING.hitInvulnerableMs, null, false);
+    }
+    expect(snipper.perished).toBe(true);
+  });
+
   it("perishes at no health and is gone after its last breath", () => {
     const snipper = new Snipper("lesser", FAR);
     snipper.hurt(SNIPPER_TUNING.lesser.health, HEART);

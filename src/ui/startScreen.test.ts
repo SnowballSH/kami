@@ -43,7 +43,19 @@ describe("start screen", () => {
     chooseMode(host, () => started++);
     expect(started).toBe(0);
     const buttons = [...host.querySelectorAll<HTMLButtonElement>(".start-choices button")];
-    expect(buttons.map((button) => button.dataset["mode"])).toEqual(["sandbox", "puzzle", "boss"]);
+    expect(buttons.map((button) => button.dataset.mode)).toEqual(["sandbox", "puzzle", "boss"]);
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Start Sandbox",
+      "Start Puzzle",
+      "Start Boss",
+    ]);
+    expect(buttons[0]?.autofocus).toBe(true);
+    expect(buttons[0]?.getAttribute("type")).toBe("button");
+    expect(buttons[0]?.getAttribute("aria-label")).toBe("Start Sandbox");
+    expect(host.querySelector<HTMLImageElement>(".start-wordmark")).toMatchObject({
+      width: 960,
+      height: 446,
+    });
     buttons[2]?.click();
     expect(started).toBe(1);
     expect(window.location.search).toBe("?board=ours&mode=boss");

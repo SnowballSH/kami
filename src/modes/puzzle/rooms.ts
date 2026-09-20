@@ -28,24 +28,6 @@ export const PUZZLE_ROOMS: readonly PuzzleRoom[] = [
     world: {},
     closing: "Lighter. She'll miss that.",
   },
-  {
-    boardId: "puzzle-twin-doors",
-    dials: [],
-    world: {},
-    closing: "In one, out the other. Never mind how.",
-  },
-  {
-    boardId: "puzzle-shaft",
-    dials: ["flight"],
-    world: {},
-    closing: "Up, then. The Rabbit would have envied her.",
-  },
-  {
-    boardId: "puzzle-pit",
-    dials: ["gravity"],
-    world: {},
-    closing: "Two ideas at once. That's the whole trick, and that's every room.",
-  },
 ];
 
 export const FIRST_PUZZLE_BOARD_ID = PUZZLE_ROOMS[0]?.boardId ?? "";

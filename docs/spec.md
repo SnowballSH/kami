@@ -135,7 +135,7 @@ Room 3's ladder, as the model for the rest:
 
 ## 7. The rooms
 
-One book, six pages, each a page deeper. The Rabbit runs the room first — his path shows *where* to go; the puzzle is *how*. Each room needs at least two real solutions and one that makes the player say "I can't believe that worked." Treat these as first drafts; the hour-17 playtest decides.
+One book, three pages, each a page deeper. The Rabbit runs the room first — his path shows *where* to go; the puzzle is *how*. Each room needs at least two real solutions and one that makes the player say "I can't believe that worked." Treat these as first drafts; the hour-17 playtest decides.
 
 | # | Page | Teaches | The problem | Intended solutions | What stops the lazy answer |
 |---|---|---|---|---|---|
@@ -153,11 +153,11 @@ One book, six pages, each a page deeper. The Rabbit runs the room first — his 
 
 **Teacups.** Each room awards up to three: cleared · under the ink par · no hints. Costs nothing to build and gives a reason to replay.
 
-**Must ship: Rooms 1–3.** They are a complete arc — learn to draw, learn to name, solve the book's own puzzle — and they are the demo. Then 4, 5, 6, Tea Party, in that order.
+**Must ship: Rooms 1–3.** They are a complete arc — learn to draw, learn to name, solve the book's own puzzle — and they are the demo. More rooms can follow later.
 
 ### Puzzle mode (built)
 
-The rooms above are the book's plan; what is built and playable today is **Puzzle mode** (`?mode=puzzle`, [puzzles.md](puzzles.md)): six small rooms in a row — the Wall, the Keyhole, the Moon Ledge, the Twin Doors, the Shaft, the Pit — each staged so that exactly one drawn or written idea is the way through (a spring, a shrinking bottle or *"alice is tiny"*, *"we are on the moon"*, a pair of portals, *"alice can fly"*, a spring *and* the Moon). The room's zone grants one nature or none, and only the room's own dials may be written; anything else is plain ink or plain writing. The Sumikui is loose from the first frame, so ink left idle is ink lost — *"banish the ink eater"* still works, for the price of a sentence. Alice walks herself; a title card with Kami's one line opens each room, the stuck detector's hints come only after a long stall, a quiet closing line and the rabbit hole lead to the next room, and a small *room n of m* stays in the corner. Nothing is saved between visits.
+The rooms above are the book's plan; what is built and playable today is **Puzzle mode** (`?mode=puzzle`, [puzzles.md](puzzles.md)): three small rooms in a row — the Wall, the Keyhole, and the Moon Ledge — each staged so that exactly one drawn or written idea is the way through (a spring, a shrinking bottle or *"alice is tiny"*, and *"we are on the moon"*). The room's zone grants one nature or none, and only the room's own dials may be written; anything else is plain ink or plain writing. The Sumikui is loose from the first frame, so ink left idle is ink lost — *"banish the ink eater"* still works, for the price of a sentence. Alice walks herself; a title card with Kami's one line opens each room, the stuck detector's hints come only after a long stall, a quiet closing line and the rabbit hole lead to the next room, and a small *room n of m* stays in the corner. The Moon Ledge completes the run. Nothing is saved between visits.
 
 ### Ways to play a page
 

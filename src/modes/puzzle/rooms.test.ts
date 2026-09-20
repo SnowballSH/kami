@@ -1,15 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { Vec } from "../../core/geometry";
 import { blob, line } from "../../sim/testSupport";
 import { PuzzleRun } from "./testSupport";
 
 const GROUND = 560;
-
-const ring = (centre: Vec): Vec[] =>
-  Array.from({ length: 25 }, (_, i) => ({
-    x: centre.x + 24 * Math.cos((i / 24) * Math.PI * 2),
-    y: centre.y + 30 * Math.sin((i / 24) * Math.PI * 2),
-  }));
 
 describe("The Wall", () => {
   it("cannot be climbed or jumped, and ink named anything but bouncy stays ink", async () => {
@@ -66,57 +59,6 @@ describe("The Moon Ledge", () => {
     const run = new PuzzleRun("puzzle-moon-ledge");
     expect(await run.write("we are on the moon")).not.toBeNull();
     expect(run.physics.gravity.y).toBeCloseTo(0.165);
-    expect(run.play()).toBe(true);
-  });
-});
-
-describe("The Twin Doors", () => {
-  it("holds her in the box with one portal", async () => {
-    const run = new PuzzleRun("puzzle-twin-doors");
-    const door = await run.draw("door", "a portal", ring({ x: 300, y: GROUND - 34 }));
-    expect(door?.nature).toBe("portal");
-    expect(run.play(1_500)).toBe(false);
-    expect(run.feet.x).toBeLessThan(400);
-  });
-
-  it("lets her out through a pair of portals", async () => {
-    const run = new PuzzleRun("puzzle-twin-doors");
-    await run.draw("in", "a portal", ring({ x: 300, y: GROUND - 34 }));
-    await run.draw("out", "a portal", ring({ x: 700, y: GROUND - 34 }));
-    expect(run.play()).toBe(true);
-    expect(run.seen.some((event) => event.type === "warped")).toBe(true);
-  });
-});
-
-describe("The Shaft", () => {
-  it("is not climbed", () => {
-    const run = new PuzzleRun("puzzle-shaft");
-    expect(run.play(1_500)).toBe(false);
-  });
-
-  it("is flown once she can fly", async () => {
-    const run = new PuzzleRun("puzzle-shaft");
-    expect(await run.write("alice can fly")).not.toBeNull();
-    expect(run.physics.flight).toBe(1);
-    expect(run.play()).toBe(true);
-  });
-});
-
-describe("The Pit", () => {
-  it("is not cleared by a spring alone, nor by the moon alone", async () => {
-    const withSpring = new PuzzleRun("puzzle-pit");
-    await withSpring.draw("spring", "a spring", blob(300, GROUND, 60, 30));
-    expect(withSpring.play(2_000)).toBe(false);
-
-    const onTheMoon = new PuzzleRun("puzzle-pit");
-    await onTheMoon.write("we are on the moon");
-    expect(onTheMoon.play(2_000)).toBe(false);
-  });
-
-  it("is cleared by a spring under moon gravity", async () => {
-    const run = new PuzzleRun("puzzle-pit");
-    await run.draw("spring", "a spring", blob(300, GROUND, 60, 30));
-    await run.write("we are on the moon");
     expect(run.play()).toBe(true);
   });
 });

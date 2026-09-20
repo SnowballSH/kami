@@ -42,7 +42,12 @@ export class BoardMenu {
       "button",
       {
         className: "kami-control kami-board-toggle",
-        attrs: { type: "button", "aria-haspopup": "menu", "aria-label": "Boards" },
+        attrs: {
+          type: "button",
+          "aria-haspopup": "menu",
+          "aria-label": "Boards",
+          title: "Boards",
+        },
       },
       [
         el("img", { className: "kami-wordmark", attrs: { src: wordmarkUrl, alt: WORDMARK } }),

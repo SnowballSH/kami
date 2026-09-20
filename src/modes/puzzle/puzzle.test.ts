@@ -26,12 +26,11 @@ describe("puzzle mode", () => {
     expect(PUZZLE_ROOMS.map((room) => room.boardId)).toEqual(
       PUZZLE_BOARDS.map((board) => board.id),
     );
-    expect(PUZZLE_ROOMS.length).toBeGreaterThanOrEqual(6);
-    expect(PUZZLE_ROOMS.length).toBeLessThanOrEqual(8);
+    expect(PUZZLE_ROOMS).toHaveLength(3);
     expect(puzzleBoardIdFor(null)).toBe(FIRST_PUZZLE_BOARD_ID);
     expect(puzzleBoardIdFor("wonderland")).toBe(FIRST_PUZZLE_BOARD_ID);
-    expect(puzzleBoardIdFor("puzzle-shaft")).toBe("puzzle-shaft");
-    expect(isPuzzleBoard("puzzle-shaft")).toBe(true);
+    expect(puzzleBoardIdFor("puzzle-unknown")).toBe(FIRST_PUZZLE_BOARD_ID);
+    expect(isPuzzleBoard("puzzle-unknown")).toBe(false);
     expect(isPuzzleBoard("wonderland")).toBe(false);
   });
 

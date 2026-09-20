@@ -1,8 +1,9 @@
 import type { RoomCard } from "../modes/types";
 import { el } from "./dom";
+import { activateOnTap } from "./tap";
 
 export const ROOM_CARD_SHOWN_MS = 5_000;
-const FADE_MS = 900;
+export const ROOM_CARD_FADE_MS = 150;
 export const roomCardShownMs = (): number => ROOM_CARD_SHOWN_MS;
 const FADING_CLASS = "is-fading";
 
@@ -16,7 +17,10 @@ export class RoomCardView {
   private readonly line = el("p", { className: "kami-room-card-line" });
   readonly card = el(
     "section",
-    { className: "kami-room-card", attrs: { role: "status", "aria-live": "polite", hidden: "" } },
+    {
+      className: "kami-room-card",
+      attrs: { role: "dialog", "aria-modal": "false", tabindex: "0", hidden: "" },
+    },
     [this.heading, this.title, this.line],
   );
   readonly mark = el("div", {
@@ -25,6 +29,20 @@ export class RoomCardView {
   });
   private fading: ReturnType<typeof setTimeout> | null = null;
   private hiding: ReturnType<typeof setTimeout> | null = null;
+
+  constructor() {
+    this.title.id = "kami-room-card-title";
+    this.line.id = "kami-room-card-line";
+    this.card.setAttribute("aria-labelledby", this.title.id);
+    this.card.setAttribute("aria-describedby", this.line.id);
+    this.line.setAttribute("aria-live", "polite");
+    activateOnTap(this.card, () => this.fade());
+    this.card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      this.fade();
+    });
+  }
 
   show(card: RoomCard | null): void {
     this.cancel();
@@ -43,7 +61,7 @@ export class RoomCardView {
       this.card.classList.add(FADING_CLASS);
       this.hiding = setTimeout(() => {
         this.card.hidden = true;
-      }, FADE_MS);
+      }, ROOM_CARD_FADE_MS);
     }, ROOM_CARD_SHOWN_MS);
   }
 
@@ -53,5 +71,16 @@ export class RoomCardView {
     this.fading = null;
     this.hiding = null;
     this.card.classList.remove(FADING_CLASS);
+  }
+
+  private fade(): void {
+    if (this.card.hidden || this.card.classList.contains(FADING_CLASS)) return;
+    if (this.fading !== null) clearTimeout(this.fading);
+    this.card.classList.add(FADING_CLASS);
+    this.hiding = setTimeout(() => {
+      this.card.hidden = true;
+      this.card.classList.remove(FADING_CLASS);
+      this.hiding = null;
+    }, ROOM_CARD_FADE_MS);
   }
 }
