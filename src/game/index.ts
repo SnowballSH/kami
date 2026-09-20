@@ -7,12 +7,14 @@ import {
   createBoardStore,
   createHandwritingReader,
   createRemoteRuleCompiler,
+  createSketchLibrary,
 } from "../persistence";
 import { createPenReader } from "../reading";
 import { createRecognizer } from "../recognition";
 import { createRenderer } from "../render";
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import { createSimulation } from "../sim";
+import { Summoner } from "../summoning";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
 import { Game } from "./game";
 
@@ -69,6 +71,7 @@ export function startGame(root: HTMLElement): void {
       thinker: createRemoteRuleCompiler(),
       store: createBoardStore(),
       penReader: createPenReader(createHandwritingReader()),
+      summoner: new Summoner(createSketchLibrary()),
       resolvePhysics,
       boardFor,
       createInkSession,

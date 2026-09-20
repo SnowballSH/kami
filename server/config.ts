@@ -20,6 +20,8 @@ export interface ServerConfig {
   readonly beautifyUrl: string | null;
   /** Where the Kami's Eye sidecar listens (ml/CONTRACT.md); null means the built-in k-NN recognises alone. */
   readonly recognizerUrl: string | null;
+  /** The Eye's exemplar set (ml/CONTRACT.md), whose drawings are summoned by name; null summons from Quick, Draw! itself. */
+  readonly sketchesDirectory: string | null;
   /** How physical controllers reach the hub (docs/controllers.md); a `null` transport is switched off. */
   readonly controllers: ControllerTransportConfig;
 }
@@ -65,5 +67,6 @@ export const readConfig = (env: Env = process.env): ServerConfig => ({
   webDirectory: webDirectoryFrom(env),
   beautifyUrl: nonEmpty(env.KAMI_BEAUTIFY_URL) ?? null,
   recognizerUrl: nonEmpty(env.KAMI_RECOGNIZER_URL) ?? null,
+  sketchesDirectory: nonEmpty(env.KAMI_SKETCHES) ?? null,
   controllers: controllersFrom(env),
 });

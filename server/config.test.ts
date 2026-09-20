@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { readConfig } from "./config";
 
 describe("readConfig", () => {
+  it("summons from the exemplar set at KAMI_SKETCHES, or from Quick, Draw! without one", () => {
+    expect(readConfig({}).sketchesDirectory).toBeNull();
+    expect(readConfig({ KAMI_SKETCHES: " /srv/exemplars " }).sketchesDirectory).toBe(
+      "/srv/exemplars",
+    );
+  });
+
   it("has no sidecar unless KAMI_RECOGNIZER_URL names one", () => {
     expect(readConfig({}).recognizerUrl).toBeNull();
     expect(readConfig({ KAMI_RECOGNIZER_URL: "   " }).recognizerUrl).toBeNull();

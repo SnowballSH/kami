@@ -27,6 +27,7 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile` and `/api/transcribe`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
 | `KAMI_LLM_MODEL` | Model name to request. Model compile and handwriting reading are **off** unless both URL and model are set; reading also needs the model to take images (`qwen3.8` does). |
 | `KAMI_LLM_API_KEY` | Optional bearer token. |
+| `KAMI_SKETCHES` | The Eye's exemplar set directory (`ml/CONTRACT.md`; on the box `~/kami-ml/artifacts/kami-eye/exemplars`), whose clean drawings `/api/sketches` summons by name across all 345 categories. Unset, drawings are fetched from Quick, Draw! itself for the curated categories only. |
 | `KAMI_CONTROLLER_UDP_PORT` | UDP port physical controllers send to, default `8788`; `off` disables. See `docs/controllers.md`. |
 | `KAMI_CONTROLLER_SERIAL` | `auto` (default: every `/dev/ttyACM*`, rescanned every 3 s), a device path, or `off`. The user needs the `dialout` group. |
 
@@ -45,6 +46,8 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
 | `GET /api/controllers` | `[{ id, x, y, held, buttons, transport, idleMs }]` |
 | `POST /api/transcribe` `{ strokes: {x,y}[][] }` | `{ text: string \| null }` — the strokes read as handwriting, `null` for a drawing; `501` without a model |
+| `GET /api/sketches` | `{ categories: string[] }` — everything that can be summoned by name |
+| `GET /api/sketches/:category` | `{ category, strokes: {x,y}[][] }` — a clean drawing of it, 0–255 space, a different one each time; `404` for anything else |
 
 Every body is validated with zod (`schemas.ts`, which mirrors `src/*/types.ts` and is checked
 against them at compile time). A bad payload is a `400` with `{ error, issues }`; nothing throws
@@ -189,6 +192,17 @@ once came back as `IIIIII`). Anything else, a timeout (20 s), an HTTP error or a
 the strokes stay ink. `/api/transcribe` forwards the request's abort signal, so a client that
 cancels a read of a prefix costs the model nothing more.
 
+## Summoning
+
+`sketch/` serves the clean drawings the game draws in when the player writes `summon a rabbit` or
+`a house, a tree and the sun`. With `KAMI_SKETCHES` it reads the Eye's exemplar set (`ml/CONTRACT.md`:
+plain `.npy`, one contiguous window per category, best first; `sketch/npy.ts` reads the integer
+arrays, `sketch/exemplarLibrary.ts` loads the whole set in tens of milliseconds) and picks at random
+among a category's 24 best, so what appears is recognisable but not always the same. Without it,
+`sketch/quickdrawLibrary.ts` fetches the first recognised drawings of each curated category straight
+from Quick, Draw! on first request. Strokes are handed out in the dataset's 0–255 space; the client
+scales and places them.
+
 ## Two things that would otherwise bite
 
 - **Bun and `bson`.** `bson` 7 probes `v8.startupSnapshot.isBuildingSnapshot()` while it loads, and
@@ -218,6 +232,8 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 | `POST /api/beautify` | `{ strokes: {x,y}[][], name?: string }` | whatever the attached model answers, content-type preserved. With Kami's Eye attached (the box's default): **`application/json` `{ tidied, added, category, confidence, similarity, exemplar }`** — `tidied` is the player's own strokes, point for point, each nudged a bounded distance toward a clean drawing of the same thing; `added` is what theirs was missing (`ml/CONTRACT.md`, "Completion"). Another model may answer an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
 | `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no model is attached (`KAMI_LLM_URL`/`KAMI_LLM_MODEL`). Stateless; the client may abort a request (the read of a prefix) freely. |
+| `GET /api/sketches` | — | `{ categories: string[] }` — the Quick, Draw! words a drawing can be summoned for |
+| `GET /api/sketches/:category` | — | `{ category: string, strokes: {x,y}[][] }` — a clean, finished drawing of it in Quick, Draw!'s 0–255 simplified space (top-left origin, y down), a different one each time. **`404`** `{ error }` for a category the server does not have |
 | boards, drawings, notes, rules | see the table above | |
 | `POST /api/controllers/:id/state` | `text/plain` `<x> <y> [buttons]`, e.g. `100 0 A`: axes -100 … 100 (y up), then the letters of the buttons held (`A` `B` `X` `Y`). `:id` is `[a-z0-9-]{1,32}` | `204`, or `400` `{ error }` |
 | `GET /api/controllers/:id/events` | — | `text/event-stream`: `retry: 1000`, then `data: {"x":-0.7,"y":0.85,"held":["left","up"],"buttons":["a"]}` on connect and on every change (`x`, `y` -1 … 1; `held` of `left` `right` `up` `down`, with `up` also while `a` is held; everything let go after 1 s without a message), and `: keep-alive` every 5 s |

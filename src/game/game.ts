@@ -4,6 +4,7 @@ import type { Cat, Ruling } from "../cat/types";
 import { boundsOf, poseToWorld, type Rect, rectGap, type Stroke, type Vec } from "../core/geometry";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
 import type { Handwriting } from "../handwriting/types";
+import { judgePlacement } from "../ink/placement";
 import type {
   Drawing,
   DrawingId,
@@ -19,6 +20,7 @@ import type { LiveRecognizer, Sighting } from "../recognition/types";
 import type { Renderer } from "../render/types";
 import type { CompiledRule, Rule, RuleCompiler, RuleId, WorldPhysics } from "../rules/types";
 import type { DrawingPose, SimEvent, Simulation, WalkIntent } from "../sim/types";
+import type { Summoner, Wish } from "../summoning";
 import type {
   CanvasInputSink,
   Hud,
@@ -75,6 +77,7 @@ const ABOVE_ALICE = { x: -90, y: -120 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
 const ALREADY_AWAKE_MS = 10_000;
+const SUMMONED_DROP = 24;
 
 interface Recital {
   readonly at: number;
@@ -98,6 +101,8 @@ export interface GameModules {
   readonly penReader?: PenReader;
   /** Tidies a drawing once it has a name; without one the player's ink stays exactly as drawn. */
   readonly finisher?: Pick<LiveRecognizer, "complete">;
+  /** Draws what is wished for ("summon a rabbit") from the sketch library; without one, wishes are remarks. */
+  readonly summoner?: Summoner;
   readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
   readonly boardFor: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
@@ -164,6 +169,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.penReader = modules.penReader ?? null;
     this.hud = modules.createHud(this);
     this.laws = modules.createLawsPanel(this);
+    modules.summoner?.wake();
   }
 
   get currentTool(): Tool {
@@ -548,11 +554,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private land(drawing: Drawing): void {
+    this.place(drawing);
+    void this.offerGuesses(drawing);
+  }
+
+  private place(drawing: Drawing): void {
     this.modules.sim.addDrawing(drawing);
     this.modules.autopilot.invalidate();
     this.ledger.add(drawing);
     this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
-    void this.offerGuesses(drawing);
   }
 
   /** The ink landed before the reader answered: if it was words after all, take it back up. */
@@ -625,8 +635,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   /**
-   * The one funnel: a request for help, a law of physics, a name for a drawing, or a remark.
-   * Whatever is instant is tried first; the model is only asked about what nothing else understood.
+   * The one funnel: a request for help, a law of physics, a wish for things, a name for a drawing,
+   * or a remark. Whatever is instant is tried first; the model is only asked about what nothing
+   * else understood. A bare name ("a rabbit") beside a drawing names it; anywhere else it summons.
    */
   private async interpret(text: string, position: Vec): Promise<void> {
     if (isHelpRequest(text)) {
@@ -644,10 +655,21 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
 
     const subject = this.drawingNear(note.id);
+    const wish = (await this.modules.summoner?.wish(text)) ?? null;
+    if (!stillHere()) return;
+    if (wish !== null && (wish.explicit || subject === null)) {
+      await this.summon(wish, note);
+      return;
+    }
+
     const ruling = subject === null ? null : await this.modules.cat.name(text, subject.drawing);
     if (!stillHere()) return;
     if (subject !== null && ruling !== null && ruling.nature !== "ink") {
       this.name(subject.drawing.id, ruling, note);
+      return;
+    }
+    if (wish !== null) {
+      await this.summon(wish, note);
       return;
     }
 
@@ -656,6 +678,43 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (thought !== null) this.enact(this.ruleFrom(thought, note));
     else if (subject !== null && ruling !== null) this.name(subject.drawing.id, ruling, note);
     else this.shrug(note.id);
+  }
+
+  /**
+   * What was wished for appears below the words, drawn from the library and already named, so a
+   * rabbit hops and a cloud floats. Ink is not spent; erasing a summoned thing refunds none. Things
+   * that would land on Alice or in a no-ink zone are left out.
+   */
+  private async summon(wish: Wish, note: Note): Promise<void> {
+    const { summoner, sim } = this.modules;
+    if (summoner === undefined) return;
+    const stillHere = this.witness(note.id);
+    const written = this.notes.boundsOf(note.id) ?? { ...note.position, width: 0, height: 0 };
+    const origin = { x: written.x, y: written.y + written.height + SUMMONED_DROP };
+    const summoned = await summoner.conjure(wish, origin);
+    if (!stillHere()) return;
+
+    const rules = { noInkZones: this.board.noInkZones, aliceBounds: sim.aliceBounds() };
+    const landed = summoned.filter(({ strokes }) => judgePlacement(strokes, rules) === "ok");
+    if (landed.length === 0) {
+      this.shrug(note.id);
+      return;
+    }
+    const named = await Promise.all(
+      landed.map(async ({ category, strokes }) => {
+        const drawing: Drawing = { id: this.ids.next<DrawingId>("drawing"), strokes, cost: 0 };
+        return { drawing, ruling: await this.modules.cat.name(category, drawing) };
+      }),
+    );
+    if (!stillHere()) return;
+
+    this.understood(note.id);
+    for (const { drawing, ruling } of named) {
+      this.place(drawing);
+      const label = this.kamiWrites(ruling.name, guessCornerOf(drawing.strokes), { drift: "down" });
+      this.labelsByKami.add(label.id);
+      this.name(drawing.id, ruling, label);
+    }
   }
 
   /** True until the board changes or the note is erased — checked after every await. */

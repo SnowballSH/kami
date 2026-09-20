@@ -9,6 +9,7 @@ import { createStaticSite } from "./http/staticSite";
 import { QuickdrawRecognizer } from "./quickdraw/recognizer";
 import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
 import { createRecognizerChain } from "./recognition/chain";
+import { createSketchLibrary } from "./sketch";
 import { createLlmTranscriber } from "./transcribe/llmTranscriber";
 
 const API_PREFIX = "/api";
@@ -32,6 +33,9 @@ const controllers = await startControllers(config.controllers, {
 
 const compiler = createLlmCompiler(config.llm);
 const transcriber = createLlmTranscriber(config.llm);
+const sketches = await createSketchLibrary(config.sketchesDirectory, {
+  log: (line) => console.log(`  ${line}`),
+});
 const api = createApi({
   boards,
   recognizer: eye.recognizer,
@@ -39,6 +43,7 @@ const api = createApi({
   beautifier: createBeautifier(config.beautifyUrl),
   controllers: controllers.hub,
   transcriber,
+  sketches,
 });
 const site = config.webDirectory === null ? null : createStaticSite(config.webDirectory);
 const isApiCall = (request: Request): boolean =>
@@ -63,6 +68,7 @@ console.log(
 );
 void eye.describe().then((line) => console.log(`  ${line}`));
 console.log(`  beautifier: ${config.beautifyUrl ?? "none attached"}`);
+console.log(`  ${sketches.describe()}`);
 console.log(`  controllers: ${controllers.description}`);
 console.log(`  model compile: ${config.llm === null ? "off" : config.llm.model}`);
 console.log(

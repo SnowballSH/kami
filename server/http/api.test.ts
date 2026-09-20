@@ -127,7 +127,15 @@ beforeAll(async () => {
   });
   clock = new ManualClock();
   controllers = new InMemoryControllerHub(clock);
-  apiParts = () => ({ boards, recognizer, compiler, controllers, transcriber });
+  const sketches = {
+    categories: ["rabbit", "hot air balloon"],
+    pick: async (category: string) =>
+      category === "rabbit"
+        ? { category, strokes: lineSketch({ x: 0, y: 0 }, { x: 9, y: 9 }) }
+        : null,
+    describe: () => "summoning: two sketches",
+  };
+  apiParts = () => ({ boards, recognizer, compiler, controllers, transcriber, sketches });
   api = createApi({ ...apiParts(), beautifier });
 }, 120_000);
 
@@ -343,6 +351,34 @@ describe("transcribe", () => {
       }),
     );
     expect(response.status).toBe(501);
+  });
+});
+
+describe("sketches", () => {
+  it("lists what can be summoned and hands out a drawing by name", async () => {
+    const listed = await call("GET", "/api/sketches");
+    expect(await listed.json()).toEqual({ categories: ["rabbit", "hot air balloon"] });
+    const rabbit = await call("GET", "/api/sketches/rabbit");
+    expect(rabbit.status).toBe(200);
+    expect(await rabbit.json()).toEqual({
+      category: "rabbit",
+      strokes: [
+        [
+          { x: 0, y: 0 },
+          { x: 9, y: 9 },
+        ],
+      ],
+    });
+  });
+
+  it("has no drawing of an unknown thing, and none at all without a library", async () => {
+    expect((await call("GET", "/api/sketches/hot%20air%20balloon")).status).toBe(404);
+    expect((await call("GET", "/api/sketches/unicorn")).status).toBe(404);
+    const bare = createApi({ ...apiParts(), beautifier, sketches: null });
+    const listed = await bare.handle(new Request("http://kami.test/api/sketches"));
+    expect(await listed.json()).toEqual({ categories: [] });
+    const rabbit = await bare.handle(new Request("http://kami.test/api/sketches/rabbit"));
+    expect(rabbit.status).toBe(404);
   });
 });
 

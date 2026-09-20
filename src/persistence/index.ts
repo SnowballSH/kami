@@ -1,8 +1,9 @@
 import type { RuleCompiler } from "../rules/types";
 import { HttpBoardStore } from "./httpBoardStore";
 import { HttpHandwritingReader } from "./httpHandwritingReader";
+import { HttpSketchLibrary } from "./httpSketchLibrary";
 import { RemoteRuleCompiler } from "./remoteRuleCompiler";
-import type { BoardStore, HandwritingReader } from "./types";
+import type { BoardStore, HandwritingReader, SketchLibrary } from "./types";
 
 export type * from "./types";
 
@@ -19,4 +20,9 @@ export function createRemoteRuleCompiler(): RuleCompiler {
 /** `POST /api/transcribe`: the server's vision model reads pen strokes as words (or not). */
 export function createHandwritingReader(): HandwritingReader {
   return new HttpHandwritingReader();
+}
+
+/** `GET /api/sketches[/:category]`: clean dataset drawings to summon by name. */
+export function createSketchLibrary(): SketchLibrary {
+  return new HttpSketchLibrary();
 }

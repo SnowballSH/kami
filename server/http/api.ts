@@ -20,6 +20,7 @@ import {
   storedDrawingSchema,
   transcribeRequestSchema,
 } from "../schemas";
+import type { SketchLibrary } from "../sketch/types";
 import type { HandwritingTranscriber } from "../transcribe/llmTranscriber";
 import {
   badRequest,
@@ -67,6 +68,8 @@ export interface ApiDependencies {
   readonly controllers: ControllerHub;
   /** Reads the player's handwriting; null when no vision-capable model is configured. */
   readonly transcriber?: HandwritingTranscriber | null;
+  /** Clean drawings summoned by name; null when the server has none. */
+  readonly sketches?: SketchLibrary | null;
   readonly natures?: NatureTable;
 }
 
@@ -127,6 +130,7 @@ export const createApi = ({
   beautifier,
   controllers,
   transcriber = null,
+  sketches = null,
   natures = quickdrawNatureTable,
 }: ApiDependencies): Router =>
   new Router()
@@ -191,4 +195,9 @@ export const createApi = ({
       if (!body.ok) return body.response;
       const text = await transcriber.transcribe(body.value.strokes, { signal: request.signal });
       return json({ text });
+    })
+    .on("GET", "/api/sketches", () => json({ categories: sketches?.categories ?? [] }))
+    .on("GET", "/api/sketches/:category", async ({ params }) => {
+      const sketch = (await sketches?.pick(params.category)) ?? null;
+      return sketch === null ? notFound() : json(sketch);
     });

@@ -2,16 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
-import { rectsOverlap, type Vec } from "../core/geometry";
+import { boundsOf, rectsOverlap, type Stroke, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
-import type { BoardSnapshot, HandwritingReader } from "../persistence/types";
+import type { BoardSnapshot, HandwritingReader, SketchLibrary } from "../persistence/types";
 import { createPenReader } from "../reading";
 import type { Completion, LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import type { CompiledRule } from "../rules/types";
 import { createSimulation } from "../sim";
 import { drawingOf } from "../sim/testSupport";
+import { Summoner } from "../summoning";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
 import {
@@ -52,6 +53,7 @@ interface PlayerOptions {
   readonly thoughts?: Thoughts;
   readonly eyes?: LiveRecognizer;
   readonly reader?: HandwritingReader;
+  readonly library?: SketchLibrary;
 }
 
 const seen = (word: string, nature: Sighting["nature"], certain = false): Sighting => ({
@@ -90,6 +92,31 @@ class Eyes implements LiveRecognizer {
   complete(strokes: readonly Vec[][], name?: string): Promise<Completion | null> {
     this.tidiedAs.push(name);
     return Promise.resolve(this.tidy?.(strokes) ?? null);
+  }
+}
+
+/** A library with one square sketch for every category it is told about. */
+class SquareLibrary implements SketchLibrary {
+  readonly asked: string[] = [];
+
+  constructor(private readonly known: readonly string[]) {}
+
+  categories(): Promise<readonly string[]> {
+    return Promise.resolve(this.known);
+  }
+
+  sketch(category: string): Promise<readonly Stroke[] | null> {
+    this.asked.push(category);
+    if (!this.known.includes(category)) return Promise.resolve(null);
+    return Promise.resolve([
+      [
+        { x: 0, y: 0 },
+        { x: 255, y: 0 },
+        { x: 255, y: 255 },
+        { x: 0, y: 255 },
+        { x: 0, y: 0 },
+      ],
+    ]);
   }
 }
 
@@ -136,7 +163,7 @@ class Player {
 
   constructor(
     boardId: string,
-    { store = new MemoryBoardStore(), thoughts = {}, eyes, reader }: PlayerOptions = {},
+    { store = new MemoryBoardStore(), thoughts = {}, eyes, reader, library }: PlayerOptions = {},
   ) {
     this.store = store;
     this.game = new Game(
@@ -156,6 +183,7 @@ class Player {
         },
         store,
         ...(reader === undefined ? {} : { penReader: createPenReader(reader) }),
+        ...(library === undefined ? {} : { summoner: new Summoner(library) }),
         resolvePhysics,
         boardFor,
         createInkSession,
@@ -862,6 +890,75 @@ describe("Game with a pen that reads", () => {
     expect(reader.asked).toEqual([1]);
     expect((await player.store.load("wonderland")).drawings).toHaveLength(2);
     expect(player.written).not.toContain("never");
+  });
+});
+
+describe("Game with a library to summon from", () => {
+  const LIBRARY = ["rabbit", "house", "tree", "cloud"];
+
+  it("summons a named thing below the words, drawn from the library, spending no ink", async () => {
+    const library = new SquareLibrary(LIBRARY);
+    const player = new Player("my-first-game", { library });
+    await player.arrive();
+
+    await player.write("summon a rabbit", { x: 400, y: -300 });
+    expect(library.asked).toEqual(["rabbit"]);
+    const inks = player.renderer.lastFrame?.inks ?? [];
+    expect(inks.map((ink) => ink.nature)).toEqual(["hopper"]);
+    const drawn = boundsOf(inks[0]?.drawing.strokes.flat() ?? []);
+    expect(drawn.y).toBeGreaterThan(-300);
+    expect(drawn.x).toBeGreaterThanOrEqual(400);
+    expect(player.written).toContain("a rabbit");
+
+    const [stored] = (await player.store.load("my-first-game")).drawings;
+    expect(stored?.ruling?.name).toBe("a rabbit");
+    expect(stored?.drawing.cost).toBe(0);
+  });
+
+  it("summons a whole scene in a row", async () => {
+    const player = new Player("my-first-game", { library: new SquareLibrary(LIBRARY) });
+    await player.arrive();
+
+    await player.write("a house, a tree and two clouds", { x: 400, y: -300 });
+    const inks = player.renderer.lastFrame?.inks ?? [];
+    expect(inks.map((ink) => ink.nature)).toEqual(["ink", "climbable", "floaty", "floaty"]);
+    const lefts = inks.map((ink) => boundsOf(ink.drawing.strokes.flat()).x);
+    expect([...lefts].sort((a, b) => a - b)).toEqual(lefts);
+    expect(player.written).toEqual(expect.arrayContaining(["a house", "a tree", "a cloud"]));
+  });
+
+  it("names a drawing beside the words rather than summoning another", async () => {
+    const library = new SquareLibrary(LIBRARY);
+    const player = new Player("my-first-game", { library });
+    await player.arrive();
+
+    await player.draw(blob({ x: 450, y: -100 }, 30, 30));
+    await player.write("a rabbit", { x: 420, y: -180 });
+    expect(library.asked).toEqual([]);
+    const inks = player.renderer.lastFrame?.inks ?? [];
+    expect(inks.map((ink) => ink.nature)).toEqual(["hopper"]);
+
+    await player.write("summon a rabbit", { x: 420, y: -260 });
+    expect(library.asked).toEqual(["rabbit"]);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(2);
+  });
+
+  it("shrugs at a wish for what the library does not have, and laws still come first", async () => {
+    const library = new SquareLibrary(LIBRARY);
+    const player = new Player("my-first-game", { library });
+    await player.arrive();
+
+    await player.write("summon a unicorn", { x: 400, y: -300 });
+    expect(library.asked).toEqual([]);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.pondered).toEqual(["summon a unicorn"]);
+
+    await player.write("no gravity", { x: 400, y: -400 });
+    expect(library.asked).toEqual([]);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect((await player.store.load("my-first-game")).rules.map((r) => r.sourceText)).toEqual([
+      "no gravity",
+    ]);
   });
 });
 
