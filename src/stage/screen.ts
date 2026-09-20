@@ -17,6 +17,7 @@ export const JOIN_PARAM = "join";
 export const isScreen = (search: string): boolean => new URLSearchParams(search).has(SCREEN_PARAM);
 
 const WAITING_LINE = "Draw on an iPad and it appears here.";
+const UNPAINTABLE = "Kami's screen could not paint a frame";
 
 const element = <Tag extends keyof HTMLElementTagNameMap>(
   tag: Tag,
@@ -62,11 +63,16 @@ export function startScreen(root: HTMLElement, host: Window = window): void {
     painting = false;
     if (showing === null) return;
     const { frame, viewport } = showing;
-    renderer.render({
-      ...frame,
-      camera: fittedCamera(frame.camera, viewport, renderer.viewport()),
-    });
     showing = { viewport, frame: { ...frame, events: [] } };
+    try {
+      renderer.render({
+        ...frame,
+        camera: fittedCamera(frame.camera, viewport, renderer.viewport()),
+      });
+    } catch (error) {
+      console.warn(UNPAINTABLE, error);
+      showing = null;
+    }
   };
   const repaint = (): void => {
     if (painting) return;
@@ -83,7 +89,10 @@ export function startScreen(root: HTMLElement, host: Window = window): void {
   new StageWatcher(
     dialBrowser(stageSocketUrl(stageNameOf(params.get(SCREEN_PARAM)), "screen", host.location)),
     {
-      boardChanged: (board) => renderer.setBoard(board),
+      boardChanged: (board) => {
+        showing = null;
+        renderer.setBoard(board);
+      },
       lawsChanged: (listed) => laws.setLaws(listed),
       frameArrived: (staged) => {
         const waiting = showing?.frame.events ?? [];

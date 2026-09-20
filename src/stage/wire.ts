@@ -3,6 +3,8 @@ import type { PenScript } from "../handwriting/types";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { NoteId } from "../notes/types";
 import type { InkView, NoteView, RenderFrame } from "../render/types";
+import type { DrawnBody } from "../sim/body/types";
+import type { AliceLook, AliceSnapshot, WorldSnapshot } from "../sim/types";
 import type { LawListing } from "../ui/types";
 
 /** A stage is one big screen's worth of play: devices that draw on it and screens that show it. */
@@ -15,7 +17,7 @@ export const ROLE_PARAM = "role";
 export type StageRole = "source" | "screen";
 
 /** What a source says. Everything but `active` is shown on the screens while that source is live. */
-export const SHOWN_KINDS = ["board", "ink", "note", "laws", "frame"] as const;
+export const SHOWN_KINDS = ["board", "ink", "note", "body", "laws", "frame"] as const;
 export type ShownKind = (typeof SHOWN_KINDS)[number];
 /** `active`: someone is drawing on this device; said even while it rests, to ask for the stage. */
 export type SourceKind = ShownKind | "active";
@@ -39,9 +41,22 @@ export type LeanInk = Omit<InkView, "drawing"> & { readonly id: DrawingId };
 /** A note without its script, which travels once in a `note` message. */
 export type LeanNote = Omit<NoteView, "script">;
 
-export interface LeanFrame extends Omit<RenderFrame, "inks" | "notes"> {
+/** A body the player drew for Alice travels once in a `body` message; her look then names it. */
+export type LeanLook =
+  | Extract<AliceLook, { kind: "alice" }>
+  | (Omit<Extract<AliceLook, { kind: "drawn" }>, "body"> & { readonly bodyRef: number });
+export type LeanAlice = Omit<AliceSnapshot, "look"> & { readonly look: LeanLook };
+
+export interface LeanWorld extends Omit<WorldSnapshot, "alice" | "twins"> {
+  readonly alice: LeanAlice | null;
+  readonly twins: readonly LeanAlice[];
+}
+
+export interface LeanFrame extends Omit<RenderFrame, "inks" | "notes" | "world" | "ghosts"> {
   readonly inks: readonly LeanInk[];
   readonly notes: readonly LeanNote[];
+  readonly world: LeanWorld;
+  readonly ghosts?: readonly LeanAlice[];
   readonly viewport: Viewport;
 }
 
@@ -49,6 +64,7 @@ export interface StageBodies {
   readonly board: BoardDefinition;
   readonly ink: Drawing;
   readonly note: { readonly id: NoteId; readonly script: PenScript };
+  readonly body: { readonly ref: number; readonly body: DrawnBody };
   readonly laws: readonly LawListing[];
   readonly frame: LeanFrame;
 }

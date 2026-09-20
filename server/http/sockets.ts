@@ -1,4 +1,5 @@
 import type { ServerWebSocket, WebSocketHandler } from "bun";
+import { MAX_MESSAGE_BYTES } from "../../src/stage/wire";
 import type { StageSocketData } from "../stage/socket";
 import type { VoiceSocketData } from "../voice/socket";
 
@@ -15,6 +16,7 @@ export const socketsOf = (
   voice: WebSocketHandler<VoiceSocketData>,
   stage: WebSocketHandler<StageSocketData>,
 ): WebSocketHandler<SocketData> => ({
+  maxPayloadLength: MAX_MESSAGE_BYTES,
   open: (socket) => {
     if (isStage(socket)) void stage.open?.(socket);
     else if (isVoice(socket)) void voice.open?.(socket);

@@ -35,6 +35,8 @@ export const dialBrowser =
 
 const FIRST_RETRY_MS = 1000;
 const LAST_RETRY_MS = 15_000;
+/** Each wait is stretched or shrunk by up to this share, so devices dropped together do not return together. */
+const RETRY_JITTER = 0.25;
 
 export type Schedule = (task: () => void, afterMs: number) => void;
 
@@ -48,6 +50,7 @@ export class KeptLine {
     private readonly dial: DialStage,
     private readonly handlers: LineHandlers,
     private readonly schedule: Schedule = (task, afterMs) => void setTimeout(task, afterMs),
+    private readonly chance: () => number = Math.random,
   ) {
     this.#connect();
   }
@@ -76,7 +79,8 @@ export class KeptLine {
         this.#open = false;
         this.#line = null;
         this.handlers.closed();
-        this.schedule(() => this.#connect(), this.#retryMs);
+        const jitter = 1 + RETRY_JITTER * (2 * this.chance() - 1);
+        this.schedule(() => this.#connect(), Math.round(this.#retryMs * jitter));
         this.#retryMs = Math.min(LAST_RETRY_MS, this.#retryMs * 2);
       },
     });

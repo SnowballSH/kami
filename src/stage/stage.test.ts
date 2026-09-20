@@ -1,11 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { BoardDefinition } from "../board/types";
+import type { DrawnBody } from "../sim/body/types";
+import type { AliceSnapshot } from "../sim/types";
 import type { LawListing } from "../ui/types";
 import { StageDecoder, type StagedFrame } from "./decoder";
 import { StageEncoder } from "./encoder";
 import { fittedCamera } from "./fit";
 import { MIN_FRAME_GAP_MS, MOST_BUFFERED_BYTES, StageSource } from "./source";
 import {
+  ALICE,
   BOARD,
   FakeExchange,
   frameAt,
@@ -141,6 +144,66 @@ describe("encoder and decoder", () => {
     ]);
   });
 
+  it("tell every drawing again after the board is set again, because the screen forgets on a board", () => {
+    const encoder = new StageEncoder();
+    const seen = audience();
+    const decoder = new StageDecoder(seen.house);
+    const frame = frameAt(0, {
+      inks: [inkOf("d1", strokesOf(1))],
+      notes: [noteOf("n1", scriptOf("hi"))],
+    });
+    encoder.setBoard(BOARD);
+    for (const message of shown(encoder.encode(frame, VIEWPORT))) decoder.take(message);
+    encoder.setBoard(BOARD);
+    const again = encoder.encode({ ...frame, nowMs: 33 }, VIEWPORT);
+    expect(again.map(kindOf)).toEqual(["board", "laws", "ink", "note", "frame"]);
+    for (const message of shown(again)) decoder.take(message);
+    expect(seen.frames.at(-1)?.frame.inks.map(({ drawing }) => drawing.id)).toEqual(["d1"]);
+    expect(seen.frames.at(-1)?.frame.notes.map(({ id }) => id)).toEqual(["n1"]);
+  });
+
+  it("send a body the player drew for Alice once, and show Kami's sketch of her if it never came", () => {
+    const encoder = new StageEncoder();
+    const seen = audience();
+    const decoder = new StageDecoder(seen.house);
+    const body = {
+      strokes: [],
+      heart: { x: 0, y: 0 },
+      frame: {},
+      fullest: {},
+    } as unknown as DrawnBody;
+    const drawn = {
+      ...ALICE,
+      look: { kind: "drawn", body, scale: 1, abilities: {}, clockMs: 5 },
+    } as AliceSnapshot;
+    const frame = frameAt(0, {
+      world: { ...frameAt(0).world, alice: drawn, twins: [drawn] },
+      ghosts: [drawn],
+    });
+    const first = encoder.encode(frame, VIEWPORT);
+    expect(first.map(kindOf)).toEqual(["laws", "body", "frame"]);
+    expect(first.at(-1)).not.toContain("heart");
+    expect(encoder.encode({ ...frame, nowMs: 33 }, VIEWPORT).map(kindOf)).toEqual(["frame"]);
+    for (const message of shown(first)) decoder.take(message);
+    expect(seen.frames[0]?.frame.world.alice).toEqual(drawn);
+    expect(seen.frames[0]?.frame.world.twins).toEqual([drawn]);
+    expect(seen.frames[0]?.frame.ghosts).toEqual([drawn]);
+
+    const bodiless = new StageDecoder(seen.house);
+    for (const message of shown(first)) if (message.kind !== "body") bodiless.take(message);
+    expect(seen.frames.at(-1)?.frame.world.alice?.look).toEqual({ kind: "alice" });
+  });
+
+  it("send ink still under the pen to a tenth of a pixel", () => {
+    const encoder = new StageEncoder();
+    const wet = [[{ x: 1.23456, y: 7.98765, pressure: 0.456789 }]];
+    const [, message] = encoder.encode(frameAt(0, { activeStrokes: wet }), VIEWPORT);
+    const lean = unpackShown(message ?? "");
+    expect(lean?.kind === "frame" && lean.body.activeStrokes).toEqual([
+      [{ x: 1.2, y: 8, pressure: 0.46 }],
+    ]);
+  });
+
   it("carry the events of frames that were not sent with the next one that is", () => {
     const encoder = new StageEncoder();
     const seen = audience();
@@ -169,7 +232,7 @@ describe("encoder and decoder", () => {
 describe("StageSource", () => {
   const live = () => {
     const exchange = new FakeExchange();
-    const source = new StageSource(exchange.dial, exchange.schedule);
+    const source = new StageSource(exchange.dial, exchange.schedule, () => 0.5);
     source.setBoard(BOARD);
     exchange.open();
     return { exchange, source };
@@ -234,6 +297,10 @@ describe("StageSource", () => {
     exchange.redial();
     exchange.drop();
     expect(exchange.retries).toEqual([1000, 2000]);
+    const early = new FakeExchange();
+    new StageSource(early.dial, early.schedule, () => 0);
+    early.drop();
+    expect(early.retries).toEqual([750]);
     exchange.redial();
     exchange.open();
     source.show(frameAt(0), VIEWPORT);
@@ -257,6 +324,18 @@ describe("StageWatcher", () => {
     exchange.say("offstage");
     exchange.drop();
     expect(seen.darkened()).toBe(2);
+  });
+
+  it("outlives a message that is not what it says, and shows the next one", () => {
+    const exchange = new FakeExchange();
+    const seen = audience();
+    new StageWatcher(exchange.dial, seen.house, exchange.schedule);
+    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+    exchange.say('frame\n{"inks":null,"notes":[]}');
+    expect(warned).toHaveBeenCalledTimes(1);
+    warned.mockRestore();
+    for (const message of new StageEncoder().encode(frameAt(0), VIEWPORT)) exchange.say(message);
+    expect(seen.frames).toHaveLength(1);
   });
 
   it("forgets the last source's drawings when the stage goes dark", () => {

@@ -41,7 +41,9 @@ A stage has any number of sources and screens, and at most one source is **live*
   are told `offstage` and show the waiting card.
 - `go` always means *start over*: the source forgets what it has told and tells the board, the
   laws, every drawing and every note again. That is how a screen that joins late, or reconnects,
-  catches up; the server keeps no copy of anything.
+  catches up; the server keeps no copy of anything. A screen forgets what it kept whenever it is
+  told a `board`, so the source starts over whenever the game sets one too (opening another board,
+  clearing this one).
 
 ## Wire
 
@@ -54,22 +56,26 @@ may drop) from a drawing (which it must deliver) without parsing either; it neve
 | `board` | source | the `BoardDefinition` on the renderer (`src/board/types.ts`) |
 | `laws` | source | `LawListing[]`, what the laws panel lists |
 | `ink` | source | a `Drawing` — sent once, and again only when the game hands the renderer new strokes for it (a tidy, a retrace) |
+| `body` | source | `{ ref, body }`, a body the player drew for Alice (boss and spirit modes), sent once; her `look` in the frames then carries `bodyRef` |
 | `note` | source | `{ id, script }`, a note's pen script, sent once |
-| `frame` | source | the `RenderFrame` without strokes or scripts (`LeanFrame`: inks by `id`, notes without `script`), plus the source canvas's `viewport` in CSS px and the events of any frames skipped since the last one sent |
+| `frame` | source | the `RenderFrame` without strokes, scripts or drawn bodies (`LeanFrame`: inks by `id`, notes without `script`, drawn looks by `bodyRef`), the ink still under the pen rounded to a tenth of a pixel, plus the source canvas's `viewport` in CSS px and the events of any frames skipped since the last one sent |
 | `active` | source | — |
 | `go`, `rest` | server → source | — |
 | `offstage` | server → screen | — |
 
 Frames go out at most every 30 ms and are held back while more than 256 KB waits on the source's
 socket; the server drops a frame for a screen with more than 1 MB waiting, and any frame over
-512 KB or other message over 4 MB. Drawings, notes, boards and laws are never dropped. The screen
+512 KB or other message over 4 MB (UTF-8 bytes; the socket itself takes nothing larger). Drawings, notes, boards and laws are never dropped. The screen
 fits the source's camera to its own canvas (`fittedCamera`): same centre, all of what the player
 sees, as large as it goes.
 
 The bodies are the client's own render types, not a second schema: what a source says is trusted
 the way its `POST`s of drawings are in demo mode, a screen only ever paints it, and a message that
-is not a known kind with a JSON object for a body is ignored. Access follows `docs/access.md`:
-same-origin in demo mode; any signed-in device when access is shared, re-checked every 15 s.
+is not a known kind with a JSON object for a body is ignored, and one whose body is not what its
+kind says is logged and skipped rather than ending the show. Access follows `docs/access.md`:
+same-origin in demo mode. When access is shared a stage is named after a board (`?stage=<board>`,
+`?screen=<board>`) and open to the devices whose credential may open that board, re-checked every
+15 s; the default `main` is then only a stage if a board is called that.
 
 ## Limits
 

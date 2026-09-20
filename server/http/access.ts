@@ -113,12 +113,18 @@ export class ApiAccess {
     };
   }
 
-  /** Anyone same-origin in demo mode; any signed-in device when access is shared. */
-  openSocket(request: Request): SocketGrant | Response {
+  /**
+   * A stage socket. Anyone same-origin in demo mode. When access is shared a stage shows a board's
+   * play, so it is named after a board and open to the devices that may open that board.
+   */
+  openStage(request: Request, stage: string): SocketGrant | Response {
     if (!this.#allowsOrigin(request)) return denied();
     if (request.method !== "GET") return notFound();
-    if (this.config.mode === "shared" && this.scope(request) === null) return unauthorized();
-    return { authorized: () => this.config.mode === "demo" || this.scope(request) !== null };
+    if (this.config.mode === "shared") {
+      if (this.scope(request) === null) return unauthorized();
+      if (!this.allowsBoard(request, stage)) return denied();
+    }
+    return { authorized: () => this.allowsBoard(request, stage) };
   }
 
   #allowsOrigin(request: Request): boolean {

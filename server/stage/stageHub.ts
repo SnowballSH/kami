@@ -77,7 +77,7 @@ export class Stage {
     }
     if (seat !== this.#live || !isShown(kind)) return;
     const droppable = kind === FRAME_KIND;
-    if (message.length > (droppable ? MAX_FRAME_BYTES : MAX_MESSAGE_BYTES)) return;
+    if (Buffer.byteLength(message) > (droppable ? MAX_FRAME_BYTES : MAX_MESSAGE_BYTES)) return;
     for (const screen of this.#screens) {
       if (droppable && screen.buffered() > MOST_BUFFERED_BYTES) continue;
       screen.send(message);

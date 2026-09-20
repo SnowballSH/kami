@@ -54,12 +54,12 @@ export const stageSockets = (access: ApiAccess, hub: StageHub = new StageHub()) 
       request: Request,
       server: Pick<Server<StageSocketData>, "upgrade">,
     ): Response | undefined => {
-      const grant = access.openSocket(request);
-      if (grant instanceof Response) return grant;
       const url = new URL(request.url);
       const stage = url.pathname.slice(STAGE_SOCKET_PREFIX.length);
       const role = roleOf(url);
       if (!STAGE_NAME_PATTERN.test(stage)) return notFound();
+      const grant = access.openStage(request, stage);
+      if (grant instanceof Response) return grant;
       if (role === null) return badRequest("role must be source or screen");
       const data: StageSocketData = {
         kind: "stage",

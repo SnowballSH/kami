@@ -26,7 +26,7 @@ export class StageSource {
   #shownAtMs = Number.NEGATIVE_INFINITY;
   #activeSaidAtMs = Number.NEGATIVE_INFINITY;
 
-  constructor(dial: DialStage, schedule?: Schedule) {
+  constructor(dial: DialStage, schedule?: Schedule, chance?: () => number) {
     this.#line = new KeptLine(
       dial,
       {
@@ -37,6 +37,7 @@ export class StageSource {
         },
       },
       schedule,
+      chance,
     );
   }
 

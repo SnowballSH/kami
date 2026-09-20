@@ -125,6 +125,15 @@ describe("Stage", () => {
     expect(slow.heard).toEqual([INK]);
   });
 
+  it("measures a message in bytes, not characters", () => {
+    const { stage } = staged();
+    const [screen, ipad] = [new FakeSeat(), new FakeSeat()];
+    stage.sourceJoined(ipad);
+    stage.screenJoined(screen);
+    stage.said(ipad, pack("frame", { padding: "字".repeat(MAX_FRAME_BYTES / 2) }));
+    expect(screen.heard).toEqual([]);
+  });
+
   it("drops a frame too large to be one", () => {
     const { stage } = staged();
     const [screen, ipad] = [new FakeSeat(), new FakeSeat()];

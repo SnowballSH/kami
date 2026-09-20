@@ -627,4 +627,26 @@ describe("model work budgets", () => {
     now += 60_000;
     expect((await access.handle(request("compile", { method: "POST" }), respond)).status).toBe(200);
   });
+
+  it("opens a stage to anyone same-origin in demo mode, and only to a board's own devices when shared", () => {
+    const upgrade = (headers: HeadersInit = {}, method = "GET"): Request =>
+      new Request("http://kami.test/api/stage/private?role=screen", { method, headers });
+    const open = new ApiAccess();
+    expect(open.openStage(upgrade(), "private")).not.toBeInstanceOf(Response);
+    expect(open.openStage(upgrade({ origin: "https://evil.test" }), "private")).toBeInstanceOf(
+      Response,
+    );
+    expect(open.openStage(upgrade({}, "POST"), "private")).toBeInstanceOf(Response);
+
+    const shared = new ApiAccess(SHARED);
+    const status = (headers: HeadersInit): number | null => {
+      const answer = shared.openStage(upgrade(headers), "private");
+      return answer instanceof Response ? answer.status : null;
+    };
+    expect(status({})).toBe(401);
+    expect(status(bearer(ALICE))).toBe(403);
+    expect(status(bearer(BOB))).toBeNull();
+    const grant = shared.openStage(upgrade(bearer(BOB)), "private");
+    expect(grant instanceof Response ? false : grant.authorized()).toBe(true);
+  });
 });

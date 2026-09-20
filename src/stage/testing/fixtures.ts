@@ -4,6 +4,7 @@ import type { PenScript } from "../../handwriting/types";
 import type { DrawingId } from "../../ink/types";
 import type { NoteId } from "../../notes/types";
 import type { InkView, NoteView, RenderFrame } from "../../render/types";
+import type { AliceSnapshot } from "../../sim/types";
 import type { DialStage, LineHandlers, StageLine } from "../line";
 
 export const BOARD: BoardDefinition = {
@@ -72,6 +73,23 @@ export const frameAt = (nowMs: number, parts: Partial<RenderFrame> = {}): Render
   eraserActive: false,
   ...parts,
 });
+
+export const ALICE: AliceSnapshot = {
+  center: { x: 10, y: 20 },
+  velocity: { x: 0, y: 0 },
+  width: 28,
+  height: 60,
+  size: "normal",
+  sizeMultiplier: 1,
+  headingScale: 1,
+  facing: 1,
+  walking: false,
+  grounded: true,
+  climbing: false,
+  hasKey: false,
+  ride: null,
+  look: { kind: "alice" },
+};
 
 export const VIEWPORT = { width: 1024, height: 768 };
 
