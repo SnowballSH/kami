@@ -13,6 +13,7 @@ import {
   MAX_SQUASH,
   NO_CUES,
   POP_MS,
+  PORTAL_ENTRY_MS,
   REINK_MS,
   SEAT_SINK,
   SWELL_MS,
@@ -289,6 +290,34 @@ describe("being carried off", () => {
     const overshoot = animator.observe(FAR, NO_CUES, POP_MS * 0.7);
     expect(overshoot.stretch.x).toBeGreaterThan(1);
     expect(snapshotOf(animator.observe(FAR, NO_CUES, POP_MS))).toMatchObject(AT_REST);
+  });
+
+  it("shrinks and spins into the entry portal before growing out of the exit", () => {
+    const animator = settled();
+    const exit = her({ center: { x: 500, y: 100 } });
+    const warp: AliceCues = {
+      warped: false,
+      devoured: false,
+      warp: { from: { x: 100, y: 100 }, to: exit.center },
+    };
+    const entering = animator.observe(exit, warp, 0);
+    expect(entering.offset.x).toBeCloseTo(-400);
+    expect(entering.stretch.x).toBeCloseTo(1);
+
+    const shrinking = animator.observe(exit, NO_CUES, PORTAL_ENTRY_MS / 2);
+    expect(shrinking.stretch.x).toBeLessThan(1);
+    expect(shrinking.lean).toBeGreaterThan(0);
+
+    const inRing = animator.observe(exit, NO_CUES, PORTAL_ENTRY_MS - 1);
+    expect(inRing.stretch.x).toBeLessThan(0.22);
+    expect(inRing.offset.x).toBeCloseTo(-400, 1);
+
+    const overshoot = animator.observe(exit, NO_CUES, PORTAL_ENTRY_MS + POP_MS * 0.7);
+    expect(overshoot.stretch.x).toBeGreaterThan(1);
+    expect(overshoot.lean).toBeGreaterThan(0);
+    expect(snapshotOf(animator.observe(exit, NO_CUES, PORTAL_ENTRY_MS + POP_MS))).toMatchObject(
+      AT_REST,
+    );
   });
 
   it("leaves her old self dripping away where she fell and re-inks her at the checkpoint", () => {

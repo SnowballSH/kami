@@ -1,6 +1,7 @@
 import { boundsOf, type Rect, type Stroke, type Vec } from "../core/geometry";
 import { INK_THICKNESS } from "../core/world";
 import type { Drawing, DrawingId, PlacementVerdict } from "../ink/types";
+import type { SimEvent } from "../sim/types";
 import { awakening, inkTint, isSettled, shiverOffset } from "./awakening";
 import { posedInView } from "./culling";
 import { INK_PEN, strokesPath } from "./inkPath";
@@ -41,11 +42,13 @@ const uneaten = (strokes: readonly Stroke[], bite: number): Stroke[] => {
 
 export class InkPainter {
   private readonly settled = new Map<DrawingId, SettledInk>();
+  private readonly portalPulses = new Map<DrawingId, number>();
   private readonly held = new WeakMap<readonly Stroke[], Path2D>();
   private live: LiveInk | null = null;
 
   forget(): void {
     this.settled.clear();
+    this.portalPulses.clear();
     this.live = null;
   }
 
@@ -55,9 +58,19 @@ export class InkPainter {
     view: Rect,
     nowMs: number,
     chew: Chew | null = null,
+    events: readonly SimEvent[] = [],
   ): void {
+    for (const event of events) {
+      if (event.type === "warped") {
+        this.portalPulses.set(event.from, nowMs);
+        this.portalPulses.set(event.to, nowMs);
+      }
+    }
     for (const ink of inks) this.paintInk(ctx, ink, view, nowMs, chew);
     if (this.settled.size > inks.length) this.prune(inks);
+    for (const [id, startedAt] of this.portalPulses) {
+      if (nowMs - startedAt > 400) this.portalPulses.delete(id);
+    }
   }
 
   paintActive(
@@ -69,7 +82,7 @@ export class InkPainter {
       this.live = null;
       return;
     }
-    ctx.fillStyle = verdict === "ok" ? LIVE_CSS : REJECTED_CSS;
+    ctx.fillStyle = verdict === "ok" || verdict === "under-ground" ? LIVE_CSS : REJECTED_CSS;
     ctx.fill(this.livePath(strokes));
   }
 
@@ -127,6 +140,30 @@ export class InkPainter {
       ctx.lineJoin = "round";
       ctx.stroke(path);
     }
+    this.paintPortalPulse(ctx, ink, settled.bounds, path, nowMs);
+    ctx.restore();
+  }
+
+  private paintPortalPulse(
+    ctx: CanvasRenderingContext2D,
+    ink: InkView,
+    bounds: Rect,
+    path: Path2D,
+    nowMs: number,
+  ): void {
+    const startedAt = this.portalPulses.get(ink.drawing.id);
+    if (ink.nature !== "portal" || startedAt === undefined) return;
+    const progress = Math.max(0, Math.min(1, (nowMs - startedAt) / 400));
+    const pulse = Math.sin(Math.PI * progress);
+    if (pulse <= 0) return;
+    ctx.save();
+    ctx.translate(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    ctx.scale(1 + pulse * 0.15, 1 + pulse * 0.15);
+    ctx.translate(-(bounds.x + bounds.width / 2), -(bounds.y + bounds.height / 2));
+    ctx.globalAlpha = pulse * 0.7;
+    ctx.strokeStyle = SETTLED_CSS[ink.nature];
+    ctx.lineWidth = 3 + pulse * 4;
+    ctx.stroke(path);
     ctx.restore();
   }
 

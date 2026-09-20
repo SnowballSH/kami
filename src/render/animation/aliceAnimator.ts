@@ -25,6 +25,10 @@ import {
 export interface AliceCues {
   /** She stepped through a portal: she pops out of the far one. */
   readonly warped: boolean;
+  readonly warp?: {
+    readonly from: { x: number; y: number };
+    readonly to: { x: number; y: number };
+  };
   /** The Sumikui swallowed her: she has already faded, so nothing is left behind to drip. */
   readonly devoured: boolean;
 }
@@ -37,6 +41,7 @@ export const LAND_MS = 150;
 export const TURN_MS = 120;
 export const SWELL_MS = RESIZE_MS;
 export const POP_MS = 220;
+export const PORTAL_ENTRY_MS = 180;
 export const REINK_MS = 350;
 export const DRIP_MS = 300;
 export const KEY_MS = 350;
@@ -120,6 +125,9 @@ export class AliceAnimator {
   private arrivalKind: ArrivalKind = "reink";
   private ghostAtMs: number | null = null;
   private keyAtMs: number | null = null;
+  private portalAtMs: number | null = null;
+  private portalFrom = { x: 0, y: 0 };
+  private portalTo = { x: 0, y: 0 };
 
   observe(alice: AliceSnapshot, cues: AliceCues, nowMs: number): AliceFigure {
     if (this.seen) this.noticeChanges(alice, cues, nowMs);
@@ -137,7 +145,8 @@ export class AliceAnimator {
       Math.hypot(alice.center.x - this.lastX, alice.center.y - this.lastY) >
         Math.max(TELEPORT_MIN_PX, TELEPORT_HEIGHTS * Math.max(alice.height, this.lastHeight));
     if (carriedOff) {
-      this.arrive(cues.warped ? "pop" : "reink", nowMs);
+      if (cues.warp !== undefined) this.startPortal(cues.warp, nowMs);
+      else this.arrive(cues.warped ? "pop" : "reink", nowMs);
       if (!cues.devoured && !cues.warped) this.leaveGhost(alice, nowMs);
       return;
     }
@@ -173,6 +182,17 @@ export class AliceAnimator {
     this.hopAtMs = null;
     this.landAtMs = null;
     this.turnAtMs = null;
+    this.portalAtMs = null;
+  }
+
+  private startPortal(warp: NonNullable<AliceCues["warp"]>, nowMs: number): void {
+    this.portalAtMs = nowMs;
+    this.portalFrom = { ...warp.from };
+    this.portalTo = { ...warp.to };
+    this.arrivalAtMs = null;
+    this.hopAtMs = null;
+    this.landAtMs = null;
+    this.turnAtMs = null;
   }
 
   private leaveGhost(alice: AliceSnapshot, nowMs: number): void {
@@ -204,6 +224,7 @@ export class AliceAnimator {
     this.composeTurn(alice, nowMs);
     this.composeSwell(nowMs);
     this.composeArrival(nowMs);
+    this.composePortal(alice, nowMs);
     this.composeGhost(nowMs);
     this.composeKey(nowMs);
   }
@@ -309,6 +330,34 @@ export class AliceAnimator {
     } else {
       figure.inked = t;
     }
+  }
+
+  private composePortal(alice: AliceSnapshot, nowMs: number): void {
+    if (this.portalAtMs === null) return;
+    const elapsed = nowMs - this.portalAtMs;
+    const { figure } = this;
+    if (elapsed < PORTAL_ENTRY_MS) {
+      const t = progressOf(nowMs, this.portalAtMs, PORTAL_ENTRY_MS);
+      const approach = easeInOutSine(t);
+      figure.offset.x = lerp(this.lastX, this.portalFrom.x, approach) - alice.center.x;
+      figure.offset.y = lerp(this.lastY, this.portalFrom.y, approach) - alice.center.y;
+      const scale = lerp(1, POP_FROM, easeInCubic(t));
+      figure.stretch.x *= scale;
+      figure.stretch.y *= scale;
+      figure.lean = Math.PI * 2 * t;
+      return;
+    }
+    const t = progressOf(nowMs, this.portalAtMs + PORTAL_ENTRY_MS, POP_MS);
+    if (t >= 1) {
+      this.portalAtMs = null;
+      return;
+    }
+    figure.offset.x = this.portalTo.x - alice.center.x;
+    figure.offset.y = this.portalTo.y - alice.center.y;
+    const scale = lerp(POP_FROM, 1.1, easeOutBack(t));
+    figure.stretch.x *= scale;
+    figure.stretch.y *= scale;
+    figure.lean = Math.PI * 2 * (1 - t);
   }
 
   private composeGhost(nowMs: number): void {

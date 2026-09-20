@@ -1,5 +1,5 @@
 import type { BoardDefinition } from "../board/types";
-import { distanceToRect, type Rect, type Vec } from "../core/geometry";
+import { boundsOf, distanceToRect, poseToWorld, type Rect, type Vec } from "../core/geometry";
 import type { Handwriting } from "../handwriting/types";
 import { ALICE_HERSELF, type AliceSnapshot, type SumikuiSnapshot } from "../sim/types";
 import { type AliceBadge, paintAlice, paintAliceFigure } from "./alicePainter";
@@ -121,6 +121,7 @@ export class CanvasRenderer implements Renderer {
     const { ctx } = this;
     const { camera, world, nowMs } = frame;
     const view = visibleWorld(camera, this.box);
+    const events = frame.events ?? NO_EVENTS;
     const transform = deviceTransform(camera, this.box, this.pixelRatio);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
@@ -129,17 +130,29 @@ export class CanvasRenderer implements Renderer {
     applyDeviceTransform(ctx, transform);
     paintDotGrid(ctx, view, zoomOf(camera));
     this.boardPainter.paint(ctx, view, world, nowMs);
-    this.inkPainter.paintInks(ctx, frame.inks, view, nowMs, chewOf(world.sumikui));
+    const portalCenters = new Map<string, Vec>();
+    for (const ink of frame.inks) {
+      if (ink.nature !== "portal") continue;
+      const bounds = boundsOf(
+        ink.drawing.strokes.flatMap((stroke) =>
+          stroke.map((point) => poseToWorld(point, ink.pose)),
+        ),
+      );
+      portalCenters.set(ink.drawing.id, {
+        x: bounds.x + bounds.width / 2,
+        y: bounds.y + bounds.height / 2,
+      });
+    }
+    this.inkPainter.paintInks(ctx, frame.inks, view, nowMs, chewOf(world.sumikui), events);
     const moonlit = frame.daylight < 1;
     if (!moonlit) this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
-    const events = frame.events ?? NO_EVENTS;
     this.paintGhosts(ctx, frame.ghosts ?? [], view, nowMs);
     if (world.tear !== null) paintTear(ctx, world.tear, nowMs);
     const several = world.twins.length > 0;
     this.troupe.count(world.twins.length + 1);
     for (const [index, twin] of world.twins.entries()) {
       const who = index + 1;
-      const figure = this.troupe.figureOf(who, twin, events, nowMs);
+      const figure = this.troupe.figureOf(who, twin, events, nowMs, portalCenters);
       if (!aliceInView(twin, view)) continue;
       ctx.save();
       ctx.globalAlpha = 1 - swallowOf(world.sumikui, who);
@@ -152,7 +165,7 @@ export class CanvasRenderer implements Renderer {
     }
     if (world.soul !== null) paintSoul(ctx, world.soul, nowMs);
     if (world.alice !== null) {
-      const figure = this.troupe.figureOf(ALICE_HERSELF, world.alice, events, nowMs);
+      const figure = this.troupe.figureOf(ALICE_HERSELF, world.alice, events, nowMs, portalCenters);
       if (aliceInView(world.alice, view)) {
         ctx.save();
         ctx.globalAlpha = 1 - swallowOf(world.sumikui, ALICE_HERSELF);
