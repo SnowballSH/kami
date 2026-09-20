@@ -13,8 +13,7 @@ BUILD=.gx10/build
 CACHE=.gx10/cache
 EYE_BUILD=$BUILD/eye
 WHEELS=$CACHE/wheels
-EYE_PACKAGES=(onnxruntime numpy opencv-python-headless)
-EYE_SOURCES=(render.py recognizer.py exemplar_set.py morph.py completion.py sidecar.py)
+EYE_SOURCES=(artifacts.py render.py recognizer.py exemplar_set.py morph.py completion.py sidecar.py validate_release.py)
 BOX_PYTHON=3.12
 BOX_PLATFORMS=(manylinux_2_28_aarch64 manylinux_2_17_aarch64 manylinux2014_aarch64)
 mkdir -p "$BUILD" "$CACHE"
@@ -36,41 +35,18 @@ copy_eye_model() {
   local model
   model=$(eye_model_directory)
   model=${model%/}
-  if [ -z "$model" ] || [ ! -s "$model/model.onnx" ] || [ ! -s "$model/labels.json" ]; then
+  if [ -z "$model" ]; then
     if [ -n "${KAMI_EYE_MODEL_NAME:-}" ]; then echo "✗ $model has no model.onnx + labels.json"; exit 1; fi
     echo "  – no model under ml/artifacts to ship; the box uses the one it trained, or the k-NN"
     return
   fi
+  PYTHONPATH=ml python3 -c 'import sys; from pathlib import Path; from artifacts import validate_bundle; validate_bundle(Path(sys.argv[1]))' "$model"
   mkdir -p "$EYE_BUILD/artifacts"
-  cp -R "$model" "$EYE_BUILD/artifacts/"
+  cp -RL "$model" "$EYE_BUILD/artifacts/"
   echo "  ✓ model $(basename "$model")"
 }
 
-pin_eye_requirements() {
-  uv export --project ml --frozen --no-dev --no-group train --no-hashes --no-emit-project \
-    --quiet -o "$EYE_BUILD/requirements.txt" >/dev/null 2>&1 \
-    || printf '%s\n' "${EYE_PACKAGES[@]}" > "$EYE_BUILD/requirements.txt"
-}
-
-pip_for_the_box() {
-  if command -v uv >/dev/null; then uvx --python "$BOX_PYTHON" pip "$@"; else python3 -m pip "$@"; fi
-}
-
-gather_eye_wheels() {
-  local platform_flags=() platform
-  for platform in "${BOX_PLATFORMS[@]}"; do platform_flags+=(--platform "$platform"); done
-  rm -rf "$WHEELS.part"
-  if pip_for_the_box download --quiet --disable-pip-version-check --dest "$WHEELS.part" \
-       --only-binary=:all: --implementation cp --python-version "${BOX_PYTHON/./}" \
-       "${platform_flags[@]}" -r "$EYE_BUILD/requirements.txt"; then
-    rm -rf "$WHEELS"
-    mv "$WHEELS.part" "$WHEELS"
-    echo "  ✓ $(find "$WHEELS" -name '*.whl' | wc -l | tr -d ' ') Python wheels for the box"
-  else
-    rm -rf "$WHEELS.part"
-    echo "  ! could not gather the Python wheels; keeping what $WHEELS already holds"
-  fi
-}
+source scripts/gx10/eye-deps.sh
 
 echo "→ Building the game"
 bunx vite build --logLevel warn
@@ -90,15 +66,17 @@ fetch_once "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-ubuntu2404-$M
 
 echo "→ Kami's Eye (the sketch-recognition sidecar)"
 rm -rf "$EYE_BUILD"
-if [ -s ml/sidecar.py ]; then
+if [ "${KAMI_EYE_ENABLED:-1}" != 0 ]; then
   mkdir -p "$EYE_BUILD"
   for source in "${EYE_SOURCES[@]}"; do cp "ml/$source" "$EYE_BUILD/"; done
   copy_eye_model
   pin_eye_requirements
   gather_eye_wheels
 else
-  echo "  – ml/sidecar.py is not written yet; the box will use the k-NN"
+  echo "  – sidecar explicitly disabled; the box will use the k-NN"
 fi
+python3 scripts/gx10/box/runtime.py write "$BUILD" "$CACHE" \
+  "$BUN_VERSION" "$MONGO_VERSION" "$BOX_PYTHON"
 
 echo
 du -sh dist "$BUILD" "$CACHE" | sed 's/^/  /'

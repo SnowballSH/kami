@@ -147,7 +147,7 @@ The autopilot is a system too: `Scene.canFly` marks every cell of air climbable,
 
 What each of the remaining ideas is, in this vocabulary, and what it costs:
 
-- **Vehicles** (“a car”): a `vehicle` *nature* whose `beforeStep` moves the body with Alice's intent while she stands on it; Alice movement yields to it. One nature record, one `NatureWorld` capability (`intent`).
+- **Vehicles** (“a car”) — *built*: a `vehicle` nature whose `beforeStep` (`sim/vehicles.ts`) reads the new `NatureWorld.intent` capability and rolls the body toward `intent.x × VEHICLE_SPEED × strength` while Alice is aboard; `alice.drive` makes her movement yield to it, and jumping dismounts. One nature record, one capability, exactly as costed.
 - **Follow / flee** (“a dog”, “a mouse”): creature natures whose mind reads `world.alice` and turns toward or away. Two nature records over the existing `Feelers`.
 - **Portals**: a `portal` nature; the system pairs portal bodies and teleports whatever touches one to its partner. One nature, one hook.
 - **Per-drawing physics** (“the rock is twice as heavy”): a third subject with its own dials. `RuleEffect` gains `{ target: DrawingId, governs, value }`; `physics(R)` becomes a map `DrawingId → Overrides` alongside the world product. Same fold, same later-wins, same clamps.

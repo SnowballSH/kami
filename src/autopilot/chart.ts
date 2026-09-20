@@ -1,6 +1,7 @@
 import type { Nature } from "../cat/types";
 import { boundsOf, poseToWorld, type Rect, rectsOverlap, type Vec } from "../core/geometry";
 import { INK_THICKNESS } from "../core/world";
+import { bearingStrokes } from "../ink/bearing";
 import type { DrawingId } from "../ink/types";
 import type { Scene, SceneInk } from "./types";
 
@@ -76,7 +77,9 @@ const flagsFor = (nature: Nature): number => {
 };
 
 const worldPoints = (ink: SceneInk): Vec[] =>
-  ink.drawing.strokes.flatMap((stroke) => stroke.map((point) => poseToWorld(point, ink.pose)));
+  bearingStrokes(ink.drawing.strokes).flatMap((stroke) =>
+    stroke.map((point) => poseToWorld(point, ink.pose)),
+  );
 
 const aliceRect = (scene: Scene): Rect => ({
   x: scene.alice.center.x - scene.alice.width / 2,
@@ -85,7 +88,7 @@ const aliceRect = (scene: Scene): Rect => ({
   height: scene.alice.height,
 });
 
-const CREATURES: ReadonlySet<Nature> = new Set<Nature>(["walker", "hopper", "flier"]);
+const CREATURES: ReadonlySet<Nature> = new Set<Nature>(["walker", "hopper", "flier", "vehicle"]);
 const CRAMP_INSET = 2;
 
 /**
@@ -216,7 +219,7 @@ export class Chart {
   }
 
   private stampInk(ink: SceneInk, flags: number): void {
-    for (const stroke of ink.drawing.strokes) {
+    for (const stroke of bearingStrokes(ink.drawing.strokes)) {
       let previous: Vec | null = null;
       for (const point of stroke) {
         const here = poseToWorld(point, ink.pose);

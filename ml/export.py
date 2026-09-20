@@ -11,16 +11,14 @@ from pathlib import Path
 
 import torch
 
+from artifacts import LABELS_FILE, MODEL_FILE, PREPROCESS_FILE, publish_bundle, seal_bundle
 from dataset import Split, split_of
 from metrics import Accuracy
 from model import SketchNet
 from quickdraw_bin import category_path, read_drawings
 from recognizer import (
     INPUT_NAME,
-    LABELS_FILE,
-    MODEL_FILE,
     OUTPUT_NAMES,
-    PREPROCESS_FILE,
     SketchRecognizer,
 )
 from render import (
@@ -131,9 +129,13 @@ def write_artifacts(
     bin_dir: Path,
     artifacts_dir: Path,
 ) -> None:
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    export_onnx(model, artifacts_dir / MODEL_FILE)
-    (artifacts_dir / LABELS_FILE).write_text(json.dumps(list(categories), indent=2))
-    (artifacts_dir / PREPROCESS_FILE).write_text(json.dumps(_preprocess(summary), indent=2))
-    golden = _golden_cases(SketchRecognizer(artifacts_dir), categories, bin_dir)
-    (artifacts_dir / GOLDEN_FILE).write_text(json.dumps(golden))
+    def build(staging: Path) -> None:
+        torch.save(model.state_dict(), staging / "model.pt")
+        export_onnx(model, staging / MODEL_FILE)
+        (staging / LABELS_FILE).write_text(json.dumps(list(categories), indent=2))
+        (staging / PREPROCESS_FILE).write_text(json.dumps(_preprocess(summary), indent=2))
+        golden = _golden_cases(SketchRecognizer(staging), categories, bin_dir)
+        (staging / GOLDEN_FILE).write_text(json.dumps(golden))
+        seal_bundle(staging)
+
+    publish_bundle(artifacts_dir, build)

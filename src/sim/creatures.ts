@@ -29,6 +29,10 @@ export interface Mind {
   turnedAt: number;
   /** Ticks spent standing since it last left the ground. */
   rested: number;
+  /** A vehicle's road speed, signed; builds up and brakes a step per tick. */
+  speed: number;
+  /** Whether Alice is riding this vehicle. */
+  aboard: boolean;
 }
 
 const hashOf = (id: DrawingId): number =>
@@ -39,6 +43,8 @@ export const freshMind = (id: DrawingId): Mind => ({
   clock: 0,
   turnedAt: Number.NEGATIVE_INFINITY,
   rested: 0,
+  speed: 0,
+  aboard: false,
 });
 
 /** The world as a creature feels it: what its body would touch if nudged, and what lies under a point. */
