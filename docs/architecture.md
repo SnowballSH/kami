@@ -249,12 +249,16 @@ The player writes with the pen like they draw with it; nothing is selected first
 
 - **Funnel** (`Game.interpret`): reject oversized text/invalid position; answer help locally; write the
   player note; try the offline compiler first. If it returns a law, apply the mode policy and stop.
-  Otherwise a summons (`game/summons.ts`: "summon a rabbit", "draw me a bridge here") →
-  `LiveRecognizer.exemplar(word)` → Kami's own drawing, fitted to `SUMMONED_SIZE`, stood over the
-  words and clear of Alice, solid at once (`sim.addDrawing`), inked in over `ARRIVAL_MS`
-  (`InkLedger.conjure`) and named by the server's word through the same `cat.name` → `name` path as
-  the player's ink, minus the tidy it does not need — or Kami asks the player to draw what he has
-  never seen. Laws come first so "summon the ink eater" stays a law.
+  Otherwise a wish (`summoning/`: the lexicon is built once from `GET /api/exemplars`; the grammar
+  reads "summon a rabbit", "draw me a bridge here", "three rabbits", "a house and a tree", "a forest
+  with a river", with counts, plurals, aliases and scene words) → `LiveRecognizer.exemplar(category)`
+  per thing → Kami's own drawings, fitted to `SUMMONED_SIZE` in rows (`layoutBoxes`, `fitSketch`),
+  stood over the words and clear of Alice (`standOver`), solid at once (`sim.addDrawing`), inked in
+  over `ARRIVAL_MS` (`InkLedger.conjure`) and named by the server's word through the same
+  `cat.name` → `name` path as the player's ink, minus the tidy they do not need — or Kami asks the
+  player to draw what he has never seen. A bare name ("a rabbit") beside a drawing names it instead,
+  and words beside unnamed ink always name it, even "draw a ladder". Laws come first so "summon the
+  ink eater" stays a law.
   Before a summons, a scene (`rules/scenes/`: `destinationOf` reads "teleport us to the moon",
   "let's go underwater", "welcome to Candy Land"; `AtlasSceneCompiler` answers from the offline
   atlas of ~25 places and otherwise asks the remote `scenes` compiler, `POST /api/scene`) →

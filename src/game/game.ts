@@ -15,6 +15,7 @@ import {
 import { INPUT_LIMITS, isInputPoint, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
 import type { Handwriting } from "../handwriting/types";
+import { judgePlacement } from "../ink/placement";
 import type {
   Drawing,
   DrawingId,
@@ -41,6 +42,7 @@ import type {
   WorldPhysics,
 } from "../rules/types";
 import type { DrawingPose, SimEvent, Simulation, WalkIntent } from "../sim/types";
+import { placeProp, type Summoner, type Wish } from "../summoning";
 import type {
   CanvasInputSink,
   Hud,
@@ -90,7 +92,6 @@ import { type NoteAnchor, NoteBook } from "./noteBook";
 import type { Drift } from "./noteLayout";
 import { groupedByNote, RuleBook } from "./ruleBook";
 import { StuckDetector } from "./stuckDetector";
-import { placeProp, placeSummoned, summonsOf } from "./summons";
 
 const MAX_STEPS_PER_FRAME = 5;
 export const DEFAULT_TIDINESS = 0.5;
@@ -144,7 +145,7 @@ export interface GameModules {
   /** Tidies a drawing once it has a name; without one the player's ink stays exactly as drawn. */
   readonly finisher?: Pick<LiveRecognizer, "complete">;
   /** Pictures Kami can draw himself ("summon a rabbit"); without one he must ask the player to. */
-  readonly summoner?: Pick<LiveRecognizer, "exemplar">;
+  readonly summoner?: Summoner;
   /** Places to be teleported to ("teleport us to the moon"); without one Kami knows no way there. */
   readonly scenes?: SceneCompiler;
   readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
@@ -235,6 +236,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.penReader = modules.penReader ?? null;
     this.hud = modules.createHud(this);
     this.laws = modules.createLawsPanel(this);
+    modules.summoner?.wake();
     this.voice = modules.createVoice?.(this.ears()) ?? null;
   }
 
@@ -812,8 +814,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   /**
-   * The one funnel: a request for help, a law of physics, a name for a drawing, or a remark.
-   * Whatever is instant is tried first; the model is only asked about what nothing else understood.
+   * The one funnel: a request for help, a law of physics, a wish for things, a name for a drawing,
+   * or a remark. Whatever is instant is tried first; the model is only asked about what nothing
+   * else understood. A bare name ("a rabbit") beside a drawing names it; anywhere else it summons.
    */
   private async interpret(text: string, position: Vec): Promise<void> {
     if (text.length > INPUT_LIMITS.text) {
@@ -848,17 +851,23 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       }
     }
 
-    const asked = summonsOf(text);
-    if (asked !== null && !this.awaitsAName(note.id)) {
-      await this.summon(asked, note, stillHere);
+    const subject = this.drawingNear(note.id);
+    const nameless = subject !== null && subject.ruling === null;
+    const wish = (await this.modules.summoner?.wish(text)) ?? null;
+    if (!stillHere()) return;
+    if (wish !== null && !nameless && (wish.explicit || subject === null)) {
+      await this.summon(wish, note, stillHere);
       return;
     }
 
-    const subject = this.drawingNear(note.id);
     const ruling = subject === null ? null : await this.modules.cat.name(text, subject.drawing);
     if (!stillHere()) return;
     if (subject !== null && ruling !== null && ruling.nature !== "ink") {
       this.name(subject.drawing.id, ruling, note);
+      return;
+    }
+    if (wish !== null && !nameless) {
+      await this.summon(wish, note, stillHere);
       return;
     }
 
@@ -870,23 +879,38 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     else this.shrug(note.id);
   }
 
-  /** True until the board changes or the note is erased — checked after every await. */
   /**
-   * Kami draws what was asked for: a finished drawing of it from the server, inked in stroke by
-   * stroke above the words, solid at once and named as it would be had the player drawn it.
+   * Kami draws what was asked for: a finished drawing of each thing from the server, standing over
+   * the words in a row, inked in stroke by stroke, solid at once and named as it would be had the
+   * player drawn it. Things that would land in a no-ink zone are left out.
    */
-  private async summon(what: string, note: Note, stillHere: () => boolean): Promise<void> {
-    const exemplar = (await this.modules.summoner?.exemplar(what)) ?? null;
-    if (!stillHere()) return;
+  private async summon(wish: Wish, note: Note, stillHere: () => boolean): Promise<void> {
+    const { summoner, sim } = this.modules;
     const writing = this.notes.boundsOf(note.id);
-    if (exemplar === null || writing === null) {
-      this.remarkUnder(note.id, CANNOT_DRAW_LINE(what));
+    const summoned =
+      summoner === undefined || writing === null
+        ? []
+        : await summoner.conjure(wish, writing, sim.aliceBounds());
+    if (!stillHere()) return;
+    const rules = { noInkZones: this.board.noInkZones, aliceBounds: null };
+    const landed = summoned.filter(({ strokes }) => judgePlacement(strokes, rules) === "ok");
+    if (landed.length === 0) {
+      this.remarkUnder(note.id, CANNOT_DRAW_LINE(wish.asked));
       return;
     }
-    const strokes = placeSummoned(exemplar.strokes, writing, this.modules.sim.aliceBounds());
-    const drawing = this.conjure(strokes, this.nowMs);
-    const ruling = await this.modules.cat.name(exemplar.word, drawing);
-    if (stillHere() && this.ledger.get(drawing.id) !== null) this.name(drawing.id, ruling, note);
+    const drawings = landed.map(({ word, strokes }, index) => ({
+      word,
+      drawing: this.conjure(strokes, this.nowMs + index * PROP_STAGGER_MS),
+    }));
+    const [only] = drawings;
+    if (only !== undefined && drawings.length === 1) {
+      const ruling = await this.modules.cat.name(only.word, only.drawing);
+      if (stillHere() && this.ledger.get(only.drawing.id) !== null)
+        this.name(only.drawing.id, ruling, note);
+      return;
+    }
+    this.understood(note.id);
+    for (const { word, drawing } of drawings) void this.label(drawing, word);
   }
 
   /** Ink of Kami's own: whole and solid at once, shown being drawn in from `fromMs`. */
@@ -1323,11 +1347,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       if (isPlayers(note) || this.labelsByKami.delete(note.id))
         this.modules.store.deleteNote(this.board.id, note.id);
     }
-  }
-
-  /** Words beside ink that has no name yet are a name for it, even "draw a boat". */
-  private awaitsAName(noteId: NoteId): boolean {
-    return this.drawingNear(noteId)?.ruling === null;
   }
 
   private drawingNear(noteId: NoteId): InkRecord | null {

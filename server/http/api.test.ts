@@ -460,8 +460,17 @@ describe("exemplar", () => {
     createApi({
       ...apiParts(),
       beautifier,
-      exemplars: { exemplar: async (word) => (word === "rabbit" ? RABBIT : null) },
+      exemplars: {
+        categories: ["rabbit", "hot air balloon"],
+        exemplar: async (word) => (word === "rabbit" ? RABBIT : null),
+      },
     });
+
+  it("lists every word it has a picture of, none without a source", async () => {
+    const listed = await drawing().handle(new Request(`${ORIGIN}/api/exemplars`));
+    expect(await listed.json()).toEqual({ categories: ["rabbit", "hot air balloon"] });
+    expect(await (await call("GET", "/api/exemplars")).json()).toEqual({ categories: [] });
+  });
 
   it("draws the word asked for", async () => {
     const response = await drawing().handle(new Request(`${ORIGIN}/api/exemplar?word=rabbit`));

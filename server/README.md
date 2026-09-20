@@ -43,6 +43,7 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `KAMI_LLM_MODEL` | Compiler model name; also the fallback handwriting model. Compilation is **off** unless both URL and model are set. |
 | `KAMI_TRANSCRIBE_MODEL` | Handwriting model, defaulting to `KAMI_LLM_MODEL`; uses the same URL/key. Startup must correctly read a known PNG before `/api/transcribe` is enabled. While warming up or after a failed image check, the route returns **501**. |
 | `KAMI_LLM_API_KEY` | Optional bearer token. |
+| `KAMI_SKETCHES` | The Eye's exemplar set directory (`ml/CONTRACT.md`; on the box `~/kami-ml/artifacts/kami-eye/exemplars`), whose clean drawings `/api/exemplar` summons by name across all 345 categories. Unset, summons come from the ingested Quick, Draw! samples, then from Quick, Draw! itself, for the curated categories only. |
 | `DEEPGRAM_API_KEY` | Turns voice on: speech in (`nova-3`) and Kami's lines out (`aura-2`). Without it `/api/voice/*` answers `501` and the game plays silently. See `docs/voice.md`. |
 | `KAMI_VOICE_LISTEN_MODEL` | Deepgram speech-to-text model, default `nova-3`. |
 | `KAMI_VOICE_SPEAK_MODEL` | Deepgram text-to-speech voice, default `aura-2-draco-en`. |
@@ -71,6 +72,7 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `WS /api/voice/listen?rate=<Hz>[&wake=1]` | With `wake=1` the stream stands open and one `{type:"heard",text}` comes back per utterance, for the browser to match against the wake word. Otherwise one held utterance: the browser sends mono `linear16` frames and `{"type":"done"}` on release; the server answers `{type:"listening"}`, `{type:"hearing",text}` as Deepgram guesses, one `{type:"heard",text}` when it settles, `{type:"trouble"}` if Deepgram fails |
 | `POST /api/voice/speak` `{ text }` | `audio/mpeg` of Kami saying it (Deepgram `aura-2`, repeated lines cached in memory); `501` without a key or if Deepgram did not answer |
 | `POST /api/transcribe` `{ strokes: {x,y}[][] }` | `{ text: string \| null }` — the strokes read as handwriting, `null` for a drawing; `501` without a model |
+| `GET /api/exemplars` | `{ categories: string[] }` — every Quick, Draw! category a drawing can be summoned for |
 
 Entity/model JSON bodies are validated with Zod (`schemas.ts` re-exports the browser-safe entity
 schemas in `src/persistence/schemas.ts` and defines request-specific schemas). Controller text has
@@ -226,6 +228,19 @@ the strokes stay ink. Startup must successfully read the known warm-up image; un
 return `501`. `/api/transcribe` forwards the request's abort signal to stop an obsolete client
 wait; that does not guarantee an upstream model cancels work already accepted.
 
+## Summoning
+
+`sketch/` holds the clean drawings behind `/api/exemplar`, which the game draws in when the player
+writes `summon a rabbit` or `a house, a tree and the sun`. With `KAMI_SKETCHES` it reads the Eye's
+exemplar set (`ml/CONTRACT.md`: plain `.npy`, one contiguous window per category, best first;
+`sketch/npy.ts` reads the integer arrays, `sketch/exemplarLibrary.ts` loads the whole set in tens of
+milliseconds) and picks at random among a category's 24 best, so what appears is recognisable but not
+always the same. Without it, `sketch/storedLibrary.ts` answers from the k-NN's ingested samples and
+`sketch/quickdrawLibrary.ts` fetches the first recognised drawings of each curated category straight
+from Quick, Draw! on first request. Strokes are handed out in the dataset's 0–255 space; the client
+scales and places them. `GET /api/exemplars` lists the categories, from which the game builds its
+summoning lexicon (plurals, aliases, scenes like "a forest") — `src/summoning`.
+
 ## Two things that would otherwise bite
 
 - **Bun and `bson`.** `bson` 7 probes `v8.startupSnapshot.isBuildingSnapshot()` while it loads, and
@@ -263,8 +278,9 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 |---|---|---|
 | `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[], names: string[], natures: Nature[], strengths: number[], lines: string[], certain: boolean }` — parallel arrays, best first, at most three, all empty when unsure. `guesses` are bare Quick, Draw! words, each with a 0–1 `confidence`; the other four say what each guess is for the game (below). `certain: true` means `guesses[0]` may be named without offering the player a choice (see "Naming without asking"); a client that ignores it keeps asking, as before |
 | `POST /api/beautify` | `{ strokes: {x,y}[][], name?: string, strength?: number }` (`strength` 0–1: how firmly to tidy, the HUD slider; 0.5 when left out) | whatever the attached model answers, content-type preserved. With Kami's Eye attached (the box's default): **`application/json` `{ tidied, added, category, confidence, similarity, exemplar }`** — `tidied` is the player's own strokes, point for point, each nudged a bounded distance toward a clean drawing of the same thing; `added` is what theirs was missing (`ml/CONTRACT.md`, "Completion"). Another model may answer an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
-| `GET /api/exemplar?word=rabbit` | `word`: what to draw, as the player said it ("a rabbit", "rabbits", "the hot air balloon") | `{ word: string, strokes: {x,y}[][] }` — one clean drawing of it, a different one each time, in the Quick, Draw! frame: 0–256 px, y down, every stroke at least two points; `word` is the Quick, Draw! category it is a drawing of, which the game names it by. **`404`** `{ error }` when no category matches or none of it was ingested; **`400`** without a word. The client is `LiveRecognizer.exemplar(word)` (`src/recognition`); the game fits and places the strokes itself ("Summons" below). |
+| `GET /api/exemplar?word=rabbit` | `word`: what to draw, as the player said it ("a rabbit", "rabbits", "the hot air balloon") | `{ word: string, strokes: {x,y}[][] }` — one clean drawing of it, a different one each time, in the Quick, Draw! frame: 0–256 px, y down, every stroke at least two points; `word` is the Quick, Draw! category it is a drawing of, which the game names it by. **`404`** `{ error }` when no category matches or there is no drawing of it (`KAMI_SKETCHES` covers all 345; without it, what was ingested or Quick, Draw! itself); **`400`** without a word. The client is `LiveRecognizer.exemplar(word)` (`src/recognition`); the game fits and places the strokes itself ("Summons" below). |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
+| `GET /api/exemplars` | — | `{ categories: string[] }` — every Quick, Draw! category `/api/exemplar` has a drawing of; the client builds its summoning lexicon from it |
 | `POST /api/scene` | `{ text }` — the whole travel sentence ("teleport us to the moon") | `{ scene: Scene \| null }` where `Scene = { place: string, laws: CompiledRule[], props: { word: string, at: {x,y}, size: number }[], line: string }`. `laws` are ordinary compiled rules (at most five, one per setting, clamped to `effectRanges`); `props` are Quick, Draw! categories with where to stand them relative to the note (`at.x` ±450, `at.y` −350 … −40, y up is negative) and a size factor 0.3–2; `line` is what Kami says on arrival. `null` when the text asks to go nowhere or the model cannot make the place. Only asked for places the client's own atlas lacks (`src/rules/scenes/atlas.ts`). |
 | `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no model is configured or its image warm-up has not passed (`KAMI_LLM_URL` and `KAMI_TRANSCRIBE_MODEL`, falling back to `KAMI_LLM_MODEL`). Stateless; the client may abort a request (the read of a prefix) freely. |
 | boards, drawings, notes, rules | see the table above | |
@@ -285,8 +301,9 @@ say yet" — keep the last guess on screen. The client for all of this is `src/r
 (`LiveRecognizer.sight(strokes, { partial })` → `Sighting[]`).
 Strokes returned by `beautify` are in the same world space as the request.
 
-**Summons.** "Summon a rabbit" / "draw me a bridge here": Kami inks a picture himself. The game asks
-`GET /api/exemplar?word=…` and gets back one stored Quick, Draw! drawing of the closest category
+**Summons.** "Summon a rabbit" / "draw me a bridge here" / "a forest with a river": Kami inks a picture
+himself. The game asks `GET /api/exemplar?word=…` once per thing (`src/summoning` hears counts, plurals and
+scene words from the `/api/exemplars` catalogue) and gets back one clean Quick, Draw! drawing of the closest category
 (`server/exemplar/`: articles dropped, plurals folded, the display name of an aliased category accepted, so
 "cakes" is `cake` and "birthday cake" is too). The strokes come back untouched in the 256 px dataset frame;
 the client scales them to the size of a drawing, stands them over the words that asked and inks them in over

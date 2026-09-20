@@ -1,9 +1,10 @@
 import type { RuleCompiler, SceneCompiler } from "../rules/types";
 import { HttpBoardStore } from "./httpBoardStore";
 import { HttpHandwritingReader } from "./httpHandwritingReader";
+import { HttpSketchCatalogue } from "./httpSketchCatalogue";
 import { RemoteRuleCompiler } from "./remoteRuleCompiler";
 import { RemoteSceneCompiler } from "./remoteSceneCompiler";
-import type { BoardStore, HandwritingReader } from "./types";
+import type { BoardStore, HandwritingReader, SketchCatalogue } from "./types";
 
 export type * from "./types";
 export { guardUnsavedChanges } from "./unsavedGuard";
@@ -26,4 +27,9 @@ export function createRemoteSceneCompiler(): SceneCompiler {
 /** `POST /api/transcribe`: the server's vision model reads pen strokes as words (or not). */
 export function createHandwritingReader(): HandwritingReader {
   return new HttpHandwritingReader();
+}
+
+/** `GET /api/exemplars`: the words a drawing can be summoned for. */
+export function createSketchCatalogue(): SketchCatalogue {
+  return new HttpSketchCatalogue();
 }

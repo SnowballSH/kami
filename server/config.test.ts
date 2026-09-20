@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { readConfig } from "./config";
 
 describe("readConfig", () => {
+  it("summons from the exemplar set at KAMI_SKETCHES, or from Quick, Draw! without one", () => {
+    expect(readConfig({}).sketchesDirectory).toBeNull();
+    expect(readConfig({ KAMI_SKETCHES: " /srv/exemplars " }).sketchesDirectory).toBe(
+      "/srv/exemplars",
+    );
+  });
+
   it("uses a dedicated transcription model without changing the compiler", () => {
     const env = { KAMI_LLM_URL: "http://llm.test", KAMI_LLM_MODEL: "text-model" };
     expect(readConfig(env).transcribe).toEqual(readConfig(env).llm);

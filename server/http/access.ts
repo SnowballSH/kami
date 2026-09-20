@@ -11,6 +11,7 @@ const MODEL_ROUTES = new Map([
   ["/api/voice/speak", "POST"],
   ["/api/voice/listen", "GET"],
   ["/api/exemplar", "GET"],
+  ["/api/exemplars", "GET"],
   ["/api/scene", "POST"],
 ]);
 const METHODS = "GET, PUT, POST, DELETE, OPTIONS";

@@ -162,7 +162,7 @@ describe("shared API access", () => {
       beautifier: { beautify },
       transcriber: { transcribe, ready: true, warmUp: async () => true },
       speaker: { speak },
-      exemplars: { exemplar },
+      exemplars: { categories: ["rabbit"], exemplar },
     });
     vi.clearAllMocks();
     await boards.upsert("notes", "my game", NOTE.id, NOTE);
@@ -196,6 +196,7 @@ describe("shared API access", () => {
     ["POST", "transcribe"],
     ["POST", "voice/speak"],
     ["GET", "exemplar?word=rabbit"],
+    ["GET", "exemplars"],
   ])("denies unauthenticated %s %s before touching data or models", async (method, path) => {
     const response = await api.handle(request(path, { method }));
     expect(response.status).toBe(401);
@@ -324,8 +325,15 @@ describe("shared API access", () => {
   it("denies exemplar reads without a model grant or from a hostile origin before lookup", async () => {
     for (const headers of [bearer(BOB), { ...bearer(), origin: "https://evil.test" }]) {
       expect((await api.handle(request("exemplar?word=rabbit", { headers }))).status).toBe(403);
+      expect((await api.handle(request("exemplars", { headers }))).status).toBe(403);
     }
     expect(exemplar).not.toHaveBeenCalled();
+  });
+
+  it("lists the catalogue with a model grant", async () => {
+    const response = await api.handle(request("exemplars", { headers: bearer() }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ categories: ["rabbit"] });
   });
 
   it("keeps exemplar validation, missing drawings and unsupported methods after authorization", async () => {
@@ -354,7 +362,7 @@ describe("shared API access", () => {
         compiler: { compile },
         recognizer: { read: recognize },
         beautifier: { beautify },
-        exemplars: { exemplar },
+        exemplars: { categories: [], exemplar },
       });
       let finish: () => void = () => {};
       exemplar.mockImplementationOnce(

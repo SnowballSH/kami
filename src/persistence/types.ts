@@ -63,3 +63,8 @@ export interface ReadOptions {
 export interface HandwritingReader {
   read(strokes: readonly Stroke[], options?: ReadOptions): Promise<string | null>;
 }
+
+/** The Quick, Draw! words the server has pictures of; empty when it did not answer. */
+export interface SketchCatalogue {
+  categories(): Promise<readonly string[]>;
+}

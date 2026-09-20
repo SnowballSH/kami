@@ -14,6 +14,7 @@ import { QuickdrawRecognizer } from "./quickdraw/recognizer";
 import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
 import { createRecognizerChain } from "./recognition/chain";
 import { createLlmSceneCompiler } from "./scene/llmSceneCompiler";
+import { createSketchLibrary } from "./sketch";
 import { createLlmTranscriber } from "./transcribe/llmTranscriber";
 import { VOICE_SOCKET_PATH, type VoiceSocketData, voiceSockets } from "./voice/socket";
 import { createSpeaker } from "./voice/speaker";
@@ -26,8 +27,12 @@ const connection = await connectDatabase(config.database);
 const boards = new BoardRepository(connection.db);
 await boards.ensureIndexes();
 
-const sketches = new QuickdrawSampleRepository(connection.db);
-const knn = new QuickdrawRecognizer(await sketches.loadFeatures());
+const samples = new QuickdrawSampleRepository(connection.db);
+const knn = new QuickdrawRecognizer(await samples.loadFeatures());
+const sketches = await createSketchLibrary(config.sketchesDirectory, {
+  stored: samples,
+  log: (line) => console.log(`  ${line}`),
+});
 const eye = createRecognizerChain(config.recognizerUrl, knn, {
   log: (line) => console.log(`  ${line}`),
 });
@@ -85,6 +90,7 @@ console.log(
 );
 void eye.describe().then((line) => console.log(`  ${line}`));
 console.log(`  beautifier: ${config.beautifyUrl ?? "none attached"}`);
+console.log(`  ${sketches.describe()}`);
 console.log(`  controllers: ${controllers.description}`);
 console.log(
   `  voice: ${config.voice === null ? "off (set DEEPGRAM_API_KEY)" : `${config.voice.listenModel} in, ${config.voice.speakModel} out`}`,

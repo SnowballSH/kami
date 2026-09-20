@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { createNatureTable } from "../natures/natureTable";
-import type { StoredSketch } from "../quickdraw/sampleRepository";
+import type { Sketch, SketchLibrary } from "../sketch";
 import { categoryOf, createExemplarSource } from "./exemplars";
 
 const natures = createNatureTable({
@@ -19,30 +19,32 @@ const natures = createNatureTable({
   cherry: { name: "a cherry", nature: "ink", strength: 1, line: "Two, usually." },
 });
 
-const RABBIT: StoredSketch = {
+const RABBIT: Sketch = {
   category: "rabbit",
-  keyId: "1",
-  drawing: [
+  strokes: [
     [
-      [0, 10, 20],
-      [5, 15, 25],
+      { x: 0, y: 5 },
+      { x: 10, y: 15 },
+      { x: 20, y: 25 },
     ],
     [
-      [255, 200],
-      [0, 255],
+      { x: 255, y: 0 },
+      { x: 200, y: 255 },
     ],
   ],
 };
 
-const picker = (sketches: readonly StoredSketch[]) => {
+const library = (sketches: readonly Sketch[]) => {
   const asked: string[] = [];
-  return {
-    asked,
-    anyOf: async (category: string) => {
+  const shelf: SketchLibrary = {
+    categories: ["rabbit", "bus"],
+    pick: async (category: string) => {
       asked.push(category);
       return sketches.find((sketch) => sketch.category === category) ?? null;
     },
+    describe: () => "test shelf",
   };
+  return { asked, shelf };
 };
 
 describe("categoryOf", () => {
@@ -68,38 +70,24 @@ describe("categoryOf", () => {
 });
 
 describe("createExemplarSource", () => {
-  it("answers a stored sketch of the word as strokes in the 256 px frame", async () => {
-    const sketches = picker([RABBIT]);
-    const exemplar = await createExemplarSource(sketches, natures).exemplar("some Rabbits");
-    expect(sketches.asked).toEqual(["rabbit"]);
-    expect(exemplar).toEqual({
+  it("answers a drawing of the word from the library, named by its category", async () => {
+    const { asked, shelf } = library([RABBIT]);
+    const source = createExemplarSource(shelf, natures);
+    expect(source.categories).toEqual(["rabbit", "bus"]);
+    expect(await source.exemplar("some Rabbits")).toEqual({
       word: "rabbit",
-      strokes: [
-        [
-          { x: 0, y: 5 },
-          { x: 10, y: 15 },
-          { x: 20, y: 25 },
-        ],
-        [
-          { x: 255, y: 0 },
-          { x: 200, y: 255 },
-        ],
-      ],
+      strokes: RABBIT.strokes,
     });
+    expect(asked).toEqual(["rabbit"]);
   });
 
-  it("is null for an unknown word without asking the store", async () => {
-    const sketches = picker([RABBIT]);
-    expect(await createExemplarSource(sketches, natures).exemplar("a unicorn")).toBeNull();
-    expect(sketches.asked).toEqual([]);
+  it("is null for an unknown word without asking the library", async () => {
+    const { asked, shelf } = library([RABBIT]);
+    expect(await createExemplarSource(shelf, natures).exemplar("a unicorn")).toBeNull();
+    expect(asked).toEqual([]);
   });
 
-  it("is null for a known word nobody has ingested yet", async () => {
-    expect(await createExemplarSource(picker([]), natures).exemplar("a bus")).toBeNull();
-  });
-
-  it("is null for a sketch that is not strokes", async () => {
-    const dotted = picker([{ ...RABBIT, drawing: [[[3], [4]]] }]);
-    expect(await createExemplarSource(dotted, natures).exemplar("rabbit")).toBeNull();
+  it("is null for a known word the library has no drawing of", async () => {
+    expect(await createExemplarSource(library([]).shelf, natures).exemplar("a bus")).toBeNull();
   });
 });

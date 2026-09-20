@@ -20,4 +20,6 @@ export const scenePath = (): string => `${API_BASE}/scene`;
 
 export const transcribePath = (): string => `${API_BASE}/transcribe`;
 
+export const exemplarsPath = (): string => `${API_BASE}/exemplars`;
+
 export const JSON_HEADERS = { "content-type": "application/json" } as const;

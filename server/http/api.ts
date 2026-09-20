@@ -84,7 +84,7 @@ export interface ApiDependencies {
   readonly scenes?: SceneCompiler;
 }
 
-const NO_EXEMPLARS: ExemplarSource = { exemplar: () => Promise.resolve(null) };
+const NO_EXEMPLARS: ExemplarSource = { categories: [], exemplar: () => Promise.resolve(null) };
 const NO_SCENES: SceneCompiler = { compile: () => Promise.resolve(null) };
 
 const INVALID_CONTROLLER_ID = "a controller id is 1–32 of a-z, 0-9 and '-'";
@@ -198,6 +198,7 @@ export const createApi = ({
       if (!body.ok) return body.response;
       return (await beautifier.beautify(body.value)) ?? notImplemented("no beautifier is attached");
     })
+    .on("GET", "/api/exemplars", () => json({ categories: exemplars.categories }))
     .on("GET", "/api/exemplar", async ({ request }) => {
       const word = new URL(request.url).searchParams.get("word")?.trim() ?? "";
       if (word.length === 0) return badRequest("say what to draw: ?word=rabbit");

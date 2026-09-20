@@ -8,6 +8,7 @@ import {
   createHandwritingReader,
   createRemoteRuleCompiler,
   createRemoteSceneCompiler,
+  createSketchCatalogue,
   guardUnsavedChanges,
 } from "../persistence";
 import { createPenReader } from "../reading";
@@ -15,6 +16,7 @@ import { createRecognizer } from "../recognition";
 import { createRenderer } from "../render";
 import { createRuleCompiler, createSceneCompiler, resolvePhysics } from "../rules";
 import { createSimulation } from "../sim";
+import { Summoner } from "../summoning";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
 import { createVoice } from "../voice";
 import { DEFAULT_TIDINESS, Game } from "./game";
@@ -85,7 +87,7 @@ export function startGame(root: HTMLElement): void {
       autopilot: createAutopilot(),
       cat: createCat(recognizer),
       finisher: recognizer,
-      summoner: recognizer,
+      summoner: new Summoner(createSketchCatalogue(), recognizer),
       renderer,
       handwriting,
       compiler: createRuleCompiler(),

@@ -1,7 +1,6 @@
 import type { Stroke } from "../../src/core/geometry";
 import type { NatureTable } from "../natures/natureTable";
-import { type SimplifiedStroke, toStrokes } from "../quickdraw/dataset";
-import type { StoredSketch } from "../quickdraw/sampleRepository";
+import type { SketchLibrary } from "../sketch";
 
 /** A clean drawing of one word, in Quick, Draw!'s 256 px frame with the origin top-left. */
 export interface Exemplar {
@@ -11,11 +10,9 @@ export interface Exemplar {
 
 /** Where drawings of a word come from: null when there is no picture of it. */
 export interface ExemplarSource {
+  /** Every Quick, Draw! category there is a picture of; what the game builds its summoning lexicon from. */
+  readonly categories: readonly string[];
   exemplar(word: string): Promise<Exemplar | null>;
-}
-
-export interface SketchPicker {
-  anyOf(category: string): Promise<StoredSketch | null>;
 }
 
 const ARTICLES = new Set(["a", "an", "the", "some", "one", "my", "your", "our"]);
@@ -61,28 +58,15 @@ export const categoryOf = (word: string, natures: NatureTable): string | null =>
   return null;
 };
 
-/** Quick, Draw! simplified drawings live in a 256 px square. */
-const FRAME = 256;
-
-const inFrame = (coordinate: number): boolean =>
-  Number.isFinite(coordinate) && coordinate >= 0 && coordinate <= FRAME;
-
-const wellFormed = (drawing: readonly SimplifiedStroke[]): boolean =>
-  drawing.length > 0 &&
-  drawing.every(
-    ([xs, ys]) =>
-      xs.length > 1 && xs.length === ys.length && xs.every(inFrame) && ys.every(inFrame),
-  );
-
 export const createExemplarSource = (
-  sketches: SketchPicker,
+  sketches: SketchLibrary,
   natures: NatureTable,
 ): ExemplarSource => ({
+  categories: sketches.categories,
   exemplar: async (word) => {
     const category = categoryOf(word, natures);
     if (category === null) return null;
-    const sketch = await sketches.anyOf(category);
-    if (sketch === null || !wellFormed(sketch.drawing)) return null;
-    return { word: category, strokes: toStrokes(sketch.drawing) };
+    const sketch = await sketches.pick(category);
+    return sketch === null ? null : { word: category, strokes: sketch.strokes };
   },
 });
