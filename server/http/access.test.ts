@@ -371,6 +371,46 @@ describe("shared API access", () => {
 });
 
 describe("model work budgets", () => {
+  it("rejects oversized responses and returns the concurrent slot", async () => {
+    const access = new ApiAccess({ ...DEMO_ACCESS, modelConcurrency: 1 });
+    const response = await access.handle(
+      request("beautify", { method: "POST" }),
+      async () => new Response(new Uint8Array(8 * 1024 * 1024 + 1)),
+    );
+    expect(response.status).toBe(502);
+    expect(
+      (
+        await access.handle(request("compile", { method: "POST" }), async () =>
+          Response.json({ rule: null }),
+        )
+      ).status,
+    ).toBe(200);
+  });
+
+  it("cancels stalled response bodies at the deadline and returns the concurrent slot", async () => {
+    vi.useFakeTimers();
+    try {
+      const access = new ApiAccess({ ...DEMO_ACCESS, modelConcurrency: 1 });
+      const cancel = vi.fn();
+      const pending = access.handle(
+        request("beautify", { method: "POST" }),
+        async () => new Response(new ReadableStream({ cancel })),
+      );
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect((await pending).status).toBe(504);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(
+        (
+          await access.handle(request("compile", { method: "POST" }), async () =>
+            Response.json({ rule: null }),
+          )
+        ).status,
+      ).toBe(200);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("bounds concurrent work until response bodies finish and releases failures", async () => {
     const access = new ApiAccess({ ...DEMO_ACCESS, modelConcurrency: 1 });
     let finish: () => void = () => {};

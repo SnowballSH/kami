@@ -39,7 +39,10 @@ export class ApiSession {
   }
 
   async signOut(): Promise<void> {
-    const response = await this.fetch(SESSION_PATH, { method: "DELETE" });
+    const response = await this.fetch(SESSION_PATH, {
+      method: "DELETE",
+      signal: AbortSignal.timeout(5000),
+    });
     if (!response.ok) throw new Error("Sign-out failed. Please retry.");
   }
 }
