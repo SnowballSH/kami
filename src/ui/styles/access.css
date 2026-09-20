@@ -1,0 +1,35 @@
+.access-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: #faf9f6;
+  color: #252525;
+  font:
+    1rem system-ui,
+    sans-serif;
+}
+
+.access-gate label:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.access-gate input,
+.access-gate button {
+  font: inherit;
+  padding: 0.75rem;
+}
+
+.access-sign-out {
+  position: fixed;
+  right: 1rem;
+  top: 1rem;
+  z-index: 100;
+  padding: 0.5rem;
+}

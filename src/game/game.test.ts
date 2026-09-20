@@ -2,36 +2,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
-import { boundsOf, poseToWorld, rectsOverlap, type Stroke, type Vec } from "../core/geometry";
+import { boundsOf, poseToWorld, rectsOverlap, type Vec } from "../core/geometry";
 import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
 import { EMBODIED_MODE } from "../modes";
 import type { GameMode } from "../modes/types";
 import { HttpBoardStore } from "../persistence/httpBoardStore";
-import type {
-  BoardSnapshot,
-  BoardStore,
-  HandwritingReader,
-  SketchLibrary,
-} from "../persistence/types";
+import type { BoardSnapshot, BoardStore, HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
-import type { Completion, LiveRecognizer, Sighting } from "../recognition/types";
+import type { Completion, Exemplar, LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import type { CompiledRule } from "../rules/types";
 import { createSimulation } from "../sim";
 import { drawingOf } from "../sim/testSupport";
-import { Summoner } from "../summoning";
+import { type SketchCatalogue, SUMMONED_SIZE, Summoner } from "../summoning";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
 import { HELD_INK_FADE_MS } from "./heldInk";
 import {
+  CANNOT_DRAW_LINE,
   LAW_OUTSIDE_MODE_LINE,
   RULE_REPEALED_LINE,
   SUMIKUI_LORE_LINE_DELAY_MS,
   SUMIKUI_SEALED_LINE,
   SUMIKUI_SUMMONED_LINES,
 } from "./lines";
+import { ARRIVAL_MS } from "./retrace";
 import {
   FakeHandwriting,
   FakeHud,
@@ -64,9 +61,8 @@ interface PlayerOptions {
   readonly store?: BoardStore;
   readonly mode?: GameMode;
   readonly thoughts?: Thoughts;
-  readonly eyes?: LiveRecognizer;
+  readonly eyes?: Eyes;
   readonly reader?: HandwritingReader;
-  readonly library?: SketchLibrary;
 }
 
 const seen = (word: string, nature: Sighting["nature"], certain = false): Sighting => ({
@@ -79,14 +75,22 @@ const seen = (word: string, nature: Sighting["nature"], certain = false): Sighti
   certain,
 });
 
-/** Eyes that glimpse one thing while the pen is up and settle on another when the drawing is done. */
-class Eyes implements LiveRecognizer {
+/**
+ * Eyes that glimpse one thing while the pen is up and settle on another when the drawing is done,
+ * and that hold a picture of every word they are told about.
+ */
+class Eyes implements LiveRecognizer, SketchCatalogue {
   readonly asked: { readonly strokes: number; readonly partial: boolean }[] = [];
 
   constructor(
     private readonly glimpsed: readonly Sighting[],
     private readonly settled: readonly Sighting[],
+    private readonly known: readonly string[] = [],
   ) {}
+
+  categories(): Promise<readonly string[]> {
+    return Promise.resolve(this.known);
+  }
 
   recognize(): Promise<readonly string[]> {
     return Promise.resolve([]);
@@ -106,32 +110,28 @@ class Eyes implements LiveRecognizer {
     this.tidiedAs.push(name);
     return Promise.resolve(this.tidy?.(strokes) ?? null);
   }
-}
 
-/** A library with one square sketch for every category it is told about. */
-class SquareLibrary implements SketchLibrary {
-  readonly asked: string[] = [];
+  /** Pictures Kami can draw himself, by the word asked for. */
+  readonly pictures = new Map<string, Exemplar>();
+  readonly summoned: string[] = [];
 
-  constructor(private readonly known: readonly string[]) {}
-
-  categories(): Promise<readonly string[]> {
-    return Promise.resolve(this.known);
-  }
-
-  sketch(category: string): Promise<readonly Stroke[] | null> {
-    this.asked.push(category);
-    if (!this.known.includes(category)) return Promise.resolve(null);
-    return Promise.resolve([
-      [
-        { x: 0, y: 0 },
-        { x: 255, y: 0 },
-        { x: 255, y: 255 },
-        { x: 0, y: 255 },
-        { x: 0, y: 0 },
-      ],
-    ]);
+  exemplar(word: string): Promise<Exemplar | null> {
+    this.summoned.push(word);
+    const picture = this.pictures.get(word);
+    if (picture !== undefined) return Promise.resolve(picture);
+    return Promise.resolve(this.known.includes(word) ? { word, strokes: SQUARE } : null);
   }
 }
+
+const SQUARE: Exemplar["strokes"] = [
+  [
+    { x: 0, y: 0 },
+    { x: 255, y: 0 },
+    { x: 255, y: 255 },
+    { x: 0, y: 255 },
+    { x: 0, y: 0 },
+  ],
+];
 
 /** Short vertical strokes side by side: what a scrawled word looks like to the ink session. */
 const scrawl = (at: Vec, letters: number, spacing = 14): Vec[][] =>
@@ -177,14 +177,7 @@ class Player {
 
   constructor(
     boardId: string,
-    {
-      store = new MemoryBoardStore(),
-      thoughts = {},
-      eyes,
-      reader,
-      library,
-      mode,
-    }: PlayerOptions = {},
+    { store = new MemoryBoardStore(), thoughts = {}, eyes, reader, mode }: PlayerOptions = {},
   ) {
     this.store = store;
     this.game = new Game(
@@ -192,7 +185,7 @@ class Player {
         sim: this.sim,
         autopilot: createAutopilot(),
         cat: createCat(eyes),
-        ...(eyes === undefined ? {} : { finisher: eyes }),
+        ...(eyes === undefined ? {} : { finisher: eyes, summoner: new Summoner(eyes, eyes) }),
         renderer: this.renderer,
         handwriting: new FakeHandwriting(),
         compiler: createRuleCompiler(),
@@ -204,7 +197,6 @@ class Player {
         },
         store,
         ...(reader === undefined ? {} : { penReader: createPenReader(reader) }),
-        ...(library === undefined ? {} : { summoner: new Summoner(library) }),
         ...(mode === undefined ? {} : { mode }),
         resolvePhysics,
         boardFor,
@@ -1182,6 +1174,130 @@ describe("Game with a Kami who tidies", () => {
   });
 });
 
+describe("Game with a Kami who draws", () => {
+  const KNOWN = ["rabbit", "house", "tree", "cloud", "ladder"];
+  const RABBIT: Exemplar = {
+    word: "rabbit",
+    strokes: [
+      [
+        { x: 20, y: 200 },
+        { x: 120, y: 200 },
+        { x: 220, y: 200 },
+      ],
+      [
+        { x: 60, y: 200 },
+        { x: 60, y: 40 },
+      ],
+      [
+        { x: 180, y: 200 },
+        { x: 180, y: 40 },
+      ],
+    ],
+  };
+  const drawer = () => {
+    const eyes = new Eyes([], [], KNOWN);
+    eyes.pictures.set("rabbit", RABBIT);
+    return eyes;
+  };
+
+  it("takes words beside unnamed ink as its name, even when they sound like a request to draw", async () => {
+    const eyes = drawer();
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("draw a ladder", { x: 300, y: 500 });
+    expect(eyes.summoned).toEqual([]);
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["climbable"]);
+  });
+
+  it("inks the picture asked for above the words, stroke by stroke, and names it", async () => {
+    const eyes = drawer();
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.write("summon a rabbit", { x: 300, y: 500 });
+    expect(eyes.summoned).toEqual(["rabbit"]);
+    const onTheWay = player.renderer.lastFrame?.inks[0]?.drawing.strokes ?? [];
+    expect(onTheWay.length).toBeLessThan(RABBIT.strokes.length);
+
+    await player.wait(ARRIVAL_MS);
+    const saved = (await player.store.load("wonderland")).drawings[0];
+    expect(saved?.ruling?.nature).toBe("hopper");
+    expect(saved?.drawing.strokes).toHaveLength(RABBIT.strokes.length);
+    expect(player.renderer.lastFrame?.inks[0]?.drawing.strokes).toEqual(saved?.drawing.strokes);
+    expect(player.sim.snapshot().drawings.map(({ id }) => id)).toEqual([saved?.drawing.id]);
+    expect(eyes.tidiedAs).toEqual([]);
+
+    const drawn = boundsOf(saved?.drawing.strokes.flat() ?? []);
+    expect(Math.max(drawn.width, drawn.height)).toBeCloseTo(SUMMONED_SIZE.usual, 5);
+    expect(drawn.y + drawn.height).toBeLessThan(500);
+    expect(player.written).toContain("summon a rabbit");
+    expect(player.written.some((text) => text !== "summon a rabbit")).toBe(true);
+  });
+
+  it("summons a whole scene in a row over the words, each thing named", async () => {
+    const eyes = drawer();
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.write("a house, a tree and two clouds", { x: 300, y: 500 });
+    expect(eyes.summoned).toEqual(["house", "tree", "cloud", "cloud"]);
+    await player.wait(ARRIVAL_MS);
+    const inks = player.renderer.lastFrame?.inks ?? [];
+    expect(inks.map((ink) => ink.nature)).toEqual(["ink", "climbable", "floaty", "floaty"]);
+    const boxes = inks.map((ink) => boundsOf(ink.drawing.strokes.flat()));
+    const lefts = boxes.map((box) => box.x);
+    expect([...lefts].sort((a, b) => a - b)).toEqual(lefts);
+    for (const box of boxes) expect(box.y + box.height).toBeLessThan(500);
+    expect(player.written).toEqual(expect.arrayContaining(["a house", "a tree", "a cloud"]));
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(4);
+  });
+
+  it("names a drawing beside a bare word rather than summoning another", async () => {
+    const eyes = drawer();
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 450, y: 520 }, 30, 30));
+    await player.write("a rabbit", { x: 420, y: 480 });
+    expect(eyes.summoned).toEqual([]);
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["hopper"]);
+
+    await player.write("summon a rabbit", { x: 420, y: 400 });
+    expect(eyes.summoned).toEqual(["rabbit"]);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(2);
+  });
+
+  it("asks the player to draw what it has never seen, and laws still come first", async () => {
+    const eyes = drawer();
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.write("draw me a unicorn", { x: 300, y: 500 });
+    expect(eyes.summoned).toEqual([]);
+    expect(player.sim.snapshot().drawings).toHaveLength(0);
+    expect(player.written).toContain(CANNOT_DRAW_LINE("a unicorn"));
+    expect(player.pondered).toEqual([]);
+
+    await player.write("no gravity", { x: 300, y: 400 });
+    expect(eyes.summoned).toEqual([]);
+    expect((await player.store.load("wonderland")).rules.map((r) => r.sourceText)).toEqual([
+      "no gravity",
+    ]);
+  });
+
+  it("still summons the Sumikui as a law, never as a picture", async () => {
+    const eyes = drawer();
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.write("summon the ink eater", { x: 300, y: 500 });
+    expect(eyes.summoned).toEqual([]);
+    expect(player.written).toContain(SUMIKUI_SUMMONED_LINES[0]);
+  });
+});
+
 describe("Game with a pen that reads", () => {
   it("reads a scrawl as words while the pen is still up, and never lands it as ink", async () => {
     const reader = new ScriptedReader("no gravity");
@@ -1281,75 +1397,6 @@ describe("Game with a pen that reads", () => {
     expect(reader.asked).toEqual([1]);
     expect((await player.store.load("wonderland")).drawings).toHaveLength(2);
     expect(player.written).not.toContain("never");
-  });
-});
-
-describe("Game with a library to summon from", () => {
-  const LIBRARY = ["rabbit", "house", "tree", "cloud"];
-
-  it("summons a named thing below the words, drawn from the library, spending no ink", async () => {
-    const library = new SquareLibrary(LIBRARY);
-    const player = new Player("my-first-game", { library });
-    await player.arrive();
-
-    await player.write("summon a rabbit", { x: 400, y: -300 });
-    expect(library.asked).toEqual(["rabbit"]);
-    const inks = player.renderer.lastFrame?.inks ?? [];
-    expect(inks.map((ink) => ink.nature)).toEqual(["hopper"]);
-    const drawn = boundsOf(inks[0]?.drawing.strokes.flat() ?? []);
-    expect(drawn.y).toBeGreaterThan(-300);
-    expect(drawn.x).toBeGreaterThanOrEqual(400);
-    expect(player.written).toContain("a rabbit");
-
-    const [stored] = (await player.store.load("my-first-game")).drawings;
-    expect(stored?.ruling?.name).toBe("a rabbit");
-    expect(stored?.drawing.cost).toBe(0);
-  });
-
-  it("summons a whole scene in a row", async () => {
-    const player = new Player("my-first-game", { library: new SquareLibrary(LIBRARY) });
-    await player.arrive();
-
-    await player.write("a house, a tree and two clouds", { x: 400, y: -300 });
-    const inks = player.renderer.lastFrame?.inks ?? [];
-    expect(inks.map((ink) => ink.nature)).toEqual(["ink", "climbable", "floaty", "floaty"]);
-    const lefts = inks.map((ink) => boundsOf(ink.drawing.strokes.flat()).x);
-    expect([...lefts].sort((a, b) => a - b)).toEqual(lefts);
-    expect(player.written).toEqual(expect.arrayContaining(["a house", "a tree", "a cloud"]));
-  });
-
-  it("names a drawing beside the words rather than summoning another", async () => {
-    const library = new SquareLibrary(LIBRARY);
-    const player = new Player("my-first-game", { library });
-    await player.arrive();
-
-    await player.draw(blob({ x: 450, y: -100 }, 30, 30));
-    await player.write("a rabbit", { x: 420, y: -180 });
-    expect(library.asked).toEqual([]);
-    const inks = player.renderer.lastFrame?.inks ?? [];
-    expect(inks.map((ink) => ink.nature)).toEqual(["hopper"]);
-
-    await player.write("summon a rabbit", { x: 420, y: -260 });
-    expect(library.asked).toEqual(["rabbit"]);
-    expect(player.renderer.lastFrame?.inks).toHaveLength(2);
-  });
-
-  it("shrugs at a wish for what the library does not have, and laws still come first", async () => {
-    const library = new SquareLibrary(LIBRARY);
-    const player = new Player("my-first-game", { library });
-    await player.arrive();
-
-    await player.write("summon a unicorn", { x: 400, y: -300 });
-    expect(library.asked).toEqual([]);
-    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
-    expect(player.pondered).toEqual(["summon a unicorn"]);
-
-    await player.write("no gravity", { x: 400, y: -400 });
-    expect(library.asked).toEqual([]);
-    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
-    expect((await player.store.load("my-first-game")).rules.map((r) => r.sourceText)).toEqual([
-      "no gravity",
-    ]);
   });
 });
 

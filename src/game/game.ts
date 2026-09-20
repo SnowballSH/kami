@@ -8,6 +8,7 @@ import {
   type Rect,
   rectGap,
   type Stroke,
+  strokesLength,
   type Vec,
 } from "../core/geometry";
 import { INPUT_LIMITS, isInputPoint, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
@@ -49,6 +50,7 @@ import { InkLedger, type InkRecord } from "./inkLedger";
 import {
   aloud,
   BLANK_BOARD_BRIEF,
+  CANNOT_DRAW_LINE,
   DOOR_OPENED_LINE,
   GOAL_LINE,
   GROW_BLOCKED_LINE,
@@ -99,7 +101,6 @@ const SPOKEN_AT = { x: -60, y: -190 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
 const ALREADY_AWAKE_MS = 10_000;
-const SUMMONED_DROP = 24;
 const HUD_WRITING_GAP = 12;
 
 interface Recital {
@@ -124,7 +125,7 @@ export interface GameModules {
   readonly penReader?: PenReader;
   /** Tidies a drawing once it has a name; without one the player's ink stays exactly as drawn. */
   readonly finisher?: Pick<LiveRecognizer, "complete">;
-  /** Draws what is wished for ("summon a rabbit") from the sketch library; without one, wishes are remarks. */
+  /** Pictures Kami can draw himself ("summon a rabbit"); without one he must ask the player to. */
   readonly summoner?: Summoner;
   readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
   readonly boardFor: (id: string) => BoardDefinition;
@@ -682,15 +683,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private land(drawing: Drawing): void {
-    this.place(drawing);
-    void this.offerGuesses(drawing);
-  }
-
-  private place(drawing: Drawing): void {
     this.modules.sim.addDrawing(drawing);
     this.modules.autopilot.invalidate();
     this.ledger.add(drawing);
     this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
+    void this.offerGuesses(drawing);
   }
 
   /** Held ink is let down into the world if it was a drawing, or fades away as the words it was. */
@@ -797,10 +794,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
 
     const subject = this.drawingNear(note.id);
+    const nameless = subject !== null && subject.ruling === null;
     const wish = (await this.modules.summoner?.wish(text)) ?? null;
     if (!stillHere()) return;
-    if (wish !== null && (wish.explicit || subject === null)) {
-      await this.summon(wish, note);
+    if (wish !== null && !nameless && (wish.explicit || subject === null)) {
+      await this.summon(wish, note, stillHere);
       return;
     }
 
@@ -810,8 +808,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.name(subject.drawing.id, ruling, note);
       return;
     }
-    if (wish !== null) {
-      await this.summon(wish, note);
+    if (wish !== null && !nameless) {
+      await this.summon(wish, note, stillHere);
       return;
     }
 
@@ -823,43 +821,59 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   /**
-   * What was wished for appears below the words, drawn from the library and already named, so a
-   * rabbit hops and a cloud floats. Ink is not spent; erasing a summoned thing refunds none. Things
-   * that would land on Alice or in a no-ink zone are left out.
+   * Kami draws what was asked for: a finished drawing of each thing from the server, standing over
+   * the words in a row, inked in stroke by stroke, solid at once and named as it would be had the
+   * player drawn it. Things that would land in a no-ink zone are left out.
    */
-  private async summon(wish: Wish, note: Note): Promise<void> {
+  private async summon(wish: Wish, note: Note, stillHere: () => boolean): Promise<void> {
     const { summoner, sim } = this.modules;
-    if (summoner === undefined) return;
-    const stillHere = this.witness(note.id);
-    const written = this.notes.boundsOf(note.id) ?? { ...note.position, width: 0, height: 0 };
-    const origin = { x: written.x, y: written.y + written.height + SUMMONED_DROP };
-    const summoned = await summoner.conjure(wish, origin);
+    const writing = this.notes.boundsOf(note.id);
+    const summoned =
+      summoner === undefined || writing === null
+        ? []
+        : await summoner.conjure(wish, writing, sim.aliceBounds());
     if (!stillHere()) return;
-
-    const rules = { noInkZones: this.board.noInkZones, aliceBounds: sim.aliceBounds() };
+    const rules = { noInkZones: this.board.noInkZones, aliceBounds: null };
     const landed = summoned.filter(({ strokes }) => judgePlacement(strokes, rules) === "ok");
     if (landed.length === 0) {
-      this.shrug(note.id);
+      this.remarkUnder(note.id, CANNOT_DRAW_LINE(wish.asked));
       return;
     }
-    const named = await Promise.all(
-      landed.map(async ({ category, strokes }) => {
-        const drawing: Drawing = { id: this.ids.next<DrawingId>("drawing"), strokes, cost: 0 };
-        return { drawing, ruling: await this.modules.cat.name(category, drawing) };
-      }),
+
+    const drawings = landed.map(({ word, strokes }) => {
+      const drawing: Drawing = {
+        id: this.ids.next<DrawingId>("drawing"),
+        strokes,
+        cost: strokesLength(strokes),
+      };
+      sim.addDrawing(drawing);
+      this.ledger.conjure(drawing, this.nowMs);
+      this.tidied.add(drawing.id);
+      this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
+      return { word, drawing };
+    });
+    this.modules.autopilot.invalidate();
+
+    const rulings = await Promise.all(
+      drawings.map(({ word, drawing }) => this.modules.cat.name(word, drawing)),
     );
     if (!stillHere()) return;
-
-    this.understood(note.id);
-    for (const { drawing, ruling } of named) {
-      this.place(drawing);
-      const label = this.kamiWrites(ruling.name, guessCornerOf(drawing.strokes), { drift: "down" });
-      this.labelsByKami.add(label.id);
+    if (drawings.length > 1) this.understood(note.id);
+    drawings.forEach(({ drawing }, index) => {
+      const ruling = rulings[index];
+      if (ruling === undefined || this.ledger.get(drawing.id) === null) return;
+      const label =
+        drawings.length === 1 ? note : this.labelOf(ruling.name, guessCornerOf(drawing.strokes));
       this.name(drawing.id, ruling, label);
-    }
+    });
   }
 
-  /** True until the board changes or the note is erased — checked after every await. */
+  private labelOf(name: string, corner: Vec): Note {
+    const label = this.kamiWrites(name, corner, { drift: "down" });
+    this.labelsByKami.add(label.id);
+    return label;
+  }
+
   private witness(noteId: NoteId): () => boolean {
     const epoch = this.epoch;
     return () => epoch === this.epoch && this.notes.get(noteId) !== null;
@@ -976,10 +990,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private shrug(noteId: NoteId): void {
-    const under = this.notes.below(noteId);
     const line = SHRUGS[this.shrugs % SHRUGS.length];
     this.shrugs += 1;
-    if (under !== null && line !== undefined) {
+    if (line !== undefined) this.remarkUnder(noteId, line);
+  }
+
+  private remarkUnder(noteId: NoteId, line: string): void {
+    const under = this.notes.below(noteId);
+    if (under !== null) {
       this.kamiWrites(line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
     }
   }

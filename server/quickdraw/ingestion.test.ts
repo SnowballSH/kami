@@ -93,6 +93,16 @@ describe("ingestQuickdraw", () => {
     expect(wholeDrawings(features)).toHaveLength(5);
     expect((await repository.keyIdsOf("circle")).size).toBe(5);
   });
+
+  it("hands out any one stored drawing of a category, and nothing for a category it lacks", async () => {
+    const repository = new QuickdrawSampleRepository(connection.db);
+    await ingestQuickdraw(repository, ["circle"], 3, fakeDataset);
+    const picked = await repository.anyOf("circle");
+    expect(picked?.category).toBe("circle");
+    expect(picked?.keyId).toMatch(/^circle-[0-2]$/);
+    expect(picked?.drawing.length).toBeGreaterThan(0);
+    expect(await repository.anyOf("line")).toBeNull();
+  });
 });
 
 describe("reindexStoredSketches", () => {

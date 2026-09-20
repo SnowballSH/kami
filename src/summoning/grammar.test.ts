@@ -26,10 +26,12 @@ describe("parseWish", () => {
     expect(parseWish("summon a rabbit", lexicon)).toEqual({
       summons: [{ category: "rabbit", count: 1 }],
       explicit: true,
+      asked: "a rabbit",
     });
     expect(parseWish("a rabbit", lexicon)).toEqual({
       summons: [{ category: "rabbit", count: 1 }],
       explicit: false,
+      asked: "a rabbit",
     });
     expect(parseWish("Summon a rabbit!", lexicon)?.explicit).toBe(true);
     expect(parseWish("give me a hot air balloon, please", lexicon)?.summons).toEqual([
@@ -77,6 +79,19 @@ describe("parseWish", () => {
     expect(summoned("HOT AIR BALLOONS")).toEqual(["2 hot air balloon"]);
   });
 
+  it("hears the asking through chatter and where the thing should go", () => {
+    for (const [text, asked] of [
+      ["Summon a rabbit!", "a rabbit"],
+      ["hey kami, please conjure up two clouds", "two clouds"],
+      ["can you sketch a hot air balloon next to alice", "a hot air balloon"],
+      ["spawn a rabbit for her, please", "a rabbit"],
+      ["draw us a house right here", "a house"],
+      ["kami, draw a star", "a star"],
+    ] as const) {
+      expect(parseWish(text, lexicon), text).toMatchObject({ explicit: true, asked });
+    }
+  });
+
   it("is not a wish when any word is not a thing", () => {
     for (const text of [
       "no gravity",
@@ -84,13 +99,30 @@ describe("parseWish", () => {
       "hi",
       "summon",
       "a",
-      "summon a unicorn",
+      "a unicorn",
+      "make me a unicorn",
       "a rabbit that flies",
       "a rabbit and",
+      "drawn out",
       "",
     ]) {
       expect(parseWish(text, lexicon), text).toBeNull();
     }
+  });
+
+  it("is a wish for nothing drawable when asked outright for a thing it has no picture of", () => {
+    expect(parseWish("summon a unicorn", lexicon)).toEqual({
+      summons: [],
+      explicit: true,
+      asked: "a unicorn",
+    });
+    expect(parseWish("draw me a rabbit and a unicorn", lexicon)?.summons).toEqual([]);
+  });
+
+  it("never draws the Sumikui, who is summoned by law", () => {
+    expect(parseWish("summon the ink eater", lexicon)).toBeNull();
+    expect(parseWish("draw the sumikui here", lexicon)).toBeNull();
+    expect(parseWish("summon bokushoku", lexicon)).toBeNull();
   });
 
   it("caps a wish at a handful of things", () => {
@@ -98,7 +130,8 @@ describe("parseWish", () => {
     expect(summoned("6 rabbits and 6 houses")).toEqual(["6 rabbit", "2 house"]);
   });
 
-  it("wishes for nothing from an empty library", () => {
-    expect(parseWish("summon a rabbit", new SummoningLexicon([]))).toBeNull();
+  it("wishes for nothing from an empty library unless asked outright", () => {
+    expect(parseWish("a rabbit", new SummoningLexicon([]))).toBeNull();
+    expect(parseWish("summon a rabbit", new SummoningLexicon([]))?.summons).toEqual([]);
   });
 });

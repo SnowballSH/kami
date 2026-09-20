@@ -1,9 +1,9 @@
 import type { RuleCompiler } from "../rules/types";
 import { HttpBoardStore } from "./httpBoardStore";
 import { HttpHandwritingReader } from "./httpHandwritingReader";
-import { HttpSketchLibrary } from "./httpSketchLibrary";
+import { HttpSketchCatalogue } from "./httpSketchCatalogue";
 import { RemoteRuleCompiler } from "./remoteRuleCompiler";
-import type { BoardStore, HandwritingReader, SketchLibrary } from "./types";
+import type { BoardStore, HandwritingReader, SketchCatalogue } from "./types";
 
 export type * from "./types";
 export { guardUnsavedChanges } from "./unsavedGuard";
@@ -23,7 +23,7 @@ export function createHandwritingReader(): HandwritingReader {
   return new HttpHandwritingReader();
 }
 
-/** `GET /api/sketches[/:category]`: clean dataset drawings to summon by name. */
-export function createSketchLibrary(): SketchLibrary {
-  return new HttpSketchLibrary();
+/** `GET /api/exemplars`: the words a drawing can be summoned for. */
+export function createSketchCatalogue(): SketchCatalogue {
+  return new HttpSketchCatalogue();
 }

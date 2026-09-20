@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { LlmConfig } from "./compile/llmCompiler";
 import { AUTO_SERIAL_DEVICE, type ControllerTransportConfig } from "./controllers/types";
 import type { DatabaseOptions } from "./db/connect";
+import { type AccessConfig, readAccessConfig } from "./http/accessConfig";
 import type { VoiceConfig } from "./voice/types";
 
 const DEFAULT_PORT = 8787;
@@ -12,6 +13,8 @@ const EMBEDDED_DATA_DIRECTORY = fileURLToPath(new URL("../.kami-data", import.me
 const BUILT_WEB_DIRECTORY = fileURLToPath(new URL("../dist", import.meta.url));
 
 export interface ServerConfig {
+  readonly hostname: string;
+  readonly access: AccessConfig;
   readonly port: number;
   readonly database: DatabaseOptions;
   readonly llm: LlmConfig | null;
@@ -42,10 +45,11 @@ const portFrom = (value: string | undefined, fallback: number): number => {
 
 const isOff = (value: string | undefined): boolean => nonEmpty(value)?.toLowerCase() === OFF;
 
-const controllersFrom = (env: Env): ControllerTransportConfig => ({
-  udpPort: isOff(env.KAMI_CONTROLLER_UDP_PORT)
-    ? null
-    : portFrom(env.KAMI_CONTROLLER_UDP_PORT, DEFAULT_CONTROLLER_UDP_PORT),
+const controllersFrom = (env: Env, access: AccessConfig): ControllerTransportConfig => ({
+  udpPort:
+    access.mode === "shared" || isOff(env.KAMI_CONTROLLER_UDP_PORT)
+      ? null
+      : portFrom(env.KAMI_CONTROLLER_UDP_PORT, DEFAULT_CONTROLLER_UDP_PORT),
   serialDevice: isOff(env.KAMI_CONTROLLER_SERIAL)
     ? null
     : (nonEmpty(env.KAMI_CONTROLLER_SERIAL) ?? AUTO_SERIAL_DEVICE),
@@ -77,18 +81,23 @@ const webDirectoryFrom = (env: Env): string | null => {
   return existsSync(directory) ? directory : null;
 };
 
-export const readConfig = (env: Env = process.env): ServerConfig => ({
-  port: portFrom(env.PORT, DEFAULT_PORT),
-  database: { uri: nonEmpty(env.MONGODB_URI), embeddedDataDirectory: EMBEDDED_DATA_DIRECTORY },
-  llm: llmFrom(env),
-  transcribe: llmFrom({
-    ...env,
-    KAMI_LLM_MODEL: nonEmpty(env.KAMI_TRANSCRIBE_MODEL) ?? env.KAMI_LLM_MODEL,
-  }),
-  webDirectory: webDirectoryFrom(env),
-  beautifyUrl: nonEmpty(env.KAMI_BEAUTIFY_URL) ?? null,
-  recognizerUrl: nonEmpty(env.KAMI_RECOGNIZER_URL) ?? null,
-  sketchesDirectory: nonEmpty(env.KAMI_SKETCHES) ?? null,
-  controllers: controllersFrom(env),
-  voice: voiceFrom(env),
-});
+export const readConfig = (env: Env = process.env): ServerConfig => {
+  const access = readAccessConfig(env);
+  return {
+    hostname: nonEmpty(env.KAMI_BIND_HOST) ?? (access.mode === "shared" ? "127.0.0.1" : "0.0.0.0"),
+    access,
+    port: portFrom(env.PORT, DEFAULT_PORT),
+    database: { uri: nonEmpty(env.MONGODB_URI), embeddedDataDirectory: EMBEDDED_DATA_DIRECTORY },
+    llm: llmFrom(env),
+    transcribe: llmFrom({
+      ...env,
+      KAMI_LLM_MODEL: nonEmpty(env.KAMI_TRANSCRIBE_MODEL) ?? env.KAMI_LLM_MODEL,
+    }),
+    webDirectory: webDirectoryFrom(env),
+    beautifyUrl: nonEmpty(env.KAMI_BEAUTIFY_URL) ?? null,
+    recognizerUrl: nonEmpty(env.KAMI_RECOGNIZER_URL) ?? null,
+    sketchesDirectory: nonEmpty(env.KAMI_SKETCHES) ?? null,
+    controllers: controllersFrom(env, access),
+    voice: voiceFrom(env),
+  };
+};

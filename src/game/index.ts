@@ -7,7 +7,7 @@ import {
   createBoardStore,
   createHandwritingReader,
   createRemoteRuleCompiler,
-  createSketchLibrary,
+  createSketchCatalogue,
   guardUnsavedChanges,
 } from "../persistence";
 import { createPenReader } from "../reading";
@@ -69,13 +69,13 @@ export function startGame(root: HTMLElement): void {
       autopilot: createAutopilot(),
       cat: createCat(recognizer),
       finisher: recognizer,
+      summoner: new Summoner(createSketchCatalogue(), recognizer),
       renderer,
       handwriting,
       compiler: createRuleCompiler(),
       thinker: createRemoteRuleCompiler(),
       store,
       penReader: createPenReader(createHandwritingReader()),
-      summoner: new Summoner(createSketchLibrary()),
       resolvePhysics,
       boardFor,
       createInkSession,

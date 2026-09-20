@@ -18,9 +18,6 @@ export const compilePath = (): string => `${API_BASE}/compile`;
 
 export const transcribePath = (): string => `${API_BASE}/transcribe`;
 
-export const sketchesPath = (): string => `${API_BASE}/sketches`;
-
-export const sketchPath = (category: string): string =>
-  `${sketchesPath()}/${encodeURIComponent(category)}`;
+export const exemplarsPath = (): string => `${API_BASE}/exemplars`;
 
 export const JSON_HEADERS = { "content-type": "application/json" } as const;

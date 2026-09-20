@@ -14,13 +14,25 @@ const list = (text: string): ReadonlySet<string> =>
       .filter((word) => word.length > 0),
   );
 
-const VERBS = list(`
-  summon, draw, make, create, spawn, conjure, add, bring, put, place, build, sketch, give, show,
-  want, need, wish for, let there be, there is, there are, i want, i need, i wish for, give me,
-  show me, make me, draw me, bring me, summon me, can i have, may i have, i would like, id like
+/** Asking outright for a picture: with one of these, an unknown thing is something Kami cannot draw. */
+const ASKING = list("summon, draw, sketch, spawn, conjure, doodle, manifest");
+const VERBS = new Set([
+  ...ASKING,
+  ...list(`
+    make, create, add, bring, put, place, build, give, show, want, need, wish for, let there be,
+    there is, there are, i want, i need, i wish for, give me, show me, make me, bring me,
+    can i have, may i have, i would like, id like
+  `),
+]);
+const FILLERS = list(`
+  please, kami, now, here, there, me, us, up, forth, quickly, too, also, right here, over here,
+  right there, for me, for us, for her, for him, for alice, next to alice, next to her, beside alice,
+  beside her, by alice, by her, in front of alice, in front of her, hey, oh, dear, ok, okay,
+  can you, could you, would you, will you
 `);
-const FILLERS = list("please, kami, now, here, me, up, forth, quickly, too, also, for me, us");
 const CHATTER = new Set([",", ...FILLERS]);
+/** The Sumikui is summoned by law, never as a picture; the compiler hears those words first. */
+const NEVER_A_PICTURE = /\b(?:ink\s*eater|sumikui|bokushoku)\b/;
 /** Words about what is already there, never about a new thing: "make it rain" is not a wish. */
 const PRONOUNS = list(
   "it, its, them, him, her, his, hers, their, alice, she, he, they, this, that, these, those, all, everything",
@@ -57,12 +69,14 @@ const COUNTS: Readonly<Record<string, number>> = {
   lot: 4,
   dozen: MOST_SUMMONED,
 };
-const LONGEST_PHRASE = 3;
+const LONGEST_PHRASE = 4;
 
 export interface Wish {
   readonly summons: readonly Summons[];
   /** The player asked outright ("summon", "draw me") rather than only naming things. */
   readonly explicit: boolean;
+  /** What was asked for, in the player's words: "a rabbit", "two clouds". */
+  readonly asked: string;
 }
 
 class Cursor {
@@ -73,7 +87,12 @@ class Cursor {
   /** The words with any leading or trailing chatter ("kami,", ", please") cut away. */
   static trimmed(words: readonly string[], chatter: ReadonlySet<string>): Cursor {
     let end = words.length;
-    while (end > 0 && chatter.has(words[end - 1] ?? "")) end--;
+    for (let length = Math.min(LONGEST_PHRASE, end); length >= 1; length--) {
+      if (chatter.has(words.slice(end - length, end).join(" "))) {
+        end -= length;
+        length = Math.min(LONGEST_PHRASE, end) + 1;
+      }
+    }
     const cursor = new Cursor(words.slice(0, end));
     cursor.skipAll(chatter);
     return cursor;
@@ -167,19 +186,26 @@ const capped = (summons: readonly Summons[]): readonly Summons[] => {
  * for a drawing, or a remark, which the rest of the funnel handles.
  */
 export const parseWish = (text: string, lexicon: SummoningLexicon): Wish | null => {
-  if (lexicon.isEmpty) return null;
   const cursor = Cursor.trimmed(wordsOf(text), CHATTER);
-  const explicit = cursor.take(VERBS);
+  const asking = cursor.take(ASKING);
+  const explicit = asking || cursor.take(VERBS);
   cursor.skipAll(CHATTER);
+  const asked = cursor.words
+    .slice(cursor.at)
+    .filter((word) => word !== ",")
+    .join(" ");
+  if (asked.length === 0 || NEVER_A_PICTURE.test(asked)) return null;
+  const nothingDrawable = asking ? { summons: [], explicit, asked } : null;
+  if (lexicon.isEmpty) return nothingDrawable;
 
   const summons: Summons[] = [];
   for (;;) {
     const thing = takeThing(cursor, lexicon);
-    if (thing === null) return null;
+    if (thing === null) return nothingDrawable;
     summons.push(...thing);
     cursor.skipAll(FILLERS);
-    if (cursor.done) return { summons: capped(merged(summons)), explicit };
-    if (cursor.skipAll(SEPARATORS) === 0) return null;
+    if (cursor.done) return { summons: capped(merged(summons)), explicit, asked };
+    if (cursor.skipAll(SEPARATORS) === 0) return nothingDrawable;
     cursor.skipAll(FILLERS);
   }
 };

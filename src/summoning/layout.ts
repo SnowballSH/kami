@@ -1,4 +1,4 @@
-import { boundsOf, type Rect, type Stroke, type Vec } from "../core/geometry";
+import { boundsOf, type Rect, rectsOverlap, type Stroke, type Vec } from "../core/geometry";
 
 /** How tall or wide a summoned drawing stands, in world px (Alice is 60 tall). */
 export const SUMMONED_SIZE = { small: 55, usual: 110, big: 190 } as const;
@@ -6,6 +6,7 @@ export type SummonedSize = keyof typeof SUMMONED_SIZE;
 const GAP = 24;
 const MOST_IN_A_ROW = 4;
 const ROW_GAP = 40;
+const ABOVE_WRITING = 14;
 
 const set = (names: string): ReadonlySet<string> =>
   new Set(names.split(",").map((name) => name.trim()));
@@ -64,4 +65,27 @@ export const layoutBoxes = (sizes: readonly SummonedSize[], origin: Vec): readon
     top = floor + ROW_GAP;
   }
   return boxes;
+};
+
+const shifted = (strokes: readonly Stroke[], by: Vec): readonly Stroke[] =>
+  strokes.map((stroke) => stroke.map(({ x, y }) => ({ x: x + by.x, y: y + by.y })));
+
+/**
+ * Where summoned drawings land: as laid out, centred over the words that asked for them and
+ * standing just above, lifted clear of Alice when she is in the way.
+ */
+export const standOver = (
+  drawings: readonly (readonly Stroke[])[],
+  writing: Rect,
+  alice: Rect | null,
+): readonly (readonly Stroke[])[] => {
+  const frame = boundsOf(drawings.flat(2));
+  const left = writing.x + writing.width / 2 - frame.width / 2;
+  const overWords = writing.y - ABOVE_WRITING - frame.height;
+  const inAlicesWay =
+    alice !== null &&
+    rectsOverlap({ x: left, y: overWords, width: frame.width, height: frame.height }, alice);
+  const top = inAlicesWay ? alice.y - ABOVE_WRITING - frame.height : overWords;
+  const by = { x: left - frame.x, y: top - frame.y };
+  return drawings.map((strokes) => shifted(strokes, by));
 };

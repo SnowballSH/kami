@@ -5,8 +5,11 @@ import { readConfig } from "./config";
 import { startControllers } from "./controllers";
 import { BoardRepository } from "./db/boardRepository";
 import { connectDatabase } from "./db/connect";
+import { createExemplarSource } from "./exemplar/exemplars";
+import { ApiAccess } from "./http/access";
 import { createApi } from "./http/api";
 import { createStaticSite } from "./http/staticSite";
+import { quickdrawNatureTable } from "./natures/natureTable";
 import { QuickdrawRecognizer } from "./quickdraw/recognizer";
 import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
 import { createRecognizerChain } from "./recognition/chain";
@@ -23,9 +26,12 @@ const connection = await connectDatabase(config.database);
 const boards = new BoardRepository(connection.db);
 await boards.ensureIndexes();
 
-const knn = new QuickdrawRecognizer(
-  await new QuickdrawSampleRepository(connection.db).loadFeatures(),
-);
+const samples = new QuickdrawSampleRepository(connection.db);
+const knn = new QuickdrawRecognizer(await samples.loadFeatures());
+const sketches = await createSketchLibrary(config.sketchesDirectory, {
+  stored: samples,
+  log: (line) => console.log(`  ${line}`),
+});
 const eye = createRecognizerChain(config.recognizerUrl, knn, {
   log: (line) => console.log(`  ${line}`),
 });
@@ -36,19 +42,18 @@ const controllers = await startControllers(config.controllers, {
 
 const compiler = createLlmCompiler(config.llm);
 const transcriber = createLlmTranscriber(config.transcribe);
-const sketches = await createSketchLibrary(config.sketchesDirectory, {
-  log: (line) => console.log(`  ${line}`),
-});
-const voice = voiceSockets(config.voice);
+const access = new ApiAccess(config.access);
+const voice = voiceSockets(config.voice, access);
 const api = createApi({
+  access,
   boards,
   recognizer: eye.recognizer,
   compiler,
   beautifier: createBeautifier(config.beautifyUrl),
   controllers: controllers.hub,
   transcriber,
-  sketches,
   speaker: createSpeaker(config.voice),
+  exemplars: createExemplarSource(sketches, quickdrawNatureTable),
 });
 const site = config.webDirectory === null ? null : createStaticSite(config.webDirectory);
 const isApiCall = (request: Request): boolean =>
@@ -60,9 +65,9 @@ const isVoiceSocket = (request: Request): boolean =>
 const server = Bun.serve<VoiceSocketData>({
   maxRequestBodySize: INPUT_LIMITS.sketchBytes,
   port: config.port,
-  hostname: "0.0.0.0",
+  hostname: config.hostname,
   fetch: async (request, listening) => {
-    if (isVoiceSocket(request) && voice.upgrade(request, listening)) return undefined;
+    if (isVoiceSocket(request)) return voice.upgrade(request, listening);
     return isApiCall(request) || site === null
       ? api.handle(request)
       : ((await site(request)) ?? api.handle(request));
@@ -70,7 +75,7 @@ const server = Bun.serve<VoiceSocketData>({
   websocket: voice.websocket,
 });
 
-console.log(`Kami server on http://localhost:${server.port}`);
+console.log(`Kami server on http://${config.hostname}:${server.port} (${config.access.mode})`);
 console.log(`  memory: ${connection.description}`);
 console.log(`  game: ${config.webDirectory ?? "not built (Vite serves it in development)"}`);
 console.log(

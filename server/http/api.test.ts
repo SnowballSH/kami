@@ -129,15 +129,7 @@ beforeAll(async () => {
   });
   clock = new ManualClock();
   controllers = new InMemoryControllerHub(clock);
-  const sketches = {
-    categories: ["rabbit", "hot air balloon"],
-    pick: async (category: string) =>
-      category === "rabbit"
-        ? { category, strokes: lineSketch({ x: 0, y: 0 }, { x: 9, y: 9 }) }
-        : null,
-    describe: () => "summoning: two sketches",
-  };
-  apiParts = () => ({ boards, recognizer, compiler, controllers, transcriber, sketches });
+  apiParts = () => ({ boards, recognizer, compiler, controllers, transcriber });
   api = createApi({ ...apiParts(), beautifier });
 }, 120_000);
 
@@ -443,6 +435,52 @@ describe("beautify", () => {
   });
 });
 
+describe("exemplar", () => {
+  const RABBIT = {
+    word: "rabbit",
+    strokes: [
+      [
+        { x: 0, y: 0 },
+        { x: 255, y: 255 },
+      ],
+    ],
+  };
+  const drawing = () =>
+    createApi({
+      ...apiParts(),
+      beautifier,
+      exemplars: {
+        categories: ["rabbit", "hot air balloon"],
+        exemplar: async (word) => (word === "rabbit" ? RABBIT : null),
+      },
+    });
+
+  it("lists every word it has a picture of, none without a source", async () => {
+    const listed = await drawing().handle(new Request(`${ORIGIN}/api/exemplars`));
+    expect(await listed.json()).toEqual({ categories: ["rabbit", "hot air balloon"] });
+    expect(await (await call("GET", "/api/exemplars")).json()).toEqual({ categories: [] });
+  });
+
+  it("draws the word asked for", async () => {
+    const response = await drawing().handle(new Request(`${ORIGIN}/api/exemplar?word=rabbit`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(await response.json()).toEqual(RABBIT);
+  });
+
+  it("has no picture of a word it never learnt, and none at all without a source", async () => {
+    const unknown = await drawing().handle(new Request(`${ORIGIN}/api/exemplar?word=unicorn`));
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({ error: "no picture of unicorn" });
+    expect((await call("GET", "/api/exemplar?word=rabbit")).status).toBe(404);
+  });
+
+  it("asks for a word when given none", async () => {
+    expect((await call("GET", "/api/exemplar")).status).toBe(400);
+    expect((await call("GET", "/api/exemplar?word=%20")).status).toBe(400);
+  });
+});
+
 describe("transcribe", () => {
   const words = [
     ...lineSketch({ x: 0, y: 0 }, { x: 0, y: 40 }),
@@ -491,34 +529,6 @@ describe("transcribe", () => {
       }),
     );
     expect(response.status).toBe(501);
-  });
-});
-
-describe("sketches", () => {
-  it("lists what can be summoned and hands out a drawing by name", async () => {
-    const listed = await call("GET", "/api/sketches");
-    expect(await listed.json()).toEqual({ categories: ["rabbit", "hot air balloon"] });
-    const rabbit = await call("GET", "/api/sketches/rabbit");
-    expect(rabbit.status).toBe(200);
-    expect(await rabbit.json()).toEqual({
-      category: "rabbit",
-      strokes: [
-        [
-          { x: 0, y: 0 },
-          { x: 9, y: 9 },
-        ],
-      ],
-    });
-  });
-
-  it("has no drawing of an unknown thing, and none at all without a library", async () => {
-    expect((await call("GET", "/api/sketches/hot%20air%20balloon")).status).toBe(404);
-    expect((await call("GET", "/api/sketches/unicorn")).status).toBe(404);
-    const bare = createApi({ ...apiParts(), beautifier, sketches: null });
-    const listed = await bare.handle(new Request("http://kami.test/api/sketches"));
-    expect(await listed.json()).toEqual({ categories: [] });
-    const rabbit = await bare.handle(new Request("http://kami.test/api/sketches/rabbit"));
-    expect(rabbit.status).toBe(404);
   });
 });
 
@@ -779,10 +789,27 @@ describe("controllers", () => {
 });
 
 describe("CORS", () => {
-  it("answers preflights and marks responses as readable from any origin", async () => {
-    const preflight = await call("OPTIONS", "/api/boards/demo/notes/note-1");
+  it("allows same-origin demo requests without exposing the API to arbitrary origins", async () => {
+    const preflight = await api.handle(
+      new Request(`${ORIGIN}/api/boards/demo/notes/note-1`, {
+        method: "OPTIONS",
+        headers: { origin: ORIGIN, "access-control-request-method": "PUT" },
+      }),
+    );
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("access-control-allow-methods")).toContain("PUT");
-    expect((await call("GET", "/api/boards")).headers.get("access-control-allow-origin")).toBe("*");
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    expect((await call("GET", "/api/boards")).headers.has("access-control-allow-origin")).toBe(
+      false,
+    );
+    expect(
+      (
+        await api.handle(
+          new Request(`${ORIGIN}/api/boards`, {
+            headers: { origin: "https://untrusted.test" },
+          }),
+        )
+      ).status,
+    ).toBe(403);
   });
 });

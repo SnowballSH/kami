@@ -64,12 +64,7 @@ export interface HandwritingReader {
   read(strokes: readonly Stroke[], options?: ReadOptions): Promise<string | null>;
 }
 
-/**
- * Clean drawings to summon by name, from the server's dataset. Strokes come in Quick, Draw!'s
- * 0–255 space, top-left origin; the game scales and places them. `null` when the server has no
- * drawing of the thing, or did not answer.
- */
-export interface SketchLibrary {
+/** The Quick, Draw! words the server has pictures of; empty when it did not answer. */
+export interface SketchCatalogue {
   categories(): Promise<readonly string[]>;
-  sketch(category: string): Promise<readonly Stroke[] | null>;
 }
