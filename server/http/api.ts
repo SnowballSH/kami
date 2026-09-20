@@ -1,6 +1,7 @@
 import type { Stroke } from "../../src/core/geometry";
 import { INPUT_LIMITS } from "../../src/core/inputLimits";
 import type { RuleCompiler, SceneCompiler } from "../../src/rules/types";
+import { type BoardEdit, peerIdSchema, presenceReportSchema } from "../../src/sync/wire";
 import type { Beautifier } from "../beautify/beautifier";
 import { controllerEventStream } from "../controllers/eventStream";
 import { isControllerId, parseControllerReading } from "../controllers/message";
@@ -23,6 +24,8 @@ import {
   storedDrawingSchema,
   transcribeRequestSchema,
 } from "../schemas";
+import { boardEventStream, sinceOf } from "../sync/boardEventStream";
+import { BoardFeed } from "../sync/boardFeed";
 import type { HandwritingTranscriber } from "../transcribe/llmTranscriber";
 import type { Speaker } from "../voice/types";
 import { ApiAccess } from "./access";
@@ -82,6 +85,8 @@ export interface ApiDependencies {
   readonly exemplars?: ExemplarSource;
   /** Places the atlas has never heard of ("teleport us to a chocolate factory"), made by a model. */
   readonly scenes?: SceneCompiler;
+  /** Relays each board's changes and who is on it to the devices sharing it (sandbox mode). */
+  readonly feed?: BoardFeed;
 }
 
 const NO_EXEMPLARS: ExemplarSource = { categories: [], exemplar: () => Promise.resolve(null) };
@@ -90,37 +95,28 @@ const NO_SCENES: SceneCompiler = { compile: () => Promise.resolve(null) };
 const INVALID_CONTROLLER_ID = "a controller id is 1–32 of a-z, 0-9 and '-'";
 const INVALID_CONTROLLER_STATE = "the body is '<x> <y> [buttons]', e.g. '100 0 A'";
 
-interface IdentifiedEntity {
-  readonly id: string;
-  readonly entity: object;
-}
+type Put = Extract<BoardEdit, { readonly type: "put" }>;
 
-const identified = <Entity extends object>(
-  parsed: Parsed<Entity>,
-  idOf: (entity: Entity) => string,
-): Parsed<IdentifiedEntity> =>
-  parsed.ok ? { ok: true, value: { id: idOf(parsed.value), entity: parsed.value } } : parsed;
-
-const parseEntity = async (
-  kind: EntityKind,
-  request: Request,
-): Promise<Parsed<IdentifiedEntity>> => {
+const parseEntity = async (kind: EntityKind, request: Request): Promise<Parsed<Put>> => {
   switch (kind) {
-    case "drawings":
-      return identified(
-        await parseJsonBody(request, storedDrawingSchema),
-        (stored) => stored.drawing.id,
-      );
-    case "notes":
-      return identified(
-        await parseJsonBody(request, noteSchema, INPUT_LIMITS.textBytes),
-        (note) => note.id,
-      );
-    case "rules":
-      return identified(
-        await parseJsonBody(request, ruleSchema, INPUT_LIMITS.textBytes),
-        (rule) => rule.id,
-      );
+    case "drawings": {
+      const parsed = await parseJsonBody(request, storedDrawingSchema);
+      if (!parsed.ok) return parsed;
+      const entity = parsed.value;
+      return { ok: true, value: { type: "put", kind, id: entity.drawing.id, entity } };
+    }
+    case "notes": {
+      const parsed = await parseJsonBody(request, noteSchema, INPUT_LIMITS.textBytes);
+      if (!parsed.ok) return parsed;
+      const entity = parsed.value;
+      return { ok: true, value: { type: "put", kind, id: entity.id, entity } };
+    }
+    case "rules": {
+      const parsed = await parseJsonBody(request, ruleSchema, INPUT_LIMITS.textBytes);
+      if (!parsed.ok) return parsed;
+      const entity = parsed.value;
+      return { ok: true, value: { type: "put", kind, id: entity.id, entity } };
+    }
   }
 };
 
@@ -154,6 +150,7 @@ export const createApi = ({
   natures = quickdrawNatureTable,
   exemplars = NO_EXEMPLARS,
   scenes = NO_SCENES,
+  feed = new BoardFeed(),
   access = new ApiAccess(),
 }: ApiDependencies): Router =>
   new Router(access)
@@ -169,6 +166,7 @@ export const createApi = ({
       const boardId = parseWith(boardIdSchema, params.board, "board id");
       if (!boardId.ok) return boardId.response;
       await boards.clear(boardId.value);
+      feed.record(boardId.value, { type: "clear" });
       return ok();
     })
     .on("PUT", "/api/boards/:board/:kind/:id", async ({ request, params }) => {
@@ -179,13 +177,35 @@ export const createApi = ({
       if (!body.ok) return body.response;
       if (body.value.id !== id) return badRequest("the id in the path and in the body differ");
       await boards.upsert(kind, boardId, id, body.value.entity);
+      feed.record(boardId, body.value);
       return ok();
     })
     .on("DELETE", "/api/boards/:board/:kind/:id", async ({ params }) => {
       const address = parseAddress(params);
       if (!address.ok) return address.response;
-      await boards.remove(address.value.kind, address.value.boardId, address.value.id);
+      const { kind, boardId, id } = address.value;
+      await boards.remove(kind, boardId, id);
+      feed.record(boardId, { type: "delete", kind, id });
       return ok();
+    })
+    .on("GET", "/api/boards/:board/events", ({ request, params }) => {
+      const boardId = parseWith(boardIdSchema, params.board, "board id");
+      if (!boardId.ok) return boardId.response;
+      const peer = parseWith(peerIdSchema, new URL(request.url).searchParams.get("peer"), "peer");
+      return boardEventStream(feed, boardId.value, {
+        since: sinceOf(request),
+        peer: peer.ok ? peer.value : null,
+        signal: request.signal,
+        authorized: () => access.allowsBoard(request, boardId.value),
+      });
+    })
+    .on("POST", "/api/boards/:board/presence", async ({ request, params }) => {
+      const boardId = parseWith(boardIdSchema, params.board, "board id");
+      if (!boardId.ok) return boardId.response;
+      const body = await parseJsonBody(request, presenceReportSchema);
+      if (!body.ok) return body.response;
+      feed.announce(boardId.value, body.value.peer, body.value.alice);
+      return noContent();
     })
     .on("POST", "/api/recognize", async ({ request }) => {
       const body = await parseJsonBody(request, recognizeRequestSchema);

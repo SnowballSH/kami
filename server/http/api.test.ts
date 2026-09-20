@@ -832,3 +832,122 @@ describe("CORS", () => {
     ).toBe(403);
   });
 });
+
+describe("shared pages", () => {
+  const GHOST = {
+    center: { x: 12, y: -30 },
+    width: 24,
+    height: 48,
+    size: "normal",
+    sizeMultiplier: 1,
+    headingScale: 1,
+    facing: 1,
+    walking: true,
+    grounded: true,
+    climbing: false,
+    hasKey: false,
+  } as const;
+
+  it("tells every device on a board what the others save, delete and clear, numbered", async () => {
+    const response = await call("GET", "/api/boards/together/events?peer=ipad");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("text/event-stream");
+    const events = readEvents(response);
+    expect(await events.nextEvent()).toEqual({ type: "cursor", seq: 0 });
+
+    await call("PUT", "/api/boards/together/drawings/d1", storedDrawing("d1"));
+    await call("PUT", "/api/boards/elsewhere/drawings/d9", storedDrawing("d9"));
+    await call("PUT", "/api/boards/together/rules/rule-1", moonRule);
+    await call("DELETE", "/api/boards/together/drawings/d1");
+    await call("DELETE", "/api/boards/together");
+
+    expect(await events.nextEvent()).toEqual({
+      seq: 1,
+      type: "put",
+      kind: "drawings",
+      id: "d1",
+      entity: storedDrawing("d1"),
+    });
+    expect(await events.nextEvent()).toEqual({
+      seq: 2,
+      type: "put",
+      kind: "rules",
+      id: "rule-1",
+      entity: moonRule,
+    });
+    expect(await events.nextEvent()).toEqual({
+      seq: 3,
+      type: "delete",
+      kind: "drawings",
+      id: "d1",
+    });
+    expect(await events.nextEvent()).toEqual({ seq: 4, type: "clear" });
+    await events.cancel();
+  });
+
+  it("carries the sequence number as the event id, and resumes from `since` or Last-Event-ID", async () => {
+    await call("PUT", "/api/boards/resumed/notes/n1", note("n1", "one", 1));
+    await call("PUT", "/api/boards/resumed/notes/n2", note("n2", "two", 2));
+    const stream = readEvents(await call("GET", "/api/boards/resumed/events?since=1"));
+    expect(await stream.nextBlock()).toBe("retry: 1000");
+    expect(await stream.nextBlock()).toBe(
+      `id: 2\ndata: ${JSON.stringify({ type: "put", kind: "notes", id: "n2", entity: note("n2", "two", 2), seq: 2 })}`,
+    );
+    await stream.cancel();
+
+    const reconnected = readEvents(
+      await api.handle(
+        new Request(`${ORIGIN}/api/boards/resumed/events`, { headers: { "last-event-id": "2" } }),
+      ),
+    );
+    await call("PUT", "/api/boards/resumed/notes/n3", note("n3", "three", 3));
+    expect(await reconnected.nextEvent()).toMatchObject({ seq: 3, id: "n3" });
+    await reconnected.cancel();
+
+    const lost = readEvents(await call("GET", "/api/boards/resumed/events?since=99"));
+    expect(await lost.nextEvent()).toEqual({ type: "resync", seq: 3 });
+    await lost.cancel();
+  });
+
+  it("relays where each device's Alice is, and takes her off the page when its stream ends", async () => {
+    const laptop = readEvents(await call("GET", "/api/boards/presence/events?peer=laptop"));
+    expect(await laptop.nextEvent()).toEqual({ type: "cursor", seq: 0 });
+
+    const controller = new AbortController();
+    const ipad = readEvents(
+      await api.handle(
+        new Request(`${ORIGIN}/api/boards/presence/events?peer=ipad`, {
+          signal: controller.signal,
+        }),
+      ),
+    );
+    expect(await ipad.nextEvent()).toEqual({ type: "cursor", seq: 0 });
+
+    const reported = await call("POST", "/api/boards/presence/presence", {
+      peer: "ipad",
+      alice: GHOST,
+    });
+    expect(reported.status).toBe(204);
+    expect(await laptop.nextEvent()).toEqual({ type: "presence", peer: "ipad", alice: GHOST });
+
+    const late = readEvents(await call("GET", "/api/boards/presence/events"));
+    expect(await late.nextEvent()).toEqual({ type: "cursor", seq: 0 });
+    expect(await late.nextEvent()).toEqual({ type: "presence", peer: "ipad", alice: GHOST });
+
+    controller.abort();
+    expect(await laptop.nextEvent()).toEqual({ type: "presence", peer: "ipad", alice: null });
+    await laptop.cancel();
+    await late.cancel();
+  });
+
+  it("answers 400 to a presence report it cannot read", async () => {
+    expect(
+      (await call("POST", "/api/boards/presence/presence", { peer: "Not A Peer", alice: GHOST }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await call("POST", "/api/boards/presence/presence", { peer: "ipad", alice: { x: 1 } }))
+        .status,
+    ).toBe(400);
+  });
+});
