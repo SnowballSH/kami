@@ -2,13 +2,20 @@ import type { BoardDefinition } from "../board/types";
 import type { Ruling } from "../cat/types";
 import type { DrawingId } from "../ink/types";
 import type { SimEvent } from "../sim/types";
-import type { EmbodimentTransition, GameMode, ModeDirector, PlayerState } from "./types";
+import type {
+  EmbodimentTransition,
+  GameMode,
+  ModeDirector,
+  PlayerState,
+  RoomStaging,
+} from "./types";
 
 const BODY: PlayerState = { kind: "body" };
 
 /** The referee for any mode that opens with a body: she is there from the first frame and the sim's own respawn is the loss rule. */
 export class EmbodiedDirector implements ModeDirector {
   state: PlayerState = BODY;
+  room: RoomStaging | null = null;
 
   constructor(readonly mode: GameMode) {}
 
