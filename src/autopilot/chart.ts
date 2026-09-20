@@ -29,6 +29,10 @@ const INK_RADIUS = INK_THICKNESS / 2;
 const STAMP_SPACING = CELL_PX / 2;
 /** Cells of empty margin around everything drawn, so she can stand and fall beside it. */
 const MARGIN_CELLS = 12;
+export const MAX_CHART_CELLS = 1_000_000;
+const MAX_AXIS_CELLS = 4096;
+const MAX_GEOMETRY_ITEMS = 50_000;
+const STAMP_BUDGET = 2_000_000;
 
 export interface CellRange {
   readonly c0: number;
@@ -128,12 +132,41 @@ const extentOf = (scene: Scene): CellRange => {
   return grow({ ...extent, r1: Math.min(extent.r1, killRow) }, MARGIN_CELLS);
 };
 
+const boundedGeometry = (scene: Scene): boolean => {
+  let remaining =
+    MAX_GEOMETRY_ITEMS - scene.board.solids.length - scene.bites.length - scene.inks.length;
+  if (remaining < 0) return false;
+  for (const ink of scene.inks) {
+    remaining -= ink.drawing.strokes.length;
+    if (remaining < 0) return false;
+    for (const stroke of ink.drawing.strokes) {
+      remaining -= stroke.length;
+      if (remaining < 0) return false;
+    }
+  }
+  return true;
+};
+
+const boundedRange = ({ c0, c1, r0, r1 }: CellRange): boolean => {
+  const cols = c1 - c0;
+  const rows = r1 - r0;
+  return (
+    [c0, c1, r0, r1].every(Number.isSafeInteger) &&
+    cols > 0 &&
+    rows > 0 &&
+    cols <= MAX_AXIS_CELLS &&
+    rows <= MAX_AXIS_CELLS &&
+    cols * rows <= MAX_CHART_CELLS
+  );
+};
+
 /** The board rasterised the way Alice's feet read it: what is solid, what holds, what springs. */
 export class Chart {
   private readonly cells: Uint8Array;
   private readonly bouncyStrength: Float32Array;
   private readonly edibleOwner = new Map<number, DrawingId>();
   private readonly stride: number;
+  private stampRemaining = STAMP_BUDGET;
 
   /** When she can fly, every cell of air holds her the way a ladder would. */
   private constructor(
@@ -147,20 +180,25 @@ export class Chart {
     this.bouncyStrength = new Float32Array(size);
   }
 
-  static of(scene: Scene): Chart {
-    const chart = new Chart(extentOf(scene), scene.canFly);
+  static of(scene: Scene): Chart | null {
+    if (!boundedGeometry(scene)) return null;
+    const range = extentOf(scene);
+    if (!boundedRange(range)) return null;
+    const chart = new Chart(range, scene.canFly);
     for (const solid of scene.board.solids) {
       for (const piece of remainingColumns(solid.rect, scene.bites)) {
-        chart.stampRect(piece, CellFlag.solid | CellFlag.fixture);
+        if (!chart.stampRect(piece, CellFlag.solid | CellFlag.fixture)) return null;
       }
     }
     if (scene.board.door !== undefined && !scene.doorOpen) {
-      chart.stampRect(scene.board.door, CellFlag.solid | CellFlag.fixture | CellFlag.door);
+      if (!chart.stampRect(scene.board.door, CellFlag.solid | CellFlag.fixture | CellFlag.door))
+        return null;
     }
-    if (scene.board.goal !== undefined) chart.stampRect(scene.board.goal, CellFlag.goal);
+    if (scene.board.goal !== undefined && !chart.stampRect(scene.board.goal, CellFlag.goal))
+      return null;
     const alice = aliceRect(scene);
     for (const ink of scene.inks) {
-      if (!cramps(ink, alice)) chart.stampInk(ink, flagsFor(ink.nature));
+      if (!cramps(ink, alice) && !chart.stampInk(ink, flagsFor(ink.nature))) return null;
     }
     return chart;
   }
@@ -220,46 +258,72 @@ export class Chart {
     if (flags & CellFlag.edible && owner !== undefined) this.edibleOwner.set(index, owner);
   }
 
-  private stampRect(rect: Rect, flags: number): void {
+  private spend(work: number): boolean {
+    if (!Number.isSafeInteger(work) || work < 0 || work > this.stampRemaining) return false;
+    this.stampRemaining -= work;
+    return true;
+  }
+
+  private spendRange({ c0, c1, r0, r1 }: CellRange): boolean {
+    return (
+      [c0, c1, r0, r1].every(Number.isSafeInteger) &&
+      this.spend(Math.max(0, r1 - r0) * (1 + Math.max(0, c1 - c0)))
+    );
+  }
+
+  private stampRect(rect: Rect, flags: number): boolean {
     const { c0, c1, r0, r1 } = cellsOf(rect);
+    if (!this.spendRange({ c0, c1, r0, r1 })) return false;
     for (let r = r0; r < r1; r++) {
       for (let c = c0; c < c1; c++) this.mark(c, r, flags);
     }
+    return true;
   }
 
-  private stampInk(ink: SceneInk, flags: number): void {
+  private stampInk(ink: SceneInk, flags: number): boolean {
     for (const stroke of bearingStrokes(ink.drawing.strokes)) {
       let previous: Vec | null = null;
       for (const point of stroke) {
         const here = poseToWorld(point, ink.pose);
-        if (previous === null) this.stampDot(ink, here, flags);
-        else this.stampSegment(ink, previous, here, flags);
+        const stamped =
+          previous === null
+            ? this.stampDot(ink, here, flags)
+            : this.stampSegment(ink, previous, here, flags);
+        if (!stamped) return false;
         previous = here;
       }
     }
+    return true;
   }
 
-  private stampSegment(ink: SceneInk, from: Vec, to: Vec, flags: number): void {
+  private stampSegment(ink: SceneInk, from: Vec, to: Vec, flags: number): boolean {
     const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / STAMP_SPACING));
+    if (!this.spend(steps)) return false;
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
-      this.stampDot(
-        ink,
-        { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t },
-        flags,
-      );
+      if (
+        !this.stampDot(
+          ink,
+          { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t },
+          flags,
+        )
+      )
+        return false;
     }
+    return true;
   }
 
-  private stampDot(ink: SceneInk, at: Vec, flags: number): void {
+  private stampDot(ink: SceneInk, at: Vec, flags: number): boolean {
     const { c0, c1, r0, r1 } = cellsOf({
       x: at.x - INK_RADIUS,
       y: at.y - INK_RADIUS,
       width: INK_THICKNESS,
       height: INK_THICKNESS,
     });
+    if (!this.spendRange({ c0, c1, r0, r1 })) return false;
     for (let r = r0; r < r1; r++) {
       for (let c = c0; c < c1; c++) this.mark(c, r, flags, ink.drawing.id, ink.strength);
     }
+    return true;
   }
 }

@@ -68,6 +68,7 @@ export const remainingColumns = (solid: Rect, cuts: readonly Rect[]): Rect[] => 
     .filter((cut) => rectsOverlap(cut, solid))
     .map((cut) => [cut.x, cut.x + cut.width] as const)
     .sort(([a], [b]) => a - b);
+  if (edges.length === 0) return [solid];
   const remains: Rect[] = [];
   let from = solid.x;
   for (const [left, right] of edges) {

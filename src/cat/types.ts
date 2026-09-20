@@ -73,6 +73,7 @@ export interface RoomBrief {
 export interface Look {
   readonly certain: Ruling | null;
   readonly guesses: readonly [string, string, string];
+  readonly rulings: readonly Ruling[];
 }
 
 export interface Cat {
@@ -80,6 +81,8 @@ export interface Cat {
   enterRoom(room: RoomBrief): void;
   /** Maps whatever the player said about `drawing` onto a nature. Never rejects. */
   name(utterance: string, drawing: Drawing): Promise<Ruling>;
+  /** Accepts an offered ruling, subject to the current room's restrictions. */
+  accept(ruling: Ruling): Ruling;
   /**
    * His three best guesses at an unnamed drawing, as short names ("a mushroom"). What the
    * recognizer saw comes first; a geometric hunch fills in when it saw nothing.

@@ -7,9 +7,9 @@ import { EARTH } from "../rules/types";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "../sim/flight";
 import { enter, runSteps } from "../sim/testSupport";
 import { ALICE_BASE, type AliceSize, type AliceSnapshot } from "../sim/types";
-import { CELL_PX, CellFlag, Chart } from "./chart";
+import { CELL_PX, CellFlag, Chart, MAX_CHART_CELLS } from "./chart";
 import { createAutopilot } from "./index";
-import { footprintFor } from "./pathfinder";
+import { footprintFor, nodeOfFeet, Pathfinder } from "./pathfinder";
 import type { Scene, SceneInk } from "./types";
 
 const GROUND_Y = 400;
@@ -89,6 +89,7 @@ describe("Pilot", () => {
     const hole = { x: 120, y: floor.y, width: 48, height: floor.height };
     const bitten = scene({ board: board({ solids: [solid(floor)] }), bites: [hole] });
     const chart = Chart.of(bitten);
+    if (chart === null) throw new Error("bitten chart refused");
     const column = Math.floor(140 / CELL_PX);
     for (
       let row = Math.floor(floor.y / CELL_PX);
@@ -100,12 +101,99 @@ describe("Pilot", () => {
       expect(chart.has(Math.floor(80 / CELL_PX), row, CellFlag.solid)).toBe(true);
     }
     const healed = Chart.of({ ...bitten, bites: [] });
-    expect(healed.has(column, Math.floor(floor.y / CELL_PX), CellFlag.solid)).toBe(true);
+    expect(healed?.has(column, Math.floor(floor.y / CELL_PX), CellFlag.solid)).toBe(true);
     const bridged = Chart.of({
       ...bitten,
       inks: [ink(line({ x: 110, y: floor.y }, { x: 180, y: floor.y }))],
     });
-    expect(bridged.has(column, Math.floor(floor.y / CELL_PX), CellFlag.solid)).toBe(true);
+    expect(bridged?.has(column, Math.floor(floor.y / CELL_PX), CellFlag.solid)).toBe(true);
+  });
+
+  it("waits safely on an oversized world without modifying the artwork", () => {
+    const drawing = ink(
+      [
+        { x: 1e9, y: 100 },
+        { x: 1e9 + 20, y: 100 },
+      ],
+      "goal",
+    );
+    const original = structuredClone(drawing);
+    const distant = scene({ inks: [drawing] });
+    expect(Chart.of(distant)).toBeNull();
+    const pilot = createAutopilot();
+    expect(pilot.drive(distant)).toEqual({ x: 0, y: 0 });
+    expect(pilot.status).toMatchObject({ errand: { kind: "wait" }, stuck: true, target: null });
+    expect(drawing).toEqual(original);
+  });
+
+  it("rejects long airborne excursions and oversized or unsafe chart dimensions", () => {
+    expect(Chart.of(scene({ alice: alice({ x: 100, y: -1e8 }), canFly: true }))).toBeNull();
+    expect(
+      Chart.of(
+        scene({
+          board: board({ solids: [solid({ x: 0, y: 400, width: 1e8, height: 40 })] }),
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      Chart.of(
+        scene({
+          board: board({
+            solids: [solid({ x: 0, y: 0, width: 10000, height: 10000 })],
+            killY: 20000,
+          }),
+        }),
+      ),
+    ).toBeNull();
+    expect(Chart.of(scene({ alice: alice({ x: Number.POSITIVE_INFINITY, y: 400 }) }))).toBeNull();
+  });
+
+  it("bounds input geometry and repeated segment stamping independently of cell allocation", () => {
+    const dense = ink(Array.from({ length: 50_001 }, () => ({ x: 100, y: 100 })));
+    expect(Chart.of(scene({ inks: [dense] }))).toBeNull();
+    const repeated = ink(Array.from({ length: 5000 }, (_, i) => ({ x: i % 2 ? 0 : 2000, y: 380 })));
+    expect(Chart.of(scene({ inks: [repeated] }))).toBeNull();
+    expect(
+      Chart.of(
+        scene({
+          board: board({ solids: [solid({ x: 0, y: 400, width: 1000, height: 1e9 })] }),
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      Chart.of(
+        scene({
+          board: board({ solids: [solid({ x: 0, y: 400, width: 0, height: 1e9 })] }),
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("preserves normal chart geometry within the allocation limit", () => {
+    const chart = Chart.of(scene({ inks: [ink([{ x: 600, y: 200 }], "hazard")] }));
+    if (chart === null) throw new Error("ordinary chart refused");
+    const { c0, c1, r0, r1 } = chart.range;
+    expect((c1 - c0) * (r1 - r0)).toBeLessThanOrEqual(MAX_CHART_CELLS);
+    expect(chart.has(600 / CELL_PX, 200 / CELL_PX, CellFlag.hazard)).toBe(true);
+    expect(chart.has(Math.floor(100 / CELL_PX), GROUND_Y / CELL_PX, CellFlag.fixture)).toBe(true);
+  });
+
+  it("routes across a compact scene at large absolute coordinates without key aliasing", () => {
+    const offset = 1e12;
+    const ground = GROUND_Y + offset;
+    const pilot = createAutopilot();
+    const far = scene({
+      alice: alice({ x: offset + 100, y: ground }),
+      board: board({
+        spawn: { x: offset + 100, y: ground },
+        solids: [solid({ x: offset, y: ground, width: 1000, height: 40 })],
+        goal: { x: offset + 600, y: ground - 60, width: 40, height: 60 },
+        killY: ground + 1000,
+      }),
+    });
+    expect(pilot.drive(far).x).toBe(1);
+    expect(pilot.status.errand.kind).toBe("objective");
+    expect(pilot.status.stuck).toBe(false);
   });
 
   it("replans a low passage when a law enlarges Alice without changing her size state", () => {
@@ -184,6 +272,93 @@ describe("Pilot", () => {
     }
   });
 
+  it("waits safely on an oversized world without modifying the artwork", () => {
+    const drawing = ink(
+      [
+        { x: 1e9, y: 100 },
+        { x: 1e9 + 20, y: 100 },
+      ],
+      "goal",
+    );
+    const original = structuredClone(drawing);
+    const distant = scene({ inks: [drawing] });
+    expect(Chart.of(distant)).toBeNull();
+    const pilot = createAutopilot();
+    expect(pilot.drive(distant)).toEqual({ x: 0, y: 0 });
+    expect(pilot.status).toMatchObject({ errand: { kind: "wait" }, stuck: true, target: null });
+    expect(drawing).toEqual(original);
+  });
+
+  it("rejects long airborne excursions and oversized or unsafe chart dimensions", () => {
+    expect(Chart.of(scene({ alice: alice({ x: 100, y: -1e8 }), canFly: true }))).toBeNull();
+    expect(
+      Chart.of(
+        scene({
+          board: board({ solids: [solid({ x: 0, y: 400, width: 1e8, height: 40 })] }),
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      Chart.of(
+        scene({
+          board: board({
+            solids: [solid({ x: 0, y: 0, width: 10000, height: 10000 })],
+            killY: 20000,
+          }),
+        }),
+      ),
+    ).toBeNull();
+    expect(Chart.of(scene({ alice: alice({ x: Number.POSITIVE_INFINITY, y: 400 }) }))).toBeNull();
+  });
+
+  it("bounds input geometry and repeated segment stamping independently of cell allocation", () => {
+    const dense = ink(Array.from({ length: 50_001 }, () => ({ x: 100, y: 100 })));
+    expect(Chart.of(scene({ inks: [dense] }))).toBeNull();
+    const repeated = ink(Array.from({ length: 5000 }, (_, i) => ({ x: i % 2 ? 0 : 2000, y: 380 })));
+    expect(Chart.of(scene({ inks: [repeated] }))).toBeNull();
+    expect(
+      Chart.of(
+        scene({
+          board: board({ solids: [solid({ x: 0, y: 400, width: 1000, height: 1e9 })] }),
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      Chart.of(
+        scene({
+          board: board({ solids: [solid({ x: 0, y: 400, width: 0, height: 1e9 })] }),
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("preserves normal chart geometry within the allocation limit", () => {
+    const chart = Chart.of(scene({ inks: [ink([{ x: 600, y: 200 }], "hazard")] }));
+    if (chart === null) throw new Error("ordinary chart refused");
+    const { c0, c1, r0, r1 } = chart.range;
+    expect((c1 - c0) * (r1 - r0)).toBeLessThanOrEqual(MAX_CHART_CELLS);
+    expect(chart.has(600 / CELL_PX, 200 / CELL_PX, CellFlag.hazard)).toBe(true);
+    expect(chart.has(Math.floor(100 / CELL_PX), GROUND_Y / CELL_PX, CellFlag.fixture)).toBe(true);
+  });
+
+  it("routes across a compact scene at large absolute coordinates without key aliasing", () => {
+    const offset = 1e12;
+    const ground = GROUND_Y + offset;
+    const pilot = createAutopilot();
+    const far = scene({
+      alice: alice({ x: offset + 100, y: ground }),
+      board: board({
+        spawn: { x: offset + 100, y: ground },
+        solids: [solid({ x: offset, y: ground, width: 1000, height: 40 })],
+        goal: { x: offset + 600, y: ground - 60, width: 40, height: 60 },
+        killY: ground + 1000,
+      }),
+    });
+    expect(pilot.drive(far).x).toBe(1);
+    expect(pilot.status.errand.kind).toBe("objective");
+    expect(pilot.status.stuck).toBe(false);
+  });
+
   it("idles on a board with nothing to go for", () => {
     const pilot = createAutopilot();
 
@@ -215,6 +390,7 @@ describe("Pilot", () => {
 
     const creature = Chart.of(scene({ inks: [over("walker")] }));
     const plain = Chart.of(scene({ inks: [over("ink")] }));
+    if (creature === null || plain === null) throw new Error("ordinary chart refused");
     expect(creature.has(cellThroughHer.c, cellThroughHer.r, CellFlag.solid)).toBe(false);
     expect(plain.has(cellThroughHer.c, cellThroughHer.r, CellFlag.solid)).toBe(true);
 
@@ -223,6 +399,7 @@ describe("Pilot", () => {
         inks: [ink(line({ x: 150, y: GROUND_Y - 30 }, { x: 170, y: GROUND_Y - 30 }), "walker")],
       }),
     );
+    if (beside === null) throw new Error("ordinary chart refused");
     expect(beside.has(Math.floor(160 / CELL_PX), cellThroughHer.r, CellFlag.solid)).toBe(true);
   });
 
@@ -244,6 +421,7 @@ describe("Pilot", () => {
       },
     };
     const chart = Chart.of(scene({ inks: [vehicle], alice: alice({ x: 100, y: 345 }) }));
+    if (chart === null) throw new Error("ordinary chart refused");
 
     expect(chart.has(Math.floor(100 / CELL_PX), Math.floor(350 / CELL_PX), CellFlag.solid)).toBe(
       true,
@@ -344,6 +522,59 @@ describe("Pilot", () => {
       stuck: false,
     });
   });
+
+  it.each([
+    { size: "big" as const, scale: 2, gravity: 1, ditch: 96 },
+    { size: "normal" as const, scale: 1, gravity: 0.165, ditch: 64 },
+  ])(
+    "keeps $size jumps under gravity $gravity above the raster clear",
+    ({ size, scale, gravity, ditch }) => {
+      const feet = { x: GAP.x - 40, y: GROUND_Y };
+      const current = scene({
+        alice: alice(feet, size),
+        board: board({
+          goal: { x: 700, y: GROUND_Y - 60, width: 40, height: 60 },
+          solids: [
+            solid({ x: 0, y: GROUND_Y, width: GAP.x, height: 40 }),
+            solid({ x: GAP.x + ditch, y: GROUND_Y, width: 500, height: 40 }),
+          ],
+        }),
+        walkSpeed: walkSpeedAt(scale),
+        jumpArc: jumpArcUnder({ ...EARTH, gravity: { x: 0, y: gravity } }, scale),
+      });
+      const chart = Chart.of(current);
+      if (chart === null) throw new Error("ordinary chart refused");
+      expect(GROUND_Y - current.jumpArc.apexPx - current.alice.height).toBeLessThan(
+        chart.range.r0 * CELL_PX,
+      );
+      const footprint = footprintFor(current.alice);
+      const finder = new Pathfinder(chart, current, footprint);
+      const path = finder.route(nodeOfFeet(feet, footprint), {
+        kind: "objective",
+        objective: "goal",
+      });
+      expect(path?.some((waypoint) => waypoint.via === "jump")).toBe(true);
+      expect(path?.every((waypoint) => finder.isFree(waypoint.node))).toBe(true);
+      const pilot = createAutopilot();
+      expect(pilot.drive(current).x).toBe(1);
+      expect(pilot.status).toMatchObject({ errand: { kind: "objective" }, stuck: false });
+
+      const ceiling = solid({
+        x: 0,
+        y: GROUND_Y - current.alice.height - current.jumpArc.apexPx - 16,
+        width: 1000,
+        height: current.jumpArc.apexPx + 8,
+      });
+      pilot.invalidate();
+      pilot.drive(
+        scene({
+          ...current,
+          board: { ...current.board, solids: [...current.board.solids, ceiling] },
+        }),
+      );
+      expect(pilot.status.errand.kind).toBe("wait");
+    },
+  );
 
   it("prefers the key, then the door, then the goal", () => {
     const pilot = createAutopilot();
