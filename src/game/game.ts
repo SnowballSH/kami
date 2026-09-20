@@ -137,6 +137,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private board: BoardDefinition;
   private epoch = 0;
+  private lastSubmittedAt = 0;
   private loading = false;
   private nowMs = 0;
   private lastFrameMs = 0;
@@ -384,6 +385,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private restore({ drawings, notes, rules }: BoardSnapshot): void {
     const { sim } = this.modules;
+    for (const entry of [...notes, ...rules]) {
+      this.lastSubmittedAt = Math.max(this.lastSubmittedAt, entry.createdAt);
+    }
     for (const { drawing, ruling } of drawings) {
       sim.addDrawing(drawing);
       this.ledger.add(drawing);
@@ -684,7 +688,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       sourceText: note.text,
       noteId: note.id,
       position: note.position,
-      createdAt: Date.now(),
+      createdAt: note.createdAt,
     };
   }
 
@@ -799,6 +803,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private playerWrites(text: string, position: Vec): Note {
+    this.lastSubmittedAt = Math.max(Date.now(), this.lastSubmittedAt + 1);
     const note = this.notes.write({
       note: {
         id: this.ids.next<NoteId>("note"),
@@ -806,7 +811,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         text,
         position,
         tone: "plain",
-        createdAt: Date.now(),
+        createdAt: this.lastSubmittedAt,
         fleeting: false,
       },
       nowMs: this.nowMs,

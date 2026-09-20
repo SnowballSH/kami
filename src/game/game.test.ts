@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
@@ -44,7 +44,7 @@ const blob = (center: Vec, rx: number, ry: number): Vec[] =>
     y: center.y + ry * Math.sin((i / 24) * Math.PI * 2),
   }));
 
-type Thoughts = Readonly<Record<string, CompiledRule>>;
+type Thoughts = Readonly<Record<string, CompiledRule | Promise<CompiledRule | null>>>;
 
 interface PlayerOptions {
   readonly store?: MemoryBoardStore;
@@ -495,11 +495,53 @@ describe("Alice on her own", () => {
 });
 
 describe("Game with a model to think with", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   const RED_PLANET = "make it feel like the red planet";
   const MARS: CompiledRule = {
     effect: { governs: "gravity", x: 0, y: 0.38 },
     explanation: "gravity = 0.38 g (Mars)",
   };
+
+  it("orders same-millisecond laws by submission through late responses, reload and repeal", async () => {
+    const pending = Promise.withResolvers<CompiledRule | null>();
+    const store = new MemoryBoardStore();
+    const player = new Player("wonderland", {
+      store,
+      thoughts: { "a custom sky": pending.promise },
+    });
+    await player.arrive();
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
+    await player.write("a custom sky", { x: 200, y: 100 });
+    await player.write("night", { x: 200, y: 200 });
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    pending.resolve({ effect: { governs: "daylight", value: 1 }, explanation: "daylight" });
+    await player.wait(100);
+    expect(player.renderer.lastFrame?.daylight).toBe(0.1);
+    const snapshot = await store.load("wonderland");
+    const ordered = snapshot.rules.toSorted((a, b) => a.createdAt - b.createdAt);
+    expect(ordered.map((rule) => rule.sourceText)).toEqual(["a custom sky", "night"]);
+    expect(ordered.map((rule) => rule.createdAt)).toEqual([1_000, 1_001]);
+    for (const rule of ordered) {
+      expect(rule.createdAt).toBe(
+        snapshot.notes.find((note) => note.id === rule.noteId)?.createdAt,
+      );
+    }
+
+    const reloaded = new Player("wonderland", { store });
+    await reloaded.arrive();
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(0.1);
+    const night = reloaded.renderer.lastFrame?.notes.find((note) => note.script.text === "night");
+    if (night === undefined) throw new Error("night note missing");
+    await reloaded.erase({ x: night.script.bounds.x + 1, y: night.script.bounds.y + 1 });
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(1);
+    await reloaded.write("night", { x: 200, y: 300 });
+    const newest = (await store.load("wonderland")).rules.find(
+      (rule) => rule.sourceText === "night",
+    );
+    expect(newest?.createdAt).toBe(1_002);
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(0.1);
+  });
 
   it("asks the model only about what nothing else understood", async () => {
     const player = new Player("wonderland", { thoughts: { [RED_PLANET]: MARS } });
