@@ -14,6 +14,7 @@ REQUIRED = (
     "box/install.sh",
     "box/start.sh",
     "box/stop.sh",
+    "box/autostart.sh",
     "box/release.py",
 )
 

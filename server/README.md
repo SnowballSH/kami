@@ -304,6 +304,8 @@ Application readiness requires the exact client HTML and a valid board-list API 
 restarts the previous release. `~/kami/previous` retains the last working release for manual rollback:
 `bash ~/kami/current/box/activate.sh "$(readlink -f ~/kami/previous)"`.
 The first deployment preserves the old flat layout for rollback; use `current/box` commands afterward.
+An existing Kami boot entry is migrated to `current/box/start.sh` after successful activation.
+Deploying without `--autostart` leaves autostart disabled when no Kami boot entry exists.
 If `previous` points to the legacy `~/kami` layout, use its original `~/kami/box/start.sh` for
 manual recovery; it predates the release manifest needed by `activate.sh`.
 MongoDB data, logs, PID files and the download cache stay outside releases under `~/kami`.

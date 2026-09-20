@@ -57,5 +57,6 @@ if [ -n "$previous" ]; then bash "$previous/box/stop.sh"; fi
 point_to "$RELEASE" current
 bash "$RELEASE/box/start.sh"
 python3 "$RELEASE/box/release.py" ready "$RELEASE" "http://127.0.0.1:${PORT:-8787}"
+bash "$RELEASE/box/autostart.sh" migrate
 if [ -n "$previous" ]; then point_to "$previous" previous; fi
 echo "Activated $RELEASE"

@@ -25,10 +25,22 @@ class ReleaseTests(unittest.TestCase):
         self.commands.mkdir()
         self.env = {
             **os.environ,
+            "HOME": str(self.root),
             "KAMI_HOME": str(self.home),
             "EVENTS": str(self.events),
+            "CRONTAB_FILE": str(self.root / "crontab"),
             "PATH": f"{self.commands}:{os.environ['PATH']}",
         }
+        crontab = self.commands / "crontab"
+        crontab.write_text(
+            "#!/usr/bin/env bash\nset -eu\n"
+            'case "$1" in\n'
+            '  -l) cat "$CRONTAB_FILE" ;;\n'
+            '  -) cat > "$CRONTAB_FILE" ;;\n'
+            "  *) exit 2 ;;\n"
+            "esac\n"
+        )
+        crontab.chmod(0o755)
         python = self.commands / "python3"
         python.write_text(
             "#!/usr/bin/env bash\n"
@@ -51,6 +63,7 @@ class ReleaseTests(unittest.TestCase):
         for required in release.REQUIRED:
             (directory / required).write_text("fixture")
         shutil.copy(BOX / "release.py", directory / "box/release.py")
+        shutil.copy(BOX / "autostart.sh", directory / "box/autostart.sh")
         for phase in ("install", "start", "stop"):
             (directory / f"box/{phase}.sh").write_text(
                 "#!/usr/bin/env bash\nset -eu\n"
@@ -151,3 +164,66 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(self.events.exists())
         self.assertTrue((self.home / "run/deploy.lock").exists())
+
+    def legacy_install(self) -> None:
+        (self.home / "current").unlink()
+        shutil.copytree(self.old / "box", self.home / "box")
+
+    def test_legacy_autostart_migrates_and_boot_starts_current_release(self) -> None:
+        self.legacy_install()
+        unrelated = "0 * * * * echo another-job\n"
+        crontab = self.root / "crontab"
+        crontab.write_text(
+            unrelated + "@reboot sleep 20 && bash $HOME/kami/box/start.sh "
+            ">> $HOME/kami/logs/boot.log 2>&1 # kami\n"
+        )
+        result = self.activate()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.home / "previous").resolve(), self.home)
+        migrated = crontab.read_text()
+        self.assertIn(unrelated, migrated)
+        self.assertEqual(migrated.count("# kami"), 1)
+        self.assertIn("$HOME/kami/current/box/start.sh", migrated)
+        sleep = self.commands / "sleep"
+        sleep.write_text("#!/bin/sh\nexit 0\n")
+        sleep.chmod(0o755)
+        boot = next(
+            line.removeprefix("@reboot ")
+            for line in migrated.splitlines()
+            if line.startswith("@reboot ")
+        )
+        result = subprocess.run(
+            ["bash", "-c", boot],
+            env=self.env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.events.read_text().splitlines()[-1], "start:new")
+
+    def test_legacy_upgrade_does_not_enable_autostart(self) -> None:
+        self.legacy_install()
+        crontab = self.root / "crontab"
+        for contents in (None, "", "0 * * * * echo another-job\n"):
+            with self.subTest(contents=contents):
+                if contents is not None:
+                    crontab.write_text(contents)
+                result = self.activate()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                if contents is None:
+                    self.assertFalse(crontab.exists())
+                else:
+                    self.assertEqual(crontab.read_text(), contents)
+                (self.home / "current").unlink()
+
+    def test_failed_activation_keeps_legacy_autostart(self) -> None:
+        self.legacy_install()
+        original = "@reboot bash $HOME/kami/box/start.sh # kami\n"
+        crontab = self.root / "crontab"
+        crontab.write_text(original)
+        result = self.activate("ready")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(crontab.read_text(), original)
+        self.assertEqual((self.home / "current").resolve(), self.home)
