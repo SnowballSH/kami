@@ -74,7 +74,8 @@ main.ts → game/index.ts:startGame(canvas, options)
 |---|---|---|---|
 | Board definition | `src/board/types.ts`, `src/board/index.ts` | built | `BoardDefinition`: pre-sketched solids, zones with checkpoints, spawn, goal, `killY`, no-ink zones |
 | Wonderland | `src/board/boards/wonderland.ts` | built | the demo's puzzle board (key → door → rabbit hole) |
-| Blank | `src/board/boards/blank.ts` | built | an endless empty page; sandbox starting point |
+| Blank | `src/board/boards/blank.ts` | built | a new room: a patch of ground under Alice, `killY` 4000 below it |
+| Endless page | `src/board/boards/endless.ts`, `src/sim/footing.ts` | built | `page: "endless"`: a strip of ground, no edges, `killY` infinite; a fall of `FALL_LIMIT` below her last footing puts her back on it (`LastFooting`); the sandbox's board |
 | Board props | `src/sim/boardProps.ts`, `src/sim/paper.ts` | built | the board's own solids as static bodies; `paper.ts` holds bites the Sumikui takes out of the ground and heals them |
 
 ## 5. Ink: from pen to drawing
@@ -126,7 +127,7 @@ on a product of dials; rules fold in `createdAt` order; repeal refolds the rest.
 | Remote compiler | `src/persistence/remoteRuleCompiler.ts` | external | `POST /api/compile` → validated JSON → `RuleEffect` |
 | Rule book | `src/game/ruleBook.ts` | built | standing rules, enact/repeal, refold, note ↔ rule link |
 | Laws panel | `src/ui/lawsPanel.ts` | built | top-right list of standing laws; tap twice to repeal (notes fade, laws don't) |
-| Mode policy | `src/modes/policy.ts` | built | `allowsLaw(mode, effect)` — a mode may refuse a dial (e.g. no Sumikui in sandbox) |
+| Mode policy | `src/modes/policy.ts` | built | `allowsLaw(mode, effect)` — a mode may refuse a dial (no Sumikui in sandbox); `refusalLine` is the mode's own line for it, else the stock one |
 
 ### Dials today
 
@@ -240,7 +241,7 @@ player *is* at start, win/loss, which laws and natures are allowed.
 |---|---|---|---|
 | Embodied (today's play) | `src/modes/modes.ts`, `embodiedDirector.ts` | built | Alice from the start; Wonderland or blank board |
 | Spirit | `src/modes/modes.ts` | contract | no body; draw Alice into being |
-| Sandbox | — | in progress (child session) | infinite shared world, others can join, Kami helps on request, no Sumikui; `?mode=sandbox` |
+| Sandbox | `src/modes/sandboxMode.ts`, `src/board/boards/endless.ts`, `src/sim/footing.ts`, `src/autopilot/chart.ts` (`WINDOW_PX`), `src/autopilot/pilot.ts` (`explore`), `src/counsel/*`, `src/sync/*`, `src/ui/sharePanel.ts`, `src/ui/titleCard.ts`, `src/game/launch.ts` | built | `?mode=sandbox`: an endless shared page (`?board=<id>`, default `sandbox`); the chart is windowed around every Alice and the pilot explores toward the newest ink; Kami helps only when asked ("help", "give me an idea": a bridge over a gap, a ladder up a wall, an idea on open page); `inkEater` refused with "Nothing hungry lives on this page."; title card and share panel (link + QR + who is here); see [modes.md](modes.md) |
 | Puzzle | — | in progress (child session) | immersive drawn-solution levels, Sumikui on by default; `?mode=puzzle` |
 | Boss | — | in progress (child session) | two players (drawer + controller); start as a soul/heart; a scissor-servant of the one under the page snips body parts → abilities lost, redraw to restore; `?mode=boss` |
 | Independent clones | `src/game/party.ts`, `src/sim/twins.ts`, `src/sim/simulation.ts`, `src/sim/portals.ts`, `src/sim/sumikui.ts`, `src/autopilot/pilot.ts`, `src/autopilot/chart.ts`, `src/render/alicePainter.ts` | built | real second Alices with their own minds: own intent, pilot, route, portals and fate; tap one to steer her; any Alice wins the room and Kami names her; see [agency.md](agency.md) |
@@ -253,7 +254,7 @@ player *is* at start, win/loss, which laws and natures are allowed.
 | Schemas | `src/persistence/schemas.ts` → `server/schemas.ts` | shared | zod for every persisted shape incl. `RuleEffect` and `MotionEdit` |
 | Server | `server/index.ts`, `server/http/*`, `server/db/*` | external | Bun + MongoDB; routes in [server/README.md](../server/README.md); access model in [access.md](access.md) |
 | Model compile | `server/compile/*`, `server/llm/*` | external | prompt lists every dial incl. `heed`; output clamped by `effectRanges.ts` |
-| Shared board (live) | — | in progress (child session) | one board id, many devices, live sync |
+| Shared board (live) | `src/sync/wire.ts`, `src/sync/boardLink.ts`, `src/sync/peer.ts`, `server/sync/boardFeed.ts`, `server/sync/boardEventStream.ts`, `src/game/game.ts` (`followPage`, `receive`) | built | one board id, many devices: the server numbers every put/delete/clear per board and relays it over SSE (`GET /api/boards/:board/events`, resumable by `Last-Event-ID`, `resync` when the log does not reach back); presence (`POST /api/boards/:board/presence`, every 250 ms) paints the other devices' Alices as ghosts; remote changes land through the same seams as a load |
 
 ## 18. Verification
 

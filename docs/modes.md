@@ -1,8 +1,8 @@
 # Game modes
 
-A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, and which laws and natures the page will take. Today there is one way to play — Alice stands at the spawn and you draw for her — and it is written down as `EMBODIED_MODE`. The second, `SPIRIT_MODE`, is a contract for a game nobody has built yet: you open the room as a spirit with no body, draw Alice, name her, and she is yours.
+A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, which laws and natures the page will take, whether the board id names a room or an endless page, when Kami helps, and whether other devices share the page. Two modes are playable: `EMBODIED_MODE` — Alice stands at the spawn of a room and you draw for her — and `SANDBOX_MODE` — an endless page with no edges that everyone who opens it draws on together. The third, `SPIRIT_MODE`, is a contract for a game nobody has built yet: you open the room as a spirit with no body, draw Alice, name her, and she is yours.
 
-This document is the architecture. Only the embodied mode is playable; everything the spirit mode needs that does not exist yet is listed at the end.
+This document is the architecture. The embodied and sandbox modes are playable; everything the spirit mode needs that does not exist yet is listed at the end.
 
 ## The contract (`src/modes/types.ts`)
 
@@ -16,6 +16,10 @@ interface GameMode {
   laws: LawPolicy;                          // all | only(dials) | except(dials)
   natures: NaturePolicy;                    // "all" | Nature[] — narrows the room's own list
   autopilot: "allowed" | "forbidden";       // may she walk herself
+  page: PageKind;                           // room | endless — what the board id names
+  help: HelpPolicy;                         // offered (the hint ladder) | on-request (only when asked)
+  sharing: SharingPolicy;                   // alone | live — other devices' ink, notes, laws and Alices
+  refusals?: Partial<Record<Governs, string>>; // Kami's line instead of the stock refusal, per forbidden dial
 }
 
 type Opening =
@@ -27,7 +31,7 @@ type Incarnation =
   | { kind: "drawn"; names: string[] };                 // a drawing named one of these becomes her body
 ```
 
-Modes are **data**. Adding one is a new constant in `modes.ts`, not new code, until it asks for an `Incarnation`, `LossRule` or `WinRule` variant nobody has built. The types are closed unions on purpose: the game can `switch` over them exhaustively, and a new variant is a type error everywhere it must be handled.
+Modes are **data**. Adding one is a new constant in `modes.ts` (or its own file beside it, as `sandboxMode.ts`), not new code, until it asks for an `Incarnation`, `LossRule` or `WinRule` variant nobody has built. The types are closed unions on purpose: the game can `switch` over them exhaustively, and a new variant is a type error everywhere it must be handled.
 
 ### The director
 
@@ -60,20 +64,40 @@ The director holds the player's state; the game does not. `createDirector(mode)`
 - asks `director.won(event)` before handling any sim event, and writes the closing line when it says so (so an `endless` sandbox never declares victory at the rabbit hole);
 - runs every written law through `allowsLaw(mode.laws, effect.governs)` before enacting it — a forbidden law stays plain writing and Kami says *"Not in this game. The page won't take that law here."* beneath it;
 - suspends saved laws the current mode forbids: they do not affect physics or appear as active laws, but remain saved for modes that allow them; erasing their note still repeals them;
-- keeps Alice from walking herself when `autopilot` is `"forbidden"`, whatever the HUD switch says.
+- keeps Alice from walking herself when `autopilot` is `"forbidden"`, whatever the HUD switch says;
+- reads the board id as `endlessBoard(id)` when `page` is `"endless"`, and as `boardFor(id)` otherwise;
+- runs the stuck detector and the hint ladder only when `help` is `"offered"`; with `"on-request"` Kami answers written requests for help instead (`counsel/`);
+- follows the board through `BoardLink` when `sharing` is `"live"`, applies what arrives, reports Alice's position, paints the other devices' Alices as ghosts, and swaps the board menu for the share affordance;
+- shows the title card from `mode.card` when the mode is not the embodied one.
 
-Nothing else changes. The embodied mode is exactly the game as it was.
+The embodied mode is exactly the game as it was.
+
+## Sandbox (`src/modes/sandboxMode.ts`)
+
+`?mode=sandbox`. The board id (`?board=<id>`, default `sandbox`) names an endless page rather than a room; everyone who opens the same id draws on the same paper.
+
+- **An endless page** (`board/boards/endless.ts`). `PageKind` is `"room" | "endless"`. An endless board has one solid — a strip of ground `ENDLESS_GROUND` under the spawn — no zones, no goal, no rabbit hole and `killY` of infinity: there is no edge to fall off. Beyond the strip there is nothing until someone draws. The camera follows her to any coordinate (`cameraRig.test.ts` walks her to ±5,000,000). Falling `FALL_LIMIT` below the last place she stood is falling off the page; `LastFooting` (`sim/footing.ts`) puts her back on the ink she last stood on, once — if that ink is gone too, the second fall returns her to the spawn.
+- **Wandering.** The chart is windowed `WINDOW_PX` around every Alice on the page, never board-sized. With no errand her pilot `explore`s: the errand is the top of the newest ink, or the edge of the paper she faces when nothing has been drawn; on an empty page she stands back from the end of the strip rather than walking off it. Threats and objectives (a goal someone draws and names) still take precedence, as in a room.
+- **Shared.** `sharing: "live"` — see [architecture.md](architecture.md) `sync/` and `server/`. Every device has its own Alice; the others' are ghosts, faint and never solid.
+- **Kami on request.** `help: "on-request"`. The stuck detector and hint ladder are off. Writing *help*, *what can I do?*, *how do I get across?*, *give me an idea*, *I'm bored* asks Kami to read what is around Alice (`counsel/surroundings.ts`: a `gap` in the ground ahead, a `wall` too tall to jump, a `drop` where the ink ends, or `open` page) and answer: for a gap he sketches the start of a bridge across it and says *"A gap. A bridge would do — here is the start of one. Draw it stronger."*; for a wall he leans a ladder against it; for a drop he suggests drawing the ground onward or writing *she can fly*; on open page he takes the next idea in turn — a friend to draw and name (he sketches one), a law to write (`g = moon`), a mushroom and *bouncy*, a cat that follows her, wind and a cloud. Sketches go through the same summoning path as the player's own *draw me a rabbit*.
+- **No Sumikui.** `laws: except inkEater`. *ink eater* stays plain writing and Kami says the mode's refusal, `NOTHING_HUNGRY_LINE`: *"Nothing hungry lives on this page."* Saved `inkEater` laws are suspended, as any forbidden law is.
+- **Title card and share.** The card (`ui/titleCard.ts`) shows `card.title` and `card.tagline` for `TITLE_CARD_SHOWN_MS` or until tapped. The board menu is replaced by one **share** button (`ui/sharePanel.ts`): the board id, the link `?board=<id>&mode=sandbox`, a QR of it, how many others are on the page, and copy.
+
+**Not built.** Pages are as persistent as any board (the store keeps them); there is no list of shared pages, no names for peers, no chat, no conflict handling beyond last-write-wins per entity, and no cursor or pen trails for the other devices — only their Alices. Laws written on the page apply to every Alice on it, including the ghosts' owners, since a page has one physics.
 
 ## The modes
 
-| | `EMBODIED_MODE` | `SPIRIT_MODE` (contract only) |
-|---|---|---|
-| opening | `body` — she stands at the spawn | `spirit`, incarnation `drawn`, names `alice · her · me` |
-| win | `reach-goal` | `reach-goal` |
-| loss | `respawn` — the sim's own checkpoint path | `unmade` — the body is gone; you are a spirit again |
-| laws | `all` | `except clones` — one body at a time |
-| natures | `all` | `all` |
-| autopilot | `allowed` | `forbidden` — a body you drew is a body you steer |
+| | `EMBODIED_MODE` | `SANDBOX_MODE` | `SPIRIT_MODE` (contract only) |
+|---|---|---|---|
+| opening | `body` — she stands at the spawn | `body` — on the strip of ground | `spirit`, incarnation `drawn`, names `alice · her · me` |
+| win | `reach-goal` | `endless` | `reach-goal` |
+| loss | `respawn` — the sim's own checkpoint path | `respawn` — onto the last ink she stood on | `unmade` — the body is gone; you are a spirit again |
+| laws | `all` | `except inkEater` — *"Nothing hungry lives on this page."* | `except clones` — one body at a time |
+| natures | `all` | `all` | `all` |
+| autopilot | `allowed` | `allowed` — explores toward the newest ink | `forbidden` — a body you drew is a body you steer |
+| page | `room` | `endless` | `room` |
+| help | `offered` | `on-request` | `offered` |
+| sharing | `alone` | `live` | `alone` |
 
 ## What the spirit mode still needs
 
