@@ -17,10 +17,11 @@ import { createRenderer } from "../render";
 import { createRuleCompiler, createSceneCompiler, resolvePhysics } from "../rules";
 import { createSimulation } from "../sim";
 import { Summoner } from "../summoning";
+import { createBoardLink } from "../sync";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
 import { createVoice } from "../voice";
 import { DEFAULT_TIDINESS, Game } from "./game";
-import { BOARD_PARAM, boardInUrl, modeInUrl } from "./launch";
+import { BOARD_PARAM, boardInUrl, modeInUrl, shareLink } from "./launch";
 
 const AUTOPILOT_PARAM = "autopilot";
 const AUTOPILOT_MEMORY = "kami.autopilot";
@@ -101,6 +102,8 @@ export function startGame(root: HTMLElement): void {
       createLawsPanel: (handlers) => createLawsPanel(root, handlers),
       findDrawingAt,
       onBoardOpened: rememberBoardInUrl,
+      link: createBoardLink(),
+      shareLinkFor: (boardId) => shareLink(window.location.href, boardId, mode),
       mode,
       selfDriving: startsSelfDriving(),
       onSelfDrivingChanged: rememberSelfDriving,

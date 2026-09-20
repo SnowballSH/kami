@@ -1,19 +1,23 @@
 import { createRemoteStick } from "../controller";
 import type { Vec } from "../core/geometry";
+import type { ModeCard } from "../modes/types";
 import type { PersistenceState } from "../persistence/types";
 import { BoardMenu } from "./boardMenu";
 import { el } from "./dom";
 import { Joystick } from "./joystick";
 import { KeyboardWalk } from "./keyboard";
 import { PersistenceStatus } from "./persistenceStatus";
+import { paintQr } from "./qr";
+import { SharePanel } from "./sharePanel";
 import { TalkButton } from "./talkButton";
 import { TextPrompt } from "./textPrompt";
 import { TidySlider } from "./tidySlider";
+import { TitleCard } from "./titleCard";
 import { Toolbar } from "./toolbar";
 import { ToolHotkeys } from "./toolHotkeys";
 import { ToolSelection } from "./toolSelection";
 import { installTouchGuards } from "./touchGuards";
-import type { BoardListing, Detach, Hud, HudHandlers, Tool } from "./types";
+import type { BoardListing, Detach, Hud, HudHandlers, ShareInfo, Tool } from "./types";
 import { WalkIntentMerger } from "./walkIntent";
 import { ZoomControls } from "./zoomControls";
 
@@ -28,6 +32,8 @@ export class DomHud implements Hud {
   private readonly stick: Joystick;
   private readonly talk: TalkButton;
   private readonly tidy: TidySlider;
+  private readonly share = new SharePanel(paintQr);
+  private readonly card = new TitleCard();
   private readonly detachers: readonly Detach[];
 
   constructor(root: HTMLElement, handlers: HudHandlers) {
@@ -50,7 +56,8 @@ export class DomHud implements Hud {
     this.tidy = new TidySlider((tidiness) => handlers.onTidinessChanged(tidiness));
     const remoteStick = createRemoteStick(walk.source());
     this.overlay.append(
-      this.boards.element,
+      el("div", { className: "kami-top-left" }, [this.boards.element, this.share.element]),
+      this.card.element,
       this.toolbar.element,
       this.stick.element,
       this.talk.element,
@@ -67,6 +74,7 @@ export class DomHud implements Hud {
       this.talk.attach(host),
       new ToolHotkeys(this.tools).attach(host),
       this.boards.attach(owner),
+      this.share.attach(owner),
       this.prompt.attach(),
       installTouchGuards(owner),
     ];
@@ -106,6 +114,16 @@ export class DomHud implements Hud {
 
   setWaking(waking: boolean): void {
     this.talk.setWaking(waking);
+  }
+
+  /** A shared page has one menu, the share affordance; the board menu stands aside for it. */
+  setShare(share: ShareInfo | null): void {
+    this.share.show(share);
+    this.boards.element.hidden = share !== null;
+  }
+
+  showTitleCard(card: ModeCard): void {
+    this.card.show(card);
   }
 
   dispose(): void {

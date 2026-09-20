@@ -20,6 +20,9 @@ import type { CompiledRule, Scene } from "../rules/types";
 import { createSimulation } from "../sim";
 import { drawingOf } from "../sim/testSupport";
 import { type SketchCatalogue, SUMMONED_SIZE, Summoner } from "../summoning";
+import type { BoardLink } from "../sync/boardLink";
+import { SharedPage } from "../sync/testing/sharedPage";
+import type { PeerId } from "../sync/wire";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
 import { HELD_INK_FADE_MS } from "./heldInk";
@@ -69,6 +72,8 @@ interface PlayerOptions {
   readonly eyes?: Eyes;
   readonly reader?: HandwritingReader;
   readonly farPlaces?: Readonly<Record<string, Scene>>;
+  readonly link?: BoardLink;
+  readonly shareLinkFor?: (boardId: string) => string;
 }
 
 const seen = (word: string, nature: Sighting["nature"], certain = false): Sighting => ({
@@ -196,6 +201,8 @@ class Player {
       reader,
       mode,
       farPlaces = {},
+      link,
+      shareLinkFor,
     }: PlayerOptions = {},
   ) {
     this.store = store;
@@ -239,6 +246,8 @@ class Player {
           return this.voiceRef;
         },
         findDrawingAt,
+        ...(link === undefined ? {} : { link }),
+        ...(shareLinkFor === undefined ? {} : { shareLinkFor }),
       },
       boardId,
     );
@@ -1883,5 +1892,120 @@ describe("Game in the Sandbox", () => {
     expect(await player.until(() => player.alice.center.y < 0, 20_000)).toBe(true);
     expect(player.alice.center.x).toBeLessThan(ENDLESS_GROUND.x + ENDLESS_GROUND.width);
     expect(player.alice.center.x).toBeGreaterThan(0);
+  });
+});
+
+describe("Game on a shared page", () => {
+  const ALICE = "peer-alice" as PeerId;
+  const BOB = "peer-bob" as PeerId;
+  const shareLinkFor = (boardId: string) => `http://kami.test/?board=${boardId}&mode=sandbox`;
+
+  const together = async () => {
+    const page = new SharedPage();
+    const mine = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(ALICE, 0),
+      shareLinkFor,
+    });
+    const theirs = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(BOB, 0),
+      shareLinkFor,
+    });
+    await mine.arrive();
+    await theirs.arrive();
+    return { page, mine, theirs };
+  };
+
+  it("shows what another device draws, names, writes and erases, the moment it happens", async () => {
+    const { mine, theirs } = await together();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(mine.renderer.lastFrame?.inks.length ?? 0);
+    await mine.write("ground", { x: 760, y: -120 });
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["solid"]);
+    expect(theirs.written).toContain("ground");
+    await mine.erase({ x: 760, y: 0 });
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(theirs.written).not.toContain("ground");
+  });
+
+  it("folds another device's laws into its own world, and refolds when they are erased", async () => {
+    const { mine, theirs } = await together();
+    const day = theirs.renderer.lastFrame?.daylight;
+    await mine.write("it is night", { x: 200, y: -200 });
+    await theirs.wait(50);
+    expect(theirs.laws.laws.map((law) => law.text)).toEqual(["it is night"]);
+    expect(theirs.renderer.lastFrame?.daylight).toBeLessThan(day ?? 1);
+    expect(theirs.written.some((text) => text.startsWith("kami:"))).toBe(true);
+    expect(mine.laws.laws).toHaveLength(1);
+
+    await mine.erase({ x: 210, y: -185 });
+    await theirs.wait(50);
+    expect(theirs.laws.laws).toHaveLength(0);
+    expect(theirs.renderer.lastFrame?.daylight).toBe(day);
+    expect(theirs.written).not.toContain("it is night");
+  });
+
+  it("hears its own changes echoed back without doubling them", async () => {
+    const { mine } = await together();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await mine.write("ground", { x: 760, y: -120 });
+    await mine.write("it is night", { x: 200, y: -200 });
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(mine.laws.laws).toHaveLength(1);
+    expect(mine.written.filter((text) => text === "ground")).toHaveLength(1);
+    expect(mine.written.filter((text) => text.startsWith("kami:"))).toHaveLength(1);
+  });
+
+  it("shows the other device's Alice as a ghost, and counts her in the share affordance", async () => {
+    const { mine, theirs } = await together();
+    await mine.wait(500);
+    await theirs.wait(50);
+    const ghosts = theirs.renderer.lastFrame?.ghosts ?? [];
+    expect(ghosts).toHaveLength(1);
+    expect(ghosts[0]?.center).toEqual(mine.alice.center);
+    expect(theirs.hud.share).toEqual({
+      boardId: "together",
+      link: "http://kami.test/?board=together&mode=sandbox",
+      company: 1,
+    });
+    expect(theirs.hud.cards).toEqual([SANDBOX_MODE.card]);
+  });
+
+  it("lets a ghost go when its device leaves the page", async () => {
+    const { page, mine, theirs } = await together();
+    await mine.wait(500);
+    expect(theirs.game.company).toHaveLength(1);
+    page.drop(ALICE);
+    await theirs.wait(50);
+    expect(theirs.game.company).toHaveLength(0);
+    expect(theirs.hud.share?.company).toBe(0);
+  });
+
+  it("wipes its own page when another device clears the board", async () => {
+    const { mine, theirs } = await together();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
+    mine.game.onClearBoard();
+    await theirs.wait(200);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  it("plays alone, with no share affordance, in a room", async () => {
+    const page = new SharedPage();
+    const roomed = new Player("wonderland", { store: page, link: page.link(BOB), shareLinkFor });
+    await roomed.arrive();
+    await roomed.wait(500);
+    expect(page.peersOn("wonderland")).toEqual([]);
+    expect(page.presences).toEqual([]);
+    expect(roomed.hud.share).toBeNull();
+    expect(roomed.hud.cards).toEqual([]);
   });
 });

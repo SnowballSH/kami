@@ -1,4 +1,5 @@
 import type { PenPoint, Vec } from "../core/geometry";
+import type { ModeCard } from "../modes/types";
 import type { PersistenceState } from "../persistence/types";
 import type { RuleId } from "../rules/types";
 import type { WalkIntent } from "../sim/types";
@@ -8,6 +9,14 @@ export type Tool = "draw" | "write" | "erase" | "pan";
 export interface BoardListing {
   readonly id: string;
   readonly title: string;
+}
+
+/** What another device needs to join this page, and how many already have. */
+export interface ShareInfo {
+  readonly boardId: string;
+  /** `?board=<id>&mode=<mode>` on this very origin. */
+  readonly link: string;
+  readonly company: number;
 }
 
 export interface HudHandlers {
@@ -50,6 +59,10 @@ export interface Hud {
   setListening(listening: boolean): void;
   /** Show whether the microphone is standing by for the wake word. */
   setWaking(waking: boolean): void;
+  /** The share affordance for a shared page; null hides it. */
+  setShare(share: ShareInfo | null): void;
+  /** The mode's name and one line over the page for a moment. */
+  showTitleCard(card: ModeCard): void;
 }
 
 export interface LawListing {

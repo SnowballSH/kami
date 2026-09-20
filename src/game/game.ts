@@ -14,6 +14,7 @@ import {
   type Vec,
 } from "../core/geometry";
 import { INPUT_LIMITS, isInputPoint, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
+import { same } from "../core/same";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
 import { counselFor, isIdeaRequest, placeSketch, surroundingsOf } from "../counsel";
 import type { Handwriting } from "../handwriting/types";
@@ -36,7 +37,7 @@ import {
 } from "../modes";
 import type { GameMode, ModeDirector } from "../modes/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
-import type { BoardSnapshot, BoardStore } from "../persistence/types";
+import type { BoardSnapshot, BoardStore, StoredDrawing } from "../persistence/types";
 import type { PenReader } from "../reading/types";
 import type { LiveRecognizer, Sighting } from "../recognition/types";
 import type { Renderer } from "../render/types";
@@ -53,12 +54,15 @@ import type {
 } from "../rules/types";
 import type { DrawingPose, SimEvent, Simulation, WalkIntent } from "../sim/types";
 import { placeProp, type Summoner, type Wish } from "../summoning";
+import type { BoardChange, BoardLink, Ghost, PeerId } from "../sync";
 import type {
   CanvasInputSink,
+  Detach,
   Hud,
   HudHandlers,
   LawsPanel,
   LawsPanelHandlers,
+  ShareInfo,
   Tool,
 } from "../ui/types";
 import type { EarsHandlers, Voice } from "../voice/types";
@@ -171,6 +175,10 @@ export interface GameModules {
     tolerance: number,
   ) => DrawingId | null;
   readonly onBoardOpened?: (boardId: string) => void;
+  /** The line to shared pages (`sharing: "live"` modes); without one every device plays alone. */
+  readonly link?: BoardLink | null;
+  /** The link another device opens to join a page; without one the share affordance stays hidden. */
+  readonly shareLinkFor?: (boardId: string) => string;
   /** How the board is played; `EMBODIED_MODE` unless said otherwise. A mode nobody has built a director for yet plays as embodied. */
   readonly mode?: GameMode;
   /** Whether Alice starts out walking herself; the player can switch it from the HUD. */
@@ -230,6 +238,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly tidied = new Set<DrawingId>();
   private readonly tidyTurns = new Map<DrawingId, number>();
   private retidyDueAtMs: number | null = null;
+  private unfollow: Detach | null = null;
+  private readonly ghosts = new Map<PeerId, Ghost>();
+  private shown: ShareInfo | null = null;
 
   constructor(
     private readonly modules: GameModules,
@@ -261,6 +272,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.hud.setTool(this.tool);
     this.hud.setAutopilot(this.selfDriving);
     this.hud.setTidiness(this.tidiness);
+    if (this.director.mode.id !== EMBODIED_MODE_ID) this.hud.showTitleCard(this.director.mode.card);
     return this.open(this.board.id);
   }
 
@@ -289,6 +301,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.camera.turnTo(sim.paperAngle());
 
     const world = sim.snapshot();
+    if (this.unfollow !== null && !this.loading) this.modules.link?.announce(world.alice, nowMs);
+    this.showShare();
     renderer.render({
       nowMs,
       camera: this.camera.camera,
@@ -300,7 +314,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       activeVerdict: this.ink.activeVerdict,
       heldInks: this.held.views(nowMs),
       eraserActive: this.tool === "erase",
+      ghosts: [...this.ghosts.values()],
     });
+  }
+
+  /** The other devices on this page, by their Alice. */
+  get company(): readonly Ghost[] {
+    return [...this.ghosts.values()];
   }
 
   penDown(client: PenPoint): void {
@@ -505,6 +525,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.hasAskedWhatItIs = false;
     this.stuck.reset(this.nowMs);
     this.camera.frame(this.board.spawn, renderer.viewport());
+    this.followPage(boardId);
     this.writeWordmark();
     const [firstZone] = this.board.zones;
     if (firstZone === undefined) cat.enterRoom(BLANK_BOARD_BRIEF);
@@ -535,29 +556,158 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private restore({ drawings, notes, rules }: BoardSnapshot): void {
-    const { sim } = this.modules;
-    for (const entry of [...notes, ...rules]) {
-      this.lastSubmittedAt = Math.max(this.lastSubmittedAt, entry.createdAt);
+    for (const stored of drawings) this.placeDrawing(stored);
+    for (const note of notes) this.placeNote(note);
+    const placed = rules.filter((rule) => this.rules.place(rule));
+    this.showLaws();
+    for (const [noteId, ofNote] of groupedByNote(placed)) this.glossLaws(noteId, ofNote);
+    this.applyLaws({ silently: true });
+    this.modules.autopilot.invalidate();
+  }
+
+  private glossLaws(noteId: NoteId, ofNote: readonly Rule[]): void {
+    if (ofNote.every((rule) => this.allowsRule(rule)))
+      this.writeGloss(noteId, glossOf(ofNote.map((rule) => rule.explanation).join(", ")));
+    else this.refuseLaw(noteId);
+  }
+
+  private showShare(): void {
+    const { shareLinkFor } = this.modules;
+    if (this.unfollow === null || shareLinkFor === undefined) {
+      if (this.shown !== null) this.hud.setShare(null);
+      this.shown = null;
+      return;
     }
-    for (const { drawing, ruling } of drawings) {
-      sim.addDrawing(drawing);
-      this.ledger.add(drawing);
-      if (ruling === null) continue;
+    const share: ShareInfo = {
+      boardId: this.board.id,
+      link: shareLinkFor(this.board.id),
+      company: this.ghosts.size,
+    };
+    if (this.shown !== null && same(this.shown, share)) return;
+    this.shown = share;
+    this.hud.setShare(share);
+  }
+
+  /** On a shared page, hears what other devices do to it and tells them where Alice is. */
+  private followPage(boardId: string): void {
+    this.unfollow?.();
+    this.unfollow = null;
+    this.ghosts.clear();
+    const { link } = this.modules;
+    if (this.director.mode.sharing !== "live" || link === undefined || link === null) return;
+    const epoch = this.epoch;
+    this.unfollow = link.follow(boardId, {
+      changed: (change) => {
+        if (epoch === this.epoch) this.receive(change);
+      },
+      seen: (peer, alice) => {
+        if (epoch !== this.epoch) return;
+        if (alice === null) this.ghosts.delete(peer);
+        else this.ghosts.set(peer, alice);
+      },
+      resync: () => {
+        if (epoch === this.epoch) void this.open(boardId);
+      },
+    });
+  }
+
+  /** A change another device made (or this one's, echoed back): it lands the way a local one does. */
+  private receive(change: BoardChange): void {
+    switch (change.type) {
+      case "put":
+        switch (change.kind) {
+          case "drawings":
+            this.placeDrawing(change.entity);
+            return;
+          case "notes":
+            this.placeNote(change.entity);
+            return;
+          case "rules":
+            this.placeLaw(change.entity);
+            return;
+        }
+        return;
+      case "delete":
+        switch (change.kind) {
+          case "drawings":
+            this.dropDrawing(change.id);
+            return;
+          case "notes":
+            this.dropNote(change.id);
+            return;
+          case "rules":
+            this.dropLaw(change.id);
+            return;
+        }
+        return;
+      case "clear":
+        void this.open(this.board.id, { remember: false });
+        return;
+    }
+  }
+
+  /** A stored drawing takes its place on the page; one already there is left alone or retraced. */
+  private placeDrawing({ drawing, ruling }: StoredDrawing): void {
+    const { sim } = this.modules;
+    const known = this.ledger.get(drawing.id);
+    if (known !== null) {
+      if (!same(known.drawing.strokes, drawing.strokes)) {
+        this.ledger.retrace(drawing.id, drawing.strokes, this.nowMs);
+      }
+      if (ruling !== null && !same(known.ruling, ruling)) {
+        sim.applyRuling(drawing.id, ruling);
+        this.ledger.awaken(drawing.id, ruling, this.nowMs);
+      }
+      return;
+    }
+    sim.addDrawing(drawing);
+    this.ledger.add(drawing);
+    if (ruling !== null) {
       sim.applyRuling(drawing.id, ruling);
       this.ledger.awaken(drawing.id, ruling, this.nowMs - ALREADY_AWAKE_MS);
     }
-    for (const note of notes) {
-      this.notes.restore(note, this.nowMs);
-      if (!isPlayers(note)) this.labelsByKami.add(note.id);
-    }
-    this.rules.replaceAll(rules);
+    this.modules.autopilot.invalidate();
+  }
+
+  private placeNote(note: Note): void {
+    this.lastSubmittedAt = Math.max(this.lastSubmittedAt, note.createdAt);
+    if (same(this.notes.get(note.id), note)) return;
+    this.notes.restore(note, this.nowMs);
+    if (!isPlayers(note)) this.labelsByKami.add(note.id);
+  }
+
+  private placeLaw(rule: Rule): void {
+    this.lastSubmittedAt = Math.max(this.lastSubmittedAt, rule.createdAt);
+    if (!this.rules.place(rule)) return;
     this.showLaws();
-    for (const [noteId, ofNote] of groupedByNote(rules)) {
-      if (ofNote.every((rule) => this.allowsRule(rule)))
-        this.writeGloss(noteId, glossOf(ofNote.map((rule) => rule.explanation).join(", ")));
-      else this.refuseLaw(noteId);
+    for (const gloss of this.notes.removeAnchoredTo({ type: "note", id: rule.noteId })) {
+      this.labelsByKami.delete(gloss.id);
     }
-    this.applyLaws({ silently: true });
+    this.glossLaws(
+      rule.noteId,
+      this.rules.all.filter((standing) => standing.noteId === rule.noteId),
+    );
+    this.applyLaws({ silently: false });
+    this.modules.autopilot.invalidate();
+  }
+
+  private dropDrawing(id: DrawingId): void {
+    if (this.ledger.remove(id) === null) return;
+    this.modules.sim.removeDrawing(id);
+    this.modules.autopilot.invalidate();
+    for (const note of this.notes.removeAnchoredTo({ type: "drawing", id })) {
+      this.labelsByKami.delete(note.id);
+    }
+  }
+
+  private dropNote(id: NoteId): void {
+    for (const note of this.notes.remove(id)) this.labelsByKami.delete(note.id);
+  }
+
+  private dropLaw(id: RuleId): void {
+    if (this.rules.repeal(id) === null) return;
+    this.showLaws();
+    this.applyLaws({ silently: false });
     this.modules.autopilot.invalidate();
   }
 

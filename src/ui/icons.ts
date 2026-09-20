@@ -39,6 +39,7 @@ const ICON_PATHS = {
     "M12 13.5l-3.5 7",
     "M12 13.5l3.5 7",
   ],
+  share: ["M12 15V4", "M8 8l4-4 4 4", "M5 13v6h14v-6"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type IconName = keyof typeof ICON_PATHS;

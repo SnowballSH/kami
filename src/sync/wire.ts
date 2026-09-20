@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { Note } from "../notes/types";
+import type { DrawingId } from "../ink/types";
+import type { Note, NoteId } from "../notes/types";
 import {
   entityIdSchema,
   noteSchema,
@@ -7,7 +8,7 @@ import {
   storedDrawingSchema,
 } from "../persistence/schemas";
 import type { StoredDrawing } from "../persistence/types";
-import type { Rule } from "../rules/types";
+import type { Rule, RuleId } from "../rules/types";
 import type { AliceSnapshot } from "../sim/types";
 
 export const PEER_ID_PATTERN = /^[a-z0-9-]{1,64}$/;
@@ -65,9 +66,11 @@ export type BoardChange =
   | {
       readonly seq: number;
       readonly type: "delete";
-      readonly kind: "drawings" | "notes" | "rules";
-      readonly id: string;
+      readonly kind: "drawings";
+      readonly id: DrawingId;
     }
+  | { readonly seq: number; readonly type: "delete"; readonly kind: "notes"; readonly id: NoteId }
+  | { readonly seq: number; readonly type: "delete"; readonly kind: "rules"; readonly id: RuleId }
   | { readonly seq: number; readonly type: "clear" };
 
 /** A change before the server numbered it. */
@@ -84,7 +87,19 @@ export type FeedMessage =
   | { readonly type: "resync"; readonly seq: number }
   | { readonly type: "presence"; readonly peer: PeerId; readonly alice: Ghost | null };
 
-const kindSchema = z.enum(["drawings", "notes", "rules"]);
+const brandedId = <Id extends string>() => entityIdSchema as unknown as z.ZodType<Id>;
+
+/** A deletion by kind and id, as the server hears it: the ids are opaque to it. */
+export const deletionOf = (kind: "drawings" | "notes" | "rules", id: string): BoardEdit => {
+  switch (kind) {
+    case "drawings":
+      return { type: "delete", kind, id: id as DrawingId };
+    case "notes":
+      return { type: "delete", kind, id: id as NoteId };
+    case "rules":
+      return { type: "delete", kind, id: id as RuleId };
+  }
+};
 
 export const boardChangeSchema: z.ZodType<BoardChange> = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
@@ -110,7 +125,26 @@ export const boardChangeSchema: z.ZodType<BoardChange> = z.discriminatedUnion("t
       entity: ruleSchema,
     }),
   ]),
-  z.object({ seq: seqSchema, type: z.literal("delete"), kind: kindSchema, id: entityIdSchema }),
+  z.discriminatedUnion("kind", [
+    z.object({
+      seq: seqSchema,
+      type: z.literal("delete"),
+      kind: z.literal("drawings"),
+      id: brandedId<DrawingId>(),
+    }),
+    z.object({
+      seq: seqSchema,
+      type: z.literal("delete"),
+      kind: z.literal("notes"),
+      id: brandedId<NoteId>(),
+    }),
+    z.object({
+      seq: seqSchema,
+      type: z.literal("delete"),
+      kind: z.literal("rules"),
+      id: brandedId<RuleId>(),
+    }),
+  ]),
   z.object({ seq: seqSchema, type: z.literal("clear") }),
 ]);
 

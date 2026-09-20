@@ -2,6 +2,7 @@ import type { BoardDefinition } from "../../board/types";
 import { boundsOf, type Stroke, type Vec } from "../../core/geometry";
 import type { Handwriting, PenScript, WriteOptions } from "../../handwriting/types";
 import type { DrawingId } from "../../ink/types";
+import type { ModeCard } from "../../modes/types";
 import type { Note, NoteId } from "../../notes/types";
 import type {
   BoardSnapshot,
@@ -19,6 +20,7 @@ import type {
   LawListing,
   LawsPanel,
   LawsPanelHandlers,
+  ShareInfo,
   Tool,
 } from "../../ui/types";
 import type { EarsHandlers, Voice } from "../../voice/types";
@@ -74,6 +76,8 @@ export class FakeHud implements Hud {
   tool: Tool = "draw";
   boards: readonly BoardListing[] = [];
   persistence: PersistenceState | null = null;
+  share: ShareInfo | null = null;
+  readonly cards: ModeCard[] = [];
   private readonly answers: (string | null)[] = [];
 
   constructor(readonly handlers: HudHandlers) {}
@@ -107,6 +111,14 @@ export class FakeHud implements Hud {
 
   setWaking(waking: boolean): void {
     this.waking = waking;
+  }
+
+  setShare(share: ShareInfo | null): void {
+    this.share = share;
+  }
+
+  showTitleCard(card: ModeCard): void {
+    this.cards.push(card);
   }
 
   setTool(tool: Tool): void {

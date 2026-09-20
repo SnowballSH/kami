@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { NoteId } from "../../src/notes/types";
-import type { FeedMessage, Ghost, PeerId } from "../../src/sync/wire";
+import { deletionOf, type FeedMessage, type Ghost, type PeerId } from "../../src/sync/wire";
 import { BoardFeed, KEPT_CHANGES } from "./boardFeed";
 
 const note = (id: string) => ({
@@ -49,7 +49,7 @@ describe("BoardFeed", () => {
     expect(messages).toEqual([{ type: "cursor", seq: 0 }]);
     expect(feed.record("a", note("n1")).seq).toBe(1);
     expect(feed.record("b", note("n2")).seq).toBe(1);
-    expect(feed.record("a", { type: "delete", kind: "notes", id: "n1" }).seq).toBe(2);
+    expect(feed.record("a", deletionOf("notes", "n1")).seq).toBe(2);
     expect(messages.slice(1)).toEqual([
       { ...note("n1"), seq: 1 },
       { type: "delete", kind: "notes", id: "n1", seq: 2 },

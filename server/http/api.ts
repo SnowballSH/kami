@@ -1,7 +1,12 @@
 import type { Stroke } from "../../src/core/geometry";
 import { INPUT_LIMITS } from "../../src/core/inputLimits";
 import type { RuleCompiler, SceneCompiler } from "../../src/rules/types";
-import { type BoardEdit, peerIdSchema, presenceReportSchema } from "../../src/sync/wire";
+import {
+  type BoardEdit,
+  deletionOf,
+  peerIdSchema,
+  presenceReportSchema,
+} from "../../src/sync/wire";
 import type { Beautifier } from "../beautify/beautifier";
 import { controllerEventStream } from "../controllers/eventStream";
 import { isControllerId, parseControllerReading } from "../controllers/message";
@@ -185,7 +190,7 @@ export const createApi = ({
       if (!address.ok) return address.response;
       const { kind, boardId, id } = address.value;
       await boards.remove(kind, boardId, id);
-      feed.record(boardId, { type: "delete", kind, id });
+      feed.record(boardId, deletionOf(kind, id));
       return ok();
     })
     .on("GET", "/api/boards/:board/events", ({ request, params }) => {

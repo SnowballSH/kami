@@ -1,5 +1,6 @@
+import { same } from "../core/same";
 import type { NoteId } from "../notes/types";
-import type { Rule, WorldPhysics } from "../rules/types";
+import type { Rule, RuleId, WorldPhysics } from "../rules/types";
 
 /** Laws by the note that wrote them, in the order the notes were written. */
 export const groupedByNote = (
@@ -36,6 +37,26 @@ export class RuleBook {
   repealByNote(noteId: NoteId): readonly Rule[] {
     const repealed = this.rules.filter((candidate) => candidate.noteId === noteId);
     if (repealed.length > 0) this.rules = this.rules.filter((rule) => rule.noteId !== noteId);
+    return repealed;
+  }
+
+  /**
+   * A law written elsewhere takes its place in the chronology, so every device folds the same
+   * sequence; the same law again (or a corrected copy) replaces itself. Returns whether the book changed.
+   */
+  place(rule: Rule): boolean {
+    const known = this.rules.find((candidate) => candidate.id === rule.id);
+    if (known !== undefined && same(known, rule)) return false;
+    const others = this.rules.filter((candidate) => candidate.id !== rule.id);
+    const after = others.findIndex((candidate) => candidate.createdAt > rule.createdAt);
+    this.rules =
+      after === -1 ? [...others, rule] : [...others.slice(0, after), rule, ...others.slice(after)];
+    return true;
+  }
+
+  repeal(id: RuleId): Rule | null {
+    const repealed = this.rules.find((candidate) => candidate.id === id) ?? null;
+    if (repealed !== null) this.rules = this.rules.filter((rule) => rule.id !== id);
     return repealed;
   }
 
