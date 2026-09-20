@@ -319,3 +319,23 @@ transitions, physics changed by presentation, stale state after respawn/room cha
 | Moon/home | Returning home replaces the Moon laws | Moon then home left only the `take us home` scene law | Fixed |
 
 The right-edge guess-chip overflow visible around `sandbox-08`/`sandbox-09` remains open.
+
+## Sweep 4 — opening cards, anchored notes, Sumikui, and Puzzle rooms
+
+![Sweep 4 guess chips](gallery/sweep4-a-guess-sheet.png)
+![Sweep 4 long notes](gallery/sweep4-b-long-sheet.png)
+![Sweep 4 Puzzle rooms](gallery/sweep4-c-keyhole-sheet.png)
+![Sweep 4 Sumikui](gallery/sweep4-d-sumikui-sheet.png)
+
+| Scenario | Expected | Observed | Status |
+| --- | --- | --- | --- |
+| Guess chips | Chips name drawings without overlapping notes or HUD | Six chips appeared; lower labels crowded the bottom HUD; inferred taps named drawings as `a platform` and `a mushroom` | Open: edge/HUD layout |
+| Long notes | Long text wraps at words; replies stay visible | Left/right text wrapped at word boundaries; settled replies were complete; early intro frames only showed handwriting in progress | Pass; animation is not a clipping bug |
+| Puzzle opening cards | Room line appears once after the card, not under it | Room intros were written behind the room card and duplicated the card line | Fixed: opening lines wait for the card and deduplicate |
+| Keyhole / Moon Ledge | Obvious shrink/Moon solutions advance | `alice is tiny` reached room 3; `we are on the moon` reached room 4 | Pass |
+| Dark Hall | Named lanterns light the hall and remain available | Sumikui consumed the named lantern drawing during the opening window, taking its light with it | Fixed: first 20 s hunts nameless drawings only |
+| Twin Doors / Pit | Portal pair / bouncy + Moon solutions advance | Script drew portals outside the room and did not solve either room | Open measurement; not a confirmed bug |
+| Shaft | `alice can fly` solves the shaft | Advanced to the Pit | Pass |
+| Sumikui Sandbox | Summon, then measure eating/particles | Sandbox refused `summon the ink eater` by design; no Sumikui appeared | Pass by design; Puzzle accepts `summon the Sumikui` / `release the sumikui` |
+
+The Dark Hall ate the **named lantern drawing**, not a separate light effect; removing that drawing removed its light.

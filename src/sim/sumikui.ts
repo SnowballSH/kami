@@ -63,8 +63,8 @@ export const mealTimeFor = (inkPx: number): number =>
 const mealTimeOf = (ink: InkEntity): number => mealTimeFor(ink.drawing.cost * ink.motion.size);
 
 /** What it will eat: any drawing that is not a role fixed to the board nor a prop of a scene. */
-export const edible = (ink: InkEntity): boolean =>
-  !NATURES[ink.nature].pinned && ink.provenance !== "scenery";
+export const edible = (ink: InkEntity, namelessOnly = false): boolean =>
+  !NATURES[ink.nature].pinned && ink.provenance !== "scenery" && (!namelessOnly || ink.name === "");
 
 const nearness = (gap: number): number => 1 / (1 + gap / SUMIKUI_NEAR_PX);
 
@@ -118,7 +118,7 @@ export class Sumikui {
   /** Advances one tick; returns what it has finished devouring, if anything. */
   tick(elapsedMs: number, ground: HuntingGround): Quarry | null {
     const [alice] = ground.alices;
-    if (this.options.bides && !this.woke && !ground.inks.some(edible)) {
+    if (this.options.bides && !this.woke && !ground.inks.some((ink) => edible(ink))) {
       this.drift(this.hoverSpotBehind(alice), elapsedMs);
       return null;
     }
@@ -265,8 +265,9 @@ export class Sumikui {
         if (this.standsOnPaper(each, ground)) yield { kind: "paper", alice: each };
       }
     }
+    const namelessOnly = this.awakeMs < SUMIKUI_STALKS_HER_AFTER_MS;
     for (const ink of ground.inks) {
-      if (edible(ink) && this.onThePage(ink)) yield { kind: "ink", ink };
+      if (edible(ink, namelessOnly) && this.onThePage(ink)) yield { kind: "ink", ink };
     }
   }
 

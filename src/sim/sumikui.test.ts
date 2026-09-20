@@ -117,6 +117,15 @@ describe("the Sumikui, the ink eater", () => {
     expect(poseOf(sim, "a cat")).toBeUndefined();
   });
 
+  it("spares named drawings during its opening window when nameless ink is nearby", () => {
+    const sim = summonOver(["a cat", "clutter"]);
+    sim.applyRuling(idOf("a cat"), rulingOf("walker"));
+    const events = runSteps(sim, stepsFor(SUMIKUI_STALKS_HER_AFTER_MS) - 1);
+    expect(devouredIds(events)).toContain(idOf("clutter"));
+    expect(devouredIds(events)).not.toContain(idOf("a cat"));
+    expect(poseOf(sim, "a cat")).toBeDefined();
+  });
+
   it("prefers the drawing Alice leans on to the scribble farther off", () => {
     const sim = summonOver(["bait"]);
     pebble(sim, "her rock", 60);

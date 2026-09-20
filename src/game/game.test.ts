@@ -32,6 +32,7 @@ import { type SketchCatalogue, SUMMONED_SIZE, Summoner } from "../summoning";
 import type { BoardLink } from "../sync/boardLink";
 import { SharedPage } from "../sync/testing/sharedPage";
 import type { PeerId } from "../sync/wire";
+import { roomCardShownMs } from "../ui/roomCard";
 import { titleCardShownMs } from "../ui/titleCard";
 import type { Tool } from "../ui/types";
 import {
@@ -980,8 +981,8 @@ describe.each(["live", "reloaded"])("drawing labels on a %s board", (state) => {
     ).toBe(true);
     expect(player.written).not.toContain("a rock");
     const saved = await player.store.load(boardId);
-    expect(saved.drawings).toHaveLength(1);
-    expect(saved.notes.map((note) => note.text)).toEqual(["summon the ink eater"]);
+    expect(saved.drawings).toHaveLength(0);
+    expect(saved.notes.map((note) => note.text)).toEqual([]);
     expect(saved.rules).toHaveLength(1);
     const returning = new Player(boardId, { store: player.store });
     await returning.arrive();
@@ -2050,6 +2051,12 @@ describe("Game in puzzle mode", () => {
     expect(player.written).not.toContain(cardLineOf(PUZZLE_MODE));
     expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
     expect(player.laws.laws).toHaveLength(0);
+    const opening = "Too tall to climb. She could fall up, if something threw her.";
+    expect(player.written.filter((text) => text === opening)).toHaveLength(0);
+    await player.wait(roomCardShownMs() - 100);
+    expect(player.written.filter((text) => text === opening)).toHaveLength(0);
+    await player.wait(roomCardShownMs() + 600);
+    expect(player.written.filter((text) => text === opening)).toHaveLength(1);
 
     await player.write("we are on the moon", { x: 200, y: 200 });
     expect(player.written).toContain(LAW_OUTSIDE_MODE_LINE);

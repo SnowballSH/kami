@@ -64,6 +64,7 @@ import {
 } from "../sim/types";
 import { placeProp, type Summoner, type Wish } from "../summoning";
 import type { BoardChange, BoardLink, Ghost, PeerId } from "../sync";
+import { roomCardShownMs } from "../ui/roomCard";
 import { titleCardShownMs } from "../ui/titleCard";
 import type {
   CanvasInputSink,
@@ -182,6 +183,7 @@ interface Recital {
   readonly at: number;
   readonly line: string;
   readonly epoch: number;
+  readonly position?: Vec;
 }
 
 export interface GameModules {
@@ -1103,11 +1105,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.introduced.add(zone.id);
     this.modules.cat.enterRoom(zone);
     this.stuck.reset(this.nowMs);
-    if (!this.introducesItself)
-      this.remark(zone.intro, HINT_LIFETIME_MS, {
-        x: zone.checkpoint.x + ABOVE_ALICE.x,
-        y: zone.checkpoint.y + ABOVE_ALICE.y - 80,
-      });
+    if (this.introducesItself) return;
+    const position = {
+      x: zone.checkpoint.x + ABOVE_ALICE.x,
+      y: zone.checkpoint.y + ABOVE_ALICE.y - 80,
+    };
+    const startAfterMs = this.director.room === null ? 0 : roomCardShownMs() + 600;
+    if (startAfterMs === 0) this.remark(zone.intro, HINT_LIFETIME_MS, position);
+    else this.recite([zone.intro], HINT_LIFETIME_MS, startAfterMs, position);
   }
 
   private progress(line: string): void {
@@ -1785,7 +1790,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       anchor,
       action,
       tone = "plain",
-      drift = "up",
+      drift = anchor === undefined ? "up" : "down",
       silent = false,
       minY,
     } = options;
@@ -1819,9 +1824,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       ...(lifetimeMs === undefined ? {} : { lifetimeMs }),
       ...(anchor === undefined ? {} : { anchor }),
       ...(minY === undefined ? {} : { minY }),
-      ...(anchor === undefined
-        ? { obstacles: this.obstacles(), within: this.visibleWorldRect() }
-        : {}),
+      obstacles: this.obstacles(),
+      within: this.visibleWorldRect(),
     });
   }
 
@@ -1845,12 +1849,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     lines: readonly string[],
     delayMs: number = SUMIKUI_LORE_LINE_DELAY_MS,
     startAfterMs = 0,
+    position?: Vec,
   ): void {
     const epoch = this.epoch;
     this.recital = lines.map((line, index) => ({
       at: this.nowMs + startAfterMs + index * delayMs,
       line,
       epoch,
+      ...(position === undefined ? {} : { position }),
     }));
   }
 
@@ -1858,8 +1864,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const due = this.recital.filter(({ at }) => at <= this.nowMs);
     if (due.length === 0) return;
     this.recital = this.recital.filter(({ at }) => at > this.nowMs);
-    for (const { line, epoch } of due)
-      if (epoch === this.epoch) this.remark(line, HINT_LIFETIME_MS);
+    for (const { line, epoch, position } of due)
+      if (epoch === this.epoch) this.remark(line, HINT_LIFETIME_MS, position);
   }
 
   private remark(line: string, lifetimeMs: number = REMARK_LIFETIME_MS, at?: Vec): void {
