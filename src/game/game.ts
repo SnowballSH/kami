@@ -149,6 +149,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private board: BoardDefinition;
   private epoch = 0;
+  private retryingPersistence = false;
+  private readonly knownBoards = new Set<string>();
   private lastSubmittedAt = 0;
   private loading = false;
   private nowMs = 0;
@@ -201,6 +203,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   frame(nowMs: number): void {
+    this.hud.setPersistence(this.modules.store.state(this.board.id));
     const { sim, renderer } = this.modules;
     const steps = this.loop.advance(nowMs - this.lastFrameMs);
     this.nowMs = nowMs;
@@ -355,6 +358,23 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     void this.open(this.board.id, { remember: false });
   }
 
+  async onRetryPersistence(): Promise<void> {
+    const { store } = this.modules;
+    const state = store.state(this.board.id);
+    if (this.retryingPersistence || state.loading || state.saving) return;
+    this.retryingPersistence = true;
+    const epoch = this.epoch;
+    const boardId = this.board.id;
+    try {
+      await store.retry(boardId);
+      if (epoch !== this.epoch) return;
+      if (state.errors.some(({ operation }) => operation === "load")) await this.open(boardId);
+      else await this.listBoards(epoch);
+    } finally {
+      this.retryingPersistence = false;
+    }
+  }
+
   private async open(boardId: string, { remember = true } = {}): Promise<void> {
     const { sim, cat, renderer, store, boardFor, onBoardOpened } = this.modules;
     this.epoch += 1;
@@ -394,6 +414,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     try {
       const snapshot = await store.load(boardId);
       if (epoch === this.epoch) this.restore(snapshot);
+    } catch {
+      // The store exposes the failure; drawing remains available.
     } finally {
       if (epoch === this.epoch) {
         this.notes.remove(loadingNote.id);
@@ -457,12 +479,23 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private async listBoards(epoch: number): Promise<void> {
-    const remembered = await this.modules.store.listBoards();
-    if (epoch !== this.epoch) return;
     const demo = this.modules.boardFor("wonderland");
-    const ids = new Set([demo.id, this.board.id, ...remembered.map((summary) => summary.id)]);
+    this.knownBoards.add(demo.id);
+    this.knownBoards.add(this.board.id);
+    this.showBoards();
+    try {
+      const remembered = await this.modules.store.listBoards();
+      if (epoch !== this.epoch) return;
+      for (const summary of remembered) this.knownBoards.add(summary.id);
+      this.showBoards();
+    } catch {
+      // Keep the known boards available while their remote list is unavailable.
+    }
+  }
+
+  private showBoards(): void {
     this.hud.setBoards(
-      [...ids].map((id) => ({ id, title: this.modules.boardFor(id).title })),
+      [...this.knownBoards].map((id) => ({ id, title: this.modules.boardFor(id).title })),
       this.board.id,
     );
   }

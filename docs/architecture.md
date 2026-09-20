@@ -124,7 +124,11 @@ A single-stroke handwriting font — **EMS Readability** (SIL OFL, from the `her
 
 ## recognition/ and persistence/
 
-Thin HTTP clients for the server, same origin (`/api`, proxied by Vite in dev). Both swallow every failure: `recognize` → `[]`, `load` → an empty snapshot, writes → dropped with one console warning. `createRemoteRuleCompiler` → `null` when the server has no model.
+Thin HTTP clients for the server, same origin (`/api`, proxied by Vite in dev). Recognition falls back to `[]`; `createRemoteRuleCompiler` returns `null` when the server has no model.
+
+`BoardStore.state(boardId)` exposes loading, saving, the number of unacknowledged mutations, and typed load/save/list failures. HTTP requests (including response bodies) have a 10-second abort deadline. An unavailable board rejects its first load; a previously opened or edited board can reopen its in-memory snapshot with its load failure still visible. The board menu retains known boards when listing fails. Drawing remains available after a failed load.
+
+Failed writes remain in a per-board in-memory outbox. **Retry** below the board menu explicitly retries the latest mutation per entity through the same write queue; erase supersedes an older save, clear supersedes all older mutations, and writes after a failed clear wait for its successful retry. There is no automatic retry loop. Load failures retry by reopening that board after retrying its writes. `whenIdle()` only means settled; `unsaved === 0` means all current writes were acknowledged. Switching boards preserves unsaved edits during this session. Closing/reloading the tab loses the in-memory outbox: the indicator says to keep the tab open and a `beforeunload` guard requests the browser's confirmation while any board has unsaved work. Browser confirmation is best-effort, not durable offline storage. An HTTP timeout cannot establish whether the server already committed a request; PUT/DELETE retries are idempotent.
 
 ## render/
 

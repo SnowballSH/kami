@@ -19,6 +19,7 @@ const createHandlers = () =>
     onOpenBoard: vi.fn<(boardId: string) => void>(),
     onNewBoard: vi.fn(),
     onClearBoard: vi.fn(),
+    onRetryPersistence: vi.fn(),
   }) satisfies HudHandlers;
 
 const find = <T extends Element>(root: Element, selector: string): T => {
@@ -130,6 +131,50 @@ describe("DomHud", () => {
       window.dispatchEvent(new Event("blur"));
 
       expect(handlers.onToolChanged.mock.calls).toEqual([["pan"], ["draw"]]);
+    });
+  });
+
+  describe("persistence feedback", () => {
+    it("announces unsaved work and accepts one keyboard or pen retry without changing tools", () => {
+      const { root, hud, handlers, pressedTools } = setup();
+      const state = {
+        loading: false,
+        saving: false,
+        unsaved: 1,
+        errors: [{ operation: "save", reason: "network" }],
+      } satisfies Parameters<DomHud["setPersistence"]>[0];
+      hud.setPersistence(state);
+      const status = find(root, ".kami-persistence [role='status']");
+      const retry = find<HTMLButtonElement>(root, "[aria-label='Retry board persistence']");
+      expect(status.getAttribute("aria-live")).toBe("polite");
+      expect(status.textContent).toContain("keep this tab open");
+      expect(retry.hidden).toBe(false);
+      retry.click();
+      tap(retry);
+      expect(handlers.onRetryPersistence).toHaveBeenCalledTimes(2);
+      expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-draw")]);
+      hud.setPersistence({ ...state, saving: true });
+      expect(status.textContent).toBe("Saving…");
+      expect(retry.disabled).toBe(true);
+      tap(retry);
+      expect(handlers.onRetryPersistence).toHaveBeenCalledTimes(2);
+      hud.setPersistence({ loading: false, saving: false, unsaved: 0, errors: [] });
+      expect(status.textContent).toBe("Saved");
+      expect(retry.hidden).toBe(true);
+    });
+
+    it("distinguishes a load failure from an empty saved board and from loading", () => {
+      const { root, hud } = setup();
+      hud.setPersistence({
+        loading: false,
+        saving: false,
+        unsaved: 0,
+        errors: [{ operation: "load", reason: "invalid-response" }],
+      });
+      const status = find(root, ".kami-persistence [role='status']");
+      expect(status.textContent).toBe("Saved board unavailable.");
+      hud.setPersistence({ loading: true, saving: false, unsaved: 0, errors: [] });
+      expect(status.textContent).toBe("Loading board…");
     });
   });
 
