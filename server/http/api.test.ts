@@ -435,6 +435,43 @@ describe("beautify", () => {
   });
 });
 
+describe("exemplar", () => {
+  const RABBIT = {
+    word: "rabbit",
+    strokes: [
+      [
+        { x: 0, y: 0 },
+        { x: 255, y: 255 },
+      ],
+    ],
+  };
+  const drawing = () =>
+    createApi({
+      ...apiParts(),
+      beautifier,
+      exemplars: { exemplar: async (word) => (word === "rabbit" ? RABBIT : null) },
+    });
+
+  it("draws the word asked for", async () => {
+    const response = await drawing().handle(new Request(`${ORIGIN}/api/exemplar?word=rabbit`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(await response.json()).toEqual(RABBIT);
+  });
+
+  it("has no picture of a word it never learnt, and none at all without a source", async () => {
+    const unknown = await drawing().handle(new Request(`${ORIGIN}/api/exemplar?word=unicorn`));
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({ error: "no picture of unicorn" });
+    expect((await call("GET", "/api/exemplar?word=rabbit")).status).toBe(404);
+  });
+
+  it("asks for a word when given none", async () => {
+    expect((await call("GET", "/api/exemplar")).status).toBe(400);
+    expect((await call("GET", "/api/exemplar?word=%20")).status).toBe(400);
+  });
+});
+
 describe("transcribe", () => {
   const words = [
     ...lineSketch({ x: 0, y: 0 }, { x: 0, y: 40 }),
@@ -743,10 +780,27 @@ describe("controllers", () => {
 });
 
 describe("CORS", () => {
-  it("answers preflights and marks responses as readable from any origin", async () => {
-    const preflight = await call("OPTIONS", "/api/boards/demo/notes/note-1");
+  it("allows same-origin demo requests without exposing the API to arbitrary origins", async () => {
+    const preflight = await api.handle(
+      new Request(`${ORIGIN}/api/boards/demo/notes/note-1`, {
+        method: "OPTIONS",
+        headers: { origin: ORIGIN, "access-control-request-method": "PUT" },
+      }),
+    );
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("access-control-allow-methods")).toContain("PUT");
-    expect((await call("GET", "/api/boards")).headers.get("access-control-allow-origin")).toBe("*");
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    expect((await call("GET", "/api/boards")).headers.has("access-control-allow-origin")).toBe(
+      false,
+    );
+    expect(
+      (
+        await api.handle(
+          new Request(`${ORIGIN}/api/boards`, {
+            headers: { origin: "https://untrusted.test" },
+          }),
+        )
+      ).status,
+    ).toBe(403);
   });
 });

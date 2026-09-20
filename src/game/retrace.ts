@@ -38,11 +38,27 @@ export const retracedStrokes = (
     return stroke.map((point, at) => between(point, goal[at] ?? point, tidying));
   });
   const added = to.slice(from.length);
-  const drawn = Math.max(0, (progress - TIDY_SHARE) / (1 - TIDY_SHARE)) * added.length;
-  const drawing = added.flatMap((stroke, index) => {
-    const share = Math.min(1, Math.max(0, drawn - index));
+  const drawn = Math.max(0, (progress - TIDY_SHARE) / (1 - TIDY_SHARE));
+  return [...tidied, ...drawnIn(added, drawn)];
+};
+
+/** The first `progress` (0–1) of `strokes` as a pen would lay them down, one stroke after another. */
+export const drawnIn = (strokes: readonly Stroke[], progress: number): readonly Stroke[] => {
+  if (progress >= 1) return strokes;
+  const reached = progress * strokes.length;
+  return strokes.flatMap((stroke, index) => {
+    const share = Math.min(1, Math.max(0, reached - index));
     const points = stroke.slice(0, Math.ceil(share * stroke.length));
     return points.length > 1 ? [points] : [];
   });
-  return [...tidied, ...drawing];
 };
+
+/** A drawing of Kami's own, appearing on the board stroke by stroke. */
+export interface Arrival {
+  readonly startedAtMs: number;
+}
+
+export const ARRIVAL_MS = 1800;
+
+export const arrivalProgress = (arrival: Arrival, nowMs: number): number =>
+  Math.min(1, Math.max(0, (nowMs - arrival.startedAtMs) / ARRIVAL_MS));

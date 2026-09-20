@@ -8,6 +8,7 @@ import {
   type Rect,
   rectGap,
   type Stroke,
+  strokesLength,
   type Vec,
 } from "../core/geometry";
 import { INPUT_LIMITS, isInputPoint, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
@@ -47,6 +48,7 @@ import { InkLedger, type InkRecord } from "./inkLedger";
 import {
   aloud,
   BLANK_BOARD_BRIEF,
+  CANNOT_DRAW_LINE,
   DOOR_OPENED_LINE,
   GOAL_LINE,
   GROW_BLOCKED_LINE,
@@ -74,6 +76,7 @@ import { type NoteAnchor, NoteBook } from "./noteBook";
 import type { Drift } from "./noteLayout";
 import { RuleBook } from "./ruleBook";
 import { StuckDetector } from "./stuckDetector";
+import { placeSummoned, summonsOf } from "./summons";
 
 const MAX_STEPS_PER_FRAME = 5;
 const ERASER_TOLERANCE = 18;
@@ -121,6 +124,8 @@ export interface GameModules {
   readonly penReader?: PenReader;
   /** Tidies a drawing once it has a name; without one the player's ink stays exactly as drawn. */
   readonly finisher?: Pick<LiveRecognizer, "complete">;
+  /** Pictures Kami can draw himself ("summon a rabbit"); without one he must ask the player to. */
+  readonly summoner?: Pick<LiveRecognizer, "exemplar">;
   readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
   readonly boardFor: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
@@ -785,6 +790,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       return;
     }
 
+    const asked = summonsOf(text);
+    if (asked !== null && !this.awaitsAName(note.id)) {
+      await this.summon(asked, note, stillHere);
+      return;
+    }
+
     const subject = this.drawingNear(note.id);
     const ruling = subject === null ? null : await this.modules.cat.name(text, subject.drawing);
     if (!stillHere()) return;
@@ -801,6 +812,34 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   /** True until the board changes or the note is erased — checked after every await. */
+  /**
+   * Kami draws what was asked for: a finished drawing of it from the server, inked in stroke by
+   * stroke above the words, solid at once and named as it would be had the player drawn it.
+   */
+  private async summon(what: string, note: Note, stillHere: () => boolean): Promise<void> {
+    const exemplar = (await this.modules.summoner?.exemplar(what)) ?? null;
+    if (!stillHere()) return;
+    const writing = this.notes.boundsOf(note.id);
+    if (exemplar === null || writing === null) {
+      this.remarkUnder(note.id, CANNOT_DRAW_LINE(what));
+      return;
+    }
+    const strokes = placeSummoned(exemplar.strokes, writing, this.modules.sim.aliceBounds());
+    const drawing: Drawing = {
+      id: this.ids.next<DrawingId>("drawing"),
+      strokes,
+      cost: strokesLength(strokes),
+    };
+    this.modules.sim.addDrawing(drawing);
+    this.modules.autopilot.invalidate();
+    this.ledger.conjure(drawing, this.nowMs);
+    this.tidied.add(drawing.id);
+    this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
+
+    const ruling = await this.modules.cat.name(exemplar.word, drawing);
+    if (stillHere() && this.ledger.get(drawing.id) !== null) this.name(drawing.id, ruling, note);
+  }
+
   private witness(noteId: NoteId): () => boolean {
     const epoch = this.epoch;
     return () => epoch === this.epoch && this.notes.get(noteId) !== null;
@@ -917,10 +956,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private shrug(noteId: NoteId): void {
-    const under = this.notes.below(noteId);
     const line = SHRUGS[this.shrugs % SHRUGS.length];
     this.shrugs += 1;
-    if (under !== null && line !== undefined) {
+    if (line !== undefined) this.remarkUnder(noteId, line);
+  }
+
+  private remarkUnder(noteId: NoteId, line: string): void {
+    const under = this.notes.below(noteId);
+    if (under !== null) {
       this.kamiWrites(line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
     }
   }
@@ -1108,6 +1151,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       if (isPlayers(note) || this.labelsByKami.delete(note.id))
         this.modules.store.deleteNote(this.board.id, note.id);
     }
+  }
+
+  /** Words beside ink that has no name yet are a name for it, even "draw a boat". */
+  private awaitsAName(noteId: NoteId): boolean {
+    return this.drawingNear(noteId)?.ruling === null;
   }
 
   private drawingNear(noteId: NoteId): InkRecord | null {

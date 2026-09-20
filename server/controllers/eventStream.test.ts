@@ -28,11 +28,13 @@ class OneControllerHub implements ControllerHub {
 }
 
 describe("the controller event stream", () => {
-  it("is an uncached, unbuffered event stream any origin may read", () => {
-    const { headers } = controllerEventStream(new OneControllerHub(), "arcade");
+  it("leaves origin policy to the API boundary", async () => {
+    const response = controllerEventStream(new OneControllerHub(), "arcade");
+    const { headers } = response;
     expect(headers.get("content-type")).toBe("text/event-stream");
     expect(headers.get("cache-control")).toContain("no-cache");
-    expect(headers.get("access-control-allow-origin")).toBe("*");
+    expect(headers.has("access-control-allow-origin")).toBe(false);
+    await response.body?.cancel();
   });
 
   it("asks for a quick reconnect, then sends the state now and every change", async () => {
@@ -73,6 +75,18 @@ describe("the controller event stream", () => {
     const events = readEvents(controllerEventStream(hub, "arcade", { signal: request.signal }));
     await events.nextEvent();
     request.abort();
+    expect(hub.listeners.size).toBe(0);
+  });
+
+  it("does not leave subscriptions when authorization expires during stream setup", async () => {
+    const hub = new OneControllerHub();
+    let checks = 0;
+    const response = controllerEventStream(hub, "arcade", {
+      authorized: () => ++checks < 3,
+    });
+    const reader = response.body?.getReader();
+    await reader?.read();
+    expect((await reader?.read())?.done).toBe(true);
     expect(hub.listeners.size).toBe(0);
   });
 });

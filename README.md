@@ -5,7 +5,7 @@
 > Alice can hop, not fly. You can draw.
 > Draw it. Name it. It wakes up.
 
-*Kami* (紙) is paper; *kami* (神) is the spirit in a thing. A hand-drawn puzzle-platformer down the rabbit hole: what you draw becomes solid ink, and becomes whatever you say it is. The Cheshire Cat listens, talks back, and helps when you're stuck. The software demo supports mouse, keyboard and touch. The cabinet remains a partial integration; knob drawing and full physical acceptance are not complete.
+*Kami* (紙) is paper; *kami* (神) is the spirit in a thing. A hand-drawn puzzle-platformer down the rabbit hole: what you draw becomes solid ink, and becomes whatever you say it is. The Cheshire Cat listens, talks back, and helps when you're stuck. Playable on a laptop or iPad. The optional cabinet has a server-relayed arcade stick; knob drawing and the rest of the cabinet remain incomplete.
 
 ## Play the software demo
 
