@@ -1,4 +1,5 @@
 import { boundsOf, poseToWorld, rectCenter, type Vec } from "../core/geometry";
+import { LANTERN_LIGHT_PX } from "../sim/constants";
 import type { AliceSnapshot } from "../sim/types";
 import { applyDeviceTransform, type DeviceTransform, type Size } from "./camera";
 import { context2d } from "./canvas2d";
@@ -7,7 +8,6 @@ import type { InkView } from "./types";
 /** How dark full night gets; some board always shows through. */
 const NIGHT_OPACITY = 0.88;
 const NIGHT_COLOR = "rgb(12, 14, 36)";
-const LANTERN_RADIUS = 260;
 /** Alice and each of her twins carry a little light of their own, so they can always be found. */
 const ALICE_GLOW_RADIUS = 70;
 const FULL_LIGHT_UNTIL = 0.35;
@@ -29,7 +29,7 @@ export const lightsOf = (
     .filter((ink) => ink.nature === "lantern")
     .map((ink) => ({
       center: poseToWorld(rectCenter(boundsOf(ink.drawing.strokes.flat())), ink.pose),
-      radius: LANTERN_RADIUS,
+      radius: LANTERN_LIGHT_PX,
     })),
 ];
 

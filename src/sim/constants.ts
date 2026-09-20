@@ -69,6 +69,10 @@ export const PERCH_ABOVE_PX = 60;
 /** A fleer bolts while Alice is within this; farther off it forgets her and roams. */
 export const FLEE_RADIUS_PX = 220;
 export const FLEE_HASTE = 1.7;
+/** How far a lantern's light reaches: what it lights at night, and how far she will walk from it in pitch dark. */
+export const LANTERN_LIGHT_PX = 260;
+/** Below this much daylight she cannot see her feet, and will not take a step outside a lantern's light. */
+export const PITCH_DARK_BELOW = 0.05;
 /** How often Kami remarks on a portal with no twin while Alice keeps stepping into it. */
 export const PORTAL_LONELY_COOLDOWN_MS = 4000;
 
