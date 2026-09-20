@@ -163,6 +163,14 @@ export class Pathfinder {
     return (
       this.chart.contains(body.c0, body.r0) &&
       this.chart.contains(body.c1 - 1, body.r1 - 1) &&
+      this.isClear(node)
+    );
+  }
+
+  private isClear(node: Node): boolean {
+    const body = bodyRange(node, this.footprint);
+    return (
+      [body.c0 - 1, body.c1 + 1, body.r0 - 1, body.r1 + 1].every(Number.isSafeInteger) &&
       !this.chart.anyIn(body, CellFlag.solid) &&
       !this.chart.anyIn(grow(body, 1), CellFlag.hazard)
     );
@@ -397,8 +405,9 @@ export class Pathfinder {
   /** Landings a standing jump reaches: up onto a ledge, or level across a gap too wide to step. */
   private *jumps(node: Node): Generator<Edge> {
     const arc = this.scene.jumpArc;
-    const apexRows = Math.min(node.r0 - this.chart.range.r0, Math.floor(arc.apexPx / CELL_PX));
-    if (!this.isFree({ c0: node.c0, r0: node.r0 - apexRows })) return;
+    if (!Number.isFinite(arc.apexPx)) return;
+    const apexRows = Math.floor(arc.apexPx / CELL_PX);
+    if (!this.isClear({ c0: node.c0, r0: node.r0 - apexRows })) return;
     yield* this.landings(node, arc, node.r0 + JUMP_DROP_ROWS + 1, (to) => {
       if (to.r0 >= node.r0 && Math.abs(to.c0 - node.c0) < JUMP_MIN_COLS) return null;
       if (!this.clears(node, to, apexRows)) return null;
@@ -415,7 +424,7 @@ export class Pathfinder {
       const t = step / steps;
       const lift = 4 * apexRows * t * (1 - t) + (from.r0 - to.r0) * t;
       const c0 = from.c0 + Math.sign(span) * step;
-      if (!this.isFree({ c0, r0: from.r0 - Math.round(lift) })) return false;
+      if (!this.isClear({ c0, r0: from.r0 - Math.round(lift) })) return false;
     }
     return true;
   }
@@ -431,9 +440,11 @@ export class Pathfinder {
     const riseRows = Math.min(node.r0 - this.chart.range.r0, Math.floor(arc.apexPx / CELL_PX));
     for (let r0 = node.r0 - riseRows; r0 < belowRow; r0++) {
       const flightTicks = arc.ticksAloftAbove((node.r0 - r0) * CELL_PX);
-      if (flightTicks === null) continue;
+      if (flightTicks === null || !Number.isFinite(flightTicks)) continue;
       const driftCols = Math.floor((this.scene.walkSpeed * flightTicks * DRIFT_MARGIN) / CELL_PX);
-      for (let c0 = node.c0 - driftCols; c0 <= node.c0 + driftCols; c0++) {
+      const firstCol = Math.max(this.chart.range.c0, node.c0 - driftCols);
+      const lastCol = Math.min(this.chart.range.c1 - this.footprint.cols, node.c0 + driftCols);
+      for (let c0 = firstCol; c0 <= lastCol; c0++) {
         const to = { c0, r0 };
         if (!this.charted(to) || !this.isLandable(to) || !this.isFree(to)) continue;
         const found = edge(to);
