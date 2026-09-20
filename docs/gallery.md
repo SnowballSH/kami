@@ -370,3 +370,13 @@ The Dark Hall ate the **named lantern drawing**, not a separate light effect; re
 | Fight and result | Servant fight ends in a win card, or loss shows Again | Arena fight-state frames were captured, but this run did not script a terminal card | Inconclusive |
 
 The exact floor-embedding freeze was not reproduced in the browser probe: the overlapping body stood and moved. Simulation coverage still raises incarnated feet above overlapping solids, and torso-only bodies shuffle slowly when they lack leg strokes.
+
+## Sweep 7 — ground rule, portals, and start screen
+
+![Sweep 7 start screen](gallery/sweep7-start-screen.png)
+
+| Scenario | Expected | Observed | Status |
+| --- | --- | --- | --- |
+| Start screen | The animated wordmark sits directly on the paper with no white slab | Fresh start screen shows the wordmark against the white board background | Pass/fixed |
+| Ground placement | Ink beneath a ground slab is refused quietly, while ditches and overhead scenery remain drawable | `groundSolids` and `under-ground` placement are covered by focused placement and Game regressions | Pass/fixed |
+| Portal travel | Alice shrinks and spins into the entry, then grows out of the exit with a ring pulse | Animation is covered by `aliceAnimator` tests; not screenshotted in Sandbox | Covered by tests |
