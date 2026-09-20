@@ -6,7 +6,14 @@ model on the GX10 to compile physics notes the offline grammar did not understan
 
 Nothing in `src/` imports this directory. The browser reaches it through the thin clients in
 `src/persistence` and `src/recognition`, on the same origin (`/api`, proxied by Vite in dev). If the
-server is down the game still plays; it just is not remembered and Kami guesses from geometry.
+server is down, recognition falls back to geometry and model features return no answer.
+Persistence failures are visible: reopening a board retains its in-session snapshot if available,
+and a failed first load leaves the board editable with the failure shown. Failed writes stay in
+the tab's outbox until explicitly retried; closing the tab can lose them.
+
+Start with the [current integration guide](../docs/architecture.md) for ownership, gameplay flow,
+controller wiring, [security status](../docs/architecture.md#deployment-and-security-status) and
+verification limits. The access modes in pending R12/#40 are not installed in this base revision.
 
 ## Run
 
@@ -43,7 +50,8 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `PUT /api/boards/:board/{drawings,notes,rules}/:id` | upsert; the body is the client's object and its id must match the path |
 | `DELETE /api/boards/:board/{drawings,notes,rules}/:id` | remove one (idempotent) |
 | `DELETE /api/boards/:board` | clear the board |
-| `POST /api/recognize` `{ strokes: {x,y}[][] }` | `{ guesses: string[] }`, best first, at most three, `[]` when unsure or not ingested |
+| `POST /api/recognize` `{ strokes: {x,y}[][], partial?: boolean }` | Structured parallel arrays plus `certain`; at most three, best first. See the API contract below. |
+| `POST /api/beautify` `{ strokes, name? }` | Upstream model response; the current browser validates point-for-point `{ tidied, added, category, confidence }` into its `Completion` type. |
 | `POST /api/compile` `{ text }` | `{ rule: CompiledRule \| null }` |
 | `POST /api/controllers/:id/state` `<x> <y> [buttons]` (plain text) | `204`; a joystick's whole state, axes -100 … 100 with y up (`docs/controllers.md`) |
 | `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
@@ -52,10 +60,12 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `POST /api/voice/speak` `{ text }` | `audio/mpeg` of Kami saying it (Deepgram `aura-2`, repeated lines cached in memory); `501` without a key or if Deepgram did not answer |
 | `POST /api/transcribe` `{ strokes: {x,y}[][] }` | `{ text: string \| null }` — the strokes read as handwriting, `null` for a drawing; `501` without a model |
 
-Every body is validated with zod (`schemas.ts`, which mirrors `src/*/types.ts` and is checked
-against them at compile time). A bad payload is a `400` with `{ error, issues }`; nothing throws
-past the router. Entities are loose objects: fields the server does not know are stored and
-returned untouched. CORS is wide open, for development.
+Entity/model JSON bodies are validated with Zod (`schemas.ts` re-exports the browser-safe entity
+schemas in `src/persistence/schemas.ts` and defines request-specific schemas). Controller text has
+its own parser. Invalid values return `400`; excessive body bytes return `413` before JSON parsing.
+Entities are loose objects: unknown additive fields are stored and returned untouched. The base
+revision has wildcard CORS and no client authorization; it is for an isolated trusted LAN, not
+shared hosting. Pending R12 changes that boundary as described in the integration guide.
 
 Collections `drawings`, `notes`, `rules` hold the client's objects as they are plus `boardId`
 (and, for drawings, a top-level `id` copied from `drawing.id`), with a unique `{ boardId, id }`
@@ -179,26 +189,29 @@ the fallback.
 `compile/llmCompiler.ts` posts the note to `<KAMI_LLM_URL>/v1/chat/completions` with a system
 prompt (`compile/prompt.ts`) that lists every `RuleEffect` variant with its unit and range and asks
 for `{"effect": …, "explanation": …}` or `{"effect": null}`. The reply may be wrapped in prose or
-code fences; the outermost JSON object is parsed, validated with the same zod schema the board
-routes use, and clamped (`compile/effectRanges.ts`): gravity ±30 g per axis, wind ±3 g, timeScale
+code fences; the outermost JSON object is parsed, validated against the raw effect union and
+clamped (`compile/effectRanges.ts`): gravity ±30 g per axis, wind ±3 g, timeScale
 0.1–3, airDrag and friction 0–10, bounciness 0–1. A missing gloss is written for it. Timeouts
-(8 s), HTTP errors, garbage and unknown settings all become `null`, which the client treats as
-"not a rule". It has been tested with an injected fetch and end to end against a fake
-OpenAI-compatible server, not yet against the real GX10.
+(30 s server request, 35 s browser request), HTTP errors, garbage and unknown settings all become
+`null`, which the client treats as "not a rule". Persistence uses the refined effect-domain schema;
+raw model values are clamped before they reach it. Injected-fetch and fake-server tests establish
+transport/parsing behavior, not real model quality. Current-release GX10 validation is separate.
 
 ## Handwriting reading
 
 `transcribe/llmTranscriber.ts` lets the player write with the pen instead of the text prompt. The
 strokes are drawn black-on-white into a small grayscale PNG (`transcribe/strokeImage.ts`, a line of
-writing fitted to 64 px tall, no image library) and shown to the same `KAMI_LLM_MODEL` as a vision
-model through `llm/chatClient.ts`, the OpenAI-compatible client `/api/compile` also uses, with
+writing fitted to 64 px tall, no image library) and shown to `KAMI_TRANSCRIBE_MODEL` (falling back
+to `KAMI_LLM_MODEL`) as a vision model through `llm/chatClient.ts`, the OpenAI-compatible client
+`/api/compile` also uses, with
 `reasoning_effort: "none"` so it answers in one breath (~2 s warm on the GX10; a `400` from a server
 that does not know the field retries without it). The prompt (`transcribe/prompt.ts`) asks for
 `{"text": "…"}` for words and `{"text": null}` for a drawing; the answer is parsed like the
 compiler's, then must read as writing (≤ 80 characters, at least two different letters — a fence
 once came back as `IIIIII`). Anything else, a timeout (20 s), an HTTP error or an abort is `null`:
-the strokes stay ink. `/api/transcribe` forwards the request's abort signal, so a client that
-cancels a read of a prefix costs the model nothing more.
+the strokes stay ink. Startup must successfully read the known warm-up image; unready readers
+return `501`. `/api/transcribe` forwards the request's abort signal to stop an obsolete client
+wait; that does not guarantee an upstream model cancels work already accepted.
 
 ## Two things that would otherwise bite
 

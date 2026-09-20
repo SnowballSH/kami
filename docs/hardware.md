@@ -2,6 +2,11 @@
 
 Companion to `docs/spec.md` §11. Owner: lane D.
 
+**Design status:** the full panel below is a target, not a working cabinet claim. The browser
+Web Serial example is historical; the implemented controller path uses a server hub and SSE.
+Use the [current integration guide](architecture.md#controllers-and-voice) for supported behavior,
+pending [R19/#41](https://github.com/SnowballSH/kami/pull/41) adapter/build work and physical checks.
+
 **Goal:** a self-contained cabinet — monitor, one control panel, no mouse, no keyboard — that plays the whole game. The mouse stays plugged in as the fallback; the game never depends on the cabinet.
 
 ---
