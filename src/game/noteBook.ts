@@ -5,7 +5,7 @@ import type { Note, NoteId } from "../notes/types";
 import type { NoteView } from "../render/types";
 import { type Drift, settle } from "./noteLayout";
 
-const FADE_MS = 700;
+export const NOTE_FADE_MS = 700;
 const TAP_MARGIN = 12;
 const LINE_GAP = 10;
 const ALREADY_WRITTEN_MS = 60_000;
@@ -36,6 +36,7 @@ export interface NotePlacement {
   /** Slide the note clear of writing already on the board, this way first. Omit to pin it. */
   readonly drift?: Drift;
   readonly minY?: number;
+  readonly maxY?: number;
   readonly obstacles?: readonly Rect[];
   readonly within?: Rect;
 }
@@ -48,11 +49,23 @@ export class NoteBook {
   constructor(private readonly handwriting: Handwriting) {}
 
   /** Inscribes the note and returns it as placed, which may sit above or below where it was asked for. */
-  write({ note, nowMs, lifetimeMs, anchor, drift, minY, obstacles, within }: NotePlacement): Note {
+  write({
+    note,
+    nowMs,
+    lifetimeMs,
+    anchor,
+    drift,
+    minY,
+    maxY,
+    obstacles,
+    within,
+  }: NotePlacement): Note {
     const placed =
-      drift === undefined ? note : this.clearSpotFor(note, drift, minY, obstacles ?? [], within);
+      drift === undefined
+        ? note
+        : this.clearSpotFor(note, drift, minY, maxY, obstacles ?? [], within);
     return this.inscribe(
-      this.clampToWithin(placed, within),
+      this.clampToWithin(placed, within, maxY),
       nowMs,
       anchor ?? null,
       lifetimeMs,
@@ -61,10 +74,10 @@ export class NoteBook {
   }
 
   /** A note from a previous session: already on the board, fully written, and soon to fade. */
-  restore(note: Note, nowMs: number, lifetimeMs: number, within?: Rect): void {
+  restore(note: Note, nowMs: number, lifetimeMs: number, within?: Rect, maxY?: number): void {
     const anchor: NoteAnchor | null =
       note.drawingId === undefined ? null : { type: "drawing", id: note.drawingId };
-    const placed = this.clampToWithin(note, within);
+    const placed = this.clampToWithin(note, within, maxY);
     this.inscribe(placed, nowMs - ALREADY_WRITTEN_MS, anchor, undefined, within);
     this.release(placed.id, nowMs, lifetimeMs);
   }
@@ -89,7 +102,10 @@ export class NoteBook {
   hurry(id: NoteId, nowMs: number): void {
     const entry = this.entries.get(id);
     if (entry === undefined) return;
-    const expiresAtMs = Math.min(entry.expiresAtMs ?? Number.POSITIVE_INFINITY, nowMs + FADE_MS);
+    const expiresAtMs = Math.min(
+      entry.expiresAtMs ?? Number.POSITIVE_INFINITY,
+      nowMs + NOTE_FADE_MS,
+    );
     this.entries.set(id, { ...entry, expiresAtMs });
   }
 
@@ -163,7 +179,8 @@ export class NoteBook {
       script,
       writtenAtMs,
       tappable: note.action !== undefined,
-      opacity: expiresAtMs === null ? 1 : Math.min(1, Math.max(0, (expiresAtMs - nowMs) / FADE_MS)),
+      opacity:
+        expiresAtMs === null ? 1 : Math.min(1, Math.max(0, (expiresAtMs - nowMs) / NOTE_FADE_MS)),
     }));
   }
 
@@ -171,12 +188,13 @@ export class NoteBook {
     note: Note,
     drift: Drift,
     minY: number | undefined,
+    maxY: number | undefined,
     obstacles: readonly Rect[],
     within: Rect | undefined,
   ): Note {
     const wanted = this.scriptFor(note, this.seed + 1, within).bounds;
     const taken = [...this.entries.values()].map((entry) => entry.script.bounds).concat(obstacles);
-    const settled = settle(wanted, taken, drift, minY, within);
+    const settled = settle(wanted, taken, drift, minY, within, maxY);
     const position = {
       x: note.position.x + settled.x - wanted.x,
       y: note.position.y + settled.y - wanted.y,
@@ -184,7 +202,11 @@ export class NoteBook {
     return { ...note, position };
   }
 
-  private clampToWithin(note: Note, within: Rect | undefined): Note {
+  private clampToWithin(
+    note: Note,
+    within: Rect | undefined,
+    maxY = Number.POSITIVE_INFINITY,
+  ): Note {
     if (within === undefined) return note;
     const script = this.scriptFor(note, this.seed + 1, within);
     const offsetX = script.bounds.x - note.position.x;
@@ -192,12 +214,15 @@ export class NoteBook {
     const minX = within.x - offsetX;
     const maxX = within.x + within.width - script.bounds.width - offsetX;
     const minY = within.y - offsetY;
-    const maxY = within.y + within.height - script.bounds.height - offsetY;
+    const maxOriginY = Math.min(
+      within.y + within.height - script.bounds.height - offsetY,
+      maxY - script.bounds.height - offsetY,
+    );
     return {
       ...note,
       position: {
         x: clamp(note.position.x, Math.min(minX, maxX), Math.max(minX, maxX)),
-        y: clamp(note.position.y, Math.min(minY, maxY), Math.max(minY, maxY)),
+        y: clamp(note.position.y, Math.min(minY, maxOriginY), Math.max(minY, maxOriginY)),
       },
     };
   }

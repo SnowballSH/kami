@@ -795,7 +795,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private placeNote(note: Note): void {
     this.lastSubmittedAt = Math.max(this.lastSubmittedAt, note.createdAt);
     if (same(this.notes.get(note.id), note)) return;
-    this.notes.restore(note, this.nowMs, NOTE_LINGER_MS, this.visibleWorldRect());
+    this.notes.restore(
+      note,
+      this.nowMs,
+      NOTE_LINGER_MS,
+      this.visibleWorldRect(),
+      this.noteGroundBottom(note.position),
+    );
     if (!isPlayers(note)) this.labelsByKami.add(note.id);
   }
 
@@ -1858,6 +1864,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       fleeting: lifetimeMs !== undefined,
       ...(action === undefined ? {} : { action }),
     };
+    const groundBottom = this.noteGroundBottom(notePosition);
     return this.notes.write({
       note,
       nowMs: this.nowMs,
@@ -1865,9 +1872,20 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       ...(lifetimeMs === undefined ? {} : { lifetimeMs }),
       ...(anchor === undefined ? {} : { anchor }),
       ...(minY === undefined ? {} : { minY }),
+      ...(groundBottom === undefined ? {} : { maxY: groundBottom }),
       obstacles: this.obstacles(),
       within: this.visibleWorldRect(),
     });
+  }
+
+  private noteGroundBottom(position: Vec): number | undefined {
+    const solids = groundSolids(this.board).filter(
+      ({ x, width }) => position.x >= x && position.x <= x + width,
+    );
+    if (solids.length === 0 || solids.every(({ y, height }) => position.y <= y + height)) {
+      return undefined;
+    }
+    return Math.min(...solids.map(({ y }) => y)) - 12;
   }
 
   /** Refolds the standing laws into the world; returns whether this fold sealed the Sumikui away. */
