@@ -655,6 +655,42 @@ describe("Game with a Kami who tidies", () => {
     expect(Math.abs(lift)).toBeLessThanOrEqual(3);
   });
 
+  it("tidies toward the name that stands, not one the player corrected meanwhile", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
+    const answers: ((completion: Completion | null) => void)[] = [];
+    eyes.complete = (strokes, name) => {
+      eyes.tidiedAs.push(name);
+      return new Promise((resolve) => {
+        answers.push((completion) =>
+          resolve(completion ?? { ...tidyAs(strokes), word: name ?? "" }),
+        );
+      });
+    };
+    const tidyAs = (strokes: readonly Vec[][]) => ({
+      tidied: lifted(strokes),
+      added: [],
+      word: "",
+      confidence: 1,
+    });
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("a ladder", { x: 300, y: 500 });
+    expect(eyes.tidiedAs).toEqual(["a mushroom"]);
+
+    answers.shift()?.(null);
+    await player.wait(50);
+    expect(eyes.tidiedAs).toEqual(["a mushroom", "a ladder"]);
+    const untouched = (await player.store.load("wonderland")).drawings[0]?.drawing.strokes ?? [];
+
+    answers.shift()?.(null);
+    await player.wait(50);
+    const saved = (await player.store.load("wonderland")).drawings[0];
+    expect(saved?.ruling?.nature).toBe("climbable");
+    expect(saved?.drawing.strokes[0]?.[0]?.y).toBe((untouched[0]?.[0]?.y ?? 0) - 3);
+  });
+
   it("leaves the player's ink exactly as drawn when Kami has nothing to offer", async () => {
     const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
     const player = new Player("wonderland", { eyes });

@@ -723,7 +723,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const epoch = this.epoch;
     const completion = await this.modules.finisher.complete(before.drawing.strokes, name);
     const current = this.ledger.get(id);
-    if (completion === null || epoch !== this.epoch || current?.drawing !== before.drawing) return;
+    if (epoch !== this.epoch || current?.drawing !== before.drawing) return;
+    if (current.ruling !== before.ruling) {
+      this.tidied.delete(id);
+      if (current.ruling !== null) await this.tidy(id, current.ruling.name);
+      return;
+    }
+    if (completion === null) return;
     const strokes = [...completion.tidied, ...completion.added];
     const retraced = this.ledger.retrace(id, strokes, this.nowMs);
     if (retraced === null) return;

@@ -76,9 +76,10 @@ export class InkLedger {
     }));
   }
 
+  /** What Alice can stand on: the strokes the sim built its body from, not the tidied ones shown. */
   sceneInks(poses: readonly DrawingPose[]): readonly SceneInk[] {
-    return this.join(poses, ({ drawing, ruling }, pose) => ({
-      drawing,
+    return this.join(poses, ({ drawing, ruling, retrace }, pose) => ({
+      drawing: retrace === null ? drawing : { ...drawing, strokes: retrace.from },
       pose,
       nature: ruling?.nature ?? "ink",
       strength: ruling?.strength ?? 1,
