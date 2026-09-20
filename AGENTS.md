@@ -19,10 +19,10 @@
 ## Where computation happens
 
 **All training, all model inference and all heavy computation run on the ASUS GX10 — never on a laptop,
-not even a smoke test.** The box is `ssh gx10` (key login, passwordless sudo, NVIDIA GB10, 121 GB, CUDA 13,
-internet). The game lives in `~/kami` there (`box/start.sh`, `box/status.sh`); Python/ML work goes in
-`~/kami-ml` with `uv`. The Mac is for editing, unit tests and builds. To try ML code: copy `ml/` to the box
-and run it there. Ollama on the box holds ~37 GB for `qwen3.8`; leave it running.
+not even a smoke test.** The box is reached as `ssh gx10` (NVIDIA GB10, 121 GB, CUDA 13). The game lives in
+`~/kami` there (`box/start.sh`, `box/status.sh`); Python/ML work goes in `~/kami-ml` with `uv`. The laptop
+is for editing, unit tests and builds. To try ML code: copy `ml/` to the box and run it there. Ollama on
+the box holds ~37 GB for `qwen3.8`; leave it running.
 
 ## Who owns what
 

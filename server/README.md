@@ -391,8 +391,8 @@ iPad ──venue Wi-Fi──►  GX10 (`ssh gx10`):  game + API (:8787) ─► M
                        ~/kami-ml: the training kit (`ml/`), its CUDA venv, the data and the trained models
 ```
 
-The box (`gx10-e861`, GB10, 121 GB, Ubuntu 24.04, CUDA 13) is on the venue network with internet, key login
-and passwordless sudo. Everything Kami needs lives under `~/kami`, nothing system-wide.
+The box (an ASUS Ascent GX10: GB10, 121 GB, Ubuntu 24.04, CUDA 13) is reached by key login over the local
+network. Everything Kami needs lives under `~/kami`, nothing system-wide, and nothing needs sudo.
 
 ```bash
 bun run gx10:bootstrap <address>   # once per box or address: SSH key + the `gx10` host alias

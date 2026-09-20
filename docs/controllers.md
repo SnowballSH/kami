@@ -80,9 +80,9 @@ value is passed along (`x`, `y` in the event below) but not used for pace yet.
 Test any of them without hardware:
 
 ```bash
-echo "kami arcade 100 0" | nc -u -w0 10.189.121.118 8788                          # UDP
-curl -X POST http://10.189.121.118:8787/api/controllers/arcade/state -d "100 0"   # HTTP
-curl http://10.189.121.118:8787/api/controllers                                   # who is connected, what they hold
+echo "kami arcade 100 0" | nc -u -w0 <box> 8788                          # UDP
+curl -X POST http://<box>:8787/api/controllers/arcade/state -d "100 0"   # HTTP
+curl http://<box>:8787/api/controllers                                   # who is connected, what they hold
 ```
 
 ## What the game listens to
@@ -122,7 +122,7 @@ flip an axis that runs backwards.
 bun run gx10:flash              # from the Mac: compile on the box, upload to the Arduino plugged into it
 bun run gx10:flash cabinet      # the cabinet sketch instead
 scripts/checkHardware.sh        # native tests (+ pinned compile of both sketches where arduino-cli is installed)
-curl http://10.189.121.118:8787/api/controllers    # arcade, transport "serial", x/y moving with the stick
+curl http://<box>:8787/api/controllers    # arcade, transport "serial", x/y moving with the stick
 ```
 
 `scripts/gx10/flash.sh` copies `hardware/` to `~/kami-hardware/sketches` on the box, installs the pinned,
@@ -147,7 +147,7 @@ must be at rest while the board starts: that reading becomes the centre.
 
 const char WIFI_NAME[] = "…";
 const char WIFI_PASSWORD[] = "…";
-const IPAddress KAMI_BOX(10, 189, 121, 118);
+const IPAddress KAMI_BOX(192, 168, 1, 50);
 const unsigned int KAMI_PORT = 8788;
 const char CONTROLLER[] = "arcade";
 

@@ -1,5 +1,10 @@
 {
   "name": "kami",
+  "description": "A hand-drawn puzzle-platformer: what you draw becomes solid ink, and becomes whatever you say it is.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SnowballSH/kami.git"
+  },
   "private": true,
   "version": "0.1.0",
   "type": "module",

@@ -8,3 +8,6 @@ coverage/
 .gx10/
 __pycache__/
 .deepgram.env
+.serena/
+.claude/
+docs.zip

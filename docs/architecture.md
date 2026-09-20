@@ -1,6 +1,6 @@
 # Kami — Software Demo Architecture
 
-This is the current integration guide, checked against main **`1b2ceed` (20 September 2026)**.
+This is the integration guide for the code as it stands.
 [spec.md](spec.md) is authoritative for product requirements. This guide describes the code;
 differences from the spec are tracked [below](#product-scope-and-verification), not approved by
 changing a description. [Archived engineering notes](archive/engineering-notes-v3.md) and the
@@ -345,11 +345,11 @@ default, `off` disables it. Button A counts as up (jump/climb); other buttons ha
 binding. SSE error releases the remote source, and EventSource reconnects. Keyboard/touch remain
 independent sources. See [controllers.md](controllers.md).
 
-The cabinet firmware's `S,dir,ink,cat,px,py` frames are **not accepted by this base's generic
-parser**. [R19 / #41](https://github.com/SnowballSH/kami/pull/41) adds the server-side adapter,
-firmware debounce/framing checks and pinned compilation. Its supported integration is movement
-relay. Knob drawing, INK gestures, physical CAT-to-speech binding, game-driven LED feedback and a
-visible reconnect UI remain deferred even with R19. The browser Web Serial example and full-panel
+The cabinet firmware's `S,dir,ink,cat,px,py` frames are read by `server/controllers/cabinet.ts`;
+the firmware's debounce and framing are tested natively and its compilation is pinned
+(`scripts/checkCabinet.sh`). The supported integration is movement relay. Knob drawing, INK
+gestures, physical CAT-to-speech binding, game-driven LED feedback and a visible reconnect UI are
+deferred. The browser Web Serial example and full-panel
 behavior in [hardware.md](hardware.md) are historical design, not the current browser path; #41
 replaces them. Do not treat its reported firmware compilation as physical acceptance.
 
@@ -381,11 +381,9 @@ reach the API can modify boards, submit controller state and consume configured 
 Use this build only on an isolated trusted network; keeping a service key off the browser does
 not protect an unauthenticated proxy.
 
-[R12 / #40](https://github.com/SnowballSH/kami/pull/40) is **open at this documentation review**.
-Its [access guide](https://github.com/SnowballSH/kami/blob/38d480dc1577ac1cf89d810ea917259218e0eb0b/docs/access.md)
-defines these modes; setting these variables on the base revision does **not** install them:
+The server runs in one of two access modes ([access.md](access.md)):
 
-| R12 mode | Trust and deployment contract |
+| Mode | Trust and deployment contract |
 |---|---|
 | `KAMI_ACCESS_MODE=demo` (default) | Trusted reachable LAN peers; explicit browser-origin checks, no participant authentication. API/Vite remain LAN-accessible unless explicitly bound to loopback. |
 | `KAMI_ACCESS_MODE=shared` | Loopback API default behind a same-origin HTTPS proxy; exact allowed HTTPS origins; credentials grant exact boards/controllers and model permission. Browser token exchange uses an HttpOnly/Secure/SameSite cookie; non-browser clients use bearer credentials. Unauthenticated UDP is disabled; local serial is trusted host input. |
@@ -407,18 +405,18 @@ Its local access/voice tests do not release that hold or establish production re
 ## Product scope and verification
 
 The spec's chapter progression, NPC/guard behaviors, teacup scoring and full cabinet are product
-targets, not promises made by this endless-board build. [Modes](modes.md) likewise separates the
-playable embodied director from the unimplemented spirit-mode contract. Preserve those product
+targets, not promises made by this endless-board build. [Modes](modes.md) describes the five ways to
+play a board and what each one's director decides. Preserve those product
 requirements and record mismatches explicitly; archived room/store/edge-function code is not a
 mandate to reconstruct the old design.
 
 | Verification layer | What it establishes; what remains |
 |---|---|
 | Local `bun run check`, `bun run build`, documentation links | TypeScript/Biome, unit/headless regressions and a production bundle. Does not establish a working microphone, deployed service, real tablet or cabinet. |
-| [R18 / #42](https://github.com/SnowballSH/kami/pull/42), open at review | Adds frozen Bun CI and isolated Python/shell checks. `check:lightweight` and `check:gx10` are not commands on this base yet; see its [check guide](https://github.com/SnowballSH/kami/blob/55341ca320b318de355880e89d8ed0636ea73a6e/scripts/ci/README.md). |
-| GX10-only model checks | All training, model inference (including tiny-model tests), full ML tests and heavy work stay on GX10. R18's explicit `bun run check:gx10 <full-commit-sha> <artifact-name>` records source/artifact identity; a local or hosted green gate does not replace golden parity, model quality or live latency checks. |
-| Cabinet and booth acceptance | R19 reports native/TypeScript regressions and UNO R4 WiFi compilation. Wiring/power, firmware upload, held/released controls, unplug/replug, feedback and the real host/browser/proxy still require physical verification. |
-| This documentation review | Source/contract inspection and local repository gates only. No live model, GX10 service, browser, microphone, Apple Pencil or physical cabinet was exercised. Existing benchmark figures describe their original runs, not this revision's readiness. |
+| Hosted CI (`.github/workflows/check.yml`) | A frozen Bun install, `bun run check`, the production build, and the Python and shell checks that need no model (`bun run check:lightweight`). [scripts/ci/README.md](../scripts/ci/README.md) says what it cannot certify. |
+| GX10-only model checks | All training, model inference (including tiny-model tests), full ML tests and heavy work stay on GX10. `bun run check:gx10 <full-commit-sha> <artifact-name>` records source/artifact identity; a local or hosted green gate does not replace golden parity, model quality or live latency checks. |
+| Cabinet and booth acceptance | Native and TypeScript regressions and UNO R4 WiFi compilation are checked. Wiring/power, firmware upload, held/released controls, unplug/replug, feedback and the real host/browser/proxy still require physical verification. |
+| Exercised live on the GX10 (HackMIT, 20 September 2026) | The deployed service end to end: recognition and tidying by Kami's Eye, laws and scenes compiled by the local model, summoning, voice in and out, the joystick relay over the venue Wi-Fi, and the big screen mirroring an iPad. Not measured: recognition accuracy on real Apple Pencil ink, and the cabinet's full panel. |
 
 ## Known limits of the demo
 
