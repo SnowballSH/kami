@@ -8,7 +8,7 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
-    proxy: { "/api": `http://localhost:${SERVER_PORT}` },
+    proxy: { "/api": { target: `http://localhost:${SERVER_PORT}`, ws: true } },
   },
   test: {
     environment: "happy-dom",

@@ -31,6 +31,7 @@ import {
   FakeHud,
   FakeLawsPanel,
   FakeRenderer,
+  FakeVoice,
   MemoryBoardStore,
 } from "./testing/fakes";
 
@@ -137,6 +138,7 @@ class Player {
   readonly game: Game;
   private hudRef: FakeHud | null = null;
   private lawsRef: FakeLawsPanel | null = null;
+  private voiceRef: FakeVoice | null = null;
   private nowMs = 0;
 
   readonly pondered: string[] = [];
@@ -175,6 +177,10 @@ class Player {
           this.lawsRef = new FakeLawsPanel(handlers);
           return this.lawsRef;
         },
+        createVoice: (handlers) => {
+          this.voiceRef = new FakeVoice(handlers);
+          return this.voiceRef;
+        },
         findDrawingAt,
       },
       boardId,
@@ -184,6 +190,24 @@ class Player {
   get hud(): FakeHud {
     if (this.hudRef === null) throw new Error("HUD was never created");
     return this.hudRef;
+  }
+
+  get voice(): FakeVoice {
+    if (this.voiceRef === null) throw new Error("Voice was never created");
+    return this.voiceRef;
+  }
+
+  async speak(text: string): Promise<void> {
+    this.game.onTalkStarted();
+    this.voice.heard(text);
+    await this.wait(100);
+  }
+
+  /** Said with the microphone standing by, after his name woke him. */
+  async wake(text: string): Promise<void> {
+    this.game.onWakeToggled(true);
+    this.voice.woke(text);
+    await this.wait(100);
   }
 
   get laws(): FakeLawsPanel {
@@ -405,6 +429,52 @@ describe("Game on the Wonderland board", () => {
     expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(0);
     const [stored] = (await player.store.load("wonderland")).drawings;
     expect(stored?.ruling?.name).toBe(first.script.text.replace(/\?$/, ""));
+  });
+
+  it("takes a spoken law as if it had been written, and says his answer aloud", async () => {
+    await player.speak("set g equal to the moon's gravity");
+
+    expect(player.written).toContain("set g equal to the moon's gravity");
+    expect((await player.store.load("wonderland")).rules[0]?.effect).toMatchObject({
+      governs: "gravity",
+    });
+    expect(player.written.some((text) => text.startsWith("kami: gravity"))).toBe(true);
+    expect(player.voice.said.some((line) => line.startsWith("gravity"))).toBe(true);
+    expect(player.voice.said.some((line) => line.startsWith("kami:"))).toBe(false);
+    expect(player.hud.listening).toBe(false);
+  });
+
+  it("takes a law woken by his name, with nothing held down", async () => {
+    await player.wake("set g equal to the moon's gravity");
+
+    expect(player.hud.waking).toBe(true);
+    expect(player.written).toContain("set g equal to the moon's gravity");
+    expect((await player.store.load("wonderland")).rules[0]?.effect).toMatchObject({
+      governs: "gravity",
+    });
+  });
+
+  it("cancels listening on navigation and rejects speech while the board is loading", async () => {
+    player.game.onWakeToggled(true);
+    player.game.onTalkStarted();
+    const loading = Promise.withResolvers<BoardSnapshot>();
+    const load = vi.spyOn(player.store, "load").mockReturnValueOnce(loading.promise);
+    player.game.onOpenBoard("another");
+    expect(player.voice.listening).toBe(false);
+    expect(player.voice.waking).toBe(false);
+    player.game.onTalkStarted();
+    player.game.onWakeToggled(true);
+    expect(player.voice.listening).toBe(false);
+    expect(player.voice.waking).toBe(false);
+    player.voice.heard("gravity off");
+    await player.wait(100);
+    expect(player.written).not.toContain("gravity off");
+    loading.resolve({ drawings: [], notes: [], rules: [] });
+    await player.wait(100);
+    load.mockRestore();
+    await player.speak("gravity off");
+    expect(player.written).toContain("gravity off");
+    expect((await player.store.load("another")).rules).toHaveLength(1);
   });
 
   it("turns a written law into physics, remembers it, and repeals it when erased", async () => {
