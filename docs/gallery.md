@@ -76,6 +76,25 @@ then hold the keys for the player's side while the servant comes.
   (the weapon needs a drawn stroke to be swung through the servant — untested here); the two-player split
   (one device draws, one steers) is not exercised by the script.
 
+## Vehicles
+
+Scripted in Sandbox on a fresh board: draw a box car with two wheels beside Alice, write `a car`, hold ← until she
+boards and drives off the ledge.
+
+### vehicle-01.png → vehicle-08-after.png
+- **Expected**: Alice hops in and sits; the car drives; off the ledge it tumbles like a thrown box; she comes back.
+- **Observed before**: the car never tilted (upright creature strategy) and Alice stood beside/over it; a parked
+  car sat crooked while she climbed on; off the ledge she fell through blank page for ~4 s with no word from
+  Kami and the car was gone for good.
+- **Fixed**: vehicles have their own nature (`upright: false`): they roll, tip and flip (`05`, `07`); a gentle
+  keel only rights small grounded tilts and yields to "the car spins"; Alice hops aboard (`01`) and sinks into
+  the seat, the car is painted over her lower body (`03`); the fall limit is 900 px and the car she was in
+  returns with her, level (`08-after`); Kami says "Off the edge of the page…".
+- **Still to polish**: a closed box car has no cabin, so a seated Alice reads as "standing on the roof" — an
+  open-top car (or hiding her legs inside the outline) would sell the pose; the respawn is the very last
+  footing, right at the ledge, so the car lands half over the edge; the "Off the edge" line was not on screen in
+  `08-after` (may have faded with the note cap — check timing).
+
 ## Sweep plan — every mode × every feature × the edge cases
 
 Checked as I go; each item gets a screenshot (or a note why not). Edge cases looked for on every item:
