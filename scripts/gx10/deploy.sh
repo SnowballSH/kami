@@ -13,6 +13,7 @@ PORT=8787
 BUILD=.gx10/build
 CACHE=.gx10/cache
 LOG=.gx10/deploy.log
+SECRETS=.deepgram.env
 AUTOSTART=${1:-}
 RELEASE="$(date -u +%Y%m%dT%H%M%S)-$(git rev-parse --short HEAD)-$$"
 STAGE=".gx10/releases/$RELEASE"
@@ -58,6 +59,11 @@ tar --no-xattrs -czf - -C "$STAGE" . | ssh "$HOST_ALIAS" "tar -xzf - -C ~/kami/r
 echo "→ Shipping runtimes and Python wheels the box doesn't have yet"
 ship_missing "$CACHE" cache
 ship_missing "$CACHE/wheels" cache/wheels
+
+if [ -s "$SECRETS" ]; then
+  echo "→ Sending the keys in $SECRETS to the box (kept in ~/kami/secrets.env, mode 600, outside every release)"
+  ssh "$HOST_ALIAS" 'umask 077; mkdir -p ~/kami; cat > ~/kami/secrets.env' < "$SECRETS"
+fi
 
 echo "→ Installing and starting on the box"
 ssh "$HOST_ALIAS" "bash ~/kami/releases/$RELEASE/box/activate.sh ~/kami/releases/$RELEASE"

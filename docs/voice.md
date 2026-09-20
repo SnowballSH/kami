@@ -74,6 +74,8 @@ development. Plain HTTP on a LAN address cannot capture the microphone.
 A standing wake stream costs Deepgram's streaming rate for as long as it is on, and it is an open
 microphone — which is why it is a toggle the player turns on, and never the default.
 
+On the GX10 the key travels from the Mac's gitignored `.deepgram.env` (`DEEPGRAM_API_KEY=...`): `scripts/gx10/deploy.sh` sends that file to `~/kami/secrets.env` on the box (mode 600, outside every release), and `box/start.sh` reads it as `NAME=value` lines — it is never run as a script, only `DEEPGRAM_API_KEY` is taken from it, and it is never printed. The iPad's microphone needs the https address (`https://<box>:8443`, accept the certificate once); Kami's speaking voice works on either.
+
 `DEEPGRAM_API_KEY` on the server turns voice on; without it the socket refuses and
 `POST /api/voice/speak` answers `501`, which the client treats as silence. `KAMI_VOICE_LISTEN_MODEL`
 (default `nova-3`) and `KAMI_VOICE_SPEAK_MODEL` (default `aura-2-draco-en`) override the models.
