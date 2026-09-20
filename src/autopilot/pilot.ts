@@ -410,6 +410,9 @@ export class Pilot implements Autopilot {
     }
 
     if (next.via === "jump" && !airborne) return this.takeOff(here, next, footprint, feet);
+    if (next.via === "warp" && next.through !== undefined) {
+      return { x: sign(next.through.x - feet.x), y: 0 };
+    }
     const aim = airborne ? next : (path[this.lookahead(path)] ?? next);
     const dx = feetOf(aim.node, footprint).x - feet.x;
     const stepping = aim.via === "walk" && (airborne || aim.node.r0 < here.node.r0);

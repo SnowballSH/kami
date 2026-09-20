@@ -1,7 +1,7 @@
 import type { BoardDefinition, PageKind } from "../board/types";
 import type { AllowedNatures, Ruling } from "../cat/types";
 import type { DrawingId } from "../ink/types";
-import type { Governs } from "../rules/types";
+import type { Governs, WorldPhysics } from "../rules/types";
 import type { SimEvent } from "../sim/types";
 
 export type GameModeId = string & { readonly __brand: "GameModeId" };
@@ -101,6 +101,30 @@ export type EmbodimentTransition =
   | { readonly kind: "incarnated"; readonly by: "drawing"; readonly drawingId: DrawingId }
   | { readonly kind: "unmade"; readonly cause: "fell" | "devoured" };
 
+/** The title card shown as a staged room opens. */
+export interface RoomCard {
+  readonly mode: string;
+  readonly title: string;
+  /** Kami's one line for the room: riddle, not instructions. */
+  readonly line: string;
+  /** Where the room sits in its run ("room 2 of 7"); stays in the HUD after the card fades. */
+  readonly mark: string | null;
+}
+
+/**
+ * How a mode stages the board it has open, when it plays rooms differently from one another: the
+ * world as the room lays it down before anyone writes (written laws fold over it), the dials the
+ * room will take, its card, Kami's quiet line when it is won, and the board that opens after it.
+ */
+export interface RoomStaging {
+  readonly world: WorldPhysics;
+  readonly laws: LawPolicy;
+  readonly card: RoomCard;
+  readonly closing: string;
+  /** `null` when the run ends here. */
+  readonly next: string | null;
+}
+
 /**
  * The mode's referee for one open room. The game calls it at the seams where a mode could differ —
  * opening, every sim event, every naming — and enacts whatever transitions it returns. It holds
@@ -109,6 +133,8 @@ export type EmbodimentTransition =
 export interface ModeDirector {
   readonly mode: GameMode;
   readonly state: PlayerState;
+  /** How the open board is staged; `null` when the mode plays the board as it is, under `mode.laws` over EARTH. */
+  readonly room: RoomStaging | null;
   /** The board is loaded and nothing has stepped yet. */
   open(board: BoardDefinition): PlayerState;
   witness(event: SimEvent): readonly EmbodimentTransition[];

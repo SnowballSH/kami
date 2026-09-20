@@ -134,6 +134,11 @@ export class Party {
     return news;
   }
 
+  /** The roster changed (a clone law came or went): keep a mind per Alice and a selection that exists. */
+  resync(count: number): void {
+    this.match(count);
+  }
+
   private match(count: number): void {
     while (this.pilots.length > count) this.pilots.pop();
     while (this.pilots.length < count) {

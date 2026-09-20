@@ -19,6 +19,7 @@
     "server": "bun --watch server/index.ts",
     "quickdraw:ingest": "bun server/quickdraw/ingest.ts",
     "font:build": "bun scripts/buildStrokeFont.ts",
+    "brand:build": "bun src/brand/build.ts",
     "gx10:tunnel": "scripts/gx10/tunnel.sh",
     "gx10:bootstrap": "scripts/gx10/bootstrap.sh",
     "gx10:prepare": "scripts/gx10/prepare.sh",

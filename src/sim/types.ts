@@ -118,7 +118,9 @@ export type SimEvent =
       readonly to: DrawingId;
     }
   /** Alice stepped into the only portal on the board; it leads nowhere yet. */
-  | { readonly type: "portal-lonely"; readonly drawingId: DrawingId };
+  | { readonly type: "portal-lonely"; readonly drawingId: DrawingId }
+  /** She meant to walk, but in pitch dark with no lantern near she will not take a step (once per board load). */
+  | { readonly type: "in-the-dark" };
 
 export interface Simulation {
   /** Discards the whole world and rebuilds it with Alice standing at `board.spawn`. */

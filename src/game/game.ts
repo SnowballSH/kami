@@ -88,6 +88,7 @@ import {
   GOAL_LINE,
   GROW_BLOCKED_LINE,
   glossOf,
+  IN_THE_DARK_LINE,
   isHelpRequest,
   KEY_TAKEN_LINE,
   LAW_OUTSIDE_MODE_LINE,
@@ -140,6 +141,8 @@ const REMARK_LIFETIME_MS = 6_000;
 const HINT_LIFETIME_MS = 10_000;
 /** How long the player's words, and the labels Kami hangs on drawings, stay once answered. */
 const NOTE_LINGER_MS = 12_000;
+/** Long enough to read the closing line where she stands before the next room opens over it. */
+const NEXT_ROOM_DELAY_MS = 4_000;
 const ABOVE_ALICE = { x: -90, y: -120 } as const;
 /** Where a spoken note lands: beside Alice, as if the player had written it there. */
 const SPOKEN_AT = { x: -60, y: -190 } as const;
@@ -176,7 +179,8 @@ export interface GameModules {
   readonly summoner?: Summoner;
   /** Places to be teleported to ("teleport us to the moon"); without one Kami knows no way there. */
   readonly scenes?: SceneCompiler;
-  readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
+  /** Folds standing rules over `base`: EARTH, or the world a staged room lays down. */
+  readonly resolvePhysics: (rules: readonly Rule[], base?: WorldPhysics) => WorldPhysics;
   readonly boardFor: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
   readonly createHud: (handlers: HudHandlers) => Hud;
@@ -241,6 +245,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private bites = 0;
   private swallows = 0;
   private warps = 0;
+  private nextRoom: { readonly boardId: string; readonly atMs: number } | null = null;
   private recital: Recital[] = [];
   /** Settled ink the pen reader is still reading: weightless until it is known to be a drawing. */
   private readonly held = new HeldInkBook();
@@ -267,7 +272,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.tidiness = clamp(modules.tidiness ?? DEFAULT_TIDINESS, 0, 1);
     this.notes = new NoteBook(modules.handwriting);
     this.rules = new RuleBook((rules) =>
-      modules.resolvePhysics(rules.filter((rule) => this.allowsRule(rule))),
+      modules.resolvePhysics(
+        rules.filter((rule) => this.allowsRule(rule)),
+        this.director.room?.world,
+      ),
     );
     this.ink = modules.createInkSession(this);
     this.penReader = modules.penReader ?? null;
@@ -312,6 +320,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.speakDueRecital();
     if (this.retidyDueAtMs !== null && nowMs >= this.retidyDueAtMs) this.retidyTheBoard();
     if (this.director.mode.help === "offered" && this.stuck.isStuck(nowMs)) this.offerHelp();
+    if (this.nextRoom !== null && nowMs >= this.nextRoom.atMs)
+      void this.open(this.nextRoom.boardId);
     const { selected } = this.party;
     this.camera.follow(
       sim.aliceBounds(selected),
@@ -534,6 +544,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.voiceReady = false;
     this.voice?.cancel();
     this.board = this.sketch(boardId);
+    this.nextRoom = null;
 
     sim.loadBoard(this.board);
     this.director.open(this.board);
@@ -566,6 +577,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (this.director.mode.id !== EMBODIED_MODE_ID) {
       this.remark(this.director.mode.card.opening, HINT_LIFETIME_MS);
     }
+    this.hud.showRoomCard(this.director.room?.card ?? null);
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
@@ -816,7 +828,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private handle(event: SimEvent): void {
-    if (this.director.won(event)) this.remark(this.goalLine(event), HINT_LIFETIME_MS);
+    if (this.director.won(event)) this.celebrate(event);
     switch (event.type) {
       case "goal-reached":
         return;
@@ -881,12 +893,27 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       case "portal-lonely":
         this.remark(PORTAL_LONELY_LINE);
         return;
+      case "in-the-dark":
+        this.remark(IN_THE_DARK_LINE, HINT_LIFETIME_MS);
+        return;
     }
   }
 
   private goalLine(event: SimEvent): string {
     if (event.type !== "goal-reached" || this.modules.sim.alices().length === 1) return GOAL_LINE;
     return TWIN_GOAL_LINE(event.who);
+  }
+
+  /** The room is won: Kami's closing line, and in a run of rooms the next one opens once it has been read. */
+  private celebrate(event: SimEvent): void {
+    const room = this.director.room;
+    if (room === null) {
+      this.remark(this.goalLine(event), HINT_LIFETIME_MS);
+      return;
+    }
+    this.remark(room.closing, HINT_LIFETIME_MS);
+    if (room.next !== null)
+      this.nextRoom = { boardId: room.next, atMs: this.nowMs + NEXT_ROOM_DELAY_MS };
   }
 
   private enterZone(zoneId: string): void {
@@ -1287,7 +1314,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private allowsRule(rule: Rule): boolean {
-    return allowsLaw(this.director.mode.laws, rule.effect.governs);
+    const policy = this.director.room?.laws ?? this.director.mode.laws;
+    return allowsLaw(policy, rule.effect.governs);
   }
 
   private enactIfAllowed(rule: Rule): void {
@@ -1543,6 +1571,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private applyLaws({ silently }: { readonly silently: boolean }): boolean {
     const physics = this.rules.physics;
     this.modules.sim.setPhysics(physics);
+    this.party.resync(this.modules.sim.alices().length);
     const loose = physics.inkEater > 0;
     const summoned = loose && !this.sumikuiLoose;
     const sealed = !loose && this.sumikuiLoose;

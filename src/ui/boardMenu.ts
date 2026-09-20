@@ -1,3 +1,4 @@
+import wordmarkUrl from "../brand/assets/kami-wordmark.svg";
 import { el } from "./dom";
 import { icon } from "./icons";
 import { activateOnTap } from "./tap";
@@ -43,7 +44,11 @@ export class BoardMenu {
         className: "kami-control kami-board-toggle",
         attrs: { type: "button", "aria-haspopup": "menu", "aria-label": "Boards" },
       },
-      [el("span", { className: "kami-wordmark", text: WORDMARK }), this.title, icon("chevron")],
+      [
+        el("img", { className: "kami-wordmark", attrs: { src: wordmarkUrl, alt: WORDMARK } }),
+        this.title,
+        icon("chevron"),
+      ],
     );
     activateOnTap(this.toggle, () => this.setOpen(!this.open));
     this.clear = menuItem("kami-board-clear", CLEAR_LABEL, () => this.requestClear());

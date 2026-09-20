@@ -34,12 +34,14 @@ export interface Footprint {
   readonly rows: number;
 }
 
-export type Move = "walk" | "fall" | "climb" | "bounce" | "jump";
+export type Move = "walk" | "fall" | "climb" | "bounce" | "jump" | "warp";
 
 export interface Waypoint {
   readonly node: Node;
   /** How she gets here from the waypoint before; the first waypoint is where she already is. */
   readonly via: Move;
+  /** For a warp, the portal she steps into to get here. */
+  readonly through?: Vec;
 }
 
 export type Goal =
@@ -63,6 +65,8 @@ const JUMP_DROP_ROWS = 2;
 const JUMP_MIN_COLS = 2;
 /** Share of the flight she is trusted to steer through when drifting sideways off a bounce. */
 const DRIFT_MARGIN = 0.8;
+/** A portal is a step and a fall, but a strange one: she takes it only where walking is dearer. */
+const WARP_COST = 6;
 /** Nodes a single search may open before it gives up: the board is endless, her patience is not. */
 const SEARCH_BUDGET = 200_000;
 
@@ -111,7 +115,11 @@ interface Edge {
   readonly to: Node;
   readonly via: Move;
   readonly cost: number;
+  readonly through?: Vec;
 }
+
+const waypointOf = (node: Node, via: Move, through: Vec | undefined): Waypoint =>
+  through === undefined ? { node, via } : { node, via, through };
 
 const key = (node: Node): string => `${node.r0},${node.c0}`;
 
@@ -329,7 +337,7 @@ export class Pathfinder {
         const k = key(edge.to);
         if (next >= (best.get(k) ?? Number.POSITIVE_INFINITY)) continue;
         best.set(k, next);
-        cameFrom.set(k, { node, via: edge.via });
+        cameFrom.set(k, waypointOf(node, edge.via, edge.through));
         open.push(edge.to, next);
       }
     }
@@ -341,7 +349,7 @@ export class Pathfinder {
     let node = end;
     let from = cameFrom.get(key(node));
     while (from !== undefined) {
-      path.push({ node, via: from.via });
+      path.push(waypointOf(node, from.via, from.through));
       node = from.node;
       from = cameFrom.get(key(node));
     }
@@ -361,6 +369,7 @@ export class Pathfinder {
     }
     yield* this.lateral(node, -1);
     yield* this.lateral(node, 1);
+    yield* this.warps(node);
     if (holding) {
       const up = { c0: node.c0, r0: node.r0 - 1 };
       if (this.isStance(up)) yield { to: up, via: "climb", cost: CLIMB_COST };
@@ -407,6 +416,21 @@ export class Pathfinder {
         return;
       }
     }
+  }
+
+  /** Standing in a twinned portal she may step through it and come down wherever its twin lets out. */
+  private *warps(node: Node): Generator<Edge> {
+    const gateway = this.chart.gatewayIn(bodyRange(node, this.footprint));
+    if (gateway === null) return;
+    const { rows } = this.footprint;
+    const out = nodeOfFeet(
+      { x: gateway.exit.x, y: gateway.exit.y + (rows * CELL_PX) / 2 },
+      this.footprint,
+    );
+    if (!this.isFree(out)) return;
+    const to = this.isStance(out) ? out : this.landing(out.c0, out.r0);
+    if (to === null) return;
+    yield { to, via: "warp", cost: WARP_COST, through: gateway.centre };
   }
 
   private fixtureBetween(col: number, rowTop: number, rowBottom: number): boolean {

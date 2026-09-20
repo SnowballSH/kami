@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from morph import DEFAULT_SETTINGS, MorphSettings, boldness_of, firmed, morph, resample
+from morph import DEFAULT_SETTINGS, MorphSettings, boldness_of, hand_for, morph, resample
 
 Points = NDArray[np.float64]
 CENTRE = np.array([400.0, 300.0])
@@ -137,11 +137,60 @@ def test_the_players_slider_scales_how_firmly_he_tidies() -> None:
     assert errors[0] > errors[1] > errors[2] > errors[3]
 
 
-def test_half_firmness_is_the_settings_as_written_and_full_is_a_snap_with_twice_the_reach() -> None:
-    assert firmed(DEFAULT_SETTINGS, 0.5) == DEFAULT_SETTINGS
-    full = firmed(DEFAULT_SETTINGS, 1.0)
-    assert full.bold_strength == 1.0 and full.gentle_strength == 1.0
-    assert full.bold_shift == pytest.approx(2 * DEFAULT_SETTINGS.bold_shift)
-    none = firmed(DEFAULT_SETTINGS, 0.0)
-    assert none.bold_strength == 0.0 and none.bold_shift == 0.0
-    assert firmed(DEFAULT_SETTINGS, 7.0) == full
+def test_half_firmness_is_kamis_own_hand_none_moves_nothing_and_full_takes_over() -> None:
+    own = hand_for(0.5, 1.0, DEFAULT_SETTINGS)
+    assert own.strength == pytest.approx(DEFAULT_SETTINGS.bold_strength)
+    assert own.max_shift == pytest.approx(DEFAULT_SETTINGS.bold_shift)
+    assert own.reach == pytest.approx(DEFAULT_SETTINGS.reach)
+    assert own.smoothing_window == DEFAULT_SETTINGS.smoothing_window
+    assert own.max_misfit_to_add == pytest.approx(DEFAULT_SETTINGS.max_misfit_to_add)
+
+    none = hand_for(0.0, 1.0, DEFAULT_SETTINGS)
+    assert none.strength == 0.0 and none.max_shift == 0.0
+
+    full = hand_for(1.0, 0.0, DEFAULT_SETTINGS)
+    assert full.strength == 1.0 and full.smoothing_window == 1
+    assert full.max_shift > 1.0 and full.reach > 1.0
+    assert full.max_misfit_to_add == np.inf and full.max_added_share == np.inf
+    assert hand_for(7.0, 0.0, DEFAULT_SETTINGS) == full
+
+
+def test_at_full_firmness_the_drawing_becomes_the_exemplar_however_unsure_kami_is() -> None:
+    from morph import fit_exemplar
+
+    player = [arc(0.0, np.pi, count=90, wobble=9.0)]
+    result = morph(player, unit_circle(), certainty=0.0, firmness=1.0)
+    assert result is not None
+    assert [len(stroke) for stroke in result.tidied] == [len(stroke) for stroke in player]
+
+    spacing = DEFAULT_SETTINGS.sample_spacing * DIAGONAL
+    fitted = np.concatenate(
+        [resample(stroke, spacing) for stroke in fit_exemplar(unit_circle(), player)]
+    )
+    inked = (*result.tidied, *result.added)
+    drawn = np.concatenate([resample(stroke, spacing) for stroke in inked])
+    between = np.linalg.norm(drawn[:, None, :] - fitted[None, :, :], axis=2)
+    assert between.min(axis=1).max() < 0.02 * DIAGONAL
+    assert between.min(axis=0).max() < 0.06 * DIAGONAL
+
+
+def test_with_the_slider_at_rest_an_unsure_kami_still_adds_nothing_to_a_loose_fit() -> None:
+    player = [arc(0.0, np.pi, count=90, wobble=9.0)]
+    result = morph(player, unit_circle(), certainty=0.0, firmness=0.5)
+    assert result is not None
+    assert result.added == [] or result.misfit <= DEFAULT_SETTINGS.max_misfit_to_add
+
+
+def test_a_line_between_two_of_the_exemplars_lines_settles_on_one_and_does_not_hop() -> None:
+    xs = np.linspace(0.0, 255.0, 60)
+    rails = [np.column_stack([xs, np.full_like(xs, y)]) for y in (100.0, 140.0)]
+    frame = [np.array([[0.0, 0.0], [255.0, 0.0], [255.0, 255.0], [0.0, 255.0], [0.0, 0.0]])]
+    sway = 120.0 + 3.0 * np.sin(np.linspace(0.0, 40.0, 120))
+    player = [
+        frame[0] + CENTRE,
+        np.column_stack([np.linspace(10.0, 245.0, 120), sway]) + CENTRE,
+    ]
+    result = morph(player, [*frame, *rails], certainty=1.0, firmness=1.0)
+    assert result is not None
+    heights = result.tidied[1][:, 1]
+    assert np.ptp(heights) < 0.05 * np.ptp(player[0][:, 1])

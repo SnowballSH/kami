@@ -1,6 +1,6 @@
 import { createRemoteStick } from "../controller";
 import type { Vec } from "../core/geometry";
-import type { ModeCard } from "../modes/types";
+import type { ModeCard, RoomCard } from "../modes/types";
 import type { PersistenceState } from "../persistence/types";
 import { BoardMenu } from "./boardMenu";
 import { el } from "./dom";
@@ -8,6 +8,7 @@ import { Joystick } from "./joystick";
 import { KeyboardWalk } from "./keyboard";
 import { PersistenceStatus } from "./persistenceStatus";
 import { paintQr } from "./qr";
+import { RoomCardView } from "./roomCard";
 import { SharePanel } from "./sharePanel";
 import { TalkButton } from "./talkButton";
 import { TextPrompt } from "./textPrompt";
@@ -34,6 +35,7 @@ export class DomHud implements Hud {
   private readonly tidy: TidySlider;
   private readonly share = new SharePanel(paintQr);
   private readonly card = new TitleCard();
+  private readonly roomCard = new RoomCardView();
   private readonly detachers: readonly Detach[];
 
   constructor(root: HTMLElement, handlers: HudHandlers) {
@@ -65,6 +67,8 @@ export class DomHud implements Hud {
       this.zoom.element,
       this.prompt.element,
       this.prompt.feedback,
+      this.roomCard.mark,
+      this.roomCard.card,
     );
     root.append(this.overlay);
     this.detachers = [
@@ -102,6 +106,10 @@ export class DomHud implements Hud {
 
   setPersistence(state: PersistenceState): void {
     this.persistence.show(state);
+  }
+
+  showRoomCard(card: RoomCard | null): void {
+    this.roomCard.show(card);
   }
 
   promptText(client: Vec): Promise<string | null> {

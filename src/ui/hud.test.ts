@@ -510,7 +510,9 @@ describe("DomHud", () => {
       hud.setBoards(BOARDS, "moon-golf");
       const popover = find<HTMLElement>(root, ".kami-board-popover");
 
-      expect(find(root, ".kami-wordmark").textContent).toBe("kami");
+      const wordmark = find<HTMLImageElement>(root, ".kami-wordmark");
+      expect(wordmark.alt).toBe("kami");
+      expect(wordmark.getAttribute("src")).toMatch(/kami-wordmark.*\.svg$/);
       expect(find(root, ".kami-board-title").textContent).toBe("Moon golf");
       expect(popover.hidden).toBe(true);
 

@@ -2,7 +2,7 @@ import type { BoardDefinition } from "../../board/types";
 import { boundsOf, type Stroke, type Vec } from "../../core/geometry";
 import type { Handwriting, PenScript, WriteOptions } from "../../handwriting/types";
 import type { DrawingId } from "../../ink/types";
-import type { ModeCard } from "../../modes/types";
+import type { ModeCard, RoomCard } from "../../modes/types";
 import type { Note, NoteId } from "../../notes/types";
 import type {
   BoardSnapshot,
@@ -131,6 +131,12 @@ export class FakeHud implements Hud {
 
   setPersistence(state: PersistenceState): void {
     this.persistence = state;
+  }
+
+  roomCard: RoomCard | null = null;
+
+  showRoomCard(card: RoomCard | null): void {
+    this.roomCard = card;
   }
 
   promptText(): Promise<string | null> {

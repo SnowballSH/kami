@@ -2,6 +2,7 @@
 # On the GX10: (re)start MongoDB, Kami's Eye and the Kami server. Everything Kami computes happens on
 # this box: the game is served from here, memory is this MongoDB, rules are compiled by this Ollama, and
 # sketches are recognised by the Eye sidecar — or by the server's own k-NN when no trained model is here.
+# Which trained model is live is the one name in ~/kami-ml/artifacts/LIVE (kami-eye when there is no such file).
 # The same sidecar finishes drawings (/complete) when its model has an exemplar set (ml/exemplars.py),
 # and the server summons drawings by name from that set (KAMI_SKETCHES), all 345 categories.
 set -euo pipefail
@@ -11,8 +12,9 @@ MONGO_PORT=27017
 EYE_PORT=${KAMI_EYE_PORT:-8790}
 EYE_URL="http://127.0.0.1:$EYE_PORT"
 EYE_HEALTH_ATTEMPTS=120
-EYE_MODEL_NAME=${KAMI_EYE_MODEL_NAME:-kami-eye}
 ML_HOME=~/kami-ml
+LIVE_MODEL_FILE=$ML_HOME/artifacts/LIVE
+EYE_MODEL_NAME=${KAMI_EYE_MODEL_NAME:-$(cat "$LIVE_MODEL_FILE" 2>/dev/null || echo kami-eye)}
 MODEL=${KAMI_LLM_MODEL:-qwen3.8:latest}
 export MONGODB_URI="mongodb://127.0.0.1:$MONGO_PORT"
 

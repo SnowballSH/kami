@@ -1,5 +1,5 @@
 import type { PenPoint, Vec } from "../core/geometry";
-import type { ModeCard } from "../modes/types";
+import type { ModeCard, RoomCard } from "../modes/types";
 import type { PersistenceState } from "../persistence/types";
 import type { RuleId } from "../rules/types";
 import type { WalkIntent } from "../sim/types";
@@ -50,6 +50,8 @@ export interface Hud {
   setTidiness(tidiness: number): void;
   setBoards(boards: readonly BoardListing[], currentId: string): void;
   setPersistence(state: PersistenceState): void;
+  /** The title card of a staged room, fading on its own; `null` clears it and its progress mark. */
+  showRoomCard(card: RoomCard | null): void;
   /**
    * An inline field at `client` (CSS px) to write a note into — typed, or handwritten with
    * Apple Pencil Scribble. Resolves with the trimmed text, or null if abandoned or empty.
