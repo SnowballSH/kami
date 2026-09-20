@@ -4,7 +4,19 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from morph import DEFAULT_SETTINGS, MorphSettings, boldness_of, hand_for, morph, resample
+from morph import (
+    DEFAULT_SETTINGS,
+    Adding,
+    MorphSettings,
+    Slider,
+    boldness_of,
+    exact_hand,
+    morph,
+    morph_onto,
+    own_hand,
+    resample,
+    spacing_of,
+)
 
 Points = NDArray[np.float64]
 CENTRE = np.array([400.0, 300.0])
@@ -140,25 +152,89 @@ def test_the_players_slider_scales_how_firmly_he_tidies() -> None:
     assert errors[0] > errors[1] > errors[2] > errors[3]
 
 
-def test_half_firmness_is_kamis_own_hand_none_moves_nothing_and_full_takes_over() -> None:
-    own = hand_for(0.5, 1.0, DEFAULT_SETTINGS)
-    assert own.strength == pytest.approx(DEFAULT_SETTINGS.bold_strength)
-    assert own.max_shift == pytest.approx(DEFAULT_SETTINGS.bold_shift)
-    assert own.reach == pytest.approx(DEFAULT_SETTINGS.reach)
-    assert own.smoothing_window == DEFAULT_SETTINGS.smoothing_window
-    assert own.max_misfit_to_add == pytest.approx(DEFAULT_SETTINGS.max_misfit_to_add)
+def test_the_slider_is_care_up_to_the_middle_and_takeover_past_it() -> None:
+    assert Slider.at(0.0) == Slider(care=0.0, takeover=0.0)
+    assert Slider.at(0.25) == Slider(care=0.5, takeover=0.0)
+    assert Slider.at(0.5) == Slider(care=1.0, takeover=0.0)
+    assert Slider.at(0.75) == Slider(care=1.0, takeover=0.5)
+    assert Slider.at(1.0) == Slider.at(7.0) == Slider(care=1.0, takeover=1.0)
 
-    none = hand_for(0.0, 1.0, DEFAULT_SETTINGS)
-    assert none.strength == 0.0 and none.max_shift == 0.0
 
-    assert own.hop_weight == pytest.approx(DEFAULT_SETTINGS.hop_weight)
+def test_kamis_own_hand_is_as_bold_as_he_is_sure_and_the_exact_hand_has_no_limits() -> None:
+    gentle, bold = own_hand(0.0, DEFAULT_SETTINGS), own_hand(1.0, DEFAULT_SETTINGS)
+    assert gentle.strength == pytest.approx(DEFAULT_SETTINGS.gentle_strength)
+    assert bold.strength == pytest.approx(DEFAULT_SETTINGS.bold_strength)
+    assert bold.max_shift == pytest.approx(DEFAULT_SETTINGS.bold_shift)
+    assert bold.reach == pytest.approx(DEFAULT_SETTINGS.reach) and bold.insistence == 0.0
 
-    full = hand_for(1.0, 0.0, DEFAULT_SETTINGS)
-    assert full.strength == 1.0 and full.smoothing_window == 1
-    assert full.hop_weight == pytest.approx(DEFAULT_SETTINGS.exact_hop_weight)
-    assert full.max_shift > 1.0 and full.reach > 1.0
-    assert full.max_misfit_to_add == np.inf and full.max_added_share == np.inf
-    assert hand_for(7.0, 0.0, DEFAULT_SETTINGS) == full
+    exact = exact_hand(DEFAULT_SETTINGS)
+    assert exact.strength == 1.0 and exact.smoothing_window == 1 and exact.insistence == 1.0
+    assert exact.max_shift > 1.0 and exact.reach > 1.0
+    assert exact.hop_weight == pytest.approx(DEFAULT_SETTINGS.exact_hop_weight)
+
+
+def test_what_is_added_closes_to_nothing_at_zero_and_opens_to_everything_at_one() -> None:
+    at_rest = Adding.at(Slider.at(0.5), DEFAULT_SETTINGS)
+    assert at_rest.max_misfit == pytest.approx(DEFAULT_SETTINGS.max_misfit_to_add)
+    assert at_rest.max_share == pytest.approx(DEFAULT_SETTINGS.max_added_share)
+    assert at_rest.cover_radius == pytest.approx(DEFAULT_SETTINGS.cover_radius)
+
+    none, half = (
+        Adding.at(Slider.at(0.0), DEFAULT_SETTINGS),
+        Adding.at(Slider.at(0.25), DEFAULT_SETTINGS),
+    )
+    assert none.max_misfit == 0.0 and none.max_share == 0.0
+    assert 0.0 < half.max_share < at_rest.max_share
+
+    full = Adding.at(Slider.at(1.0), DEFAULT_SETTINGS)
+    assert full.max_misfit == np.inf and full.max_share == np.inf
+    assert full.cover_radius == pytest.approx(DEFAULT_SETTINGS.exact_cover_radius)
+
+
+def test_at_zero_nothing_moves_and_nothing_is_added_even_where_the_middle_adds() -> None:
+    drawn = np.column_stack([np.zeros(20), np.linspace(0.0, 100.0, 20)])
+    beside = np.column_stack([np.full(20, 60.0), np.linspace(0.0, 100.0, 20)])
+    at_rest = morph_onto([drawn], [drawn, beside], certainty=1.0, firmness=0.5)
+    untouched = morph_onto([drawn], [drawn, beside], certainty=1.0, firmness=0.0)
+    assert at_rest is not None and len(at_rest.added) == 1
+    assert untouched is not None and untouched.added == []
+    assert np.array_equal(untouched.tidied[0], drawn)
+
+
+def test_no_point_ever_moves_back_as_the_slider_goes_up() -> None:
+    rng = np.random.default_rng(3)
+    player = [arc(0.0, 2 * np.pi, count=90, wobble=7.0) + rng.normal(0.0, 1.5, (90, 2))]
+    tidied = [
+        result.tidied[0]
+        for firmness in np.linspace(0.0, 1.0, 51)
+        if (result := morph(player, unit_circle(), certainty=0.95, firmness=float(firmness)))
+    ]
+    assert len(tidied) == 51
+    from_the_ink = np.stack([np.linalg.norm(one - player[0], axis=1) for one in tidied[:26]])
+    to_the_exemplar = np.stack([np.linalg.norm(one - tidied[-1], axis=1) for one in tidied[25:]])
+    assert (np.diff(from_the_ink, axis=0) >= -1e-9).all()
+    assert (np.diff(to_the_exemplar, axis=0) <= 1e-9).all()
+
+
+def test_a_scribble_far_longer_than_its_bounds_is_sampled_within_the_budget() -> None:
+    corners = np.array([[0.0, 0.0], [300.0, 200.0]])
+    scribble = [np.tile(corners, (512, 1)) + CENTRE]
+    spacing = spacing_of(scribble, DEFAULT_SETTINGS)
+    assert sum(len(resample(stroke, spacing)) for stroke in scribble) <= (
+        DEFAULT_SETTINGS.most_samples + 2
+    )
+    result = morph(scribble, unit_circle(), firmness=1.0)
+    assert result is not None and len(result.tidied[0]) == 1024
+    assert np.isfinite(result.tidied[0]).all()
+
+
+def test_two_parts_added_from_one_stroke_never_overlap() -> None:
+    rail = np.column_stack([np.linspace(0.0, 255.0, 120), np.full(120, 128.0)])
+    drawn = [FRAME + CENTRE, (rail[55:65] + CENTRE)]
+    result = morph_onto(drawn, [FRAME + CENTRE, rail + CENTRE], certainty=1.0, firmness=1.0)
+    assert result is not None and len(result.added) == 2
+    left, right = sorted(result.added, key=lambda part: part[:, 0].min())
+    assert left[:, 0].max() <= right[:, 0].min()
 
 
 def test_at_full_firmness_the_drawing_becomes_the_exemplar_however_unsure_kami_is() -> None:

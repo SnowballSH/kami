@@ -193,16 +193,26 @@ characters; `null` and `""` mean no name.
      grows at both ends for as long as the exemplar keeps coming closer to the ink (until it is
      within 2 %), and starts where the two meet.
    - *The player's slider.* The request's optional `strength` (0–1, default 0.5) runs **from the
-     player's drawing to the dataset's**. 0 moves nothing and adds nothing. Up to 0.5 it scales the
-     tidying above; 0.5 is exactly the numbers above. Past 0.5 Kami takes over, whatever his
-     certainty: what is left alone, carried in one piece or evened out above fades away, the pull
-     goes to a full snap, the limits on a move and on reach open to the whole
-     drawing, the smoothing narrows to the point itself, the cover radius and shortest addition
-     shrink to 4 % and 4 %, and the two gates on adding open (each ÷ (1 − takeover), takeover =
-     (strength − 0.5) / 0.5). At 1 every point of theirs lies on the exemplar and every part of it
-     they did not draw is added: the drawing is the dataset's, in the player's place, size and pose, drawn
-     with the player's strokes first. Past 0.5 a hop between the exemplar's lines also costs up to
-     four times as much, so a snapped stroke does not cut across the drawing. Anything outside 0–1 is a `400`.
+     player's drawing to the dataset's**; `care` = min(1, strength / 0.5) and `takeover` =
+     max(0, strength − 0.5) / 0.5.
+     - *Up to the middle* each point takes `care` of the shift above: 0 moves nothing, 0.5 is
+       exactly the tidying above.
+     - *Past the middle* Kami takes over, whatever his certainty. A second, exact tidying is worked
+       out in which nothing is left alone, carried in one piece or evened out, the pull is a full
+       snap with no limit on a move or on reach, and a hop between the exemplar's lines costs four
+       times as much (so a snapped stroke does not cut across the drawing). Each point then lies
+       `takeover` of the way from its own tidied place to its exact one — so as the slider goes up
+       no point ever moves back, and at 1 every point of theirs lies on the exemplar.
+     - *What is added* follows the slider too. Its two gates (misfit ≤ 3 %, at most one and a half
+       times the player's ink) are multiplied by `care` — nothing is added at 0 — and divided by
+       (1 − takeover) — everything the player did not draw is added at 1, where the cover radius
+       and the shortest addition have shrunk to 4 %. Two parts added from one of the exemplar's
+       strokes never overlap.
+     At 1 the drawing is the dataset's, in the player's place, size and pose, drawn with the
+     player's strokes first. Anything outside 0–1 is a `400`.
+   - *Sampling.* Everything above samples the ink every 2 % of its diagonal, or further apart
+     when the ink is so long for its bounds (a scribble going back and forth) that this would take
+     more than 1,500 points, because the costs grow with that number and some with its square.
 
 `200 { "tidied", "added", "category", "confidence", "similarity", "boldness", "exemplar", "pose" }`. **`tidied` has exactly
 the request's shape** — the same strokes in the same order, each with the same number of points — so a
