@@ -173,7 +173,7 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 
 | Component | Files | Status | Notes |
 |---|---|---|---|
-| Canvas input | `src/ui/canvasInput.ts`, `gestures.ts`, `tap.ts`, `touchGuards.ts`, `render/pointerTracker.ts` | built | pencil = ink/erase/tap; fingers = pan/zoom; pointer mapping honours the paper's angle |
+| Canvas input | `src/ui/canvasInput.ts`, `gestures.ts`, `tap.ts`, `touchGuards.ts`, `render/pointerTracker.ts` | built | pencil cursor, touch-safe canvas, pencil = ink/erase/tap; fingers = pan/zoom; pointer mapping honours the paper's angle |
 | Toolbar & tools | `src/ui/toolbar.ts`, `toolSelection.ts`, `toolHotkeys.ts`, `zoomControls.ts`, `tidySlider.ts`, `boardMenu.ts` | built | pen, eraser, hand, text, zoom, board switch, tidy amount |
 | Text prompt | `src/ui/textPrompt.ts` | built | typed text → the same funnel |
 | Keyboard | `src/ui/keyboard.ts` | built | arrows/WASD override, space jump |
@@ -181,7 +181,7 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 | Walk intent merger | `src/ui/walkIntent.ts` | built | keyboard + stick + controller → one `intent`, steering the selected Alice (`Party.steer`) |
 | Arduino / cabinet | `src/controller/*`, `server/controllers/*` | external | `kami arcade <x> <y> [buttons]` over UDP/serial/HTTP → SSE → `createRemoteStick` ([controllers.md](controllers.md), [hardware.md](hardware.md)) |
 | Voice | `src/voice/*`, `server/voice/*`, `src/ui/talkButton.ts` | external | hold-to-talk / wake word → Deepgram proxy → funnel; Kami speaks back ([voice.md](voice.md)) |
-| HUD | `src/ui/hud.ts`, `toolbar.ts`, `lawsPanel.ts`, `controls.ts`, `persistenceStatus.ts`, `accessGate.ts` | built | always-available clear-page button; labeled, focusable 44px controls; laws panel stays visible with an empty-state hint; autopilot switch, save status, access gate |
+| HUD | `src/ui/hud.ts`, `toolbar.ts`, `lawsPanel.ts`, `controls.ts`, `persistenceStatus.ts`, `accessGate.ts` | built | always-available clear-page button; labeled, focusable 44px controls; laws panel stays visible with an empty-state hint; HUD dragging cannot select text; autopilot switch, save status, access gate |
 
 ## 11. The text funnel
 

@@ -21,6 +21,7 @@
   font-family: var(--kami-ui);
   font-size: 15px;
   color: var(--kami-ink);
+  user-select: none;
 }
 
 .kami-hud [hidden] {
