@@ -576,7 +576,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private async offerGuesses(drawing: Drawing): Promise<void> {
     const epoch = this.epoch;
-    const { certain, guesses } = await this.modules.cat.look(drawing);
+    const { certain, rulings } = await this.modules.cat.look(drawing);
     if (certain !== null) await this.unread.get(drawing.id);
     if (epoch !== this.epoch || this.ledger.get(drawing.id)?.ruling !== null) return;
 
@@ -584,7 +584,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (certain !== null) {
       const label = this.kamiWrites(certain.name, corner, { drift: "down" });
       this.labelsByKami.add(label.id);
-      this.name(drawing.id, certain, label);
+      this.name(drawing.id, this.modules.cat.accept(certain), label);
       return;
     }
     const anchor: NoteAnchor = { type: "drawing", id: drawing.id };
@@ -596,14 +596,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         { lifetimeMs: GUESS_LIFETIME_MS, anchor, drift: "down" },
       );
     }
-    guesses.forEach((name, index) => {
+    rulings.forEach((ruling, index) => {
+      const { name } = ruling;
       this.kamiWrites(
         `${name}?`,
         { x: corner.x, y: corner.y + index * GUESS_OFFSET.line },
         {
           lifetimeMs: GUESS_LIFETIME_MS,
           anchor,
-          action: { type: "name-drawing", drawingId: drawing.id, name },
+          action: { type: "name-drawing", drawingId: drawing.id, name, ruling },
           drift: "down",
         },
       );
@@ -612,7 +613,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private perform(action: NoteAction, offered: Note): void {
     const label = this.playerWrites(action.name, offered.position);
-    void this.nameDrawing(action.drawingId, action.name, label);
+    if (action.ruling === undefined) {
+      void this.nameDrawing(action.drawingId, action.name, label);
+    } else {
+      this.name(action.drawingId, this.modules.cat.accept(action.ruling), label);
+    }
   }
 
   private async promptAt(client: Vec, world: Vec): Promise<void> {

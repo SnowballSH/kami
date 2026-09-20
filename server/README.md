@@ -279,6 +279,13 @@ confidence summed: `birthday cake` → `cake`, `coffee cup` and `mug` → `cup`,
 `face`. So `guesses` only ever holds the canonical word, and a client that reads just `guesses` and
 `confidence` keeps working unchanged. A word the table has never met is `"ink"`, strength 1.
 
+The game accepts these structured rulings directly through `Cat.accept`; it does not reinterpret a
+guess's name with the typed-name lexicon. Room restrictions still apply. `NoteAction.ruling` is an
+optional additive field using the existing `Ruling` schema; old name-only actions remain valid.
+Guess notes stay transient. The contract test in `server/natures/recognitionContract.test.ts` compares
+all 345 categories, including aliases, through the HTTP adapter and acceptance path. Its only
+exclusion allowlist is the eight bare shapes, which remain unnamed.
+
 ## Running everything on the ASUS Ascent GX10
 
 All computation happens on the box; the Mac edits, tests and ships.

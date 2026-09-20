@@ -1,3 +1,4 @@
+import type { Ruling } from "../cat/types";
 import type { Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 
@@ -13,6 +14,7 @@ export type NoteAction = {
   readonly type: "name-drawing";
   readonly drawingId: DrawingId;
   readonly name: string;
+  readonly ruling?: Ruling;
 };
 
 /** Anything written on the board, by the player or by Kami. Always rendered as pen strokes. */
