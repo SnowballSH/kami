@@ -73,6 +73,7 @@ const scene = (overrides: Partial<Scene> = {}): Scene => ({
   board: board(),
   alice: alice({ x: 100, y: GROUND_Y }),
   inks: [],
+  bites: [],
   keyTaken: false,
   doorOpen: false,
   walkSpeed: walkSpeedAt(1),
@@ -83,6 +84,31 @@ const scene = (overrides: Partial<Scene> = {}): Scene => ({
 });
 
 describe("Pilot", () => {
+  it("charts a bite through an off-grid slab without leaving phantom ground", () => {
+    const floor = { x: 0, y: GROUND_Y + 1, width: 300, height: 10 };
+    const hole = { x: 120, y: floor.y, width: 48, height: floor.height };
+    const bitten = scene({ board: board({ solids: [solid(floor)] }), bites: [hole] });
+    const chart = Chart.of(bitten);
+    if (chart === null) throw new Error("bitten chart refused");
+    const column = Math.floor(140 / CELL_PX);
+    for (
+      let row = Math.floor(floor.y / CELL_PX);
+      row < Math.ceil((floor.y + floor.height) / CELL_PX);
+      row++
+    ) {
+      expect(chart.has(column, row, CellFlag.solid)).toBe(false);
+      expect(chart.has(column, row, CellFlag.fixture)).toBe(false);
+      expect(chart.has(Math.floor(80 / CELL_PX), row, CellFlag.solid)).toBe(true);
+    }
+    const healed = Chart.of({ ...bitten, bites: [] });
+    expect(healed?.has(column, Math.floor(floor.y / CELL_PX), CellFlag.solid)).toBe(true);
+    const bridged = Chart.of({
+      ...bitten,
+      inks: [ink(line({ x: 110, y: floor.y }, { x: 180, y: floor.y }))],
+    });
+    expect(bridged?.has(column, Math.floor(floor.y / CELL_PX), CellFlag.solid)).toBe(true);
+  });
+
   it("waits safely on an oversized world without modifying the artwork", () => {
     const drawing = ink(
       [

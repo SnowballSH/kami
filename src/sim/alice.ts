@@ -143,6 +143,12 @@ export class AliceController {
     return exactBounds(this.body);
   }
 
+  /** The point between her soles: where the ground under her is. */
+  feet(): Vec {
+    const bounds = this.bounds();
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height };
+  }
+
   standsOn(body: Matter.Body): boolean {
     return this.footing.some((contact) => contact.body === body);
   }

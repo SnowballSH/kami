@@ -19,6 +19,11 @@ type InkState = Pick<InkEntity, "nature" | "strength" | "frozen" | "motion">;
 
 const PLAIN_INK: InkState = { nature: "ink", strength: 1, frozen: false, motion: STILL };
 
+/** Where ink may anchor on the board, as it stands now. */
+export interface AnchorSource {
+  readonly anchorRects: readonly Rect[];
+}
+
 /** Every live drawing on the board, and the matter-js bodies that stand for them. */
 export class InkLayer {
   private readonly inks = new Map<DrawingId, InkEntity>();
@@ -26,7 +31,7 @@ export class InkLayer {
 
   constructor(
     private readonly world: Matter.World,
-    private readonly anchorRects: readonly Rect[],
+    private readonly anchors: AnchorSource,
     private physics: WorldPhysics,
   ) {}
 
@@ -130,7 +135,7 @@ export class InkLayer {
     state: InkState,
   ): Matter.Body | null {
     const strategy = NATURES[state.nature];
-    const anchorClusters = countAnchorClusters(worldStrokes, this.anchorRects);
+    const anchorClusters = countAnchorClusters(worldStrokes, this.anchors.anchorRects);
     return buildInkBody(bearingStrokes(drawnStrokes), {
       isStatic: state.frozen || holdsStill(strategy, anchorClusters),
       material: this.materialOf(state),

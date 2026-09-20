@@ -57,8 +57,10 @@ import {
   RULE_REPEALED_LINE,
   SHRUGS,
   STUCK_LINE,
+  SUMIKUI_ALICE_DEVOURED_LINES,
   SUMIKUI_DEVOURED_LINES,
   SUMIKUI_LORE_LINE_DELAY_MS,
+  SUMIKUI_PAPER_BITTEN_LINES,
   SUMIKUI_SEALED_LINE,
   SUMIKUI_SUMMONED_LINES,
   SUMIKUI_WOKE_LINE,
@@ -163,6 +165,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private shrugs = 0;
   private sumikuiLoose = false;
   private meals = 0;
+  private bites = 0;
+  private swallows = 0;
   private recital: Recital[] = [];
   /** Settled ink the pen reader is still reading: weightless until it is known to be a drawing. */
   private readonly held = new HeldInkBook();
@@ -469,6 +473,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       board: this.board,
       alice: world.alice,
       inks: this.ledger.sceneInks(world.drawings),
+      bites: world.bites,
       keyTaken: world.keyTaken,
       doorOpen: world.doorOpen,
       walkSpeed: sim.walkSpeed(),
@@ -537,6 +542,22 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       case "devoured":
         this.discard(event.drawingId);
         this.remark(SUMIKUI_DEVOURED_LINES[this.meals++ % SUMIKUI_DEVOURED_LINES.length] ?? "");
+        return;
+      case "paper-bitten":
+        this.modules.autopilot.invalidate();
+        this.remark(
+          SUMIKUI_PAPER_BITTEN_LINES[this.bites++ % SUMIKUI_PAPER_BITTEN_LINES.length] ?? "",
+        );
+        return;
+      case "paper-healed":
+        this.modules.autopilot.invalidate();
+        return;
+      case "alice-devoured":
+        this.modules.autopilot.invalidate();
+        this.remark(
+          SUMIKUI_ALICE_DEVOURED_LINES[this.swallows++ % SUMIKUI_ALICE_DEVOURED_LINES.length] ?? "",
+          HINT_LIFETIME_MS,
+        );
         return;
     }
   }

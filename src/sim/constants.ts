@@ -77,3 +77,22 @@ export const SUMIKUI_NEAR_PX = 600;
 export const SUMIKUI_REACH = 24;
 /** How long it sits on a drawing before the drawing is gone. */
 export const SUMIKUI_BITE_MS = 1500;
+/** Within this of Alice it forgets every other meal and lunges at her. */
+export const SUMIKUI_LUNGE_PX = 90;
+/** Chasing her, it gives up once she has this much of a lead and snaps at what she left behind. */
+export const SUMIKUI_LOSES_HER_PX = 220;
+/** How long it must hold Alice before she is devoured. */
+export const SUMIKUI_CATCH_MS = 700;
+/** Gorged on Alice it drifts sluggish for this long, and its pace starts over from the base. */
+export const SUMIKUI_SATED_MS = 8_000;
+/** The mouthful it takes out of the board's own paper: a column this wide, clean through the slab. */
+export const SUMIKUI_BITE_WIDTH = 48;
+/** Paper counts as under her feet when its top lies within this far below them. */
+export const SUMIKUI_BITE_DEPTH = 40;
+/** Bitten paper knits itself back after this long. */
+export const SUMIKUI_SCAR_HEALS_MS = 30_000;
+/** It never bites the paper this close to where Kami sets her down: the spawn and checkpoints. */
+export const SUMIKUI_HALLOWED_PX = 90;
+/** Awake this long, it stops ignoring clutter she never used and sweeps it up in one gulp. */
+export const SUMIKUI_SWEEPS_AFTER_MS = 45_000;
+export const SUMIKUI_GULP_MS = 250;

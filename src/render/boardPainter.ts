@@ -72,6 +72,39 @@ const paintPiece = (ctx: CanvasRenderingContext2D, piece: CachedPiece): void => 
   }
 };
 
+const BITE = { teeth: 5, depthRatio: 0.18, lineWidth: 1.5 } as const;
+
+/** A hole the Sumikui left: blank paper inside a ragged, toothed edge. */
+const traceBite = (ctx: CanvasRenderingContext2D, hole: Rect): void => {
+  const { x, y, width, height } = hole;
+  const depth = width * BITE.depthRatio;
+  const tooth = (index: number, along: number): number =>
+    depth * (0.4 + 0.6 * Math.abs(Math.sin(index * 2.7 + along * 0.013)));
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  for (let index = 1; index <= BITE.teeth; index++) {
+    const bx = x + (width * index) / BITE.teeth;
+    ctx.lineTo(bx - width / (2 * BITE.teeth), y + tooth(index, bx));
+    ctx.lineTo(bx, y);
+  }
+  ctx.lineTo(x + width, y + height);
+  for (let index = BITE.teeth - 1; index >= 0; index--) {
+    const bx = x + (width * index) / BITE.teeth;
+    ctx.lineTo(bx + width / (2 * BITE.teeth), y + height - tooth(index, bx));
+    ctx.lineTo(bx, y + height);
+  }
+  ctx.closePath();
+};
+
+const paintBite = (ctx: CanvasRenderingContext2D, hole: Rect): void => {
+  traceBite(ctx, hole);
+  ctx.fillStyle = BOARD_COLORS.board;
+  ctx.fill();
+  ctx.strokeStyle = BOARD_COLORS.hatch;
+  ctx.lineWidth = BITE.lineWidth;
+  ctx.stroke();
+};
+
 const paintKeyhole = (ctx: CanvasRenderingContext2D, door: Rect): void => {
   const x = door.x + door.width / 2;
   const y = door.y + door.height * KEYHOLE.heightRatio;
@@ -112,6 +145,7 @@ export class BoardPainter {
     for (const piece of this.scenery) {
       if (rectInView(piece.bounds, view, 0)) paintPiece(ctx, piece);
     }
+    for (const hole of world.bites) if (rectInView(hole, view, 0)) paintBite(ctx, hole);
     const { door, key } = this.props;
     if (door !== null && !world.doorOpen && rectInView(door.piece.bounds, view, 0)) {
       paintPiece(ctx, door.piece);

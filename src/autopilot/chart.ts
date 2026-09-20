@@ -1,5 +1,12 @@
 import type { Nature } from "../cat/types";
-import { boundsOf, poseToWorld, type Rect, rectsOverlap, type Vec } from "../core/geometry";
+import {
+  boundsOf,
+  poseToWorld,
+  type Rect,
+  rectsOverlap,
+  remainingColumns,
+  type Vec,
+} from "../core/geometry";
 import { INK_THICKNESS } from "../core/world";
 import { bearingStrokes } from "../ink/bearing";
 import type { DrawingId } from "../ink/types";
@@ -126,7 +133,8 @@ const extentOf = (scene: Scene): CellRange => {
 };
 
 const boundedGeometry = (scene: Scene): boolean => {
-  let remaining = MAX_GEOMETRY_ITEMS - scene.board.solids.length - scene.inks.length;
+  let remaining =
+    MAX_GEOMETRY_ITEMS - scene.board.solids.length - scene.bites.length - scene.inks.length;
   if (remaining < 0) return false;
   for (const ink of scene.inks) {
     remaining -= ink.drawing.strokes.length;
@@ -178,7 +186,9 @@ export class Chart {
     if (!boundedRange(range)) return null;
     const chart = new Chart(range, scene.canFly);
     for (const solid of scene.board.solids) {
-      if (!chart.stampRect(solid.rect, CellFlag.solid | CellFlag.fixture)) return null;
+      for (const piece of remainingColumns(solid.rect, scene.bites)) {
+        if (!chart.stampRect(piece, CellFlag.solid | CellFlag.fixture)) return null;
+      }
     }
     if (scene.board.door !== undefined && !scene.doorOpen) {
       if (!chart.stampRect(scene.board.door, CellFlag.solid | CellFlag.fixture | CellFlag.door))
