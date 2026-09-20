@@ -5,7 +5,7 @@
 > Alice can hop, not fly. You can draw.
 > Draw it. Name it. It wakes up.
 
-*Kami* (紙) is paper; *kami* (神) is the spirit in a thing. A hand-drawn puzzle-platformer down the rabbit hole: what you draw becomes solid ink, and becomes whatever you say it is. The Cheshire Cat listens, talks back, and helps when you're stuck. The software demo supports mouse, keyboard and touch. The cabinet remains a partial integration; knob drawing and full physical acceptance are not complete.
+*Kami* (紙) is paper; *kami* (神) is the spirit in a thing. A hand-drawn puzzle-platformer down the rabbit hole: what you draw becomes solid ink, and becomes whatever you say it is. The Cheshire Cat listens, talks back, and helps when you're stuck. Playable on a laptop or iPad. The optional cabinet has a server-relayed arcade stick; knob drawing and the rest of the cabinet remain incomplete.
 
 ## Play the software demo
 
@@ -32,9 +32,9 @@ Open the printed **Network** URL on an iPad on the same trusted Wi-Fi (landscape
 |---|---|
 | [`docs/spec.md`](docs/spec.md) | **The spec. Source of truth for what Kami is** — pillars, mechanics, rulings, the Cat, the rooms, demo, scope, schedule. No code. |
 | [`docs/architecture.md`](docs/architecture.md) | **Current integration guide:** implementation, ownership, API/model contracts, security status and verification limits. |
-| [`docs/hardware.md`](docs/hardware.md) | Cabinet design and bring-up reference; [current path and pending R19 integration](docs/architecture.md#controllers-and-voice) take precedence over its browser Web Serial proposal. |
+| [`docs/hardware.md`](docs/hardware.md) | The cabinet: parts status, what's still missing, wiring, serial protocol, bring-up steps. |
 | [`docs/engineering-notes.md`](docs/engineering-notes.md) | Pointer to archived design experiments; not a build plan. |
-| [`hardware/cabinet/cabinet.ino`](hardware/cabinet/cabinet.ino) | UNO R4 WiFi firmware; [R19](https://github.com/SnowballSH/kami/pull/41) adds a verified build and server adapter, without claiming physical readiness. |
+| [`hardware/cabinet/cabinet.ino`](hardware/cabinet/cabinet.ino) | UNO R4 WiFi firmware; pinned compile and native tests via `scripts/checkCabinet.sh`. Physical verification outstanding. |
 
 `docs/archive/` is history: the original "Paper" ideation doc, its review, plan v2, and plan v3 ("Curiouser"). **Don't build from the archive.**
 
