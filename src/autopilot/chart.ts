@@ -10,6 +10,7 @@ import {
 import { INK_THICKNESS } from "../core/world";
 import { bearingStrokes } from "../ink/bearing";
 import type { DrawingId } from "../ink/types";
+import type { AliceSnapshot } from "../sim/types";
 import type { Scene, SceneInk } from "./types";
 
 export const CELL_PX = 8;
@@ -93,12 +94,19 @@ const worldPoints = (ink: SceneInk): Vec[] =>
     stroke.map((point) => poseToWorld(point, ink.pose)),
   );
 
-const aliceRect = (scene: Scene): Rect => ({
-  x: scene.alice.center.x - scene.alice.width / 2,
-  y: scene.alice.center.y - scene.alice.height / 2,
-  width: scene.alice.width,
-  height: scene.alice.height,
+const rectOf = (alice: AliceSnapshot): Rect => ({
+  x: alice.center.x - alice.width / 2,
+  y: alice.center.y - alice.height / 2,
+  width: alice.width,
+  height: alice.height,
 });
+
+/**
+ * Every Alice on the page, none of them ever stamped: they are not solid to one another, and a
+ * chart that reads the same for each of them is one chart they can all share.
+ */
+const everyAliceRect = (scene: Scene): readonly Rect[] =>
+  [scene.alice, ...scene.others].map(rectOf);
 
 const CREATURES: ReadonlySet<Nature> = new Set<Nature>(["walker", "hopper", "flier", "vehicle"]);
 const CRAMP_INSET = 2;
@@ -119,7 +127,7 @@ const cramps = (ink: SceneInk, alice: Rect): boolean =>
 const extentOf = (scene: Scene): CellRange => {
   const { board } = scene;
   const rects: Rect[] = [
-    aliceRect(scene),
+    ...everyAliceRect(scene),
     ...board.solids.map((solid) => solid.rect),
     ...(board.door === undefined ? [] : [board.door]),
     ...(board.goal === undefined ? [] : [board.goal]),
@@ -197,9 +205,10 @@ export class Chart {
     }
     if (scene.board.goal !== undefined && !chart.stampRect(scene.board.goal, CellFlag.goal))
       return null;
-    const alice = aliceRect(scene);
+    const alices = everyAliceRect(scene);
     for (const ink of scene.inks) {
-      if (!cramps(ink, alice) && !chart.stampInk(ink, flagsFor(ink.nature))) return null;
+      if (alices.some((alice) => cramps(ink, alice))) continue;
+      if (!chart.stampInk(ink, flagsFor(ink.nature))) return null;
     }
     return chart;
   }

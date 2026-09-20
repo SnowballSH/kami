@@ -12,7 +12,15 @@ import {
   Pathfinder,
   type Waypoint,
 } from "./pathfinder";
-import type { Autopilot, Errand, Objective, PilotStatus, Scene, SceneInk } from "./types";
+import type {
+  Autopilot,
+  Errand,
+  Objective,
+  PilotOptions,
+  PilotStatus,
+  Scene,
+  SceneInk,
+} from "./types";
 
 const IDLE: WalkIntent = { x: 0, y: 0 };
 /** She re-reads the board this often even when nothing told her it changed. */
@@ -39,6 +47,11 @@ const STANDOFF_BODIES = 6;
 /** Ticks without moving after which "in the air" is really "wedged", and she thinks again. */
 const SETTLE_TICKS = 20;
 const SETTLE_PX = 0.5;
+/** How far ahead a wandering Alice sets her sights, and how long she looks about at the end. */
+const WANDER_PX = 480;
+const WANDER_REST_TICKS = 90;
+
+const ALONE: PilotOptions = { seed: 0, wanders: false, charter: Chart.of };
 
 const RESTING: PilotStatus = { errand: { kind: "idle" }, stuck: false, target: null };
 
@@ -103,6 +116,7 @@ const isAirborne = (scene: Scene): boolean => !scene.alice.grounded && !scene.al
 const sameErrand = (a: Errand, b: Errand): boolean => {
   if (a.kind !== b.kind) return false;
   if (a.kind === "eat") return b.kind === "eat" && a.drawingId === b.drawingId;
+  if (a.kind === "wander") return b.kind === "wander" && a.heading === b.heading;
   if (a.kind === "objective" || a.kind === "wait") {
     return "objective" in b && a.objective === b.objective;
   }
@@ -134,7 +148,13 @@ export class Pilot implements Autopilot {
   private sulkTicks = 0;
   private lastFeet: Vec | null = null;
   private stillTicks = 0;
+  private heading: -1 | 1;
+  private restTicks = 0;
   private current: PilotStatus = RESTING;
+
+  constructor(private readonly options: PilotOptions = ALONE) {
+    this.heading = options.seed % 2 === 0 ? 1 : -1;
+  }
 
   get status(): PilotStatus {
     return this.current;
@@ -205,7 +225,7 @@ export class Pilot implements Autopilot {
       threat !== null
         ? this.fleePlan(scene, footprint, threat)
         : objective === null
-          ? this.remember(scene, footprint, { kind: "idle" }, null)
+          ? this.strollOrIdle(scene, footprint)
           : this.planFor(scene, footprint, objective);
 
     const last = plan.path?.at(-1);
@@ -229,13 +249,26 @@ export class Pilot implements Autopilot {
     };
   }
 
+  private strollOrIdle(scene: Scene, footprint: Footprint): Plan {
+    const idle = this.remember(scene, footprint, { kind: "idle" }, null);
+    if (!this.options.wanders) return idle;
+    const chart = this.options.charter(scene);
+    if (chart === null) return idle;
+    const finder = new Pathfinder(chart, scene, footprint);
+    const feet = feetOfScene(scene);
+    const ahead = { x: feet.x + this.heading * WANDER_PX, y: feet.y };
+    const route = finder.nearestTo(nodeOfFeet(feet, footprint), ahead);
+    if (route === null) return idle;
+    return this.remember(scene, footprint, { kind: "wander", heading: this.heading }, route);
+  }
+
   /**
    * Routes are drawn on the board as it will be once the Sumikui finishes its mouthful, so she
    * never sets out over a dissolving bridge; already on one, she races across while it stands.
    */
   private planFor(scene: Scene, footprint: Footprint, objective: Objective): Plan {
     const foreseen = afterTheMeal(scene);
-    const chart = Chart.of(foreseen);
+    const chart = this.options.charter(foreseen);
     if (chart === null) return this.remember(scene, footprint, { kind: "wait", objective }, null);
     const finder = new Pathfinder(chart, foreseen, footprint);
     const start = nodeOfFeet(feetOfScene(scene), footprint);
@@ -264,14 +297,14 @@ export class Pilot implements Autopilot {
     objective: Objective,
   ): readonly Waypoint[] | null {
     if (foreseen === scene) return null;
-    const chart = Chart.of(scene);
+    const chart = this.options.charter(scene);
     if (chart === null) return null;
     return new Pathfinder(chart, scene, footprint).route(start, { kind: "objective", objective });
   }
 
   private fleePlan(scene: Scene, footprint: Footprint, threat: Vec): Plan {
     const foreseen = afterTheMeal(scene);
-    const chart = Chart.of(foreseen);
+    const chart = this.options.charter(foreseen);
     if (chart === null) return this.remember(scene, footprint, { kind: "flee" }, null);
     const finder = new Pathfinder(chart, foreseen, footprint);
     const start = nodeOfFeet(feetOfScene(scene), footprint);
@@ -303,7 +336,7 @@ export class Pilot implements Autopilot {
         inks: scene.inks.filter((ink) => ink.drawing.id !== meal.drawing.id),
       };
       const grown = footprintFor(scene.alice, newSize);
-      const chart = Chart.of(after);
+      const chart = this.options.charter(after);
       if (chart === null) continue;
       const onward = new Pathfinder(chart, after, grown);
       const from = nodeOfFeet(feetOf(last.node, footprint), grown);
@@ -404,7 +437,8 @@ export class Pilot implements Autopilot {
       return false;
     }
     if (patient || ++this.ticksSinceProgress < STALL_TICKS) return false;
-    this.giveUp();
+    if (this.plan?.errand.kind === "wander") this.turnBack();
+    else this.giveUp();
     return true;
   }
 
@@ -424,11 +458,28 @@ export class Pilot implements Autopilot {
   private nudge(scene: Scene, errand: Errand): WalkIntent {
     const towards = (x: number): WalkIntent => ({ x: sign(x - scene.alice.center.x), y: 0 });
     if (errand.kind === "wait" || errand.kind === "idle" || errand.kind === "flee") return IDLE;
+    if (errand.kind === "wander") {
+      this.lookAbout();
+      return IDLE;
+    }
     if (errand.kind === "eat") {
       const meal = scene.inks.find((ink) => ink.drawing.id === errand.drawingId);
       return meal === undefined ? IDLE : towards(meal.pose.position.x);
     }
     return towards(pointOf(scene, errand.objective).x);
+  }
+
+  /** At the end of a stroll she stands a while, then turns and strolls back the other way. */
+  private lookAbout(): void {
+    if (++this.restTicks < WANDER_REST_TICKS) return;
+    this.turnBack();
+  }
+
+  private turnBack(): void {
+    this.restTicks = 0;
+    this.ticksSinceProgress = 0;
+    this.heading = this.heading === 1 ? -1 : 1;
+    this.stale = true;
   }
 
   private giveUp(): void {
@@ -438,4 +489,4 @@ export class Pilot implements Autopilot {
   }
 }
 
-export const createAutopilot = (): Autopilot => new Pilot();
+export const createAutopilot = (options?: PilotOptions): Autopilot => new Pilot(options);

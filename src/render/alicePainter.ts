@@ -21,6 +21,21 @@ const BACK_HIP: Vec = { x: -3.5, y: 13 };
 const TOE_LENGTH = 3.5;
 const KEY_HOLD: Vec = { x: 11, y: -7 };
 const CARRIED_KEY = { length: 13, angle: -Math.PI / 2 } as const;
+const RIBBON_HUE_STEP = 137;
+const RIBBON_NUMBER = { y: -33, font: "bold 7px sans-serif" } as const;
+const SELECTION_CARET = { y: -38, half: 4, height: 5 } as const;
+
+/** How a twin is told apart from Alice herself and from each other: a coloured, numbered ribbon. */
+export interface AliceLook {
+  /** Her number among the twins (1 up); Alice herself wears no ribbon. */
+  readonly ribbon: number | null;
+  readonly selected: boolean;
+}
+
+export const HERSELF: AliceLook = { ribbon: null, selected: false };
+
+export const ribbonColour = (ribbon: number): string =>
+  `hsl(${(ribbon * RIBBON_HUE_STEP) % 360} 65% 45%)`;
 
 const DRESS: readonly Vec[] = [
   { x: 0, y: -14 },
@@ -63,7 +78,7 @@ const paintDress = (ctx: CanvasRenderingContext2D): void => {
   ctx.stroke();
 };
 
-const paintHead = (ctx: CanvasRenderingContext2D): void => {
+const paintHead = (ctx: CanvasRenderingContext2D, look: AliceLook): void => {
   ctx.beginPath();
   ctx.arc(HEAD.x, HEAD.y, HEAD.radius, 0, TAU);
   ctx.fillStyle = BOARD_COLORS.board;
@@ -78,14 +93,42 @@ const paintHead = (ctx: CanvasRenderingContext2D): void => {
   ctx.beginPath();
   ctx.arc(HEAD.x, HEAD.y, HEAD.radius, HAIR_BAND.from, HAIR_BAND.to);
   ctx.lineWidth = HAIR_BAND.width;
+  if (look.ribbon !== null) ctx.strokeStyle = ribbonColour(look.ribbon);
   ctx.stroke();
+  ctx.strokeStyle = BOARD_COLORS.marker;
   ctx.lineWidth = LINE_WIDTH;
+};
+
+/** Her number and the caret over whoever the player steers, drawn upright whichever way she faces. */
+const paintLook = (ctx: CanvasRenderingContext2D, facing: number, look: AliceLook): void => {
+  if (look.ribbon === null && !look.selected) return;
+  ctx.save();
+  ctx.scale(facing, 1);
+  if (look.ribbon !== null) {
+    ctx.fillStyle = ribbonColour(look.ribbon);
+    ctx.font = RIBBON_NUMBER.font;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(String(look.ribbon + 1), HEAD.x, RIBBON_NUMBER.y);
+  }
+  if (look.selected) {
+    const { y, half, height } = SELECTION_CARET;
+    ctx.beginPath();
+    ctx.moveTo(HEAD.x - half, y - height);
+    ctx.lineTo(HEAD.x + half, y - height);
+    ctx.lineTo(HEAD.x, y);
+    ctx.closePath();
+    ctx.fillStyle = BOARD_COLORS.marker;
+    ctx.fill();
+  }
+  ctx.restore();
 };
 
 export const paintAlice = (
   ctx: CanvasRenderingContext2D,
   alice: AliceSnapshot,
   nowMs: number,
+  look: AliceLook = HERSELF,
 ): void => {
   const pose = ALICE_POSES[alicePoseName(alice, nowMs)];
   const frontHand = alice.hasKey ? KEY_HOLD : pose.frontHand;
@@ -98,8 +141,9 @@ export const paintAlice = (
   ctx.strokeStyle = BOARD_COLORS.marker;
   paintBehindDress(ctx, pose);
   paintDress(ctx);
-  paintHead(ctx);
+  paintHead(ctx, look);
   paintFrontArm(ctx, frontHand);
   if (alice.hasKey) paintKey(ctx, frontHand, CARRIED_KEY.length, CARRIED_KEY.angle);
+  paintLook(ctx, alice.facing, look);
   ctx.restore();
 };

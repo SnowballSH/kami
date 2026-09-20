@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blankBoard } from "../board/boards/blank";
+import { EARTH } from "../rules/types";
 import {
   blob,
   drawingOf,
@@ -47,7 +48,7 @@ describe("portals", () => {
     const sim = withPortals(120, -240);
     const events = walkInto(sim, 120);
     expect(warpsOf(events)).toEqual([
-      { type: "warped", from: idOf("portal 1"), to: idOf("portal 2") },
+      { type: "warped", who: 0, from: idOf("portal 1"), to: idOf("portal 2") },
     ]);
     expect(feetOf(sim).x).toBeCloseTo(-240, -1);
   });
@@ -77,7 +78,7 @@ describe("portals", () => {
     runUntil(sim, (_, current) => feetOf(current).x < -240 - DOOR.width, 300);
     const events = walkInto(sim, -240);
     expect(warpsOf(events)).toEqual([
-      { type: "warped", from: idOf("portal 2"), to: idOf("portal 1") },
+      { type: "warped", who: 0, from: idOf("portal 2"), to: idOf("portal 1") },
     ]);
   });
 
@@ -95,5 +96,20 @@ describe("portals", () => {
     sim.setWalkIntent(RIGHT);
     runUntil(sim, (_, current) => feetOf(current).x > 200, 600);
     expect(feetOf(sim).x).toBeGreaterThan(200);
+  });
+
+  it("carry only the Alice who stepped in, and say which one warped", () => {
+    const sim = withPortals(200, -200);
+    sim.setPhysics({ ...EARTH, clones: 1 });
+    runSteps(sim, 30);
+    const herself = feetOf(sim).x;
+    sim.setWalkIntent(RIGHT, 1);
+    const events = runUntil(sim, (seen) => warpsOf(seen).length > 0, 900);
+    expect(warpsOf(events)).toEqual([
+      { type: "warped", who: 1, from: idOf("portal 1"), to: idOf("portal 2") },
+    ]);
+    const twin = sim.aliceBounds(1);
+    expect(twin.x + twin.width / 2).toBeCloseTo(-200, -1);
+    expect(feetOf(sim).x).toBeCloseTo(herself, 0);
   });
 });

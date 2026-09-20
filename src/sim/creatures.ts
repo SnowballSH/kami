@@ -92,7 +92,7 @@ const setVelocity = (ink: InkEntity, velocity: Vec): void => {
 };
 
 const carryAlice = (ink: InkEntity, world: NatureWorld, velocity: Vec): void => {
-  if (world.alice.standsOn(ink.body)) world.alice.ride(velocity);
+  for (const alice of world.alices) if (alice.standsOn(ink.body)) alice.ride(velocity);
 };
 
 /**

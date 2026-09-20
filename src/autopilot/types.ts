@@ -3,6 +3,7 @@ import type { Nature } from "../cat/types";
 import type { Pose, Rect, Vec } from "../core/geometry";
 import type { Drawing } from "../ink/types";
 import type { AliceSnapshot, BounceArc, SumikuiSnapshot, WalkIntent } from "../sim/types";
+import type { Chart } from "./chart";
 
 export interface SceneInk {
   readonly drawing: Drawing;
@@ -11,10 +12,14 @@ export interface SceneInk {
   readonly strength: number;
 }
 
-/** What Alice can see: the board as sketched, the ink as it lies now, and herself. */
+/**
+ * What one Alice can see: the board as sketched, the ink as it lies now, herself, and the other
+ * Alices on the page. The others are company, never obstacles: the chart leaves them out.
+ */
 export interface Scene {
   readonly board: BoardDefinition;
   readonly alice: AliceSnapshot;
+  readonly others: readonly AliceSnapshot[];
   readonly inks: readonly SceneInk[];
   /** Holes the Sumikui has bitten out of the board's solids: air where the sketch says ground. */
   readonly bites: readonly Rect[];
@@ -42,6 +47,8 @@ export type Errand =
   | { readonly kind: "wait"; readonly objective: Objective }
   /** The Sumikui is on her: run for the nearest footing out of its reach, the errand can wait. */
   | { readonly kind: "flee" }
+  /** Nothing to reach for and a mind of her own: stroll one way until the ground runs out, then back. */
+  | { readonly kind: "wander"; readonly heading: -1 | 1 }
   /** The board has nothing to reach for yet — no key, door or goal. */
   | { readonly kind: "idle" };
 
@@ -50,6 +57,17 @@ export interface PilotStatus {
   /** True once she has come to the end of what is possible and is looking at the player. */
   readonly stuck: boolean;
   readonly target: Vec | null;
+}
+
+/** How a pilot reads the board; shared between pilots so several Alices chart the page once. */
+export type Charter = (scene: Scene) => Chart | null;
+
+export interface PilotOptions {
+  /** Tells clones apart deterministically: which way each one first wanders, for one. */
+  readonly seed: number;
+  /** Clones stroll when the board has nothing to reach for; Alice herself waits for the player. */
+  readonly wanders: boolean;
+  readonly charter: Charter;
 }
 
 /**

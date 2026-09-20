@@ -72,6 +72,7 @@ const line = (from: Vec, to: Vec, spacing = 4): Vec[] => {
 const scene = (overrides: Partial<Scene> = {}): Scene => ({
   board: board(),
   alice: alice({ x: 100, y: GROUND_Y }),
+  others: [],
   inks: [],
   bites: [],
   sumikui: null,
@@ -249,18 +250,23 @@ describe("Pilot", () => {
     }
     expect(footprintFor(deferred.alice, "big")).toEqual({ cols: 14, rows: 30 });
 
-    const pilot = createAutopilot();
-    const currentScene = (): Scene =>
-      scene({
+    const pilots = [createAutopilot(), createAutopilot()];
+    const currentScene = (who: number): Scene => {
+      const alices = sim.alices();
+      return scene({
         board: passage,
-        alice: sim.snapshot().alice,
-        walkSpeed: sim.walkSpeed(),
-        jumpArc: sim.jumpArc(),
+        alice: alices[who] ?? deferred.alice,
+        others: alices.filter((_, index) => index !== who),
+        walkSpeed: sim.walkSpeed(who),
+        jumpArc: sim.jumpArc(who),
       });
-    expect(pilot.drive(currentScene())).toEqual({ x: 1, y: 0 });
-    expect(pilot.status.errand.kind).toBe("objective");
+    };
+    expect(pilots[0]?.drive(currentScene(0))).toEqual({ x: 1, y: 0 });
+    expect(pilots[0]?.status.errand.kind).toBe("objective");
     for (let tick = 0; tick < 240; tick++) {
-      sim.setWalkIntent(pilot.drive(currentScene()));
+      for (const [who, pilot] of pilots.entries()) {
+        sim.setWalkIntent(pilot.drive(currentScene(who)), who);
+      }
       sim.step();
     }
     const grown = sim.snapshot();
@@ -402,6 +408,46 @@ describe("Pilot", () => {
     );
     if (beside === null) throw new Error("ordinary chart refused");
     expect(beside.has(Math.floor(160 / CELL_PX), cellThroughHer.r, CellFlag.solid)).toBe(true);
+  });
+
+  it("never charts another Alice as solid, whether she stands apart or leans on this one", () => {
+    const cellAt = (x: number) => ({
+      c: Math.floor(x / CELL_PX),
+      r: Math.floor((GROUND_Y - 30) / CELL_PX),
+    });
+    for (const x of [130, 300]) {
+      const chart = Chart.of(scene({ others: [alice({ x, y: GROUND_Y })] }));
+      if (chart === null) throw new Error("ordinary chart refused");
+      const { c, r } = cellAt(x);
+      expect(chart.has(c, r, CellFlag.solid)).toBe(false);
+      expect(chart.has(c, r + 1, CellFlag.solid)).toBe(false);
+      expect(chart.has(c, Math.floor(GROUND_Y / CELL_PX), CellFlag.solid)).toBe(true);
+    }
+    const creatureOnHer = Chart.of(
+      scene({
+        others: [alice({ x: 300, y: GROUND_Y })],
+        inks: [ink(line({ x: 290, y: GROUND_Y - 30 }, { x: 310, y: GROUND_Y - 30 }), "walker")],
+      }),
+    );
+    if (creatureOnHer === null) throw new Error("ordinary chart refused");
+    expect(creatureOnHer.has(cellAt(300).c, cellAt(300).r, CellFlag.solid)).toBe(false);
+  });
+
+  it("wanders when hired to, each seed setting off her own way, and idles otherwise", () => {
+    const meadow = board({ solids: [solid({ x: -2000, y: GROUND_Y, width: 4000, height: 40 })] });
+    const hire = (seed: number, wanders = true) =>
+      createAutopilot({ seed, wanders, charter: Chart.of });
+    const at = (x: number): Scene => scene({ board: meadow, alice: alice({ x, y: GROUND_Y }) });
+
+    expect(hire(0, false).drive(at(100))).toEqual({ x: 0, y: 0 });
+    const odd = hire(1);
+    const even = hire(2);
+    expect(odd.drive(at(100)).x).toBe(-1);
+    expect(even.drive(at(100)).x).toBe(1);
+    expect(odd.status.errand).toEqual({ kind: "wander", heading: -1 });
+    expect(even.status.errand).toEqual({ kind: "wander", heading: 1 });
+    expect(hire(1).drive(at(100))).toEqual(hire(1).drive(at(100)));
+    for (const pilot of [odd, even]) expect(pilot.status.stuck).toBe(false);
   });
 
   it("charts a vehicle deck under Alice even when its decorative cabin surrounds her", () => {

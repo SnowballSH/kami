@@ -84,7 +84,7 @@ export function startGame(root: HTMLElement): void {
   const game = new Game(
     {
       sim: createSimulation(),
-      autopilot: createAutopilot(),
+      autopilot: createAutopilot,
       cat: createCat(recognizer),
       finisher: recognizer,
       summoner: new Summoner(createSketchCatalogue(), recognizer),
