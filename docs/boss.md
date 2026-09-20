@@ -58,7 +58,7 @@ A lunge is judged once, when the lunge ends (`Simulation.suffer`): if a drawing 
 
 **Speed ramp**: each landed snip multiplies its speeds by `1 + snips × speedRampPerSnip` up to `maxSpeedRamp` (1.6×). The fight quickens as the body is worn down, never faster than that.
 
-**Hurting it** (`src/sim/boss/weapons.ts`): drawings touching it hurt it if they are moving faster than `weaponMinSpeed` — swung, thrown or dropped — for `hitDamage` (12 of 100), doubled for a `heavy` drawing and ×1.5 for a spinning one (a drawn hammer on a string is the best weapon on the board); a `hazard` drawing burns it on contact whether it moves or not, so it can be baited over lava. After a blow it is invulnerable for `hitInvulnerableMs` (0.5 s) and knocked back by `knockback`; a blow during its wind-up interrupts the snip.
+**Hurting it** (`src/sim/boss/weapons.ts`): drawings touching it hurt it if they are moving faster than `weaponMinSpeed` — swung, thrown or dropped — for `hitDamage` (34 of 100), doubled for a `heavy` drawing and ×1.5 for a spinning one (a drawn hammer on a string is the best weapon on the board); a `hazard` drawing burns it on contact whether it moves or not, so it can be baited over lava. After a blow it is invulnerable for `hitInvulnerableMs` (0.5 s) and knocked back by `knockback`; a blow during its wind-up interrupts the snip.
 
 ## The tear (`src/sim/boss/tear.ts`)
 

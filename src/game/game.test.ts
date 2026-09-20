@@ -2104,6 +2104,35 @@ describe("Game in puzzle mode", () => {
     expect(ledge.laws.laws.map((law) => law.text)).toEqual(["we are on the moon"]);
     expect(ledge.renderer.lastFrame?.world.sumikui).not.toBeNull();
   });
+
+  it("shows a Solved card after the last room", async () => {
+    const player = new Player("puzzle-moon-ledge", { mode: PUZZLE_MODE });
+    await player.arrive();
+    (
+      player.game as unknown as {
+        celebrate: (event: { type: "goal-reached"; who: number }) => void;
+      }
+    ).celebrate({
+      type: "goal-reached",
+      who: 0,
+    });
+    expect(player.hud.cards.at(-1)).toMatchObject({
+      title: "Solved",
+      tagline: "Three rooms, all of them yours. Draw on, or play again.",
+    });
+  });
+
+  it("shows a Lost card when the ink eater restarts the room", async () => {
+    const player = new Player(FIRST_PUZZLE_BOARD_ID, { mode: PUZZLE_MODE });
+    await player.arrive();
+    (player.game as unknown as { lose: (cause: "devoured") => void }).lose("devoured");
+    await player.wait(3_000);
+    expect(player.hud.cards.at(-1)).toMatchObject({
+      title: "Lost",
+      tagline: "The ink eater got her. Again, this room.",
+    });
+    expect(player.hud.roomCard?.title).toBe("The Wall");
+  });
 });
 
 describe("Game in the Sandbox", () => {

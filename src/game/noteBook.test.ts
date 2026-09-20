@@ -69,4 +69,19 @@ describe("NoteBook fleeting Kami notes", () => {
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(within.y + within.height);
     expect(written.position).not.toEqual({ x: 110, y: 90 });
   });
+
+  it("keeps a note above the ground line", () => {
+    const book = new NoteBook(new FakeHandwriting());
+    const written = book.write({
+      note: { ...note("ground", "below ground", 1), position: { x: 10, y: 100 } },
+      nowMs: 0,
+      drift: "down",
+      maxY: 0,
+      obstacles: [{ x: -100, y: -10, width: 300, height: 10 }],
+      within: { x: -100, y: -100, width: 500, height: 200 },
+    });
+    const bounds = book.boundsOf(written.id);
+    if (bounds === null) throw new Error("ground note missing");
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(0);
+  });
 });

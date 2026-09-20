@@ -11,12 +11,20 @@ export const PUZZLE_MODE: GameMode = {
   id: PUZZLE_MODE_ID,
   card: {
     title: "Puzzle",
-    tagline: "Six rooms. One idea each. Something under the page is hungry.",
+    tagline: "Three rooms. One idea each. Something under the page is hungry.",
     opening: "Ink is precious here. Draw only what you mean.",
+    again: {
+      title: "Lost",
+      tagline: "The ink eater got her. Again, this room.",
+    },
+    won: {
+      title: "Solved",
+      tagline: "Three rooms, all of them yours. Draw on, or play again.",
+    },
   },
   opening: { player: "body", freshPage: false },
   win: { kind: "reach-goal" },
-  loss: { kind: "respawn" },
+  loss: { kind: "board-restarts" },
   laws: { kind: "only", dials: ["inkEater"] },
   natures: "all",
   autopilot: "allowed",

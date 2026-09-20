@@ -15,11 +15,16 @@ export const settle = (
   drift: Drift,
   minY = Number.NEGATIVE_INFINITY,
   within?: Rect,
+  maxY = Number.POSITIVE_INFINITY,
 ): Vec => {
-  const origin = { x: wanted.x, y: Math.max(wanted.y, minY) };
+  const origin = {
+    x: wanted.x,
+    y: Math.min(Math.max(wanted.y, minY), maxY - wanted.height),
+  };
   if (clearOf({ ...wanted, ...origin }, taken)) return origin;
   const inside = (y: number): boolean =>
-    within === undefined || (y >= within.y && y + wanted.height <= within.y + within.height);
+    (within === undefined || (y >= within.y && y + wanted.height <= within.y + within.height)) &&
+    y + wanted.height <= maxY;
   const edges = taken
     .flatMap((rect) => [
       rect.y - wanted.height - BREATHING_ROOM,

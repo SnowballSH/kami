@@ -1,6 +1,6 @@
 # Puzzle mode — the rooms
 
-`?mode=puzzle` plays three rooms in a row. Each is a board like any other (`src/board/boards/puzzles/`), staged by `PuzzleDirector` (`src/modes/puzzle/`) so that one drawn or written idea is the way through and nothing else will take. The Sumikui is loose in every room from the first frame: ink is precious, and a drawing left idle is a drawing that gets eaten. Reaching the rabbit hole writes Kami's closing line and, four seconds later, opens the next room when one remains; the third room completes the run. Nothing is saved: a room opens blank every time (`ForgetfulBoardStore`).
+`?mode=puzzle` plays three rooms in a row. Each is a board like any other (`src/board/boards/puzzles/`), staged by `PuzzleDirector` (`src/modes/puzzle/`) so that one drawn or written idea is the way through and nothing else will take. The Sumikui is loose in every room from the first frame: ink is precious, and a drawing left idle is a drawing that gets eaten. Reaching the rabbit hole writes Kami's closing line and, four seconds later, opens the next room when one remains; the third room shows a Solved card and completes the run. If Alice is eaten, a Lost card appears when the current room restarts. Nothing is saved: a room opens blank every time (`ForgetfulBoardStore`).
 
 The design rule for every room: **the fun is the "aha"**, so the room must make the lazy answer impossible and the intended one obvious *in hindsight*. Two levers do that:
 
