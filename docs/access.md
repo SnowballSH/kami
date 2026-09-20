@@ -68,6 +68,10 @@ transcripts and every 15 seconds while idle; expired or signed-out sessions clos
 Voice speaking (`POST /api/voice/speak`) also requires `models`. The proxy must support WebSocket
 upgrades in addition to SSE. Browser microphone capture requires a secure context.
 
+Exemplar reads (`GET /api/exemplar?word=…`) require `models` too. They sample stored Quick, Draw!
+sketches without inference, but still use database work and return vector data; they share the
+model request, concurrency and response-body limits in both modes.
+
 Non-browser clients send `Authorization: Bearer <token>` on each request, including HTTP
 controller reports. Query-string tokens are ignored. Browser cookies are designed for same-origin
 hosting; allowlisting another origin alone does not make cross-site cookie authentication work.
@@ -80,7 +84,7 @@ only in the open tab.
 
 ## Limits and expected responses
 
-Model routes (`recognize`, `beautify`, `compile`, `transcribe`, `voice/speak`) and voice-listening
+Model routes (`recognize`, `beautify`, `compile`, `transcribe`, `voice/speak`, `exemplar`) and voice-listening
 upgrades share a per-process fixed-window budget of 6,000 requests per minute and 32 concurrent
 operations by default, in both
 modes. Tune `KAMI_MODEL_REQUESTS_PER_MINUTE` and `KAMI_MODEL_CONCURRENCY` for the GX10 and expected
