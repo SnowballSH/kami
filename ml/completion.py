@@ -11,12 +11,13 @@ import numpy as np
 from numpy.typing import NDArray
 
 from exemplar_set import ExemplarSet
-from morph import DEFAULT_FIRMNESS, Points, morph
+from likeness import ExemplarMatcher
+from morph import DEFAULT_FIRMNESS, Points, inked_strokes, morph_onto
+from pose import Pose
 from recognizer import Reading
 from render import Strokes
 
 MIN_TOP1_PROBABILITY = 0.5
-PROBABILITY_BONUS = 0.05
 COORDINATE_DECIMALS = 2
 _LEADING_ARTICLE = re.compile(r"^(?:a|an|the)\s+")
 
@@ -44,6 +45,7 @@ class Completion:
     similarity: float
     boldness: float
     exemplar_key_id: int
+    pose: Pose
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -54,6 +56,7 @@ class Completion:
             "similarity": self.similarity,
             "boldness": self.boldness,
             "exemplar": str(self.exemplar_key_id),
+            "pose": {"mirrored": self.pose.mirrored, "quarterTurns": self.pose.quarter_turns},
         }
 
 
@@ -95,6 +98,7 @@ class SketchCompleter:
             raise ValueError("the exemplar set was built for other labels than this model's")
         self._reader = reader
         self._exemplars = exemplars
+        self._matcher = ExemplarMatcher(exemplars)
         self._label_of = {category_key(label): index for index, label in enumerate(reader.labels)}
 
     @property
@@ -111,17 +115,12 @@ class SketchCompleter:
         label = self._choose_label(reading.probabilities[0], name)
         if label is None:
             return None
-        best = self._most_alike(label, reading.embeddings[0])
-        if best is None:
+        player = _as_arrays(strokes)
+        alike = self._matcher.most_alike(label, reading.embeddings[0], inked_strokes(player))
+        if alike is None:
             return None
-        index, similarity = best
         confidence = float(reading.probabilities[0, label])
-        shaped = morph(
-            _as_arrays(strokes),
-            _as_arrays(self._exemplars.strokes(index)),
-            certainty=confidence,
-            firmness=firmness,
-        )
+        shaped = morph_onto(player, alike.fitted, certainty=confidence, firmness=firmness)
         if shaped is None:
             return None
         return Completion(
@@ -129,9 +128,10 @@ class SketchCompleter:
             added=shaped.added,
             category=self._exemplars.categories[label],
             confidence=confidence,
-            similarity=similarity,
+            similarity=alike.similarity,
             boldness=shaped.boldness,
-            exemplar_key_id=int(self._exemplars.key_ids[index]),
+            exemplar_key_id=int(self._exemplars.key_ids[alike.index]),
+            pose=alike.pose,
         )
 
     def _choose_label(self, probabilities: NDArray[np.float64], name: str | None) -> int | None:
@@ -149,13 +149,3 @@ class SketchCompleter:
             if label is not None:
                 return label
         return None
-
-    def _most_alike(self, label: int, embedding: NDArray[np.float32]) -> tuple[int, float] | None:
-        rows = self._exemplars.of_label(label)
-        if len(rows) == 0:
-            return None
-        window = slice(rows.start, rows.stop)
-        similarities = self._exemplars.embeddings[window].astype(np.float32) @ embedding
-        sureness = self._exemplars.probabilities[window].astype(np.float32)
-        best = int((similarities + PROBABILITY_BONUS * sureness).argmax())
-        return rows.start + best, float(similarities[best])

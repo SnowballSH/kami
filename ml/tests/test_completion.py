@@ -7,6 +7,7 @@ import pytest
 from completion import MIN_TOP1_PROBABILITY, SketchCompleter, category_key
 from exemplar_set import EMBEDDING_SIZE, Exemplar, ExemplarSet
 from morph import DEFAULT_SETTINGS
+from pose import UPRIGHT
 from recognizer import Reading
 from render import Point, Strokes
 
@@ -64,8 +65,8 @@ def test_the_named_category_wins_over_what_the_model_sees() -> None:
     assert completion is not None
     assert completion.category == "mushroom"
     assert completion.confidence == pytest.approx(0.15)
-    assert completion.similarity == pytest.approx(0.8 / np.hypot(0.8, 0.2), abs=1e-3)
-    assert completion.exemplar_key_id == 2
+    assert completion.similarity == pytest.approx(0.2 / np.hypot(0.8, 0.2), abs=1e-3)
+    assert completion.exemplar_key_id == 1
 
 
 @pytest.mark.parametrize("name", ["a mushroom", "The  Mushroom", " MUSHROOM ", "an mushroom"])
@@ -90,7 +91,8 @@ def test_without_a_known_name_the_models_sure_top_1_is_used(name: str | None) ->
     assert completion is not None
     assert completion.category == "mushroom"
     assert completion.confidence == pytest.approx(MIN_TOP1_PROBABILITY)
-    assert completion.similarity == pytest.approx(1.0, abs=1e-3)
+    assert completion.exemplar_key_id == 1
+    assert completion.similarity == pytest.approx(0.0, abs=1e-3)
 
 
 def test_an_unsure_model_and_no_known_name_is_no_answer() -> None:
@@ -120,24 +122,48 @@ def test_a_category_without_exemplars_is_no_answer() -> None:
     assert completer(reader).complete(SKETCH, "square") is None
 
 
-def test_the_exemplar_most_like_the_sketch_is_chosen() -> None:
-    towards_second = ScriptedReader([0, 0, 1, 0], between(1, 0, 0.6))
-    towards_first = ScriptedReader([0, 0, 1, 0], between(0, 1, 0.6))
-    second = completer(towards_second).complete(SKETCH)
-    first = completer(towards_first).complete(SKETCH)
-    assert second is not None and second.exemplar_key_id == 2
+SKETCH_DIAGONAL = float(np.hypot(200.0, 60.0))
+SLASH_AND_DOT: list[list[Point]] = [[(500.0, 100.0), (560.0, 250.0)], [(530.0, 130.0)]]
+
+
+def test_the_exemplar_whose_ink_is_most_like_the_sketch_is_chosen_whatever_the_embedding() -> None:
+    for embedding in (axis(0), axis(1), between(0, 1, 0.5)):
+        reader = ScriptedReader([0, 0, 1, 0], embedding)
+        cornered = completer(reader).complete(SKETCH)
+        slashed = completer(reader).complete(SLASH_AND_DOT)
+        assert cornered is not None and cornered.exemplar_key_id == 1
+        assert slashed is not None and slashed.exemplar_key_id == 2
+
+
+def test_the_embedding_decides_between_exemplars_that_fit_alike() -> None:
+    twin = Exemplar(MUSHROOM, 0.95, 5, axis(3), [stroke([(0, 0), (255, 0), (255, 100)])])
+    exemplar_set = ExemplarSet.of(LABELS, [*EXEMPLARS, twin])
+    towards_first = SketchCompleter(ScriptedReader([0, 0, 1, 0], axis(0)), exemplar_set)
+    towards_twin = SketchCompleter(ScriptedReader([0, 0, 1, 0], axis(3)), exemplar_set)
+    first, second = towards_first.complete(SKETCH), towards_twin.complete(SKETCH)
     assert first is not None and first.exemplar_key_id == 1
+    assert second is not None and second.exemplar_key_id == 5
 
 
-def test_a_surer_exemplar_wins_only_when_likeness_is_almost_equal() -> None:
-    surer = Exemplar(MUSHROOM, 1.0, 5, axis(1), [stroke([(0, 0), (9, 9)])] * 3)
-    exemplar_set = ExemplarSet.of(LABELS, [*EXEMPLARS, surer])
-    level = SketchCompleter(ScriptedReader([0, 0, 1, 0], axis(1)), exemplar_set).complete(SKETCH)
-    apart = SketchCompleter(
-        ScriptedReader([0, 0, 1, 0], between(0, 1, 0.6)), exemplar_set
-    ).complete(SKETCH)
-    assert level is not None and level.exemplar_key_id == 5
-    assert apart is not None and apart.exemplar_key_id == 1
+def test_a_sketch_facing_the_other_way_gets_the_exemplar_mirrored() -> None:
+    mirrored: list[list[Point]] = [[(300.0, 200.0), (100.0, 200.0), (100.0, 260.0)]]
+    reader = ScriptedReader([0, 0, 1, 0], axis(0))
+    as_drawn = completer(reader).complete([SKETCH[0]])
+    facing_back = completer(reader).complete(mirrored)
+    assert as_drawn is not None and as_drawn.pose == UPRIGHT
+    assert facing_back is not None and facing_back.exemplar_key_id == 1
+    assert facing_back.pose.mirrored != (facing_back.pose.quarter_turns % 2 == 1)
+    for tidied, drawn in zip(facing_back.tidied, mirrored, strict=True):
+        assert np.linalg.norm(tidied - np.asarray(drawn), axis=1).max() < 0.04 * SKETCH_DIAGONAL
+
+
+def test_a_sketch_lying_on_its_side_gets_the_exemplar_turned() -> None:
+    on_its_side: list[list[Point]] = [[(200.0, 100.0), (200.0, 300.0), (140.0, 300.0)]]
+    completion = completer(ScriptedReader([0, 0, 1, 0], axis(0))).complete(on_its_side)
+    assert completion is not None and completion.exemplar_key_id == 1
+    assert completion.pose.quarter_turns % 2 == 1
+    for tidied, drawn in zip(completion.tidied, on_its_side, strict=True):
+        assert np.linalg.norm(tidied - np.asarray(drawn), axis=1).max() < 0.04 * SKETCH_DIAGONAL
 
 
 @pytest.mark.parametrize(
@@ -192,7 +218,9 @@ def test_the_answer_serialises_to_the_routes_shape() -> None:
         "similarity",
         "boldness",
         "exemplar",
+        "pose",
     }
+    assert body["pose"] == {"mirrored": False, "quarterTurns": 0}
     assert body["exemplar"] == str(completion.exemplar_key_id)
     assert body["tidied"] == [
         [{"x": float(x), "y": float(y)} for x, y in np.round(one, 2)] for one in completion.tidied

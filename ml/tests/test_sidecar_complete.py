@@ -46,6 +46,7 @@ def test_a_named_sketch_comes_back_as_the_players_own_strokes_tidied_toward_an_e
         "similarity",
         "boldness",
         "exemplar",
+        "pose",
     }
     assert body["category"] == "mushroom"
     assert 0.0 <= body["confidence"] < 0.1

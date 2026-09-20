@@ -288,7 +288,10 @@ points → mushroom 0.51, circle 0.26; half a ladder → ladder 0.99. The smoke 
 | `export.py` | ONNX export and the four artefact files |
 | `recognizer.py`, `sidecar.py` | artefact directory → recogniser; the stdlib HTTP server over it |
 | `exemplars.py`, `exemplar_set.py` | the CLI that picks each category's prototypical drawings with a trained model; the file set they are kept in (ragged uint8 strokes + float16 embeddings) |
-| `completion.py` | sketch + optional name → category → most similar exemplar → the morph |
+| `completion.py` | sketch + optional name → category → the exemplar most like the ink → the morph |
+| `likeness.py` | which exemplar of the category is most like the player's ink, and in which of the eight poses: outlines compared first, the closest few fitted and compared again |
+| `pose.py` | the eight ways a drawing can face: as drawn or mirrored, by quarter turns |
+| `morph_review.py` | on the box: held-out drawings as a player would draw them (as is, wobbly, mirrored, turned, tilted) through `complete()` at three strengths — a table of departure, floating ends, chords, added ink and milliseconds, and contact sheets to look at. Run it in two copies of `ml/` to compare two morphs |
 | `morph.py` | the player's own strokes tidied toward the fitted exemplar (bounded, point for point), plus the parts that are missing |
 | `views.py`, `teacher.py`, `losses.py` | which view of a drawing a step sees; a teacher's stored logits; distillation and prefix→finished alignment |
 | `folding.py`, `selective.py`, `retrieval.py`, `selection.py`, `evaluation.py` | alias folding, ECE and coverage at 95 % precision, own-drawing recall@10, the selection metric S, a split read view by view |
