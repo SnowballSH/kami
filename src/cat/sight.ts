@@ -3,6 +3,7 @@ import { REFUSALS } from "./lines";
 import { isAllowed } from "./natures";
 import { parsePhrase } from "./phrase";
 import { namesForRecognized } from "./recognizedNames";
+import { temperOf } from "./temper";
 import type { AllowedNatures, Ruling } from "./types";
 
 /** The server marks the one sighting it would stake a label on. */
@@ -33,6 +34,12 @@ export const honourRuling = (ruling: Ruling, allowed: AllowedNatures): Ruling =>
     ? ruling
     : { ...ruling, nature: "ink", strength: 1, line: REFUSALS.forbidden };
 
+const bornTemper = (sighting: Sighting): Pick<Ruling, "temper"> => {
+  const temper = temperOf(parsePhrase(sighting.word), sighting.nature);
+  return temper === undefined ? {} : { temper };
+};
+
+/** What the Eye saw, as a ruling: a dog it recognises is born loyal just as a written "dog" is. */
 export const rulingOf = (sighting: Sighting, allowed: AllowedNatures): Ruling =>
   honourRuling(
     {
@@ -41,6 +48,7 @@ export const rulingOf = (sighting: Sighting, allowed: AllowedNatures): Ruling =>
       strength: sighting.strength,
       tags: [],
       line: sighting.line,
+      ...bornTemper(sighting),
     },
     allowed,
   );

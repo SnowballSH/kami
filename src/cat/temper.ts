@@ -1,3 +1,4 @@
+import type { MotionEdit } from "../rules/types";
 import { FLEEING_WORDS, FLEERS, FOLLOWERS, FOLLOWING_WORDS } from "./lexicon";
 import { indexOfSequence, type Phrase, stemsOf } from "./phrase";
 import type { Nature, Temper } from "./types";
@@ -31,3 +32,12 @@ const longestSaid = (phrase: Phrase, table: readonly Leaning[]): Temper | undefi
  */
 export const temperOf = (phrase: Phrase, nature: Nature): Temper | undefined =>
   CREATURES.has(nature) ? (longestSaid(phrase, TOLD) ?? longestSaid(phrase, BORN)) : undefined;
+
+const HEED_OF: Readonly<Record<Temper, number>> = { follows: 1, flees: -1 };
+
+/** A temper as the `heed` dial it sets on the drawing's own motion, so laws can later overrule it. */
+export const heedOf = (temper: Temper | undefined): MotionEdit =>
+  temper === undefined ? {} : { heed: HEED_OF[temper] };
+
+export const temperOfHeed = (heed: number): Temper | null =>
+  heed > 0 ? "follows" : heed < 0 ? "flees" : null;

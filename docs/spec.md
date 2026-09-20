@@ -75,7 +75,7 @@ One per drawing. The player never sees this list — they see the ink change tin
 
 Creatures are natures, not names: a *walking* teapot walks, a *flying* pig flies. Any animal the Cat knows goes into the nature that says how it moves, and the player's own verb or adjective overrules the noun.
 
-A creature may also have a **temper** toward Alice: *follows* or *flees*. Dogs, puppies, ducklings, knights and ghosts follow her by nature — a walker heels at her side, a hopper bounds after her, a flier perches above her head; mice, deer, squirrels and butterflies bolt when she comes near and forget her once she is far. The player's word wins over the animal's: *a shy dog* runs, *a loyal mouse* heels, *a tortoise that follows Alice* follows. Alice can still be steered by hand; the creatures make up their own minds.
+A creature may also have a **temper** toward Alice: *follows* or *flees*. Dogs, puppies, ducklings, knights and ghosts follow her by nature — a walker heels at her side, a hopper bounds after her, a flier perches above her head; mice, deer, squirrels and butterflies bolt when she comes near and forget her once she is far. The player's word wins over the animal's: *a shy dog* runs, *a loyal mouse* heels, *a tortoise that follows Alice* follows. A temper can also be written later, as a law: *the cat chases me*, *the dog follows her everywhere*, *the mouse runs away from Alice*, *the cat leaves me alone* — the latest word wins and erasing it gives the creature its old nature back. Alice can still be steered by hand; the creatures make up their own minds.
 
 Plus free-form **tags** the inhabitants react to — *rose*, *tart*, *queen* — see Room 5.
 

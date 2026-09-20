@@ -38,7 +38,7 @@ const withMotion = (ruling: Ruling, phrase: Phrase): Ruling => {
   return { ...ruling, motion, line };
 };
 
-const withTemper = (ruling: Ruling, phrase: Phrase): Ruling => {
+export const withTemper = (ruling: Ruling, phrase: Phrase): Ruling => {
   const temper = temperOf(phrase, ruling.nature);
   return temper === undefined
     ? ruling

@@ -25,6 +25,7 @@ const {
   pace,
   wings,
   size,
+  heed,
 } = EFFECT_RANGES;
 
 export const COMPILER_SYSTEM_PROMPT = `You compile one line written on a whiteboard into one physics setting for a 2D sketch game.
@@ -52,7 +53,7 @@ If it is anything else (a name for a drawing, a remark, a question) reply {"effe
 {"governs":"worldSpin","value":number}  how fast the whole page keeps turning, in degrees per second, ${worldSpin.min} to ${worldSpin.max}. 0 holds still; "the world spins slowly" is 5, "spins" is 15, "spins fast" is 45; negative is counterclockwise.
 
 
-The last eight are dials on drawings, not on the world. <target> is {"kind":"all"} when the line speaks of everything or every drawing, or {"kind":"named","name":"<one word>"} when it points at a drawing by name ("the wheel", "every rock"): the noun, singular, lowercase. Never use them for Alice.
+The last nine are dials on drawings, not on the world. <target> is {"kind":"all"} when the line speaks of everything or every drawing, or {"kind":"named","name":"<one word>"} when it points at a drawing by name ("the wheel", "every rock"): the noun, singular, lowercase. Never use them for Alice.
 {"governs":"spin","of":<target>,"value":number}  turns per second, ${spin.min} to ${spin.max}. Positive is clockwise. "The wheel spins" is 1; "spins backwards" is -1; "stops spinning" is 0.
 {"governs":"thrust","of":<target>,"x":number,"y":number}  a steady push the drawing gives itself, in g. +x is right, +y is down. Each axis ${thrust.min} to ${thrust.max}. "The cart accelerates" is x 0.5; "the rocket lifts off" is y -1.
 {"governs":"mass","of":<target>,"value":number}  multiplier on its weight, ${mass.min} to ${mass.max}. "Heavier" is 2, "lighter" is 0.5, "weightless" is 0.1.
@@ -61,5 +62,6 @@ The last eight are dials on drawings, not on the world. <target> is {"kind":"all
 {"governs":"pace","of":<target>,"value":number}  multiplier on how fast a creature or vehicle moves of itself, ${pace.min} to ${pace.max}. "The cat is twice as fast" is 2; "the dog is slow" is 0.5.
 {"governs":"wings","of":<target>,"value":number}  whether it can fly, ${wings.min} to ${wings.max}. "The dog can fly" is 1: a creature takes to the air, anything else hovers; "the dog cannot fly anymore" is 0.
 {"governs":"size","of":<target>,"value":number}  multiplier on its size, about its own centre, ${size.min} to ${size.max}. "The rabbit is huge" is 2; "the rabbit is tiny" is 0.5; "three times bigger" is 3.
+{"governs":"heed","of":<target>,"value":number}  how a creature takes to Alice, ${heed.min} to ${heed.max}. "The cat chases me" / "the dog follows Alice" is 1; "the mouse runs away from her" / "the cat is scared of me" is -1; "the dog ignores me" / "leaves me alone" is 0.
 
 "explanation" is a plain gloss of at most eight words, such as "gravity = 0.38 g (Mars)" or "time runs at 0.5x".`;

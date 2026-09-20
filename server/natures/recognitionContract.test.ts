@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createCat } from "../../src/cat";
+import { parsePhrase } from "../../src/cat/phrase";
+import { temperOf } from "../../src/cat/temper";
 import { IdMint } from "../../src/game/idMint";
 import type { Drawing } from "../../src/ink/types";
 import { HttpRecognizer } from "../../src/recognition/httpRecognizer";
@@ -56,7 +58,8 @@ describe("reviewed recognition rulings across the HTTP/client contract", () => {
           continue;
         }
         if (offered === undefined) throw new Error(`No offered ruling for ${category}`);
-        const expected = { ...description, tags: [] };
+        const temper = temperOf(parsePhrase(word), description.nature);
+        const expected = { ...description, tags: [], ...(temper === undefined ? {} : { temper }) };
         expect(cat.accept(offered)).toEqual(expected);
         expect(look.certain).toEqual(certain ? expected : null);
       }
