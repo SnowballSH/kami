@@ -1,7 +1,7 @@
 import wordmarkUrl from "../brand/assets/kami-wordmark.svg";
 import { createHandwriting } from "../handwriting";
 import { createRenderer } from "../render";
-import { createLawsPanel } from "../ui";
+import { createLawsPanel, type LawListing } from "../ui";
 import { paintQr } from "../ui/qr";
 import type { StagedFrame } from "./decoder";
 import { fittedCamera } from "./fit";
@@ -16,6 +16,8 @@ export const JOIN_PARAM = "join";
 
 export const isScreen = (search: string): boolean => new URLSearchParams(search).has(SCREEN_PARAM);
 
+/** An audience has no laws to write: the panel shows only while there are some to read. */
+const LAWLESS_CLASS = "kami-screen-lawless";
 const WAITING_LINE = "Draw on an iPad and it appears here.";
 const UNPAINTABLE = "Kami's screen could not paint a frame";
 
@@ -47,6 +49,12 @@ export function startScreen(root: HTMLElement, host: Window = window): void {
   const canvas = document.createElement("canvas");
   const renderer = createRenderer(canvas, createHandwriting());
   const laws = createLawsPanel(root, { onRepealLaw: () => {} });
+
+  const showLaws = (listed: readonly LawListing[]): void => {
+    laws.setLaws(listed);
+    root.classList.toggle(LAWLESS_CLASS, listed.length === 0);
+  };
+  showLaws([]);
 
   const curtain = element("div", "kami-screen-curtain");
   const wordmark = element("img", "kami-screen-wordmark");
@@ -93,7 +101,7 @@ export function startScreen(root: HTMLElement, host: Window = window): void {
         showing = null;
         renderer.setBoard(board);
       },
-      lawsChanged: (listed) => laws.setLaws(listed),
+      lawsChanged: (listed) => showLaws(listed),
       frameArrived: (staged) => {
         const waiting = showing?.frame.events ?? [];
         showing = {
@@ -105,7 +113,7 @@ export function startScreen(root: HTMLElement, host: Window = window): void {
       },
       wentDark: () => {
         showing = null;
-        laws.setLaws([]);
+        showLaws([]);
         curtain.hidden = false;
       },
     },

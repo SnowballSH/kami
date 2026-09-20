@@ -17,7 +17,8 @@
   font-size: clamp(18px, 1.6vw, 30px);
 }
 
-.kami-screen .kami-laws-hint {
+.kami-screen .kami-laws-hint,
+.kami-screen-lawless .kami-laws {
   display: none;
 }
 
