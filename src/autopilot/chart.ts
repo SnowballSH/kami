@@ -150,7 +150,7 @@ const CRAMP_INSET = 2;
  */
 const cramps = (ink: SceneInk, alice: Rect): boolean =>
   CREATURES.has(ink.nature) &&
-  rectsOverlap(boundsOf(worldPoints(ink)), {
+  rectsOverlap(boundsOfInk(ink), {
     x: alice.x + CRAMP_INSET,
     y: alice.y + CRAMP_INSET,
     width: alice.width - 2 * CRAMP_INSET,
@@ -180,7 +180,7 @@ const extentOf = (scene: Scene): CellRange => {
     ...(board.door === undefined ? [] : [board.door]),
     ...(board.goal === undefined ? [] : [board.goal]),
     ...(board.key === undefined ? [] : [{ ...board.key, width: 0, height: 0 }]),
-    ...scene.inks.map((ink) => boundsOf(worldPoints(ink))),
+    ...scene.inks.map(boundsOfInk),
   ];
   const [first, ...rest] = rects.map(cellsOf);
   if (first === undefined) throw new Error("a scene always has Alice in it");

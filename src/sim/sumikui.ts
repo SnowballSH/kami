@@ -1,59 +1,71 @@
 import type Matter from "matter-js";
 import { clamp, distance, distanceToRect, rectCenter, type Vec } from "../core/geometry";
-import type { DrawingId } from "../ink/types";
 import type { AliceController } from "./alice";
 import { boundsRect } from "./bodyBounds";
 import {
   SUMIKUI_BASE_SPEED,
   SUMIKUI_BITE_MS,
   SUMIKUI_CATCH_MS,
+  SUMIKUI_CHEW_MS_PER_PX,
   SUMIKUI_DOUBLES_EVERY_MS,
-  SUMIKUI_GULP_MS,
   SUMIKUI_HALLOWED_PX,
   SUMIKUI_HOVER,
   SUMIKUI_LOSES_HER_PX,
   SUMIKUI_LUNGE_PX,
   SUMIKUI_MAX_SPEED,
-  SUMIKUI_MEMORY_MS,
+  SUMIKUI_MEAL_MAX_MS,
   SUMIKUI_NEAR_PX,
+  SUMIKUI_PAPER_BITE_MS,
   SUMIKUI_REACH,
   SUMIKUI_SATED_MS,
-  SUMIKUI_SWEEPS_AFTER_MS,
-  SUMIKUI_WAKES_AT_DRAWINGS,
 } from "./constants";
 import type { InkEntity } from "./inkEntity";
 import { NATURES } from "./natures";
 import type { SumikuiPhase, SumikuiSnapshot } from "./types";
 
-/** What the board remembers of Alice using its ink: the moment she last touched each drawing. */
-export type InkMemory = ReadonlyMap<DrawingId, number>;
-
 /** Everything on the paper it may hunt, this tick. `alices` is Alice first, then her clones. */
 export interface HuntingGround {
-  readonly now: number;
   readonly alices: readonly [AliceController, ...AliceController[]];
   readonly inks: readonly InkEntity[];
-  readonly memory: InkMemory;
   /** The board's own sketched solids, as they stand now. */
   readonly paper: readonly Matter.Body[];
 }
 
 export type Quarry =
-  /** A drawing; `gulp` when it is clutter she never used, swept up in one shot once it is quick. */
-  | { readonly kind: "ink"; readonly ink: InkEntity; readonly gulp: boolean }
+  | { readonly kind: "ink"; readonly ink: InkEntity }
   /** A mouthful of the board's ground under this Alice's feet. */
   | { readonly kind: "paper"; readonly alice: AliceController }
   | { readonly kind: "alice"; readonly alice: AliceController };
 
 interface Scored {
-  readonly quarry: Quarry;
+  readonly quarry: Quarry | null;
   readonly worth: number;
 }
 
-const WORTH = { standingOn: 2, paper: 1.5, lunge: 3, alice: 0.5, clutter: 0.1 } as const;
+/** What she depends on outranks her; she outranks clutter far from either of them. */
+const WORTH = {
+  standingOn: 2,
+  paper: 1.5,
+  lunge: 1.2,
+  alice: 0.3,
+  besideHer: 0.5,
+  loyalty: 0.25,
+} as const;
 
 export const speedAfter = (awakeMs: number): number =>
   clamp(SUMIKUI_BASE_SPEED * 2 ** (awakeMs / SUMIKUI_DOUBLES_EVERY_MS), 0, SUMIKUI_MAX_SPEED);
+
+/** How long a drawing takes to eat: a pebble is gone in a moment, a long bridge takes a while. */
+export const mealTimeFor = (inkPx: number): number =>
+  Math.min(SUMIKUI_BITE_MS + SUMIKUI_CHEW_MS_PER_PX * inkPx, SUMIKUI_MEAL_MAX_MS);
+
+const mealTimeOf = (ink: InkEntity): number => mealTimeFor(ink.drawing.cost * ink.motion.size);
+
+/** What it will eat: any drawing that is not a role fixed to the board nor a prop of a scene. */
+export const edible = (ink: InkEntity): boolean =>
+  !NATURES[ink.nature].pinned && ink.provenance !== "scenery";
+
+const nearness = (gap: number): number => 1 / (1 + gap / SUMIKUI_NEAR_PX);
 
 const centreOf = (ink: InkEntity): Vec => rectCenter(boundsRect(ink.body.bounds));
 
@@ -67,11 +79,13 @@ const towards = (from: Vec, to: Vec, step: number): Vec => {
 };
 
 /**
- * The Sumikui, the ink eater. A ghost over the board, not a body in it. Everything on the paper is
- * ink to it: the drawings Alice leans on, the board's own ground under her feet, and Alice herself.
- * It never touches ink she has not used, so untouched scribbles are never bait, and where Kami sets
- * her down is hallowed: neither that paper nor Alice standing on it. Its pace doubles every `SUMIKUI_DOUBLES_EVERY_MS` awake, up
- * to `SUMIKUI_MAX_SPEED`; devouring her gorges it, and the pace starts over.
+ * The Sumikui, the ink eater. A ghost over the board, not a body in it, awake from the moment it
+ * is summoned. Everything on the paper is ink to it: every drawing that is not part of the scene,
+ * the board's own ground under her feet, and Alice herself. What she depends on comes first — the
+ * ink she stands on, the ground beneath her, herself when she is close — and far clutter after;
+ * where Kami sets her down is hallowed: neither that paper nor Alice standing on it. Its pace
+ * doubles every `SUMIKUI_DOUBLES_EVERY_MS` awake, up to `SUMIKUI_MAX_SPEED`; devouring her gorges
+ * it, and the pace starts over.
  */
 export class Sumikui {
   private centre: Vec;
@@ -85,6 +99,7 @@ export class Sumikui {
   constructor(
     alice: AliceController,
     private readonly hallowed: readonly Vec[],
+    private readonly pageEndY: number,
   ) {
     this.centre = this.hoverSpotBehind(alice);
   }
@@ -100,11 +115,7 @@ export class Sumikui {
   /** Advances one tick; returns what it has finished devouring, if anything. */
   tick(elapsedMs: number, ground: HuntingGround): Quarry | null {
     const [alice] = ground.alices;
-    if (!this.woke) {
-      this.woke = ground.inks.length >= SUMIKUI_WAKES_AT_DRAWINGS;
-      this.drift(this.hoverSpotBehind(alice), elapsedMs);
-      return null;
-    }
+    this.woke = true;
     this.awakeMs += elapsedMs;
     if (this.satedMs > 0) {
       this.satedMs = Math.max(0, this.satedMs - elapsedMs);
@@ -175,9 +186,9 @@ export class Sumikui {
   private mealTimeOf(quarry: Quarry): number {
     switch (quarry.kind) {
       case "ink":
-        return quarry.gulp ? SUMIKUI_GULP_MS : SUMIKUI_BITE_MS;
+        return mealTimeOf(quarry.ink);
       case "paper":
-        return SUMIKUI_BITE_MS;
+        return SUMIKUI_PAPER_BITE_MS;
       case "alice":
         return SUMIKUI_CATCH_MS;
     }
@@ -203,27 +214,32 @@ export class Sumikui {
     this.centre = next;
   }
 
+  /** What is between its teeth it keeps; what it is only stalking it trades for anything worthier. */
   private keepOrChooseQuarry(ground: HuntingGround): void {
-    if (this.quarry !== null && this.stillWorthy(this.quarry, ground)) return;
-    this.quarry = null;
-    this.biteMs = 0;
-    let best: Scored | null = null;
+    const kept = this.quarry !== null && this.stillWorthy(this.quarry, ground);
+    if (kept && this.biteMs > 0) return;
+    if (!kept) this.biteMs = 0;
+    let best: Scored = { quarry: null, worth: Number.NEGATIVE_INFINITY };
     for (const quarry of this.candidates(ground)) {
       const worth = this.worthOf(quarry, ground);
-      if (worth !== null && (best === null || worth > best.worth)) best = { quarry, worth };
+      if (worth === null) continue;
+      const loyal = kept && this.sameQuarry(quarry) ? WORTH.loyalty : 0;
+      if (worth + loyal > best.worth) best = { quarry, worth: worth + loyal };
     }
-    this.quarry = best?.quarry ?? null;
+    this.quarry = best.quarry;
+  }
+
+  private sameQuarry(other: Quarry): boolean {
+    const { quarry } = this;
+    if (quarry === null || quarry.kind !== other.kind) return false;
+    if (quarry.kind === "ink") return other.kind === "ink" && quarry.ink === other.ink;
+    return other.kind !== "ink" && quarry.alice === other.alice;
   }
 
   private stillWorthy(quarry: Quarry, ground: HuntingGround): boolean {
     switch (quarry.kind) {
       case "ink":
-        return (
-          ground.inks.includes(quarry.ink) &&
-          !NATURES[quarry.ink.nature].pinned &&
-          (!quarry.gulp ||
-            (quarry.ink.nature === "ink" && this.usedBy(quarry.ink, ground) === null))
-        );
+        return ground.inks.includes(quarry.ink) && edible(quarry.ink) && this.onThePage(quarry.ink);
       case "paper":
         return this.standsOnPaper(quarry.alice, ground) && !this.isHallowed(feetOf(quarry.alice));
       case "alice":
@@ -240,38 +256,24 @@ export class Sumikui {
       if (this.standsOnPaper(each, ground)) yield { kind: "paper", alice: each };
     }
     for (const ink of ground.inks) {
-      if (NATURES[ink.nature].pinned) continue;
-      const used = this.usedBy(ink, ground) !== null;
-      if (used) yield { kind: "ink", ink, gulp: false };
-      else if (this.sweeps && ink.nature === "ink") yield { kind: "ink", ink, gulp: true };
+      if (edible(ink) && this.onThePage(ink)) yield { kind: "ink", ink };
     }
+  }
+
+  /** Ink that has fallen off the bottom of the page is lost to it too. */
+  private onThePage(ink: InkEntity): boolean {
+    return ink.body.position.y <= this.pageEndY;
   }
 
   private standsOnPaper(alice: AliceController, ground: HuntingGround): boolean {
     return ground.paper.some((body) => alice.standsOn(body));
   }
 
-  /** Once it has grown quick, clutter she never touched is not worth stalking: it is swept up. */
-  private get sweeps(): boolean {
-    return this.awakeMs >= SUMIKUI_SWEEPS_AFTER_MS;
-  }
-
-  /** How freshly she leaned on `ink`, 1 for standing on it now, or `null` if she never did. */
-  private usedBy(ink: InkEntity, { now, alices, memory }: HuntingGround): number | null {
-    if (alices.some((alice) => alice.standsOn(ink.body))) return 1;
-    const touchedAt = memory.get(ink.id);
-    if (touchedAt === undefined) return null;
-    const age = now - touchedAt;
-    return age > SUMIKUI_MEMORY_MS ? null : 1 - age / SUMIKUI_MEMORY_MS;
-  }
-
   /** How much she depends on `quarry`, or `null` for what it will not touch. */
   private worthOf(quarry: Quarry, ground: HuntingGround): number | null {
     switch (quarry.kind) {
       case "ink":
-        return quarry.gulp
-          ? WORTH.clutter + this.nearnessOf(centreOf(quarry.ink)) / 2
-          : this.worthOfInk(quarry.ink, ground);
+        return this.worthOfInk(quarry.ink, ground);
       case "paper": {
         const feet = feetOf(quarry.alice);
         return this.isHallowed(feet) ? null : WORTH.paper + this.nearnessOf(feet);
@@ -292,14 +294,21 @@ export class Sumikui {
     return this.hallowed.some((sanctuary) => distance(sanctuary, spot) <= SUMIKUI_HALLOWED_PX);
   }
 
-  private worthOfInk(ink: InkEntity, ground: HuntingGround): number | null {
-    const freshness = this.usedBy(ink, ground);
-    if (freshness === null) return null;
+  /** Ink she stands on first, then ink near her, then whatever is nearest to it. */
+  private worthOfInk(ink: InkEntity, ground: HuntingGround): number {
+    const centre = centreOf(ink);
     const standingOn = ground.alices.some((alice) => alice.standsOn(ink.body));
-    return (standingOn ? WORTH.standingOn : 0) + freshness + this.nearnessOf(centreOf(ink));
+    const nearestAlice = Math.min(
+      ...ground.alices.map((alice) => distanceToRect(centre, alice.bounds())),
+    );
+    return (
+      (standingOn ? WORTH.standingOn : 0) +
+      WORTH.besideHer * nearness(nearestAlice) +
+      this.nearnessOf(centre)
+    );
   }
 
   private nearnessOf(spot: Vec): number {
-    return 1 / (1 + distance(this.centre, spot) / SUMIKUI_NEAR_PX);
+    return nearness(distance(this.centre, spot));
   }
 }

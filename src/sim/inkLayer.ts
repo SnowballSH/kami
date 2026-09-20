@@ -13,7 +13,7 @@ import { freshMind } from "./creatures";
 import { buildInkBody } from "./inkBody";
 import { InkEntity } from "./inkEntity";
 import { holdsStill, NATURES } from "./natures";
-import type { DrawingPose } from "./types";
+import type { DrawingPose, InkProvenance } from "./types";
 import { type BodyMaterial, materialMoved, materialUnder, retune } from "./worldPhysics";
 
 type InkState = Pick<InkEntity, "nature" | "strength" | "frozen" | "motion">;
@@ -75,12 +75,12 @@ export class InkLayer {
     return this.byBodyId.get(body.id);
   }
 
-  add(drawing: Drawing): void {
+  add(drawing: Drawing, provenance: InkProvenance = "drawn"): void {
     if (this.inks.has(drawing.id)) return;
     const body = this.build(drawing.strokes, drawing.strokes, PLAIN_INK);
     if (body === null) return;
     const { x, y } = body.position;
-    const ink = new InkEntity(drawing, { x, y }, body);
+    const ink = new InkEntity(drawing, { x, y }, body, provenance);
     this.inks.set(drawing.id, ink);
     this.attach(ink);
   }

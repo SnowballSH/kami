@@ -5,6 +5,7 @@ import { type Pose, poseToWorld, type Stroke, type Vec } from "../core/geometry"
 import type { Drawing, DrawingId } from "../ink/types";
 import { type Motion, type MotionEdit, STILL } from "../rules/types";
 import { freshMind, type Mind } from "./creatures";
+import type { InkProvenance } from "./types";
 
 export class InkEntity {
   nature: Nature = "ink";
@@ -22,6 +23,7 @@ export class InkEntity {
     readonly drawing: Drawing,
     readonly origin: Vec,
     public body: Matter.Body,
+    readonly provenance: InkProvenance = "drawn",
   ) {
     this.mind = freshMind(drawing.id);
   }

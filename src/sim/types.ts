@@ -168,13 +168,16 @@ export type SimEvent =
   | { readonly type: "heart-swallowed" }
   | { readonly type: "part-restored"; readonly parts: readonly BodyPartKind[] };
 
+/** Whose ink a drawing is: drawn by a hand (the player's or Kami's), or a prop Kami dressed a scene with. */
+export type InkProvenance = "drawn" | "scenery";
+
 export interface Simulation {
   /** Discards the whole world and rebuilds it with Alice standing at `board.spawn`. */
   loadBoard(board: BoardDefinition): void;
   /** The standing rules of the board. Survives `loadBoard`; applies from the next step. */
   setPhysics(physics: WorldPhysics): void;
-  /** Ink is solid the moment it commits — as plain ink, before anyone has named it. */
-  addDrawing(drawing: Drawing): void;
+  /** Ink is solid the moment it commits — as plain ink, before anyone has named it. Scenery is not for eating. */
+  addDrawing(drawing: Drawing, provenance?: InkProvenance): void;
   applyRuling(id: DrawingId, ruling: Ruling): void;
   removeDrawing(id: DrawingId): void;
   /** Takes her body away, leaving the soul where her heart was (or at the spawn). */

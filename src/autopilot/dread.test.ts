@@ -112,8 +112,20 @@ describe("dreadIn", () => {
   });
 
   it("is nothing while it hunts ink she is not standing on", () => {
+    const inks = [bridge("bridge")];
     expect(dreadIn(scene({ sumikui: sumikui(behindHer, "hunting", "ink") }))).toBeNull();
     expect(dreadIn(scene({ sumikui: sumikui(behindHer, "feeding", "ink") }))).toBeNull();
+    const chewing = sumikui(behindHer, "feeding", "ink", "bridge" as DrawingId);
+    expect(dreadIn(scene({ inks, sumikui: chewing }))).toBeNull();
+  });
+
+  it("is the Sumikui itself when it chews the ink under her feet", () => {
+    const onTheBridge = alice({ x: GAP.x + GAP.width / 2, y: GROUND_Y - 4 });
+    const atHerHeel: Vec = { x: onTheBridge.center.x - 50, y: GROUND_Y - 40 };
+    const chewing = sumikui(atHerHeel, "feeding", "ink", "bridge" as DrawingId);
+    const eaten = scene({ alice: onTheBridge, inks: [bridge("bridge")], sumikui: chewing });
+    expect(dreadIn(eaten)).toEqual(atHerHeel);
+    expect(dreadIn({ ...eaten, sumikui: sumikui(atHerHeel, "feeding", "ink") })).toBeNull();
   });
 
   it("is the Sumikui itself when it is close and after her or the ground under her", () => {
