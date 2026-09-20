@@ -174,7 +174,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.director = directorFor(modules.mode ?? EMBODIED_MODE);
     this.selfDriving = (modules.selfDriving ?? true) && this.walksHerself();
     this.notes = new NoteBook(modules.handwriting);
-    this.rules = new RuleBook(modules.resolvePhysics);
+    this.rules = new RuleBook((rules) =>
+      modules.resolvePhysics(rules.filter((rule) => this.allowsRule(rule))),
+    );
     this.ink = modules.createInkSession(this);
     this.penReader = modules.penReader ?? null;
     this.hud = modules.createHud(this);
@@ -397,7 +399,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     this.rules.replaceAll(rules);
     this.showLaws();
-    for (const rule of rules) this.writeGloss(rule);
+    for (const rule of rules) {
+      if (this.allowsRule(rule)) this.writeGloss(rule);
+      else this.refuseLaw(rule);
+    }
     this.applyLaws({ silently: true });
     this.modules.autopilot.invalidate();
   }
@@ -688,15 +693,21 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     };
   }
 
-  /** A law the mode forbids stays plain writing; Kami says so beneath it. */
+  private allowsRule(rule: Rule): boolean {
+    return allowsLaw(this.director.mode.laws, rule.effect.governs);
+  }
+
   private enactIfAllowed(rule: Rule): void {
-    if (allowsLaw(this.director.mode.laws, rule.effect.governs)) {
-      this.enact(rule);
-      return;
-    }
+    if (this.allowsRule(rule)) this.enact(rule);
+    else this.refuseLaw(rule);
+  }
+
+  private refuseLaw(rule: Rule): void {
+    this.notes.restyle(rule.noteId, "plain");
     const under = this.notes.below(rule.noteId);
     if (under !== null) {
       this.kamiWrites(LAW_OUTSIDE_MODE_LINE, under, {
+        anchor: { type: "note", id: rule.noteId },
         lifetimeMs: REMARK_LIFETIME_MS,
         drift: "down",
       });
@@ -786,11 +797,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private showLaws(): void {
     this.laws.setLaws(
-      this.rules.all.map((rule) => ({
-        id: rule.id,
-        text: rule.sourceText,
-        gloss: rule.explanation,
-      })),
+      this.rules.all
+        .filter((rule) => this.allowsRule(rule))
+        .map((rule) => ({
+          id: rule.id,
+          text: rule.sourceText,
+          gloss: rule.explanation,
+        })),
     );
   }
 

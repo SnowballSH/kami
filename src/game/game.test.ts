@@ -790,6 +790,62 @@ describe("Game with a pen that reads", () => {
 });
 
 describe("Game under a mode", () => {
+  it("suspends forbidden saved laws without deleting them, and erasing their note still repeals them", async () => {
+    const original = new Player("wonderland");
+    await original.arrive();
+    await original.write("it is night", { x: 200, y: 200 });
+    await original.write("no gravity", { x: 200, y: 300 });
+    const saved = await original.store.load("wonderland");
+    const mode: GameMode = { ...EMBODIED_MODE, laws: { kind: "except", dials: ["daylight"] } };
+    const restricted = new Player("wonderland", { store: original.store, mode });
+    await restricted.arrive();
+
+    expect(restricted.renderer.lastFrame?.daylight).toBe(1);
+    expect(restricted.laws.laws.map((law) => law.text)).toEqual(["no gravity"]);
+    expect(restricted.written).toContain(LAW_OUTSIDE_MODE_LINE);
+    const note = restricted.renderer.lastFrame?.notes.find(
+      (entry) => entry.script.text === "it is night",
+    );
+    expect(note?.tone).toBe("plain");
+    expect(await original.store.load("wonderland")).toEqual(saved);
+
+    const unrestricted = new Player("wonderland", { store: original.store });
+    await unrestricted.arrive();
+    expect(unrestricted.renderer.lastFrame?.daylight).toBe(original.renderer.lastFrame?.daylight);
+    expect(unrestricted.renderer.lastFrame?.daylight).toBeLessThan(1);
+    expect(unrestricted.laws.laws).toHaveLength(2);
+
+    if (note === undefined) throw new Error("night note missing");
+    const { x, y } = note.script.bounds;
+    await restricted.erase({ x: x + 1, y: y + 1 });
+    expect((await original.store.load("wonderland")).rules.map((rule) => rule.sourceText)).toEqual([
+      "no gravity",
+    ]);
+    const reopened = new Player("wonderland", { store: original.store });
+    await reopened.arrive();
+    expect(reopened.renderer.lastFrame?.daylight).toBe(1);
+  });
+
+  it("also refuses forbidden model-compiled laws", async () => {
+    const text = "make this page Martian";
+    const mode: GameMode = { ...EMBODIED_MODE, laws: { kind: "only", dials: ["daylight"] } };
+    const player = new Player("wonderland", {
+      mode,
+      thoughts: {
+        [text]: {
+          effect: { governs: "gravity", x: 0, y: 0.38 },
+          explanation: "gravity = 0.38 g",
+        },
+      },
+    });
+    await player.arrive();
+    await player.write(text, { x: 200, y: 200 });
+    expect(player.pondered).toContain(text);
+    expect(player.laws.laws).toHaveLength(0);
+    expect((await player.store.load("wonderland")).rules).toHaveLength(0);
+    expect(player.written).toContain(LAW_OUTSIDE_MODE_LINE);
+  });
+
   it("refuses a law the mode forbids, in Kami's hand, and the note stays plain writing", async () => {
     const mode: GameMode = { ...EMBODIED_MODE, laws: { kind: "except", dials: ["gravity"] } };
     const player = new Player("wonderland", { mode });

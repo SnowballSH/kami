@@ -59,6 +59,7 @@ The director holds the player's state; the game does not. `createDirector(mode)`
 - calls `director.open(board)` after `sim.loadBoard`;
 - asks `director.won(event)` before handling any sim event, and writes the closing line when it says so (so an `endless` sandbox never declares victory at the rabbit hole);
 - runs every written law through `allowsLaw(mode.laws, effect.governs)` before enacting it — a forbidden law stays plain writing and Kami says *"Not in this game. The page won't take that law here."* beneath it;
+- suspends saved laws the current mode forbids: they do not affect physics or appear as active laws, but remain saved for modes that allow them; erasing their note still repeals them;
 - keeps Alice from walking herself when `autopilot` is `"forbidden"`, whatever the HUD switch says.
 
 Nothing else changes. The embodied mode is exactly the game as it was.
