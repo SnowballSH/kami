@@ -1,8 +1,14 @@
 import { ChainedRuleCompiler } from "./chainedCompiler";
 import { GrammarRuleCompiler } from "./grammarCompiler";
-import { foldOverEarth } from "./resolvePhysics";
+import { foldOver } from "./resolvePhysics";
 import { AtlasSceneCompiler } from "./scenes/sceneCompiler";
-import type { Rule, RuleCompiler, SceneCompiler, WorldPhysics } from "./types";
+import {
+  EARTH,
+  type Rule,
+  type RuleCompiler,
+  type SceneCompiler,
+  type WorldPhysics,
+} from "./types";
 
 export { placeCalled } from "./scenes/atlas";
 export { destinationOf } from "./scenes/travel";
@@ -26,7 +32,7 @@ export function createSceneCompiler(farther: SceneCompiler | null = null): Scene
   return new AtlasSceneCompiler(farther);
 }
 
-/** Folds standing rules over EARTH; for each `governs`, the most recently created rule wins. */
-export function resolvePhysics(rules: readonly Rule[]): WorldPhysics {
-  return foldOverEarth(rules);
+/** Folds standing rules over `base` (EARTH unless a room lays down its own); for each `governs`, the most recently created rule wins. */
+export function resolvePhysics(rules: readonly Rule[], base: WorldPhysics = EARTH): WorldPhysics {
+  return foldOver(base, rules);
 }

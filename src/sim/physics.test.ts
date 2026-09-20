@@ -66,6 +66,19 @@ describe("world physics", () => {
     expect(poseOf(sim, "plank")?.position.y).toBeLessThan(-300);
   });
 
+  it("keeps a settled bouncy drawing sound when a law is written after it", () => {
+    const sim = enter(board);
+    sim.addDrawing(drawingOf("mushroom", blob(120, -5, 60, 40)));
+    sim.applyRuling(idOf("mushroom"), rulingOf("bouncy"));
+    runSteps(sim, 5);
+    sim.setPhysics(MOON);
+    sim.setWalkIntent(RIGHT);
+    runUntil(sim, saw("bounced"));
+    runSteps(sim, 60);
+    expect(Number.isFinite(feetOf(sim).y)).toBe(true);
+    expect(feetOf(sim).y).toBeLessThan(-40);
+  });
+
   it("blows a free stroke sideways", () => {
     const sim = enter(board);
     sim.setPhysics({ ...WEIGHTLESS, wind: { x: 0.5, y: 0 } });

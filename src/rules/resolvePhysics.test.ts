@@ -27,6 +27,16 @@ describe("resolvePhysics", () => {
     expect(resolvePhysics([])).toEqual(EARTH);
   });
 
+  it("folds over the world it is given, when a room lays down its own", () => {
+    const dark = { ...EARTH, daylight: 0, inkEater: 1 };
+    expect(resolvePhysics([], dark)).toEqual(dark);
+    expect(resolvePhysics([MOON], dark)).toEqual({ ...dark, gravity: { x: 0, y: 0.165 } });
+    expect(resolvePhysics([rule("sealed", 1, { governs: "inkEater", value: 0 })], dark)).toEqual({
+      ...dark,
+      inkEater: 0,
+    });
+  });
+
   it("lets the newest rule per setting win, whatever order they arrive in", () => {
     const expected = {
       ...EARTH,
