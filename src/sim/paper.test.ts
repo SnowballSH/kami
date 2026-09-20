@@ -3,6 +3,7 @@ import { blankBoard } from "../board/boards/blank";
 import { EARTH } from "../rules/types";
 import { onPaper, wrappedAngle } from "./paper";
 import {
+  aliceOf,
   blob,
   drawingOf,
   enter,
@@ -85,7 +86,7 @@ describe("the paper's turn", () => {
     const start = xOf(sim, "pebble");
     runSteps(sim, ONE_SECOND);
     expect(xOf(sim, "pebble")).toBeGreaterThan(start + 100);
-    expect(sim.snapshot().alice.grounded).toBe(true);
+    expect(aliceOf(sim).grounded).toBe(true);
     expect(feetOf(sim).x).toBeCloseTo(board.spawn.x, 0);
     expect(feetOf(sim).y).toBeCloseTo(GROUND, 0);
   });

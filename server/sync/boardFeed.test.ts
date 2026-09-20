@@ -31,6 +31,7 @@ const ghost = (x: number): Ghost => ({
   grounded: true,
   climbing: false,
   hasKey: false,
+  look: { kind: "alice" },
 });
 
 const heard = (feed: BoardFeed, boardId: string, since: number | null) => {

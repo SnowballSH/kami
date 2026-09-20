@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { DEMO_BOARD_ID } from "../board";
-import { EMBODIED_MODE, FIRST_PUZZLE_BOARD_ID, PUZZLE_MODE, SANDBOX_MODE } from "../modes";
+import {
+  BOSS_MODE,
+  EMBODIED_MODE,
+  FIRST_PUZZLE_BOARD_ID,
+  PUZZLE_MODE,
+  SANDBOX_MODE,
+} from "../modes";
 import { boardInUrl, modeInUrl, SHARED_PAGE_ID, shareLink } from "./launch";
 
 describe("starting from the address bar", () => {
@@ -8,6 +14,7 @@ describe("starting from the address bar", () => {
     expect(modeInUrl("?mode=sandbox")).toBe(SANDBOX_MODE);
     expect(modeInUrl("?board=x&mode=sandbox")).toBe(SANDBOX_MODE);
     expect(modeInUrl("?mode=puzzle")).toBe(PUZZLE_MODE);
+    expect(modeInUrl("?mode=boss")).toBe(BOSS_MODE);
     expect(modeInUrl("")).toBe(EMBODIED_MODE);
     expect(modeInUrl("?mode=nonsense")).toBe(EMBODIED_MODE);
   });
@@ -16,6 +23,7 @@ describe("starting from the address bar", () => {
     expect(boardInUrl("?board=ours", SANDBOX_MODE)).toBe("ours");
     expect(boardInUrl("?board=ours", EMBODIED_MODE)).toBe("ours");
     expect(boardInUrl("", EMBODIED_MODE)).toBe(DEMO_BOARD_ID);
+    expect(boardInUrl("?mode=boss", BOSS_MODE)).toBe(DEMO_BOARD_ID);
     expect(boardInUrl("?mode=sandbox", SANDBOX_MODE)).toBe(SHARED_PAGE_ID);
   });
 

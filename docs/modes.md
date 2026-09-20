@@ -1,17 +1,17 @@
 # Game modes
 
-A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, which laws and natures the page will take, whether the board id names a room or an endless page, when Kami helps, and whether other devices share the page. Three modes are playable. `EMBODIED_MODE` is the game as it always was — Alice stands at the spawn of a room and you draw for her. `PUZZLE_MODE` (`?mode=puzzle`) plays seven rooms in a row, each staged so that one drawn or written idea is the way through, with the Sumikui loose from the first frame ([puzzles.md](puzzles.md)). `SANDBOX_MODE` (`?mode=sandbox`) is an endless page with no edges that everyone who opens it draws on together. The fourth, `SPIRIT_MODE`, is a contract for a game nobody has built yet: you open the room as a spirit with no body, draw Alice, name her, and she is yours.
+A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, which laws and natures the page will take, whether the board id names a room or an endless page, when Kami helps, and whether other devices share the page. The everyday way to play — Alice stands at the spawn of a room and you draw for her — is written down as `EMBODIED_MODE`. `PUZZLE_MODE` (`?mode=puzzle`) plays seven rooms in a row, each staged so that one drawn or written idea is the way through, with the Sumikui loose from the first frame ([puzzles.md](puzzles.md)). `SANDBOX_MODE` (`?mode=sandbox`) is an endless page with no edges that everyone who opens it draws on together. `SPIRIT_MODE` opens the room as a spirit with no body: you draw Alice, name her, and she is yours. `BOSS_MODE` ([boss.md](boss.md)) is the spirit opening for two players, with a servant of the one under the page coming through a tear to snip the body apart.
 
-This document is the architecture. The embodied, puzzle and sandbox modes are playable; everything the spirit mode needs that does not exist yet is listed at the end.
+This document is the architecture. The embodied, puzzle and sandbox modes are playable; the spirit groundwork is built (the columns at the end say what is and is not); the boss is built on it.
 
 ## The contract (`src/modes/types.ts`)
 
 ```ts
 interface GameMode {
   id: GameModeId;
-  card: { title; tagline; opening };        // the title card and Kami's first line
+  card: { title; tagline; opening; roles? }; // the title card, Kami's first line, one line per player
   opening: Opening;                         // what the player is when the room opens
-  win: WinRule;                             // reach-goal | endless | outlast(ms)
+  win: WinRule;                             // reach-goal | endless | outlast(ms) | defeat-foe
   loss: LossRule;                           // respawn | unmade | board-restarts
   laws: LawPolicy;                          // all | only(dials) | except(dials)
   natures: NaturePolicy;                    // "all" | Nature[] — narrows the room's own list
@@ -35,7 +35,7 @@ Modes are **data**. Adding one is a new constant in `modes.ts` (or its own file 
 
 ### The director
 
-The mode's referee for one open room is a `ModeDirector`. The game calls it at the seams where modes could differ and enacts whatever it answers (today only `open` and `won` are called; `witness` and `named` exist for the spirit mode and answer nothing in the embodied one):
+The mode's referee for one open room is a `ModeDirector`. The game calls it at the seams where modes could differ and enacts whatever it answers:
 
 ```ts
 interface ModeDirector {
@@ -44,15 +44,16 @@ interface ModeDirector {
   room: RoomStaging | null;                              // how this board is staged, when the mode stages rooms
   open(board): PlayerState;                              // board loaded, nothing stepped yet
   witness(event: SimEvent): EmbodimentTransition[];      // every sim event
-  named(drawingId, ruling): EmbodimentTransition | null; // every naming
+  named(drawingId, ruling): EmbodimentTransition[];      // every naming
   won(event: SimEvent): boolean;                         // this mode's WinRule, judged on an event
   close(): void;
 }
 
 type EmbodimentTransition =
   | { kind: "incarnated"; by: "spawn" }
-  | { kind: "incarnated"; by: "drawing"; drawingId }
-  | { kind: "unmade"; cause: "fell" | "devoured" };
+  | { kind: "incarnated"; by: "drawing"; drawingId; name }
+  | { kind: "unmade"; cause: "fell" | "devoured" | "swallowed" }
+  | { kind: "tear-opens" };                              // the boss's rip in the page
 
 interface RoomStaging {
   world: WorldPhysics;      // the room's own world; written laws fold over it instead of Earth
@@ -63,24 +64,30 @@ interface RoomStaging {
 }
 ```
 
-The director holds the player's state; the game does not. `createDirector(mode)` returns `PuzzleDirector` for the puzzle mode, `EmbodiedDirector` for any other mode that opens with a body, and `null` for openings nobody has built — the game then plays the board as embodied rather than refusing to open.
+The director holds the player's state; the game does not. `createDirector(mode)` returns `PuzzleDirector` for the puzzle mode, `EmbodiedDirector` for any other mode that opens with a body and `SpiritDirector` for any that opens as a spirit. The embodied director answers nothing to `witness` and `named`; the spirit director (`src/modes/spiritDirector.ts`) answers `incarnated` to the first drawing whose name is a body (below), `unmade` when that body falls, is devoured or has its heart swallowed, and — when the mode wins by `defeat-foe` — `tear-opens` right after the incarnation.
 
-A director that stages rooms fills `room` in `open(board)`; the embodied director leaves it `null` and the game plays the board plain. `PuzzleDirector` looks the board up in `PUZZLE_ROOMS` (`src/modes/puzzle/rooms.ts`, data in play order): the staged world is `{ ...EARTH, inkEater: 1, ...room.world }`, the law policy `only [...room.dials, "inkEater"]`, the card the board's title and first zone's intro.
+A director that stages rooms fills `room` in `open(board)`; the embodied and spirit directors leave it `null` and the game plays the board plain. `PuzzleDirector` looks the board up in `PUZZLE_ROOMS` (`src/modes/puzzle/rooms.ts`, data in play order): the staged world is `{ ...EARTH, inkEater: 1, ...room.world }`, the law policy `only [...room.dials, "inkEater"]`, the card the board's title and first zone's intro.
+
+### What names a body
+
+`namesABody(name, mode.names)` (`src/modes/bodyNames.ts`) is deliberately open-ended: the mode's own names (`alice · her · me`), a pronoun for the player (*me*, *myself*, *this is me*), or any body noun — a person, a role, a creature, a doll, a robot (*a girl*, *the knight*, *my cat*, *a stick figure*). Things (*a sword*), places (*the moon*) and laws are not bodies. Articles and a few adjectives are stripped first.
 
 ## What the game does with it today
 
 `GameModules.mode` (default `EMBODIED_MODE`) picks the director. The game:
 
-- calls `director.open(board)` after `sim.loadBoard`;
+- calls `director.open(board)` after `sim.loadBoard`, and `sim.disembody()` when it answers `spirit`: Alice is taken off the board and only her soul (`WorldSnapshot.soul`) waits at the spawn;
 - asks `director.won(event)` before handling any sim event, and writes the closing line when it says so (so an `endless` sandbox never declares victory at the rabbit hole);
 - shows `room.card` in the HUD (`ui/roomCard.ts`: a title card that fades, and a progress mark that stays), folds written laws over `room.world` rather than Earth, and on a win writes `room.closing` and opens `room.next` four seconds later;
+- asks `director.witness(event)` for every sim event and `director.named(id, ruling)` for every naming, and enacts the transitions: `incarnated by drawing` → `sim.incarnate(id, name)` (the drawing leaves the ink layer and the store; its strokes are her body), `tear-opens` → `sim.openTear()`, `unmade` → whatever the mode's `LossRule` says (`unmade`: `sim.disembody()`, she is a soul again; `board-restarts`: the room reopens after a beat; `respawn`: the sim's own checkpoint path);
+- in a spirit-opening mode lets ink touch her (elsewhere strokes over Alice are refused), and hands any committed drawing that reaches a drawn body to `sim.graft(strokes)` before it can become a drawing of its own — that is how a snipped part is redrawn;
 - runs every written law through `allowsLaw(room?.laws ?? mode.laws, effect.governs)` before enacting it — a forbidden law stays plain writing and Kami says *"Not in this game. The page won't take that law here."* beneath it;
 - suspends saved laws the current mode forbids: they do not affect physics or appear as active laws, but remain saved for modes that allow them; erasing their note still repeals them;
 - keeps Alice from walking herself when `autopilot` is `"forbidden"`, whatever the HUD switch says;
 - reads the board id as `endlessBoard(id)` when `page` is `"endless"`, and as `boardFor(id)` otherwise;
-- runs the stuck detector and the hint ladder only when `help` is `"offered"`; with `"on-request"` Kami answers written requests for help instead (`counsel/`);
+- runs the stuck detector and the hint ladder only when `help` is `"offered"` and somebody is on the board; with `"on-request"` Kami answers written requests for help instead (`counsel/`);
 - follows the board through `BoardLink` when `sharing` is `"live"`, applies what arrives, reports Alice's position, paints the other devices' Alices as ghosts, and swaps the board menu for the share affordance;
-- shows the title card from `mode.card`, and has Kami write `card.opening`, when the mode is not the embodied one and the open room is not staged — a staged room opens on its own `room.card`, which already names the mode.
+- introduces any mode but the embodied one when the open room is not staged — a staged room opens on its own `room.card`, which already names the mode: the title card from `mode.card` in the HUD, the card's title, tagline and `roles` lines written under the wordmark, and Kami's first line, which is `card.opening` when she stands on the board and the soul's own line (*"Only a heart, so far…"*) while nobody does.
 
 The embodied mode is exactly the game as it was.
 
@@ -99,31 +106,36 @@ The embodied mode is exactly the game as it was.
 
 ## The modes
 
-| | `EMBODIED_MODE` | `PUZZLE_MODE` | `SANDBOX_MODE` | `SPIRIT_MODE` (contract only) |
-|---|---|---|---|---|
-| status | built | built — [puzzles.md](puzzles.md) | built | contract |
-| opening | `body` — she stands at the spawn | `body` | `body` — on the strip of ground | `spirit`, incarnation `drawn`, names `alice · her · me` |
-| win | `reach-goal` | `reach-goal` → the next room | `endless` | `reach-goal` |
-| loss | `respawn` — the sim's own checkpoint path | `respawn` | `respawn` — onto the last ink she stood on | `unmade` — the body is gone; you are a spirit again |
-| laws | `all` | `only inkEater`, widened per room to its dials | `except inkEater` — *"Nothing hungry lives on this page."* | `except clones` — one body at a time |
-| natures | `all` | `all` — each room's zone narrows to one or none | `all` | `all` |
-| autopilot | `allowed` | `allowed`, on by default | `allowed` — explores toward the newest ink | `forbidden` — a body you drew is a body you steer |
-| page | `room` | `room` | `endless` | `room` |
-| help | `offered` | `offered` | `on-request` | `offered` |
-| sharing | `alone` | `alone` | `live` | `alone` |
-| world | Earth | Earth with `inkEater: 1`, plus the room's own (the Dark Hall: `daylight: 0`) | Earth | Earth |
-| persistence | saved | none — every room opens blank (`ForgetfulBoardStore`) | saved, and shared live | — |
-| selection | default | `?mode=puzzle` (`&board=<room id>` to start mid-run) | `?mode=sandbox` (`&board=<page id>`, default `sandbox`) | — |
+| | `EMBODIED_MODE` | `PUZZLE_MODE` | `SANDBOX_MODE` | `SPIRIT_MODE` | `BOSS_MODE` |
+|---|---|---|---|---|---|
+| status | built | built — [puzzles.md](puzzles.md) | built | groundwork built (below) | built — [boss.md](boss.md) |
+| url | (default) | `?mode=puzzle` (`&board=<room id>` to start mid-run) | `?mode=sandbox` (`&board=<page id>`, default `sandbox`) | `?mode=spirit` | `?mode=boss` |
+| opening | `body` — she stands at the spawn | `body` | `body` — on the strip of ground | `spirit`, incarnation `drawn`, names `alice · her · me` + any body noun | same as spirit |
+| win | `reach-goal` | `reach-goal` → the next room | `endless` | `reach-goal` | `defeat-foe` — the tear closes |
+| loss | `respawn` — the sim's own checkpoint path | `respawn` | `respawn` — onto the last ink she stood on | `unmade` — the body is gone; you are a spirit again | `board-restarts` — the heart is swallowed; the room reopens |
+| laws | `all` | `only inkEater`, widened per room to its dials | `except inkEater` — *"Nothing hungry lives on this page."* | `except clones` — one body at a time | `except clones, inkEater` — the servant is foe enough |
+| natures | `all` | `all` — each room's zone narrows to one or none | `all` | `all` | `all` |
+| autopilot | `allowed` | `allowed`, on by default | `allowed` — explores toward the newest ink | `forbidden` — a body you drew is a body you steer | `forbidden` — the second player steers |
+| page | `room` | `room` | `endless` | `room` | `room` |
+| help | `offered` | `offered` | `on-request` | `offered` — quiet while nobody is on the board | `offered` — quiet while nobody is on the board |
+| sharing | `alone` | `alone` | `live` | `alone` | `alone` |
+| world | Earth | Earth with `inkEater: 1`, plus the room's own (the Dark Hall: `daylight: 0`) | Earth | Earth | Earth |
+| persistence | saved | none — every room opens blank (`ForgetfulBoardStore`) | saved, and shared live | saved, but for the body (below) | saved, but for the body (below) |
+| card | title, tagline, opening | the staged room's own card | title card, tagline and opening line | title, tagline; the soul's line | + two `roles` lines, one per player |
 
-## What the spirit mode still needs
+## The spirit groundwork: built and not
 
-None of this is built; each is a seam that already exists, named so it can be built in order.
-
-1. **A board with nobody on it.** `Simulation.loadBoard(board)` always stands Alice at the spawn. It needs a way to open with her *absent* — no Alice body, no twins, no Sumikui quarry — and `WorldSnapshot.alice` becomes nullable, which the renderer, the camera (`CameraRig.frame` on the spawn instead), the autopilot `Scene` and the Sumikui must all tolerate.
-2. **Incarnation by drawing.** The game calls `director.named` at the naming seam and `director.witness` on every sim event, and enacts the transitions. A `SpiritDirector.named(drawingId, ruling)` that answers `{ kind: "incarnated", by: "drawing", drawingId }` when the ruling's name is one of the mode's `names`. The game then asks the sim to `incarnate(drawingId)`: the drawing's strokes are taken out of the ink layer and become her body — `AliceController` built from the drawing's bounds, its strokes drawn as her (a new `AliceLook` for the painter), the drawing's own nature discarded. Her walk speed and jump scale with the body she was given, within the `aliceSize` clamps.
-3. **Being unmade.** Where the embodied mode's `fell` / `alice-devoured` respawn her, the spirit director answers `{ kind: "unmade" }` and the game removes her body (a little ink dust where she stood; Kami: *"She's gone back into the pen. Draw her again."*), the player is a spirit, and the room goes on with its ink where it was.
-4. **A spirit's hand.** While a spirit, the pen is the only presence. The camera needs a subject that is not Alice (the last pen position, or the spawn); the stuck detector and the hint ladder need to know there is nobody to be stuck.
-5. **Choosing the mode.** `?mode=spirit` in the URL, `modeFor(id)` in `startGame`, and a title card from `mode.card` in `ui/` before the room opens.
-6. **Persistence.** A body made from a drawing is a drawing that is no longer ink: the `BoardStore` needs to remember which drawing became her, or a reload puts her back as a sketch.
+| Seam | Status | Where |
+|---|---|---|
+| A board with nobody on it: `WorldSnapshot.alice` nullable, `soul` where a body may be drawn; renderer, camera, autopilot `Scene`, Sumikui and night lights tolerate her absence | built | `sim.disembody()`, `SoulSnapshot`; `Game.scene()` is null and autopilot idles; `paintSoul` |
+| Incarnation by drawing: `director.named` → `sim.incarnate(id, name)`; `AliceController` from the drawing's bounds; strokes stay authoritative and are painted as her (`AliceLook` `drawn`); speed and jump scale with the body inside the `aliceSize` clamps | built | `src/sim/body/drawnBody.ts` (`incarnate`), `AliceController.wear`, `paintDrawnAlice` |
+| Body parts and abilities: below the heart legs, beside it arms, above it head, up-and-out (or named winged) wings; legs walk and jump, arms climb, wings fly, head sees | built | `partOf`, `abilitiesOf`; `AliceController` gates control by them |
+| Being unmade and grafted back: `unmade` on `fell` / `alice-devoured` / `heart-swallowed`; committed strokes that reach the body rejoin it (`sim.graft`) and glow while fresh | built | `SpiritDirector.witness`, `graft`, `BODY_TUNING.graftGlowMs` |
+| Kami's lines for a soul, a body, a snip, a graft | built | `src/game/bossLines.ts` |
+| Choosing the mode: `?mode=`, `modeFor`, the card written under the wordmark | built | `src/game/launch.ts` (`modeInUrl`), `Game.writeModeCard` |
+| The stuck detector and hint ladder stay quiet while nobody is on the board | built | `Game.frame` |
+| A spirit's hand as the camera's subject | not built | the camera follows the soul where it sits, which is where the body will be drawn; a wandering pen is not followed |
+| Persistence of the body | not built | the drawing that became her is deleted from the store; a reload opens the room as a soul again, with everything else where it was. Right for a boss fight; a longer spirit game would want the store to remember her |
+| Ink that touches a body but is not meant for it | not built | in spirit-opening modes any committed stroke that reaches her is a graft. A sword for her hand is drawn beside her, not on her |
 
 Everything else — laws, natures, the Sumikui, creatures, vehicles — works unchanged on whatever body she has, because none of it knows how she came to have one.

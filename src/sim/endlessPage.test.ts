@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ENDLESS_GROUND, endlessBoard } from "../board/boards/endless";
 import { FALL_LIMIT, LastFooting } from "./footing";
 import {
+  aliceOf,
   drawingOf,
   enter,
   feetOf,
@@ -29,7 +30,7 @@ describe("an endless page", () => {
   it("stands Alice on the strip of ground, which has no edge to hit and no bottom to reach", () => {
     const sim = enter(page);
     expect(runSteps(sim, 30)).toEqual([]);
-    expect(sim.snapshot().alice.grounded).toBe(true);
+    expect(aliceOf(sim).grounded).toBe(true);
     expect(feetOf(sim).y).toBeCloseTo(ENDLESS_GROUND.y, 0);
     expect(page.killY).toBe(Number.POSITIVE_INFINITY);
   });
@@ -53,7 +54,7 @@ describe("an endless page", () => {
     expect(feetOf(sim).y).toBeCloseTo(LEDGE_TOP, -1);
     sim.setWalkIntent(STAY);
     runSteps(sim, 30);
-    expect(sim.snapshot().alice.grounded).toBe(true);
+    expect(aliceOf(sim).grounded).toBe(true);
 
     sim.removeDrawing(idOf("ledge"));
     expect(happeningsOf(runUntil(sim, saw("fell")))).toEqual(["fell"]);

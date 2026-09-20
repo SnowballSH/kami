@@ -13,7 +13,7 @@ export const MODE_PARAM = "mode";
 /** An endless page shared by everyone who opens it with no board of their own. */
 export const SHARED_PAGE_ID = "sandbox";
 
-/** `?mode=sandbox` or `?mode=puzzle` picks how the board is played; anything else, or nothing, is today's play. */
+/** `?mode=<id>` (`puzzle`, `sandbox`, `spirit`, `boss`) picks how the board is played; anything else, or nothing, is today's play. */
 export const modeInUrl = (search: string): GameMode =>
   modeFor(new URLSearchParams(search).get(MODE_PARAM) ?? EMBODIED_MODE_ID);
 

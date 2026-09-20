@@ -24,11 +24,15 @@ export type Opening =
   | { readonly player: "body" }
   | { readonly player: "spirit"; readonly incarnation: Incarnation };
 
-/** `reach-goal` is the rabbit hole or a drawing named goal; `endless` never ends; `outlast` is surviving that long. */
+/**
+ * `reach-goal` is the rabbit hole or a drawing named goal; `endless` never ends; `outlast` is
+ * surviving that long; `defeat-foe` is closing the tear a servant of the one under the page came through.
+ */
 export type WinRule =
   | { readonly kind: "reach-goal" }
   | { readonly kind: "endless" }
-  | { readonly kind: "outlast"; readonly ms: number };
+  | { readonly kind: "outlast"; readonly ms: number }
+  | { readonly kind: "defeat-foe" };
 
 /**
  * What losing her body means. `respawn`: she is set down at her checkpoint. `unmade`: the body is
@@ -66,6 +70,8 @@ export interface ModeCard {
   readonly tagline: string;
   /** Kami's first line when a room opens in this mode. */
   readonly opening: string;
+  /** One line per player when the mode is for more than one pair of hands. */
+  readonly roles?: readonly string[];
 }
 
 /**
@@ -98,8 +104,14 @@ export type PlayerState =
 /** A change of body, reported by the director for the game to enact and Kami to remark on. */
 export type EmbodimentTransition =
   | { readonly kind: "incarnated"; readonly by: "spawn" }
-  | { readonly kind: "incarnated"; readonly by: "drawing"; readonly drawingId: DrawingId }
-  | { readonly kind: "unmade"; readonly cause: "fell" | "devoured" };
+  | {
+      readonly kind: "incarnated";
+      readonly by: "drawing";
+      readonly drawingId: DrawingId;
+      readonly name: string;
+    }
+  | { readonly kind: "unmade"; readonly cause: "fell" | "devoured" | "swallowed" }
+  | { readonly kind: "tear-opens" };
 
 /** The title card shown as a staged room opens. */
 export interface RoomCard {
@@ -139,7 +151,7 @@ export interface ModeDirector {
   open(board: BoardDefinition): PlayerState;
   witness(event: SimEvent): readonly EmbodimentTransition[];
   /** A drawing was named. In a spirit room this is where she may be drawn into being. */
-  named(drawingId: DrawingId, ruling: Ruling): EmbodimentTransition | null;
+  named(drawingId: DrawingId, ruling: Ruling): readonly EmbodimentTransition[];
   /** True when the room has been won under this mode's `WinRule`. */
   won(event: SimEvent): boolean;
   close(): void;

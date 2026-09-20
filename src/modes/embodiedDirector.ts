@@ -2,6 +2,8 @@ import type { BoardDefinition } from "../board/types";
 import type { Ruling } from "../cat/types";
 import type { DrawingId } from "../ink/types";
 import type { SimEvent } from "../sim/types";
+import { wonBy } from "./policy";
+import { SpiritDirector } from "./spiritDirector";
 import type {
   EmbodimentTransition,
   GameMode,
@@ -28,17 +30,22 @@ export class EmbodiedDirector implements ModeDirector {
     return [];
   }
 
-  named(_drawingId: DrawingId, _ruling: Ruling): EmbodimentTransition | null {
-    return null;
+  named(_drawingId: DrawingId, _ruling: Ruling): readonly EmbodimentTransition[] {
+    return [];
   }
 
   won(event: SimEvent): boolean {
-    return this.mode.win.kind === "reach-goal" && event.type === "goal-reached";
+    return wonBy(this.mode.win, event);
   }
 
   close(): void {}
 }
 
-/** Null when nobody has built a director for how this mode opens yet. */
-export const createDirector = (mode: GameMode): ModeDirector | null =>
-  mode.opening.player === "body" ? new EmbodiedDirector(mode) : null;
+export const createDirector = (mode: GameMode): ModeDirector => {
+  switch (mode.opening.player) {
+    case "body":
+      return new EmbodiedDirector(mode);
+    case "spirit":
+      return new SpiritDirector(mode, mode.opening.incarnation);
+  }
+};
