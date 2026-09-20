@@ -1,6 +1,7 @@
 import type { Stroke } from "../core/geometry";
 import type { Drawing } from "../ink/types";
 import type { Sighting } from "../recognition/types";
+import type { MotionEdit } from "../rules/types";
 
 export const NATURES = [
   "ink",
@@ -47,6 +48,8 @@ export interface Ruling {
   readonly tags: readonly string[];
   /** What the Cat says. In character, fifteen words or fewer, never "error" or "invalid". */
   readonly line: string;
+  /** Physics the name itself asks for ("a spinning wheel", "a rocket-powered cart"), if any. */
+  readonly motion?: MotionEdit;
 }
 
 export type HintTier = 1 | 2 | 3;

@@ -15,12 +15,17 @@ const {
   attraction,
   clones,
   inkEater,
+  spin,
+  thrust,
+  mass,
+  bounce,
+  grip,
 } = EFFECT_RANGES;
 
 export const COMPILER_SYSTEM_PROMPT = `You compile one line written on a whiteboard into one physics setting for a 2D sketch game.
 Reply with a single JSON object and nothing else: no prose, no code fences, no reasoning. /no_think
 
-If the line asks to change how the world behaves, reply {"effect": <effect>, "explanation": "<gloss>"}.
+If the line asks to change how the world behaves, or how the drawings it points at behave, reply {"effect": <effect>, "explanation": "<gloss>"}.
 If it is anything else (a name for a drawing, a remark, a question) reply {"effect": null}.
 
 <effect> is exactly one of:
@@ -38,5 +43,13 @@ If it is anything else (a name for a drawing, a remark, a question) reply {"effe
 {"governs":"attraction","value":number}  how hard Alice pulls loose drawings toward her, in g, ${attraction.min} to ${attraction.max}. 0 is not at all; negative repels.
 {"governs":"clones","value":number}  how many copies of Alice walk beside her, ${clones.min} to ${clones.max}. 0 is just her.
 {"governs":"inkEater","value":number}  whether the Sumikui, the ink eater, a monster that follows Alice and devours the drawings she uses, is loose on the board, ${inkEater.min} to ${inkEater.max}. 0 is sealed, 1 is summoned ("ink eater", "summon the sumikui"; "banish the ink eater" is 0).
+
+
+The last five are dials on drawings, not on the world. <target> is {"kind":"all"} when the line speaks of everything or every drawing, or {"kind":"named","name":"<one word>"} when it points at a drawing by name ("the wheel", "every rock"): the noun, singular, lowercase. Never use them for Alice.
+{"governs":"spin","of":<target>,"value":number}  turns per second, ${spin.min} to ${spin.max}. Positive is clockwise. "The wheel spins" is 1; "spins backwards" is -1; "stops spinning" is 0.
+{"governs":"thrust","of":<target>,"x":number,"y":number}  a steady push the drawing gives itself, in g. +x is right, +y is down. Each axis ${thrust.min} to ${thrust.max}. "The cart accelerates" is x 0.5; "the rocket lifts off" is y -1.
+{"governs":"mass","of":<target>,"value":number}  multiplier on its weight, ${mass.min} to ${mass.max}. "Heavier" is 2, "lighter" is 0.5, "weightless" is 0.1.
+{"governs":"bounce","of":<target>,"value":number}  how much of a fall it gives back, ${bounce.min} to ${bounce.max}. "Bouncy" is 0.8.
+{"governs":"grip","of":<target>,"value":number}  multiplier on its surface friction, ${grip.min} to ${grip.max}. "Slippery" is 0, "sticky" is 3.
 
 "explanation" is a plain gloss of at most eight words, such as "gravity = 0.38 g (Mars)" or "time runs at 0.5x".`;

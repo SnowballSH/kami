@@ -101,8 +101,35 @@ describe("createLlmCompiler", () => {
     expect(dusk).toEqual({ effect: { governs: "daylight", value: 0.3 }, explanation: "dusk" });
   });
 
+  it("accepts laws on drawings, with their target, clamped like the rest", async () => {
+    const wheel = await createLlmCompiler(
+      CONFIG,
+      modelSaying(
+        '{"effect":{"governs":"spin","of":{"kind":"named","name":"wheel"},"value":40},"explanation":"round it goes"}',
+      ),
+    ).compile("the wheel spins like mad");
+    expect(wheel).toEqual({
+      effect: { governs: "spin", of: { kind: "named", name: "wheel" }, value: 5 },
+      explanation: "round it goes",
+    });
+
+    const rocket = await createLlmCompiler(
+      CONFIG,
+      modelSaying('{"effect":{"governs":"thrust","of":{"kind":"all"},"x":0,"y":-9}}'),
+    ).compile("everything lifts off");
+    expect(rocket).toEqual({
+      effect: { governs: "thrust", of: { kind: "all" }, x: 0, y: -3 },
+      explanation: "everything: thrust = (0, -3) g",
+    });
+  });
+
   it.each([
     ["not a rule", '{"effect":null}'],
+    ["a drawing law with no target", '{"effect":{"governs":"spin","value":1},"explanation":"x"}'],
+    [
+      "a drawing law aimed at nothing sensible",
+      '{"effect":{"governs":"mass","of":{"kind":"alice"},"value":2},"explanation":"x"}',
+    ],
     ["garbage", "I am a large language model"],
     ["broken JSON", '{"effect":{"governs":"gravity",'],
     ["an unknown setting", '{"effect":{"governs":"magnetism","value":1},"explanation":"x"}'],

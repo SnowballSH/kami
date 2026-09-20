@@ -1,5 +1,5 @@
 import { clamp } from "../../src/core/geometry";
-import type { Governs, RuleEffect } from "../../src/rules/types";
+import { type Governs, isBodyEffect, type RuleEffect, type Target } from "../../src/rules/types";
 
 interface Range {
   readonly min: number;
@@ -21,6 +21,11 @@ export const EFFECT_RANGES: Readonly<Record<Governs, Range>> = {
   attraction: { min: -3, max: 3 },
   clones: { min: 0, max: 8 },
   inkEater: { min: 0, max: 1 },
+  spin: { min: -5, max: 5 },
+  thrust: { min: -3, max: 3 },
+  mass: { min: 0.1, max: 10 },
+  bounce: { min: 0, max: 1 },
+  grip: { min: 0, max: 5 },
 };
 
 export const clampEffect = (effect: RuleEffect): RuleEffect => {
@@ -34,7 +39,13 @@ const GLOSS_DECIMALS = 2;
 
 const tidy = (value: number): string => String(Number(value.toFixed(GLOSS_DECIMALS)));
 
-export const describeEffect = (effect: RuleEffect): string =>
-  "value" in effect
-    ? `${effect.governs} = ${tidy(effect.value)}`
-    : `${effect.governs} = (${tidy(effect.x)}, ${tidy(effect.y)}) g`;
+const describeTarget = (of: Target): string =>
+  of.kind === "all" ? "everything" : `the ${of.name}`;
+
+export const describeEffect = (effect: RuleEffect): string => {
+  const dial =
+    "value" in effect
+      ? `${effect.governs} = ${tidy(effect.value)}`
+      : `${effect.governs} = (${tidy(effect.x)}, ${tidy(effect.y)}) g`;
+  return isBodyEffect(effect) ? `${describeTarget(effect.of)}: ${dial}` : dial;
+};

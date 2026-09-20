@@ -16,6 +16,7 @@ import { EMPTY_BOARD } from "./emptyBoard";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "./flight";
 import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
+import { moveOfItself } from "./motion";
 import { NATURES, type NatureWorld } from "./natures";
 import { Sumikui } from "./sumikui";
 import { Twins } from "./twins";
@@ -185,6 +186,7 @@ export class MatterSimulation implements Simulation {
     alice.control(this.intent, surroundings, timeScale);
     twins.control(this.intent, surroundings, timeScale);
     for (const ink of inks.all) NATURES[ink.nature].beforeStep?.(ink, natureWorld);
+    moveOfItself(inks.all);
     this.blowWind();
     pullToward(alice.body.position, this.physics.attraction, inks.dynamicBodies);
     Matter.Engine.update(engine, FIXED_STEP_MS);

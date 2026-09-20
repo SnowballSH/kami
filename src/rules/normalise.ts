@@ -1,8 +1,12 @@
 import { vocabulary } from "./vocabulary";
 
-/** What a note says once spelling, punctuation and politeness are out of the way. */
+/**
+ * What a note says once spelling, punctuation and politeness are out of the way. `subjects` are
+ * the words the player pointed at with a determiner ("the wheel", "every cloud"), in order.
+ */
 export interface Sentence {
   readonly words: readonly string[];
+  readonly subjects: readonly string[];
 }
 
 export const METRES_PER_SECOND_SQUARED = "mpss";
@@ -38,6 +42,8 @@ const SYMBOLS: readonly (readonly [RegExp, string])[] = [
   [/-(?![\d.])|(?<=[a-z0-9.])-/g, " "],
 ];
 
+const DETERMINERS = vocabulary("the, this, that, these, those, every, each, all, my, our, your");
+
 const NAMED_ALICE: readonly (readonly [RegExp, string])[] = [
   [/\b(?:the|this|our|my) (?:girl|character|player|hero|heroine|protagonist)\b/g, "alice"],
 ];
@@ -66,9 +72,17 @@ const rewrite = (text: string, rewrites: readonly (readonly [RegExp, string])[])
 const wordsOf = (text: string): readonly string[] =>
   text.split(/\s+/).filter((word) => word.length > 0);
 
+const pointedAt = (words: readonly string[]): readonly string[] =>
+  words.flatMap((word, at) => {
+    const next = words[at + 1];
+    return DETERMINERS.has(word) && next !== undefined && !FILLER.has(next) ? [next] : [];
+  });
+
 export const normalise = (text: string): Sentence => {
-  const meaningful = wordsOf(rewrite(rewrite(text.toLowerCase(), SYMBOLS), NAMED_ALICE)).filter(
-    (word) => !FILLER.has(word),
-  );
-  return { words: wordsOf(rewrite(meaningful.join(" "), PHRASES)) };
+  const spoken = wordsOf(rewrite(rewrite(text.toLowerCase(), SYMBOLS), NAMED_ALICE));
+  const meaningful = spoken.filter((word) => !FILLER.has(word));
+  return {
+    words: wordsOf(rewrite(meaningful.join(" "), PHRASES)),
+    subjects: pointedAt(spoken),
+  };
 };
