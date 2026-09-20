@@ -7,3 +7,4 @@ coverage/
 .kami-data/
 .gx10/
 __pycache__/
+.deepgram.env
