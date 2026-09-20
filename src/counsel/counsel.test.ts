@@ -46,8 +46,10 @@ const ink = (id: string, strokes: readonly Vec[][], nature: Nature = "solid"): S
 const scene = (overrides: Partial<Scene> = {}): Scene => ({
   board: endlessBoard("together"),
   alice: alice({ x: 0, y: ENDLESS_GROUND.y }),
+  others: [],
   inks: [],
   bites: [],
+  sumikui: null,
   keyTaken: false,
   doorOpen: false,
   walkSpeed: walkSpeedAt(1),

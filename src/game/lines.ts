@@ -62,6 +62,12 @@ export const SUMIKUI_ALICE_DEVOURED_LINES: readonly string[] = [
   "Gone in one swallow. It is gorged now, and slow. Run while it is.",
   "Keep her moving. It only catches what stands still.",
 ];
+export const ALICE_FLEES_LINES: readonly string[] = [
+  "She sees it. She runs. Draw her somewhere to run to.",
+  "It is on her heels. She will not stand and be eaten.",
+  "Look at her go. Fear is a fine teacher.",
+];
+export const ALICE_CORNERED_LINE = "Nowhere left to run. Draw her a way out, quickly.";
 export const WARPED_LINES: readonly string[] = [
   "In one, out the other. The paper is smaller than it looks.",
   "Through and through. She never did care for the long way round.",
@@ -90,3 +96,12 @@ export const BLANK_BOARD_BRIEF: RoomBrief = {
     "Then bend the world: write 'g = moon', 'no friction', 'wind blows right', 'slow motion'.",
   ],
 };
+
+/** How Kami tells the Alices apart: Alice herself, then her twins by number. */
+export const aliceName = (who: number): string => (who === 0 ? "Alice" : `Alice ${who + 1}`);
+export const TWIN_GOAL_LINE = (who: number): string =>
+  `${aliceName(who)} found the rabbit hole. One of you was enough.`;
+export const TWIN_SELECTED_LINE = (who: number): string => `${aliceName(who)}, then. Lead on.`;
+/** Prefix a line about one Alice among several with her name, so the player knows who it was. */
+export const aboutAlice = (who: number, line: string): string =>
+  who === 0 ? line : `${aliceName(who)}: ${line}`;

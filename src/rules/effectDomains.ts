@@ -38,6 +38,7 @@ export const EFFECT_DOMAINS: Readonly<Record<Governs, Domain>> = {
   pace: { min: 0.1, max: 5 },
   wings: { min: 0, max: 1 },
   size: { min: 0.25, max: 4 },
+  heed: { min: -1, max: 1 },
 };
 
 export const inEffectDomain = (governs: Governs, value: number): boolean => {
@@ -70,7 +71,8 @@ const validBodyLaw = ({ of, edit }: BodyLaw): boolean =>
   (edit.grip === undefined || inEffectDomain("grip", edit.grip)) &&
   (edit.pace === undefined || inEffectDomain("pace", edit.pace)) &&
   (edit.wings === undefined || inEffectDomain("wings", edit.wings)) &&
-  (edit.size === undefined || inEffectDomain("size", edit.size));
+  (edit.size === undefined || inEffectDomain("size", edit.size)) &&
+  (edit.heed === undefined || inEffectDomain("heed", edit.heed));
 
 export const validPhysics = (physics: WorldPhysics): boolean =>
   validEffect({ governs: "gravity", ...physics.gravity }) &&

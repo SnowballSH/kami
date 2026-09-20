@@ -44,8 +44,10 @@ const ink = (id: string, points: readonly Vec[]): SceneInk => ({
 const scene = (overrides: Partial<Scene> = {}): Scene => ({
   board: page,
   alice: alice({ x: 0, y: ENDLESS_GROUND.y }),
+  others: [],
   inks: [],
   bites: [],
+  sumikui: null,
   keyTaken: false,
   doorOpen: false,
   walkSpeed: walkSpeedAt(1),

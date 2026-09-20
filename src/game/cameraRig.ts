@@ -8,6 +8,9 @@ const FRAMING_WIDTH = 1100;
 const FRAMING_ZOOM = { min: 0.5, max: 1.25 } as const;
 const HEADROOM = 170;
 const HALF_TURN_DEGREES = 180;
+/** How far the frame leans from its subject toward company standing within half a screen of her. */
+const COMPANY_LEAN = 0.3;
+const COMPANY_REACH = 0.5;
 
 export interface Viewport {
   readonly width: number;
@@ -15,6 +18,21 @@ export interface Viewport {
 }
 
 type ToWorld = (client: Vec, camera: Camera) => Vec;
+
+const leanToward = (subject: Vec, company: readonly Vec[], reach: number): Vec => {
+  const near = company.filter(
+    (other) => Math.abs(other.x - subject.x) <= reach && Math.abs(other.y - subject.y) <= reach,
+  );
+  if (near.length === 0) return subject;
+  const mean = {
+    x: near.reduce((sum, other) => sum + other.x, 0) / near.length,
+    y: near.reduce((sum, other) => sum + other.y, 0) / near.length,
+  };
+  return {
+    x: subject.x + (mean.x - subject.x) * COMPANY_LEAN,
+    y: subject.y + (mean.y - subject.y) * COMPANY_LEAN,
+  };
+};
 
 /** The window onto the endless board. Follows Alice until the player takes the camera. */
 export class CameraRig {
@@ -73,10 +91,15 @@ export class CameraRig {
     this.following = true;
   }
 
-  follow(subject: Rect, viewport: Viewport): void {
+  /** Keeps `subject` in frame, leaning gently toward any `company` close enough to share it. */
+  follow(subject: Rect, viewport: Viewport, company: readonly Rect[] = []): void {
     if (!this.following) return;
     const { center, zoom, angle } = this.current;
-    const target = rectCenter(subject);
+    const target = leanToward(
+      rectCenter(subject),
+      company.map(rectCenter),
+      (viewport.width * COMPANY_REACH) / zoom,
+    );
     const slack = {
       x: (viewport.width * DEAD_ZONE.x) / zoom,
       y: (viewport.height * DEAD_ZONE.y) / zoom,

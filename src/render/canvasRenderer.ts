@@ -36,8 +36,8 @@ const chewOf = (sumikui: SumikuiSnapshot | null): Chew | null =>
     : { drawingId: sumikui.chewing, bite: sumikui.bite };
 
 /** How far Alice has gone down its throat: she fades as it closes on her. */
-const swallowOf = (sumikui: SumikuiSnapshot | null): number =>
-  sumikui?.quarry === "alice" ? sumikui.bite : 0;
+const swallowOf = (sumikui: SumikuiSnapshot | null, who: number): number =>
+  sumikui?.quarry === "alice" && sumikui.prey === who ? sumikui.bite : 0;
 
 export class CanvasRenderer implements Renderer {
   private readonly ctx: CanvasRenderingContext2D;
@@ -100,11 +100,24 @@ export class CanvasRenderer implements Renderer {
     const moonlit = frame.daylight < 1;
     if (!moonlit) this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
     this.paintGhosts(ctx, frame.ghosts ?? [], view, nowMs);
-    for (const twin of world.twins) if (aliceInView(twin, view)) paintAlice(ctx, twin, nowMs);
+    const several = world.twins.length > 0;
+    for (const [index, twin] of world.twins.entries()) {
+      if (!aliceInView(twin, view)) continue;
+      ctx.save();
+      ctx.globalAlpha = 1 - swallowOf(world.sumikui, index + 1);
+      paintAlice(ctx, twin, nowMs, {
+        ribbon: index + 1,
+        selected: several && frame.selectedAlice === index + 1,
+      });
+      ctx.restore();
+    }
     if (aliceInView(world.alice, view)) {
       ctx.save();
-      ctx.globalAlpha = 1 - swallowOf(world.sumikui);
-      paintAlice(ctx, world.alice, nowMs);
+      ctx.globalAlpha = 1 - swallowOf(world.sumikui, 0);
+      paintAlice(ctx, world.alice, nowMs, {
+        ribbon: null,
+        selected: several && (frame.selectedAlice ?? 0) === 0,
+      });
       ctx.restore();
     }
     if (world.sumikui !== null) paintSumikui(ctx, world.sumikui, nowMs);

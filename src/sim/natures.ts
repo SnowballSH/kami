@@ -23,12 +23,16 @@ import type { AliceSize, SimEvent, WalkIntent } from "./types";
 import { drive } from "./vehicles";
 import { type BodyMaterial, cancelGravity } from "./worldPhysics";
 
-/** What a nature is allowed to do to the board it lives on. */
+/**
+ * What a nature is allowed to do to the board it lives on. `alice` is the Alice the hook is about:
+ * the one touching the ink, or, before a step, the nearest of them; `alices` is every one of her.
+ */
 export interface NatureWorld {
   readonly alice: AliceController;
+  readonly alices: readonly AliceController[];
   readonly gravity: Vec;
   readonly feelers: Feelers;
-  readonly intent: WalkIntent;
+  intentOf(alice: AliceController): WalkIntent;
   emit(event: SimEvent): void;
   reachGoal(): void;
   loseAlice(): void;
@@ -104,7 +108,7 @@ const rise: InkHook = (ink, world) => {
   cancelGravity(body, world.gravity);
   Matter.Body.setVelocity(body, velocity);
   Matter.Body.setAngularVelocity(body, body.angularVelocity * FLOAT_SPIN_DAMPING);
-  if (world.alice.standsOn(body)) world.alice.ride(velocity);
+  for (const alice of world.alices) if (alice.standsOn(body)) alice.ride(velocity);
 };
 
 const resizeTo =

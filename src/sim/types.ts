@@ -18,6 +18,11 @@ export const aliceDimensions = (size: AliceSize, multiplier: number) => ({
 /** She takes the key when it lies within `radius` of her body grown by `reachRatio` of her height. */
 export const KEY_PICKUP = { reachRatio: 0.5, radius: 18 } as const;
 
+/** Which Alice an event or intent is about: 0 is Alice herself, n ≥ 1 her n-th twin. */
+export type AliceIndex = number;
+
+export const ALICE_HERSELF: AliceIndex = 0;
+
 export type Axis = -1 | 0 | 1;
 
 /** `y` is only used while she overlaps something climbable: -1 is up. */
@@ -51,6 +56,8 @@ export interface SumikuiSnapshot {
   readonly facing: -1 | 1;
   readonly phase: SumikuiPhase;
   readonly quarry: SumikuiQuarry | null;
+  /** The Alice it is closing on, while `quarry` is `"alice"`. */
+  readonly prey: AliceIndex | null;
   /** The drawing between its teeth right now, dissolving as `bite` climbs. */
   readonly chewing: DrawingId | null;
   /** How far through its meal it is, 0 to 1; 0 unless feeding. */
@@ -74,7 +81,7 @@ export interface BounceArc {
 
 export interface WorldSnapshot {
   readonly alice: AliceSnapshot;
-  /** Her copies, when a law has cloned her; they move as she moves. */
+  /** Her copies, when a law has cloned her; each walks on her own intent. */
   readonly twins: readonly AliceSnapshot[];
   /** The ink eater, while the law that loosed it stands. */
   readonly sumikui: SumikuiSnapshot | null;
@@ -87,8 +94,8 @@ export interface WorldSnapshot {
 }
 
 export type SimEvent =
-  | { readonly type: "goal-reached" }
-  | { readonly type: "fell" }
+  | { readonly type: "goal-reached"; readonly who: AliceIndex }
+  | { readonly type: "fell"; readonly who: AliceIndex }
   | { readonly type: "zone-entered"; readonly zoneId: string }
   | { readonly type: "key-taken" }
   | { readonly type: "door-opened" }
@@ -101,10 +108,15 @@ export type SimEvent =
   /** It bit through the board's own paper; `hole` is gone from the solids until it heals. */
   | { readonly type: "paper-bitten"; readonly hole: Rect }
   | { readonly type: "paper-healed" }
-  /** It caught Alice; she is returned to her checkpoint (a `fell` follows in the same step). */
-  | { readonly type: "alice-devoured" }
-  /** Alice stepped into one portal and out of another. */
-  | { readonly type: "warped"; readonly from: DrawingId; readonly to: DrawingId }
+  /** It caught an Alice; she is returned to her checkpoint (a `fell` follows in the same step). */
+  | { readonly type: "alice-devoured"; readonly who: AliceIndex }
+  /** An Alice stepped into one portal and out of another. */
+  | {
+      readonly type: "warped";
+      readonly who: AliceIndex;
+      readonly from: DrawingId;
+      readonly to: DrawingId;
+    }
   /** Alice stepped into the only portal on the board; it leads nowhere yet. */
   | { readonly type: "portal-lonely"; readonly drawingId: DrawingId };
 
@@ -117,21 +129,24 @@ export interface Simulation {
   addDrawing(drawing: Drawing): void;
   applyRuling(id: DrawingId, ruling: Ruling): void;
   removeDrawing(id: DrawingId): void;
-  setWalkIntent(intent: WalkIntent): void;
+  /** Steers one Alice; the others keep whatever they were last told. */
+  setWalkIntent(intent: WalkIntent, who?: AliceIndex): void;
   /** 1 is real time; bullet-time passes BULLET_TIME_SCALE. */
   setTimeScale(scale: number): void;
   /** Advances one fixed step (FIXED_STEP_MS) and reports what happened during it. */
   step(): readonly SimEvent[];
   snapshot(): WorldSnapshot;
-  aliceBounds(): Rect;
+  /** All of her: Alice herself first, then her twins in order. */
+  alices(): readonly AliceSnapshot[];
+  aliceBounds(who?: AliceIndex): Rect;
   /** How far the paper is turned on screen, in degrees clockwise, under the tilt and spin laws. */
   paperAngle(): number;
   /** Her walking speed at her current size and under the standing pace law, px per tick. */
-  walkSpeed(): number;
+  walkSpeed(who?: AliceIndex): number;
   /** True while a flight law stands. */
   canFly(): boolean;
   /** Where a spring of `strength` would throw her under the standing physics. */
   bounceArc(strength: number): BounceArc;
   /** The flight a jump from standing throws her on, at her current size. */
-  jumpArc(): BounceArc;
+  jumpArc(who?: AliceIndex): BounceArc;
 }

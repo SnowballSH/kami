@@ -10,6 +10,7 @@ import {
 import { INK_THICKNESS } from "../core/world";
 import { bearingStrokes } from "../ink/bearing";
 import type { DrawingId } from "../ink/types";
+import type { AliceSnapshot } from "../sim/types";
 import type { Scene, SceneInk } from "./types";
 
 export const CELL_PX = 8;
@@ -97,12 +98,19 @@ const worldPoints = (ink: SceneInk): Vec[] =>
 
 export const boundsOfInk = (ink: SceneInk): Rect => boundsOf(worldPoints(ink));
 
-const aliceRect = (scene: Scene): Rect => ({
-  x: scene.alice.center.x - scene.alice.width / 2,
-  y: scene.alice.center.y - scene.alice.height / 2,
-  width: scene.alice.width,
-  height: scene.alice.height,
+const rectOf = (alice: AliceSnapshot): Rect => ({
+  x: alice.center.x - alice.width / 2,
+  y: alice.center.y - alice.height / 2,
+  width: alice.width,
+  height: alice.height,
 });
+
+/**
+ * Every Alice on the page, none of them ever stamped: they are not solid to one another, and a
+ * chart that reads the same for each of them is one chart they can all share.
+ */
+const everyAliceRect = (scene: Scene): readonly Rect[] =>
+  [scene.alice, ...scene.others].map(rectOf);
 
 const CREATURES: ReadonlySet<Nature> = new Set<Nature>(["walker", "hopper", "flier", "vehicle"]);
 const CRAMP_INSET = 2;
@@ -120,19 +128,25 @@ const cramps = (ink: SceneInk, alice: Rect): boolean =>
     height: alice.height - 2 * CRAMP_INSET,
   });
 
-const windowAround = (alice: Rect): CellRange =>
-  cellsOf({
-    x: alice.x + alice.width / 2 - WINDOW_PX.x,
-    y: alice.y + alice.height / 2 - WINDOW_PX.y,
-    width: 2 * WINDOW_PX.x,
-    height: 2 * WINDOW_PX.y,
+/** The paper every Alice on the page reads: WINDOW_PX around them all, however far apart they stand. */
+const windowAround = (alices: readonly Rect[]): CellRange => {
+  const left = Math.min(...alices.map((alice) => alice.x + alice.width / 2));
+  const right = Math.max(...alices.map((alice) => alice.x + alice.width / 2));
+  const top = Math.min(...alices.map((alice) => alice.y + alice.height / 2));
+  const bottom = Math.max(...alices.map((alice) => alice.y + alice.height / 2));
+  return cellsOf({
+    x: left - WINDOW_PX.x,
+    y: top - WINDOW_PX.y,
+    width: right - left + 2 * WINDOW_PX.x,
+    height: bottom - top + 2 * WINDOW_PX.y,
   });
+};
 
 const extentOf = (scene: Scene): CellRange => {
   const { board } = scene;
-  if (board.page === "endless") return windowAround(aliceRect(scene));
+  if (board.page === "endless") return windowAround(everyAliceRect(scene));
   const rects: Rect[] = [
-    aliceRect(scene),
+    ...everyAliceRect(scene),
     ...board.solids.map((solid) => solid.rect),
     ...(board.door === undefined ? [] : [board.door]),
     ...(board.goal === undefined ? [] : [board.goal]),
@@ -161,7 +175,7 @@ const boundedGeometry = (scene: Scene): boolean => {
   return true;
 };
 
-const rectOf = ({ c0, c1, r0, r1 }: CellRange): Rect => ({
+const paperOf = ({ c0, c1, r0, r1 }: CellRange): Rect => ({
   x: c0 * CELL_PX,
   y: r0 * CELL_PX,
   width: (c1 - c0) * CELL_PX,
@@ -206,7 +220,7 @@ export class Chart {
     const range = extentOf(scene);
     if (!boundedRange(range)) return null;
     const chart = new Chart(range, scene.canFly);
-    const paper = rectOf(range);
+    const paper = paperOf(range);
     for (const solid of scene.board.solids) {
       if (!rectsOverlap(solid.rect, paper)) continue;
       for (const piece of remainingColumns(solid.rect, scene.bites)) {
@@ -219,9 +233,10 @@ export class Chart {
     }
     if (scene.board.goal !== undefined && !chart.stampRect(scene.board.goal, CellFlag.goal))
       return null;
-    const alice = aliceRect(scene);
+    const alices = everyAliceRect(scene);
     for (const ink of scene.inks) {
-      if (cramps(ink, alice) || !rectsOverlap(boundsOfInk(ink), paper)) continue;
+      if (alices.some((alice) => cramps(ink, alice))) continue;
+      if (!rectsOverlap(boundsOfInk(ink), paper)) continue;
       if (!chart.stampInk(ink, flagsFor(ink.nature))) return null;
     }
     return chart;

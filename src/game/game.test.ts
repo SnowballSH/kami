@@ -209,7 +209,7 @@ class Player {
     this.game = new Game(
       {
         sim: this.sim,
-        autopilot: createAutopilot(),
+        autopilot: createAutopilot,
         cat: createCat(eyes),
         ...(eyes === undefined ? {} : { finisher: eyes, summoner: new Summoner(eyes, eyes) }),
         renderer: this.renderer,
@@ -1290,15 +1290,44 @@ describe("Game with a Kami who draws", () => {
     return eyes;
   };
 
-  it("takes words beside unnamed ink as its name, even when they sound like a request to draw", async () => {
+  it("takes a bare name beside unnamed ink as its name rather than drawing one", async () => {
     const eyes = drawer();
     const player = new Player("wonderland", { eyes });
     await player.arrive();
 
     await player.draw(blob({ x: 300, y: 530 }, 30, 20));
-    await player.write("draw a ladder", { x: 300, y: 500 });
+    await player.write("a ladder", { x: 300, y: 500 });
     expect(eyes.summoned).toEqual([]);
     expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["climbable"]);
+  });
+
+  it("draws what is asked for outright even beside unnamed ink, leaving that ink unnamed", async () => {
+    const eyes = drawer();
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("summon a rabbit", { x: 300, y: 500 });
+    expect(eyes.summoned).toEqual(["rabbit"]);
+    const natures = player.renderer.lastFrame?.inks.map((ink) => ink.nature) ?? [];
+    expect(natures).toContain("ink");
+    expect(natures).toContain("hopper");
+  });
+
+  it("lets the player's words and Kami's label fade once they have been answered", async () => {
+    const eyes = drawer();
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    const standing = player.written;
+    await player.write("summon a rabbit", { x: 300, y: 500 });
+    expect(player.written).toContain("summon a rabbit");
+    expect(player.written.length).toBeGreaterThan(standing.length + 1);
+
+    await player.wait(20_000);
+    expect(player.written.filter((text) => !standing.includes(text))).toEqual([]);
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["hopper"]);
+    expect((await player.store.load("wonderland")).notes).toEqual([]);
   });
 
   it("inks the picture asked for above the words, stroke by stroke, and names it", async () => {
@@ -1766,6 +1795,34 @@ describe("Game on a blank board", () => {
     expect(
       await player.until(() => player.written.some((text) => text.includes("rabbit hole"))),
     ).toBe(true);
+  });
+
+  it("hands the controls to a tapped twin, and says which Alice found the rabbit hole", async () => {
+    const player = new Player("my-first-game");
+    await player.arrive();
+    await player.write("clone alice", { x: -200, y: -200 });
+    const twin = () => player.renderer.lastFrame?.world.twins[0];
+    expect(await player.until(() => twin() !== undefined)).toBe(true);
+    const tapped = twin();
+    if (tapped === undefined) throw new Error("no twin to tap");
+    expect(player.renderer.lastFrame?.selectedAlice).toBe(0);
+
+    player.use("draw");
+    player.game.tap(tapped.center);
+    await player.wait(100);
+    expect(player.renderer.lastFrame?.selectedAlice).toBe(1);
+    expect(player.written).toContain("Alice 2, then. Lead on.");
+
+    player.game.onAutopilotToggled(false);
+    await player.draw(blob({ x: 250, y: -20 }, 16, 16));
+    await player.write("goal", { x: 240, y: -110 });
+    const herself = player.alice.center.x;
+    player.walk(1);
+    const found = () => player.written.filter((text) => text.includes("found the rabbit hole"));
+    expect(await player.until(() => found().length > 0)).toBe(true);
+    expect(found()).toEqual(["Alice 2 found the rabbit hole. One of you was enough."]);
+    expect(player.alice.center.x).toBeCloseTo(herself, 0);
+    expect(player.renderer.lastFrame?.selectedAlice).toBe(1);
   });
 });
 

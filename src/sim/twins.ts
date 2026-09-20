@@ -2,9 +2,9 @@ import Matter from "matter-js";
 import type { Vec } from "../core/geometry";
 import { inEffectDomain } from "../rules/effectDomains";
 import type { WorldPhysics } from "../rules/types";
-import { AliceController, type AliceSurroundings } from "./alice";
+import { AliceController } from "./alice";
 import { bottomOf } from "./bodyBounds";
-import type { AliceSnapshot, WalkIntent } from "./types";
+import type { AliceSnapshot } from "./types";
 
 const SPACING = 1.5;
 /** A twin this far from Alice sideways has stopped being her clone and is recalled to her feet. */
@@ -22,8 +22,8 @@ const besideAlice = (alice: AliceController, index: number): Vec => {
 };
 
 /**
- * Alice's copies under a `clones` law. Each is a full AliceController that hears the same intent
- * she does, so they walk, jump and climb in step with her; they never collide with her or each other.
+ * Alice's copies under a `clones` law. Each is a full AliceController with an intent of her own, so
+ * every one of them walks, jumps and climbs her own way; they never collide with her or each other.
  */
 export class Twins {
   private readonly twins: AliceController[] = [];
@@ -49,22 +49,11 @@ export class Twins {
     for (const twin of this.twins) twin.applyPhysics(physics);
   }
 
-  control(intent: WalkIntent, surroundings: AliceSurroundings, timeScale: number): void {
-    for (const twin of this.twins) twin.control(intent, surroundings, timeScale);
-  }
-
-  settle(surroundings: AliceSurroundings, intent: WalkIntent, elapsedMs: number): void {
-    for (const twin of this.twins) {
-      twin.advanceResize(elapsedMs);
-      twin.sense(surroundings, intent);
-    }
-  }
-
-  /** Any twin that has left the board, or strayed far to one side, rejoins Alice at her feet. */
-  recallLost(alice: AliceController, killY: number): void {
+  /** Any twin that has strayed far to one side of Alice rejoins her at her feet. */
+  recallStrays(alice: AliceController): void {
     for (const twin of this.twins) {
       const strayed = Math.abs(twin.body.position.x - alice.body.position.x) > TWIN_STRAY_DISTANCE;
-      if (twin.body.position.y > killY || strayed) twin.placeAt(besideAlice(alice, 0));
+      if (strayed) twin.placeAt(besideAlice(alice, 0));
     }
   }
 

@@ -135,6 +135,11 @@ const BODY_STYLES: Readonly<Record<BodyScalarGoverns, ScalarStyle>> = {
     gloss: (shown) => `size = ${shown}x`,
     glossAtZero: null,
   },
+  heed: {
+    range: { min: -1, max: 1 },
+    gloss: (shown) => (shown.startsWith("-") ? "flees Alice" : "follows Alice"),
+    glossAtZero: "goes its own way",
+  },
 };
 
 const MAX_THRUST_IN_G = 3;

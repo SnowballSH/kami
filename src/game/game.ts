@@ -1,4 +1,4 @@
-import type { Autopilot, Scene } from "../autopilot/types";
+import type { Scene } from "../autopilot/types";
 import { endlessBoard } from "../board";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
@@ -52,7 +52,13 @@ import type {
   SceneCompiler,
   WorldPhysics,
 } from "../rules/types";
-import type { DrawingPose, SimEvent, Simulation, WalkIntent } from "../sim/types";
+import {
+  ALICE_HERSELF,
+  type DrawingPose,
+  type SimEvent,
+  type Simulation,
+  type WalkIntent,
+} from "../sim/types";
 import { placeProp, type Summoner, type Wish } from "../summoning";
 import type { BoardChange, BoardLink, Ghost, PeerId } from "../sync";
 import type {
@@ -72,6 +78,9 @@ import { HeldInkBook } from "./heldInk";
 import { IdMint } from "./idMint";
 import { InkLedger, type InkRecord } from "./inkLedger";
 import {
+  ALICE_CORNERED_LINE,
+  ALICE_FLEES_LINES,
+  aboutAlice,
   aloud,
   BLANK_BOARD_BRIEF,
   CANNOT_DRAW_LINE,
@@ -99,11 +108,14 @@ import {
   SUMIKUI_WOKE_LINE,
   sceneGlossOf,
   TAGLINE,
+  TWIN_GOAL_LINE,
+  TWIN_SELECTED_LINE,
   WARPED_LINES,
   WORDMARK,
 } from "./lines";
 import { type NoteAnchor, NoteBook } from "./noteBook";
 import type { Drift } from "./noteLayout";
+import { type Hire, type Page, Party } from "./party";
 import { groupedByNote, RuleBook } from "./ruleBook";
 import { StuckDetector } from "./stuckDetector";
 
@@ -122,10 +134,12 @@ const guessCornerOf = (strokes: readonly Stroke[]): Vec => {
   const bounds = boundsOf(strokes.flat());
   return { x: bounds.x + bounds.width + GUESS_OFFSET.x, y: bounds.y + GUESS_OFFSET.y };
 };
-const GUESS_LIFETIME_MS = 20_000;
+const GUESS_LIFETIME_MS = 12_000;
 const GLIMPSE_LIFETIME_MS = 8_000;
 const REMARK_LIFETIME_MS = 6_000;
-const HINT_LIFETIME_MS = 14_000;
+const HINT_LIFETIME_MS = 10_000;
+/** How long the player's words, and the labels Kami hangs on drawings, stay once answered. */
+const NOTE_LINGER_MS = 12_000;
 const ABOVE_ALICE = { x: -90, y: -120 } as const;
 /** Where a spoken note lands: beside Alice, as if the player had written it there. */
 const SPOKEN_AT = { x: -60, y: -190 } as const;
@@ -144,8 +158,8 @@ interface Recital {
 
 export interface GameModules {
   readonly sim: Simulation;
-  /** Alice's own mind; the keyboard and d-pad only override it while held. */
-  readonly autopilot: Autopilot;
+  /** Hires a mind for each Alice on the board; the keyboard and d-pad only override the selected one's while held. */
+  readonly autopilot: Hire;
   readonly cat: Cat;
   readonly renderer: Renderer;
   readonly handwriting: Handwriting;
@@ -201,6 +215,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly notes: NoteBook;
   private readonly rules: RuleBook;
   private readonly camera = new CameraRig();
+  private readonly party: Party;
   private readonly stuck = new StuckDetector();
   private readonly ids = new IdMint();
   private readonly introduced = new Set<string>();
@@ -215,8 +230,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private nowMs = 0;
   private lastFrameMs = 0;
   private tool: Tool = "draw";
-  private manualIntent: WalkIntent = IDLE_INTENT;
-  private wasStuck = false;
+  private flights = 0;
   private ideasGiven = 0;
   private selfDriving: boolean;
   private tidiness: number;
@@ -248,6 +262,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   ) {
     this.director = directorFor(modules.mode ?? EMBODIED_MODE);
     this.board = this.sketch(initialBoardId);
+    this.party = new Party(modules.autopilot);
     this.selfDriving = (modules.selfDriving ?? true) && this.walksHerself();
     this.tidiness = clamp(modules.tidiness ?? DEFAULT_TIDINESS, 0, 1);
     this.notes = new NoteBook(modules.handwriting);
@@ -285,19 +300,24 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
     sim.setTimeScale(this.ink.isDrawing || this.held.isHolding ? BULLET_TIME_SCALE : 1);
     for (let step = 0; !this.loading && step < steps; step++) {
-      sim.setWalkIntent(this.chooseIntent());
+      this.chooseIntents();
       for (const event of sim.step()) this.handle(event);
     }
     this.ink.update(nowMs, {
       noInkZones: this.board.noInkZones,
-      aliceBounds: sim.aliceBounds(),
+      aliceBounds: sim.aliceBounds(this.party.selected),
     });
     if (!this.ink.isDrawing) this.forgetGlimpse();
-    this.notes.expire(nowMs);
+    this.forget(this.notes.expire(nowMs));
     this.speakDueRecital();
     if (this.retidyDueAtMs !== null && nowMs >= this.retidyDueAtMs) this.retidyTheBoard();
     if (this.director.mode.help === "offered" && this.stuck.isStuck(nowMs)) this.offerHelp();
-    this.camera.follow(sim.aliceBounds(), renderer.viewport());
+    const { selected } = this.party;
+    this.camera.follow(
+      sim.aliceBounds(selected),
+      renderer.viewport(),
+      sim.alices().flatMap((_, who) => (who === selected ? [] : [sim.aliceBounds(who)])),
+    );
     this.camera.turnTo(sim.paperAngle());
 
     const world = sim.snapshot();
@@ -307,6 +327,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       nowMs,
       camera: this.camera.camera,
       world,
+      selectedAlice: selected,
       daylight: this.rules.physics.daylight,
       inks: this.ledger.views(world.drawings, nowMs),
       notes: this.notes.views(nowMs),
@@ -351,7 +372,21 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const world = this.toWorld(client);
     const offered = this.notes.at(world, (note) => note.action !== undefined);
     if (offered?.action !== undefined) this.perform(offered.action, offered);
+    else if (this.selectAliceAt(world)) return;
     else if (this.tool === "write") void this.promptAt(client, world);
+  }
+
+  /** Tapping an Alice hands her the controls; among one she is already the one. */
+  private selectAliceAt(world: Vec): boolean {
+    const alices = this.modules.sim.alices();
+    const who = this.party.aliceAt(world, alices);
+    if (who === null || alices.length === 1) return false;
+    if (who !== this.party.selected) {
+      this.party.select(who);
+      this.camera.resumeFollowing();
+      this.remark(TWIN_SELECTED_LINE(who));
+    }
+    return true;
   }
 
   panBy(deltaClient: Vec): void {
@@ -394,9 +429,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   onWalkIntent(intent: WalkIntent): void {
-    this.manualIntent = intent;
+    this.party.steer(intent);
     if (intent.x !== 0) this.camera.resumeFollowing();
-    else this.modules.autopilot.invalidate();
   }
 
   onToolChanged(tool: Tool): void {
@@ -416,8 +450,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   onAutopilotToggled(enabled: boolean): void {
     this.selfDriving = enabled && this.walksHerself();
-    this.wasStuck = false;
-    this.modules.autopilot.reset();
+    this.party.reset();
     this.hud.setAutopilot(this.selfDriving);
     this.modules.onSelfDrivingChanged?.(this.selfDriving);
   }
@@ -458,7 +491,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       onHearing: () => {},
       onHeard: (text) => {
         if (!this.voiceReady) return;
-        const alice = this.modules.sim.aliceBounds();
+        const alice = this.modules.sim.aliceBounds(this.party.selected);
         void this.interpret(text, { x: alice.x + SPOKEN_AT.x, y: alice.y + SPOKEN_AT.y });
       },
       onListeningChanged: (listening) => this.hud.setListening(listening),
@@ -505,8 +538,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     sim.loadBoard(this.board);
     this.director.open(this.board);
     this.voice?.hush();
-    this.modules.autopilot.reset();
-    this.wasStuck = false;
+    this.party.select(ALICE_HERSELF);
+    this.party.reset();
     renderer.setBoard(this.board);
     this.ink.reset(Number.POSITIVE_INFINITY);
     this.penReader?.forget();
@@ -562,7 +595,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.showLaws();
     for (const [noteId, ofNote] of groupedByNote(placed)) this.glossLaws(noteId, ofNote);
     this.applyLaws({ silently: true });
-    this.modules.autopilot.invalidate();
+    this.party.invalidate();
   }
 
   private glossLaws(noteId: NoteId, ofNote: readonly Rule[]): void {
@@ -666,13 +699,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       sim.applyRuling(drawing.id, ruling);
       this.ledger.awaken(drawing.id, ruling, this.nowMs - ALREADY_AWAKE_MS);
     }
-    this.modules.autopilot.invalidate();
+    this.party.invalidate();
   }
 
   private placeNote(note: Note): void {
     this.lastSubmittedAt = Math.max(this.lastSubmittedAt, note.createdAt);
     if (same(this.notes.get(note.id), note)) return;
-    this.notes.restore(note, this.nowMs);
+    this.notes.restore(note, this.nowMs, NOTE_LINGER_MS);
     if (!isPlayers(note)) this.labelsByKami.add(note.id);
   }
 
@@ -688,13 +721,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.rules.all.filter((standing) => standing.noteId === rule.noteId),
     );
     this.applyLaws({ silently: false });
-    this.modules.autopilot.invalidate();
+    this.party.invalidate();
   }
 
   private dropDrawing(id: DrawingId): void {
     if (this.ledger.remove(id) === null) return;
     this.modules.sim.removeDrawing(id);
-    this.modules.autopilot.invalidate();
+    this.party.invalidate();
     for (const note of this.notes.removeAnchoredTo({ type: "drawing", id })) {
       this.labelsByKami.delete(note.id);
     }
@@ -708,35 +741,55 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (this.rules.repeal(id) === null) return;
     this.showLaws();
     this.applyLaws({ silently: false });
-    this.modules.autopilot.invalidate();
+    this.party.invalidate();
   }
 
-  /** Held keys drive her; otherwise she drives herself, unless the player switched that off. */
-  private chooseIntent(): WalkIntent {
-    const { autopilot } = this.modules;
-    const steered = this.manualIntent.x !== 0 || this.manualIntent.y !== 0;
-    if (steered || !this.selfDriving) return this.manualIntent;
-    const intent = autopilot.drive(this.scene());
-    const { stuck } = autopilot.status;
-    if (stuck && !this.wasStuck) this.remark(STUCK_LINE);
-    this.wasStuck = stuck;
-    return intent;
+  /** Held keys drive the selected Alice; every other one drives herself, unless the player switched that off. */
+  private chooseIntents(): void {
+    const { sim } = this.modules;
+    for (const { who, kind } of this.party.drive(sim, this.page(), this.selfDriving)) {
+      switch (kind) {
+        case "flees":
+          this.remark(
+            aboutAlice(who, ALICE_FLEES_LINES[this.flights++ % ALICE_FLEES_LINES.length] ?? ""),
+          );
+          break;
+        case "cornered":
+          this.remark(aboutAlice(who, ALICE_CORNERED_LINE));
+          break;
+        case "stuck":
+          if (who === this.party.selected) this.remark(STUCK_LINE);
+          break;
+      }
+    }
   }
 
-  private scene(): Scene {
+  private page(): Page {
     const { sim } = this.modules;
     const world = sim.snapshot();
     return {
       board: this.board,
-      alice: world.alice,
       inks: this.ledger.sceneInks(world.drawings),
       bites: world.bites,
+      sumikui: world.sumikui,
       keyTaken: world.keyTaken,
       doorOpen: world.doorOpen,
-      walkSpeed: sim.walkSpeed(),
       canFly: sim.canFly(),
       bounceArc: (strength) => sim.bounceArc(strength),
-      jumpArc: sim.jumpArc(),
+    };
+  }
+
+  /** The page as the selected Alice sees it: what Kami reads when asked for an idea. */
+  private scene(): Scene {
+    const { sim } = this.modules;
+    const { selected } = this.party;
+    const alices = sim.alices();
+    return {
+      ...this.page(),
+      alice: alices[selected] ?? sim.snapshot().alice,
+      others: alices.filter((_, who) => who !== selected),
+      walkSpeed: sim.walkSpeed(selected),
+      jumpArc: sim.jumpArc(selected),
     };
   }
 
@@ -763,12 +816,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private handle(event: SimEvent): void {
-    if (this.director.won(event)) this.remark(GOAL_LINE, HINT_LIFETIME_MS);
+    if (this.director.won(event)) this.remark(this.goalLine(event), HINT_LIFETIME_MS);
     switch (event.type) {
       case "goal-reached":
         return;
       case "fell":
-        this.stuck.fell();
+        if (event.who === this.party.selected) this.stuck.fell();
         return;
       case "zone-entered":
         this.enterZone(event.zoneId);
@@ -788,7 +841,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         return;
       case "perished":
         this.discard(event.drawingId);
-        this.modules.autopilot.invalidate();
+        this.party.invalidate();
         return;
       case "grow-blocked":
         this.remark(GROW_BLOCKED_LINE);
@@ -801,30 +854,39 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         this.remark(SUMIKUI_DEVOURED_LINES[this.meals++ % SUMIKUI_DEVOURED_LINES.length] ?? "");
         return;
       case "paper-bitten":
-        this.modules.autopilot.invalidate();
+        this.party.invalidate();
         this.remark(
           SUMIKUI_PAPER_BITTEN_LINES[this.bites++ % SUMIKUI_PAPER_BITTEN_LINES.length] ?? "",
         );
         return;
       case "paper-healed":
-        this.modules.autopilot.invalidate();
+        this.party.invalidate();
         return;
       case "alice-devoured":
-        this.modules.autopilot.invalidate();
+        this.party.invalidate();
         this.remark(
-          SUMIKUI_ALICE_DEVOURED_LINES[this.swallows++ % SUMIKUI_ALICE_DEVOURED_LINES.length] ?? "",
+          aboutAlice(
+            event.who,
+            SUMIKUI_ALICE_DEVOURED_LINES[this.swallows++ % SUMIKUI_ALICE_DEVOURED_LINES.length] ??
+              "",
+          ),
           HINT_LIFETIME_MS,
         );
         return;
       case "warped":
-        this.modules.autopilot.invalidate();
-        this.stuck.progress(this.nowMs);
+        this.party.invalidate();
+        if (event.who === this.party.selected) this.stuck.progress(this.nowMs);
         this.remark(WARPED_LINES[this.warps++ % WARPED_LINES.length] ?? "");
         return;
       case "portal-lonely":
         this.remark(PORTAL_LONELY_LINE);
         return;
     }
+  }
+
+  private goalLine(event: SimEvent): string {
+    if (event.type !== "goal-reached" || this.modules.sim.alices().length === 1) return GOAL_LINE;
+    return TWIN_GOAL_LINE(event.who);
   }
 
   private enterZone(zoneId: string): void {
@@ -897,7 +959,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private land(drawing: Drawing): void {
     this.modules.sim.addDrawing(drawing);
-    this.modules.autopilot.invalidate();
+    this.party.invalidate();
     this.ledger.add(drawing);
     this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
     void this.offerGuesses(drawing);
@@ -934,9 +996,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
     const corner = guessCornerOf(drawing.strokes);
     if (certain !== null) {
-      const label = this.kamiWrites(certain.name, corner, { drift: "down" });
-      this.labelsByKami.add(label.id);
-      this.name(drawing.id, this.modules.cat.accept(certain), label);
+      this.name(drawing.id, this.modules.cat.accept(certain), this.hangLabel(certain.name, corner));
       return;
     }
     const anchor: NoteAnchor = { type: "drawing", id: drawing.id };
@@ -1002,7 +1062,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     const note = this.playerWrites(text, position);
     const stillHere = this.witness(note.id);
+    await this.answer(text, note, stillHere);
+    if (stillHere()) this.notes.release(note.id, this.nowMs, NOTE_LINGER_MS);
+  }
 
+  private async answer(text: string, note: Note, stillHere: () => boolean): Promise<void> {
     const law = await this.modules.compiler.compile(text);
     if (!stillHere()) return;
     if (law !== null) {
@@ -1024,7 +1088,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const nameless = subject !== null && subject.ruling === null;
     const wish = (await this.modules.summoner?.wish(text)) ?? null;
     if (!stillHere()) return;
-    if (wish !== null && !nameless && (wish.explicit || subject === null)) {
+    if (wish !== null && (wish.explicit || subject === null)) {
       await this.summon(wish, note, stillHere);
       return;
     }
@@ -1077,7 +1141,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const summoned =
       summoner === undefined || writing === null
         ? []
-        : await summoner.conjure(wish, writing, sim.aliceBounds());
+        : await summoner.conjure(wish, writing, sim.aliceBounds(this.party.selected));
     if (!stillHere()) return;
     const rules = { noInkZones: this.board.noInkZones, aliceBounds: null };
     const landed = summoned.filter(({ strokes }) => judgePlacement(strokes, rules) === "ok");
@@ -1108,7 +1172,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       cost: strokesLength(strokes),
     };
     this.modules.sim.addDrawing(drawing);
-    this.modules.autopilot.invalidate();
+    this.party.invalidate();
     this.ledger.conjure(drawing, fromMs);
     this.tidied.add(drawing.id);
     this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
@@ -1150,7 +1214,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     let drawnIn = 0;
     for (const { prop, exemplar } of pictures) {
       if (exemplar === null) continue;
-      const strokes = placeProp(exemplar.strokes, writing, prop, this.modules.sim.aliceBounds());
+      const strokes = placeProp(
+        exemplar.strokes,
+        writing,
+        prop,
+        this.modules.sim.aliceBounds(this.party.selected),
+      );
       const drawing = this.conjure(strokes, this.nowMs + drawnIn * PROP_STAGGER_MS);
       drawnIn += 1;
       void this.label(drawing, exemplar.word);
@@ -1162,9 +1231,16 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const epoch = this.epoch;
     const ruling = await this.modules.cat.name(word, drawing);
     if (epoch !== this.epoch || this.ledger.get(drawing.id) === null) return;
-    const label = this.kamiWrites(ruling.name, guessCornerOf(drawing.strokes), { drift: "down" });
+    this.name(drawing.id, ruling, this.hangLabel(ruling.name, guessCornerOf(drawing.strokes)), {
+      quietly: true,
+    });
+  }
+
+  /** The one kind of note of Kami's that is kept and saved: a name he hangs on a drawing. */
+  private hangLabel(name: string, corner: Vec): Note {
+    const label = this.kamiWrites(name, corner, { drift: "down" });
     this.labelsByKami.add(label.id);
-    this.name(drawing.id, ruling, label, { quietly: true });
+    return label;
   }
 
   private witness(noteId: NoteId): () => boolean {
@@ -1246,7 +1322,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     this.showLaws();
     this.applyLaws({ silently: false });
-    this.modules.autopilot.invalidate();
+    this.party.invalidate();
     this.understood(noteId);
     this.writeGloss(noteId, gloss);
     this.stuck.progress(this.nowMs);
@@ -1270,10 +1346,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (awake === null) return;
 
     this.modules.sim.applyRuling(id, ruling);
-    this.modules.autopilot.invalidate();
+    this.party.invalidate();
     this.modules.store.saveDrawing(this.board.id, { drawing: awake.drawing, ruling });
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
     const attached = this.notes.attachToDrawing(label.id, id);
+    this.notes.release(label.id, this.nowMs, NOTE_LINGER_MS);
     if (ruling.nature !== "ink") this.understood(label.id);
     else if (attached !== null) this.modules.store.saveNote(this.board.id, attached);
     const under = quietly ? null : this.notes.below(label.id);
@@ -1495,7 +1572,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private remark(line: string, lifetimeMs: number = REMARK_LIFETIME_MS): void {
-    const alice = this.modules.sim.aliceBounds();
+    const alice = this.modules.sim.aliceBounds(this.party.selected);
     this.kamiWrites(
       line,
       { x: alice.x + ABOVE_ALICE.x, y: alice.y + ABOVE_ALICE.y },
@@ -1529,14 +1606,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.showLaws();
     for (const rule of repealed) this.modules.store.deleteRule(this.board.id, rule.id);
     const sealed = this.applyLaws({ silently: false });
-    this.modules.autopilot.invalidate();
+    this.party.invalidate();
     if (!sealed) this.remark(RULE_REPEALED_LINE);
   }
 
   private discard(id: DrawingId): void {
     if (this.ledger.remove(id) === null) return;
     this.modules.sim.removeDrawing(id);
-    this.modules.autopilot.invalidate();
+    this.party.invalidate();
     this.modules.store.deleteDrawing(this.board.id, id);
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
   }
@@ -1565,7 +1642,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private aliceFeet(): Vec {
-    const bounds = this.modules.sim.aliceBounds();
+    const bounds = this.modules.sim.aliceBounds(this.party.selected);
     return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height };
   }
 
@@ -1578,8 +1655,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     return client.pressure === undefined ? world : { ...world, pressure: client.pressure };
   }
 }
-
-const IDLE_INTENT: WalkIntent = { x: 0, y: 0 };
 
 const isPlayers = (note: Note): boolean => note.author === "player";
 

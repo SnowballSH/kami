@@ -1,6 +1,8 @@
 import { distance, type Vec } from "../core/geometry";
+import type { DrawingId } from "../ink/types";
 import type { AliceSize, Axis, WalkIntent } from "../sim/types";
 import { boundsOfInk, Chart, WINDOW_PX } from "./chart";
+import { afterTheMeal, chewedIn, dreadIn, SAFE_PX } from "./dread";
 import {
   type Footprint,
   feetOf,
@@ -10,7 +12,15 @@ import {
   Pathfinder,
   type Waypoint,
 } from "./pathfinder";
-import type { Autopilot, Errand, Objective, PilotStatus, Scene, SceneInk } from "./types";
+import type {
+  Autopilot,
+  Errand,
+  Objective,
+  PilotOptions,
+  PilotStatus,
+  Scene,
+  SceneInk,
+} from "./types";
 
 const IDLE: WalkIntent = { x: 0, y: 0 };
 /** She re-reads the board this often even when nothing told her it changed. */
@@ -22,6 +32,8 @@ const IDLE: WalkIntent = { x: 0, y: 0 };
  */
 const REPLAN_TICKS = 30;
 const WAITING_REPLAN_TICKS = 120;
+/** Running from the Sumikui, which moves, she checks her escape more often — three times a second, not more: each look costs a fifth of a frame on a tablet. */
+const FLEEING_REPLAN_TICKS = 20;
 /** Ticks on the ground without the way ahead getting any shorter before she gives up and waits. */
 const STALL_TICKS = 240;
 /** Ticks she sulks after a stall before trying the board again on her own. */
@@ -35,6 +47,11 @@ const STANDOFF_BODIES = 6;
 /** Ticks without moving after which "in the air" is really "wedged", and she thinks again. */
 const SETTLE_TICKS = 20;
 const SETTLE_PX = 0.5;
+/** How far ahead a wandering Alice sets her sights, and how long she looks about at the end. */
+const WANDER_PX = 480;
+const WANDER_REST_TICKS = 90;
+
+const ALONE: PilotOptions = { seed: 0, wanders: false, charter: Chart.of };
 
 const RESTING: PilotStatus = { errand: { kind: "idle" }, stuck: false, target: null };
 
@@ -106,17 +123,16 @@ const sign = (value: number): Axis => (value > 0 ? 1 : value < 0 ? -1 : 0);
 const isAirborne = (scene: Scene): boolean => !scene.alice.grounded && !scene.alice.climbing;
 
 const sameErrand = (a: Errand, b: Errand): boolean => {
-  switch (a.kind) {
-    case "eat":
-      return b.kind === "eat" && a.drawingId === b.drawingId;
-    case "idle":
-      return b.kind === "idle";
-    case "explore":
-      return b.kind === "explore" && a.toward.x === b.toward.x && a.toward.y === b.toward.y;
-    case "objective":
-    case "wait":
-      return b.kind === a.kind && a.objective === b.objective;
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "eat") return b.kind === "eat" && a.drawingId === b.drawingId;
+  if (a.kind === "wander") return b.kind === "wander" && a.heading === b.heading;
+  if (a.kind === "explore") {
+    return b.kind === "explore" && a.toward.x === b.toward.x && a.toward.y === b.toward.y;
   }
+  if (a.kind === "objective" || a.kind === "wait") {
+    return "objective" in b && a.objective === b.objective;
+  }
+  return true;
 };
 
 interface Plan {
@@ -127,6 +143,10 @@ interface Plan {
   readonly sizeMultiplier: number;
   readonly keyTaken: boolean;
   readonly doorOpen: boolean;
+  readonly dread: boolean;
+  /** Fleeing with no footing out of the Sumikui's reach: she runs anyway, and looks to the player. */
+  readonly cornered: boolean;
+  readonly chewing: DrawingId | null;
 }
 
 /** Alice's mind: reads the board as a grid, walks the cheapest way to what matters, and waits when there is none. */
@@ -140,7 +160,13 @@ export class Pilot implements Autopilot {
   private sulkTicks = 0;
   private lastFeet: Vec | null = null;
   private stillTicks = 0;
+  private heading: -1 | 1;
+  private restTicks = 0;
   private current: PilotStatus = RESTING;
+
+  constructor(private readonly options: PilotOptions = ALONE) {
+    this.heading = options.seed % 2 === 0 ? 1 : -1;
+  }
 
   get status(): PilotStatus {
     return this.current;
@@ -190,12 +216,15 @@ export class Pilot implements Autopilot {
       plan.footprint.cols !== footprint.cols ||
       plan.footprint.rows !== footprint.rows ||
       plan.keyTaken !== scene.keyTaken ||
-      plan.doorOpen !== scene.doorOpen
+      plan.doorOpen !== scene.doorOpen ||
+      plan.dread !== (dreadIn(scene) !== null) ||
+      plan.chewing !== chewedIn(scene)
     );
   }
 
   private replanInterval(): number {
     const errand = this.plan?.errand.kind;
+    if (errand === "flee") return FLEEING_REPLAN_TICKS;
     return errand === "wait" || errand === "idle" ? WAITING_REPLAN_TICKS : REPLAN_TICKS;
   }
 
@@ -203,12 +232,15 @@ export class Pilot implements Autopilot {
     const objective = objectiveOf(scene);
     const footprint = footprintFor(scene.alice);
     const previous = this.plan;
+    const threat = dreadIn(scene);
     const plan =
-      objective !== null
-        ? this.planFor(scene, footprint, objective)
-        : scene.board.page === "endless"
-          ? this.explore(scene, footprint)
-          : this.remember(scene, footprint, { kind: "idle" }, null);
+      threat !== null
+        ? this.fleePlan(scene, footprint, threat)
+        : objective !== null
+          ? this.planFor(scene, footprint, objective)
+          : scene.board.page === "endless"
+            ? this.explore(scene, footprint)
+            : this.strollOrIdle(scene, footprint);
 
     const last = plan.path?.at(-1);
     const freshStart =
@@ -226,22 +258,42 @@ export class Pilot implements Autopilot {
     }
     this.current = {
       errand: plan.errand,
-      stuck: plan.errand.kind === "wait" && (plan.path?.length ?? 0) <= 1,
+      stuck: plan.cornered || (plan.errand.kind === "wait" && (plan.path?.length ?? 0) <= 1),
       target: last === undefined ? null : feetOf(last.node, footprint),
     };
   }
 
-  private planFor(scene: Scene, footprint: Footprint, objective: Objective): Plan {
-    const chart = Chart.of(scene);
-    if (chart === null) return this.remember(scene, footprint, { kind: "wait", objective }, null);
+  private strollOrIdle(scene: Scene, footprint: Footprint): Plan {
+    const idle = this.remember(scene, footprint, { kind: "idle" }, null);
+    if (!this.options.wanders) return idle;
+    const chart = this.options.charter(scene);
+    if (chart === null) return idle;
     const finder = new Pathfinder(chart, scene, footprint);
+    const feet = feetOfScene(scene);
+    const ahead = { x: feet.x + this.heading * WANDER_PX, y: feet.y };
+    const route = finder.nearestTo(nodeOfFeet(feet, footprint), ahead);
+    if (route === null) return idle;
+    return this.remember(scene, footprint, { kind: "wander", heading: this.heading }, route);
+  }
+
+  /**
+   * Routes are drawn on the board as it will be once the Sumikui finishes its mouthful, so she
+   * never sets out over a dissolving bridge; already on one, she races across while it stands.
+   */
+  private planFor(scene: Scene, footprint: Footprint, objective: Objective): Plan {
+    const foreseen = afterTheMeal(scene);
+    const chart = this.options.charter(foreseen);
+    if (chart === null) return this.remember(scene, footprint, { kind: "wait", objective }, null);
+    const finder = new Pathfinder(chart, foreseen, footprint);
     const start = nodeOfFeet(feetOfScene(scene), footprint);
-    const direct = finder.route(start, { kind: "objective", objective });
+    const direct =
+      finder.route(start, { kind: "objective", objective }) ??
+      (finder.isSupported(start) ? null : this.dash(scene, foreseen, footprint, start, objective));
     if (direct !== null) {
       return this.remember(scene, footprint, { kind: "objective", objective }, direct);
     }
     return (
-      this.mealPlan(scene, finder, start, footprint, objective) ??
+      this.mealPlan(foreseen, finder, start, footprint, objective) ??
       this.remember(
         scene,
         footprint,
@@ -253,12 +305,38 @@ export class Pilot implements Autopilot {
 
   private explore(scene: Scene, footprint: Footprint): Plan {
     const errand: Errand = { kind: "explore", toward: frontierOf(scene) };
-    const chart = Chart.of(scene);
+    const chart = this.options.charter(scene);
     if (chart === null) return this.remember(scene, footprint, errand, null);
     const finder = new Pathfinder(chart, scene, footprint);
     const way = finder.nearestTo(nodeOfFeet(feetOfScene(scene), footprint), errand.toward);
     const path = scene.inks.length === 0 ? standBack(way, footprint) : way;
     return this.remember(scene, footprint, errand, path);
+  }
+
+  private dash(
+    scene: Scene,
+    foreseen: Scene,
+    footprint: Footprint,
+    start: Node,
+    objective: Objective,
+  ): readonly Waypoint[] | null {
+    if (foreseen === scene) return null;
+    const chart = this.options.charter(scene);
+    if (chart === null) return null;
+    return new Pathfinder(chart, scene, footprint).route(start, { kind: "objective", objective });
+  }
+
+  private fleePlan(scene: Scene, footprint: Footprint, threat: Vec): Plan {
+    const foreseen = afterTheMeal(scene);
+    const chart = this.options.charter(foreseen);
+    if (chart === null) return this.remember(scene, footprint, { kind: "flee" }, null);
+    const finder = new Pathfinder(chart, foreseen, footprint);
+    const start = nodeOfFeet(feetOfScene(scene), footprint);
+    const flight = finder.awayFrom(start, threat, SAFE_PX);
+    return {
+      ...this.remember(scene, footprint, { kind: "flee" }, flight?.path ?? null),
+      cornered: flight === null || !flight.safe,
+    };
   }
 
   private mealPlan(
@@ -282,7 +360,7 @@ export class Pilot implements Autopilot {
         inks: scene.inks.filter((ink) => ink.drawing.id !== meal.drawing.id),
       };
       const grown = footprintFor(scene.alice, newSize);
-      const chart = Chart.of(after);
+      const chart = this.options.charter(after);
       if (chart === null) continue;
       const onward = new Pathfinder(chart, after, grown);
       const from = nodeOfFeet(feetOf(last.node, footprint), grown);
@@ -306,6 +384,9 @@ export class Pilot implements Autopilot {
       sizeMultiplier: scene.alice.sizeMultiplier,
       keyTaken: scene.keyTaken,
       doorOpen: scene.doorOpen,
+      dread: dreadIn(scene) !== null,
+      cornered: false,
+      chewing: chewedIn(scene),
     };
   }
 
@@ -317,7 +398,7 @@ export class Pilot implements Autopilot {
 
     if (airborne) this.advanceInFlight(path, footprint, feet);
     else this.advanceOnFoot(path, footprint, feet);
-    if (this.stalled(path, airborne)) return IDLE;
+    if (this.stalled(path, airborne || plan.errand.kind === "flee")) return IDLE;
 
     const here = path[this.reached];
     const next = path[this.reached + 1];
@@ -370,7 +451,8 @@ export class Pilot implements Autopilot {
     }
   }
 
-  private stalled(path: readonly Waypoint[], airborne: boolean): boolean {
+  /** `patient` while airborne or fleeing: neither is a time to conclude the board has beaten her. */
+  private stalled(path: readonly Waypoint[], patient: boolean): boolean {
     const remaining = path.length - 1 - this.reached;
     if (remaining <= 0) return false;
     if (remaining < this.bestRemaining) {
@@ -378,8 +460,9 @@ export class Pilot implements Autopilot {
       this.ticksSinceProgress = 0;
       return false;
     }
-    if (airborne || ++this.ticksSinceProgress < STALL_TICKS) return false;
-    this.giveUp();
+    if (patient || ++this.ticksSinceProgress < STALL_TICKS) return false;
+    if (this.plan?.errand.kind === "wander") this.turnBack();
+    else this.giveUp();
     return true;
   }
 
@@ -398,12 +481,30 @@ export class Pilot implements Autopilot {
   /** At the last node: keep leaning into whatever she came for, so touching it registers. */
   private nudge(scene: Scene, errand: Errand): WalkIntent {
     const towards = (x: number): WalkIntent => ({ x: sign(x - scene.alice.center.x), y: 0 });
-    if (errand.kind === "wait" || errand.kind === "idle" || errand.kind === "explore") return IDLE;
+    if (errand.kind === "wait" || errand.kind === "idle") return IDLE;
+    if (errand.kind === "flee" || errand.kind === "explore") return IDLE;
+    if (errand.kind === "wander") {
+      this.lookAbout();
+      return IDLE;
+    }
     if (errand.kind === "eat") {
       const meal = scene.inks.find((ink) => ink.drawing.id === errand.drawingId);
       return meal === undefined ? IDLE : towards(meal.pose.position.x);
     }
     return towards(pointOf(scene, errand.objective).x);
+  }
+
+  /** At the end of a stroll she stands a while, then turns and strolls back the other way. */
+  private lookAbout(): void {
+    if (++this.restTicks < WANDER_REST_TICKS) return;
+    this.turnBack();
+  }
+
+  private turnBack(): void {
+    this.restTicks = 0;
+    this.ticksSinceProgress = 0;
+    this.heading = this.heading === 1 ? -1 : 1;
+    this.stale = true;
   }
 
   private giveUp(): void {
@@ -413,4 +514,4 @@ export class Pilot implements Autopilot {
   }
 }
 
-export const createAutopilot = (): Autopilot => new Pilot();
+export const createAutopilot = (options?: PilotOptions): Autopilot => new Pilot(options);

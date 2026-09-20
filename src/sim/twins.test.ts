@@ -12,11 +12,11 @@ describe("Twins", () => {
     const twin = twins.all[0];
     if (twin === undefined) throw new Error("no twin");
     twin.placeAt({ x: TWIN_STRAY_DISTANCE + 1, y: 0 });
-    twins.recallLost(alice, 10_000);
+    twins.recallStrays(alice);
     expect(Math.abs(twin.body.position.x)).toBeLessThan(200);
 
     twin.placeAt({ x: TWIN_STRAY_DISTANCE - 1, y: 0 });
-    twins.recallLost(alice, 10_000);
+    twins.recallStrays(alice);
     expect(twin.body.position.x).toBeCloseTo(TWIN_STRAY_DISTANCE - 1, 0);
   });
 });

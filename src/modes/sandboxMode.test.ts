@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ALICE_HERSELF } from "../sim/types";
 import { createDirector, EmbodiedDirector } from "./embodiedDirector";
 import { EMBODIED_MODE, GAME_MODES, modeFor } from "./modes";
 import { allowsLaw, opensWithAlice, refusalLine } from "./policy";
@@ -33,7 +34,7 @@ describe("the sandbox mode", () => {
   it("plays under the embodied director, which never declares it won", () => {
     const director = createDirector(SANDBOX_MODE);
     expect(director).toBeInstanceOf(EmbodiedDirector);
-    expect(director?.won({ type: "goal-reached" })).toBe(false);
+    expect(director?.won({ type: "goal-reached", who: ALICE_HERSELF })).toBe(false);
   });
 
   it("today's modes are rooms played alone with help offered", () => {

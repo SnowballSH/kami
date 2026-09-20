@@ -4,8 +4,9 @@ import type { LiveRecognizer, Recognizer, Sighting } from "../recognition/types"
 import { mergeGuesses } from "./guesses";
 import { HintLadder } from "./hintLadder";
 import { ASK_WHAT_IT_IS, OFFER_HELP } from "./lines";
+import { parsePhrase } from "./phrase";
 import { namesForRecognized } from "./recognizedNames";
-import { isUnknownName, ruleOn } from "./ruling";
+import { isUnknownName, ruleOn, withTemper } from "./ruling";
 import { isDot } from "./shape";
 import { type Guesses, guessNames } from "./shapeGuesser";
 import { bestSighting, honourRuling, isCertain, offeredRulings, rulingOf, speaksOf } from "./sight";
@@ -48,7 +49,8 @@ export class ScriptedCat implements Cat {
     if (ruling.nature !== "ink" || !isUnknownName(utterance)) return Promise.resolve(ruling);
     const seen = this.#seen.get(drawing.id)?.find((sighting) => speaksOf(utterance, sighting));
     if (seen === undefined || seen.nature === "ink") return Promise.resolve(ruling);
-    return Promise.resolve({ ...rulingOf(seen, allowed), name: ruling.name, tags: ruling.tags });
+    const seenRuling = withTemper(rulingOf(seen, allowed), parsePhrase(utterance));
+    return Promise.resolve({ ...seenRuling, name: ruling.name, tags: ruling.tags });
   }
 
   async guess(drawing: Drawing): Promise<Guesses> {

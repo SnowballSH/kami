@@ -128,12 +128,14 @@ export class Sumikui {
     return this.finish();
   }
 
-  snapshot(): SumikuiSnapshot {
+  snapshot(alices: readonly AliceController[]): SumikuiSnapshot {
+    const prey = this.quarry?.kind === "alice" ? alices.indexOf(this.quarry.alice) : -1;
     return {
       centre: this.centre,
       facing: this.facing,
       phase: this.phase(),
       quarry: this.quarry?.kind ?? null,
+      prey: prey < 0 ? null : prey,
       chewing: this.quarry?.kind === "ink" && this.biteMs > 0 ? this.quarry.ink.id : null,
       bite: this.quarry === null ? 0 : clamp(this.biteMs / this.mealTimeOf(this.quarry), 0, 1),
       awakeMs: this.awakeMs,
@@ -233,8 +235,7 @@ export class Sumikui {
   }
 
   private *candidates(ground: HuntingGround): Generator<Quarry> {
-    const [alice] = ground.alices;
-    yield { kind: "alice", alice };
+    for (const each of ground.alices) yield { kind: "alice", alice: each };
     for (const each of ground.alices) {
       if (this.standsOnPaper(each, ground)) yield { kind: "paper", alice: each };
     }
