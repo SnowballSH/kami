@@ -35,6 +35,7 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
 | `cat/` | Name → `Ruling`, guesses (recognizer first, geometry second), hint ladder | `createCat` |
 | `rules/` | Text → `CompiledRule` (offline grammar), `resolvePhysics` | `createRuleCompiler`, `chainCompilers`, `resolvePhysics` |
 | `handwriting/` | Text → timed pen strokes in a single-stroke font | `createHandwriting` |
+| `modes/` | `GameMode`: what the player is when a room opens, win/loss, which laws and natures the page takes; `EMBODIED_MODE` is today's play, `SPIRIT_MODE` a contract (`docs/modes.md`) | `createDirector`, `modeFor`, `allowsLaw` |
 | `notes/` | The `Note` type | — |
 | `recognition/` | Client for Quick, Draw! recognition | `createRecognizer` |
 | `persistence/` | Client for the board store, the remote rule compiler and the handwriting reader | `createBoardStore`, `createRemoteRuleCompiler`, `createHandwritingReader` |
@@ -175,6 +176,7 @@ The player writes with the pen like they draw with it; nothing is selected first
 - **Boards.** `?board=<id>` in the URL; default `wonderland`. On load: `store.load` → re-add drawings and rulings, notes, rules. A loading note is shown while simulation and editing are paused; panning, switching boards and clearing remain available. Clearing starts an editable empty board immediately. An older load cannot restore or unlock a newer board. Held walk input survives a board load.
 - **Bullet-time** only while the pen is down.
 - On `goal-reached` Kami writes a closing line; play continues.
+- **Mode.** `GameModules.mode` (default `EMBODIED_MODE`) picks a `ModeDirector` that is asked on room open and whether a sim event won the room (its `witness`/`named` seams for changing bodies are declared, not yet called). Laws the mode forbids stay plain writing with Kami's refusal beneath; `autopilot: "forbidden"` keeps her from walking herself. See `docs/modes.md`.
 
 **Tidying.** When a drawing gets its name (tapped, written, or Kami's own when he is `certain`),
 `Game.tidy` asks `LiveRecognizer.complete(strokes, name)` once. The answer is the player's own strokes,
