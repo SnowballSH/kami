@@ -110,10 +110,12 @@ const guessCornerOf = (strokes: readonly Stroke[]): Vec => {
   const bounds = boundsOf(strokes.flat());
   return { x: bounds.x + bounds.width + GUESS_OFFSET.x, y: bounds.y + GUESS_OFFSET.y };
 };
-const GUESS_LIFETIME_MS = 20_000;
+const GUESS_LIFETIME_MS = 12_000;
 const GLIMPSE_LIFETIME_MS = 8_000;
 const REMARK_LIFETIME_MS = 6_000;
-const HINT_LIFETIME_MS = 14_000;
+const HINT_LIFETIME_MS = 10_000;
+/** How long the player's words, and the labels Kami hangs on drawings, stay once answered. */
+const NOTE_LINGER_MS = 12_000;
 const ABOVE_ALICE = { x: -90, y: -120 } as const;
 /** Where a spoken note lands: beside Alice, as if the player had written it there. */
 const SPOKEN_AT = { x: -60, y: -190 } as const;
@@ -274,7 +276,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       aliceBounds: sim.aliceBounds(),
     });
     if (!this.ink.isDrawing) this.forgetGlimpse();
-    this.notes.expire(nowMs);
+    this.forget(this.notes.expire(nowMs));
     this.speakDueRecital();
     if (this.retidyDueAtMs !== null && nowMs >= this.retidyDueAtMs) this.retidyTheBoard();
     if (this.stuck.isStuck(nowMs)) this.offerHelp();
@@ -539,7 +541,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.ledger.awaken(drawing.id, ruling, this.nowMs - ALREADY_AWAKE_MS);
     }
     for (const note of notes) {
-      this.notes.restore(note, this.nowMs);
+      this.notes.restore(note, this.nowMs, NOTE_LINGER_MS);
       if (!isPlayers(note)) this.labelsByKami.add(note.id);
     }
     this.rules.replaceAll(rules);
@@ -782,9 +784,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
     const corner = guessCornerOf(drawing.strokes);
     if (certain !== null) {
-      const label = this.kamiWrites(certain.name, corner, { drift: "down" });
-      this.labelsByKami.add(label.id);
-      this.name(drawing.id, this.modules.cat.accept(certain), label);
+      this.name(drawing.id, this.modules.cat.accept(certain), this.hangLabel(certain.name, corner));
       return;
     }
     const anchor: NoteAnchor = { type: "drawing", id: drawing.id };
@@ -846,7 +846,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     const note = this.playerWrites(text, position);
     const stillHere = this.witness(note.id);
+    await this.answer(text, note, stillHere);
+    if (stillHere()) this.notes.release(note.id, this.nowMs, NOTE_LINGER_MS);
+  }
 
+  private async answer(text: string, note: Note, stillHere: () => boolean): Promise<void> {
     const law = await this.modules.compiler.compile(text);
     if (!stillHere()) return;
     if (law !== null) {
@@ -868,7 +872,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const nameless = subject !== null && subject.ruling === null;
     const wish = (await this.modules.summoner?.wish(text)) ?? null;
     if (!stillHere()) return;
-    if (wish !== null && !nameless && (wish.explicit || subject === null)) {
+    if (wish !== null && (wish.explicit || subject === null)) {
       await this.summon(wish, note, stillHere);
       return;
     }
@@ -987,9 +991,16 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const epoch = this.epoch;
     const ruling = await this.modules.cat.name(word, drawing);
     if (epoch !== this.epoch || this.ledger.get(drawing.id) === null) return;
-    const label = this.kamiWrites(ruling.name, guessCornerOf(drawing.strokes), { drift: "down" });
+    this.name(drawing.id, ruling, this.hangLabel(ruling.name, guessCornerOf(drawing.strokes)), {
+      quietly: true,
+    });
+  }
+
+  /** The one kind of note of Kami's that is kept and saved: a name he hangs on a drawing. */
+  private hangLabel(name: string, corner: Vec): Note {
+    const label = this.kamiWrites(name, corner, { drift: "down" });
     this.labelsByKami.add(label.id);
-    this.name(drawing.id, ruling, label, { quietly: true });
+    return label;
   }
 
   private witness(noteId: NoteId): () => boolean {
@@ -1095,6 +1106,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.modules.store.saveDrawing(this.board.id, { drawing: awake.drawing, ruling });
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
     const attached = this.notes.attachToDrawing(label.id, id);
+    this.notes.release(label.id, this.nowMs, NOTE_LINGER_MS);
     if (ruling.nature !== "ink") this.understood(label.id);
     else if (attached !== null) this.modules.store.saveNote(this.board.id, attached);
     const under = quietly ? null : this.notes.below(label.id);

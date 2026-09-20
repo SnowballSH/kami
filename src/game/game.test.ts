@@ -1278,15 +1278,44 @@ describe("Game with a Kami who draws", () => {
     return eyes;
   };
 
-  it("takes words beside unnamed ink as its name, even when they sound like a request to draw", async () => {
+  it("takes a bare name beside unnamed ink as its name rather than drawing one", async () => {
     const eyes = drawer();
     const player = new Player("wonderland", { eyes });
     await player.arrive();
 
     await player.draw(blob({ x: 300, y: 530 }, 30, 20));
-    await player.write("draw a ladder", { x: 300, y: 500 });
+    await player.write("a ladder", { x: 300, y: 500 });
     expect(eyes.summoned).toEqual([]);
     expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["climbable"]);
+  });
+
+  it("draws what is asked for outright even beside unnamed ink, leaving that ink unnamed", async () => {
+    const eyes = drawer();
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("summon a rabbit", { x: 300, y: 500 });
+    expect(eyes.summoned).toEqual(["rabbit"]);
+    const natures = player.renderer.lastFrame?.inks.map((ink) => ink.nature) ?? [];
+    expect(natures).toContain("ink");
+    expect(natures).toContain("hopper");
+  });
+
+  it("lets the player's words and Kami's label fade once they have been answered", async () => {
+    const eyes = drawer();
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    const standing = player.written;
+    await player.write("summon a rabbit", { x: 300, y: 500 });
+    expect(player.written).toContain("summon a rabbit");
+    expect(player.written.length).toBeGreaterThan(standing.length + 1);
+
+    await player.wait(20_000);
+    expect(player.written.filter((text) => !standing.includes(text))).toEqual([]);
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["hopper"]);
+    expect((await player.store.load("wonderland")).notes).toEqual([]);
   });
 
   it("inks the picture asked for above the words, stroke by stroke, and names it", async () => {
