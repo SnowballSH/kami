@@ -25,7 +25,7 @@ export interface Summoned {
  * some of its words, and a picture of each is drawn to size in rows standing over the words that
  * asked for them.
  */
-export class Summoner {
+export class Summoner implements PictureSource {
   #lexicon: Promise<SummoningLexicon> | null = null;
 
   constructor(
@@ -40,6 +40,11 @@ export class Summoner {
 
   async wish(text: string): Promise<Wish | null> {
     return parseWish(text, await this.lexicon());
+  }
+
+  /** One picture of a word, as the server frames it — for a scene's props, placed by the caller. */
+  exemplar(word: string): Promise<Exemplar | null> {
+    return this.pictures.exemplar(word);
   }
 
   async conjure(wish: Wish, writing: Rect, alice: Rect | null): Promise<readonly Summoned[]> {

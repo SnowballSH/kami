@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { boundsOf } from "../core/geometry";
-import { fitSketch, layoutBoxes, SUMMONED_SIZE, sizeOf } from "./layout";
+import { boundsOf, rectsOverlap } from "../core/geometry";
+import { fitSketch, layoutBoxes, placeProp, SUMMONED_SIZE, sizeOf } from "./layout";
 
 describe("sizeOf", () => {
   it("knows big things from small ones and calls the rest usual", () => {
@@ -76,5 +76,36 @@ describe("layoutBoxes", () => {
 
   it("is empty for nothing", () => {
     expect(layoutBoxes([], { x: 0, y: 0 })).toEqual([]);
+  });
+});
+
+describe("placeProp", () => {
+  const picture = [
+    [
+      { x: 0, y: 128 },
+      { x: 255, y: 128 },
+    ],
+    [
+      { x: 128, y: 100 },
+      { x: 128, y: 156 },
+    ],
+  ];
+  const writing = { x: 300, y: 500, width: 120, height: 30 };
+
+  it("scales the picture by the prop's size and centres it where the scene put it", () => {
+    const placed = placeProp(picture, writing, { at: { x: -100, y: -200 }, size: 0.5 }, null);
+    const bounds = boundsOf(placed.flat());
+    expect(bounds.width).toBeCloseTo(SUMMONED_SIZE.usual / 2);
+    expect(bounds.x + bounds.width / 2).toBeCloseTo(260);
+    expect(bounds.y + bounds.height / 2).toBeCloseTo(300);
+    expect(placed.map((stroke) => stroke.length)).toEqual([2, 2]);
+  });
+
+  it("lifts the prop clear of Alice when she stands where it would land", () => {
+    const alice = { x: 340, y: 420, width: 28, height: 60 };
+    const placed = placeProp(picture, writing, { at: { x: 0, y: -60 }, size: 1 }, alice);
+    const bounds = boundsOf(placed.flat());
+    expect(rectsOverlap(bounds, alice)).toBe(false);
+    expect(bounds.y + bounds.height).toBeLessThan(alice.y);
   });
 });

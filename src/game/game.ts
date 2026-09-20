@@ -31,9 +31,18 @@ import type { BoardSnapshot, BoardStore } from "../persistence/types";
 import type { PenReader } from "../reading/types";
 import type { LiveRecognizer, Sighting } from "../recognition/types";
 import type { Renderer } from "../render/types";
-import type { CompiledRule, Rule, RuleCompiler, RuleId, WorldPhysics } from "../rules/types";
+import { destinationOf, placeCalled } from "../rules";
+import type {
+  CompiledRule,
+  Scene as Destination,
+  Rule,
+  RuleCompiler,
+  RuleId,
+  SceneCompiler,
+  WorldPhysics,
+} from "../rules/types";
 import type { DrawingPose, SimEvent, Simulation, WalkIntent } from "../sim/types";
-import type { Summoner, Wish } from "../summoning";
+import { placeProp, type Summoner, type Wish } from "../summoning";
 import type {
   CanvasInputSink,
   Hud,
@@ -59,8 +68,10 @@ import {
   isHelpRequest,
   KEY_TAKEN_LINE,
   LAW_OUTSIDE_MODE_LINE,
+  NOWHERE_LINE,
   OFFER_HELP_HINT,
   PONDERING_LINE,
+  PORTAL_LONELY_LINE,
   REJECTION_LINES,
   RULE_REPEALED_LINE,
   SHRUGS,
@@ -72,12 +83,14 @@ import {
   SUMIKUI_SEALED_LINE,
   SUMIKUI_SUMMONED_LINES,
   SUMIKUI_WOKE_LINE,
+  sceneGlossOf,
   TAGLINE,
+  WARPED_LINES,
   WORDMARK,
 } from "./lines";
 import { type NoteAnchor, NoteBook } from "./noteBook";
 import type { Drift } from "./noteLayout";
-import { RuleBook } from "./ruleBook";
+import { groupedByNote, RuleBook } from "./ruleBook";
 import { StuckDetector } from "./stuckDetector";
 
 const MAX_STEPS_PER_FRAME = 5;
@@ -103,6 +116,8 @@ const SPOKEN_AT = { x: -60, y: -190 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
 const ALREADY_AWAKE_MS = 10_000;
+/** Kami dresses a scene one prop after another, not all at once. */
+const PROP_STAGGER_MS = 450;
 const HUD_WRITING_GAP = 12;
 
 interface Recital {
@@ -129,6 +144,8 @@ export interface GameModules {
   readonly finisher?: Pick<LiveRecognizer, "complete">;
   /** Pictures Kami can draw himself ("summon a rabbit"); without one he must ask the player to. */
   readonly summoner?: Summoner;
+  /** Places to be teleported to ("teleport us to the moon"); without one Kami knows no way there. */
+  readonly scenes?: SceneCompiler;
   readonly resolvePhysics: (rules: readonly Rule[]) => WorldPhysics;
   readonly boardFor: (id: string) => BoardDefinition;
   readonly createInkSession: (listener: InkSessionListener) => InkSession;
@@ -188,6 +205,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private meals = 0;
   private bites = 0;
   private swallows = 0;
+  private warps = 0;
   private recital: Recital[] = [];
   /** Settled ink the pen reader is still reading: weightless until it is known to be a drawing. */
   private readonly held = new HeldInkBook();
@@ -511,9 +529,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     this.rules.replaceAll(rules);
     this.showLaws();
-    for (const rule of rules) {
-      if (this.allowsRule(rule)) this.writeGloss(rule);
-      else this.refuseLaw(rule);
+    for (const [noteId, ofNote] of groupedByNote(rules)) {
+      if (ofNote.every((rule) => this.allowsRule(rule)))
+        this.writeGloss(noteId, glossOf(ofNote.map((rule) => rule.explanation).join(", ")));
+      else this.refuseLaw(noteId);
     }
     this.applyLaws({ silently: true });
     this.modules.autopilot.invalidate();
@@ -623,6 +642,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
           SUMIKUI_ALICE_DEVOURED_LINES[this.swallows++ % SUMIKUI_ALICE_DEVOURED_LINES.length] ?? "",
           HINT_LIFETIME_MS,
         );
+        return;
+      case "warped":
+        this.modules.autopilot.invalidate();
+        this.stuck.progress(this.nowMs);
+        this.remark(WARPED_LINES[this.warps++ % WARPED_LINES.length] ?? "");
+        return;
+      case "portal-lonely":
+        this.remark(PORTAL_LONELY_LINE);
         return;
     }
   }
@@ -806,6 +833,16 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       return;
     }
 
+    const where = destinationOf(text);
+    if (where !== null) {
+      const scene = await this.sceneOf(text, where, note.id);
+      if (!stillHere()) return;
+      if (scene !== null) {
+        await this.travel(scene, note, stillHere);
+        return;
+      }
+    }
+
     const subject = this.drawingNear(note.id);
     const nameless = subject !== null && subject.ruling === null;
     const wish = (await this.modules.summoner?.wish(text)) ?? null;
@@ -830,6 +867,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (!stillHere()) return;
     if (thought !== null) this.enactIfAllowed(this.ruleFrom(thought, note));
     else if (subject !== null && ruling !== null) this.name(subject.drawing.id, ruling, note);
+    else if (where !== null) this.remarkUnder(note.id, NOWHERE_LINE(where));
     else this.shrug(note.id);
   }
 
@@ -852,39 +890,85 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.remarkUnder(note.id, CANNOT_DRAW_LINE(wish.asked));
       return;
     }
-
-    const drawings = landed.map(({ word, strokes }) => {
-      const drawing: Drawing = {
-        id: this.ids.next<DrawingId>("drawing"),
-        strokes,
-        cost: strokesLength(strokes),
-      };
-      sim.addDrawing(drawing);
-      this.ledger.conjure(drawing, this.nowMs);
-      this.tidied.add(drawing.id);
-      this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
-      return { word, drawing };
-    });
-    this.modules.autopilot.invalidate();
-
-    const rulings = await Promise.all(
-      drawings.map(({ word, drawing }) => this.modules.cat.name(word, drawing)),
-    );
-    if (!stillHere()) return;
-    if (drawings.length > 1) this.understood(note.id);
-    drawings.forEach(({ drawing }, index) => {
-      const ruling = rulings[index];
-      if (ruling === undefined || this.ledger.get(drawing.id) === null) return;
-      const label =
-        drawings.length === 1 ? note : this.labelOf(ruling.name, guessCornerOf(drawing.strokes));
-      this.name(drawing.id, ruling, label);
-    });
+    const drawings = landed.map(({ word, strokes }, index) => ({
+      word,
+      drawing: this.conjure(strokes, this.nowMs + index * PROP_STAGGER_MS),
+    }));
+    const [only] = drawings;
+    if (only !== undefined && drawings.length === 1) {
+      const ruling = await this.modules.cat.name(only.word, only.drawing);
+      if (stillHere() && this.ledger.get(only.drawing.id) !== null)
+        this.name(only.drawing.id, ruling, note);
+      return;
+    }
+    this.understood(note.id);
+    for (const { word, drawing } of drawings) void this.label(drawing, word);
   }
 
-  private labelOf(name: string, corner: Vec): Note {
-    const label = this.kamiWrites(name, corner, { drift: "down" });
+  /** Ink of Kami's own: whole and solid at once, shown being drawn in from `fromMs`. */
+  private conjure(strokes: readonly Stroke[], fromMs: number): Drawing {
+    const drawing: Drawing = {
+      id: this.ids.next<DrawingId>("drawing"),
+      strokes,
+      cost: strokesLength(strokes),
+    };
+    this.modules.sim.addDrawing(drawing);
+    this.modules.autopilot.invalidate();
+    this.ledger.conjure(drawing, fromMs);
+    this.tidied.add(drawing.id);
+    this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
+    return drawing;
+  }
+
+  /**
+   * "Teleport us to the moon": every law of the place is enacted at once, all bound to the one
+   * note (erase it, or tap the scene in the laws panel, and everyone comes home), and Kami dresses
+   * the place with props of his own, one after another. A place the mode forbids is refused whole.
+   */
+  private async travel(scene: Destination, note: Note, stillHere: () => boolean): Promise<void> {
+    const rules = scene.laws.map((law) => this.ruleFrom(law, note));
+    if (!rules.every((rule) => this.allowsRule(rule))) {
+      this.refuseLaw(note.id);
+      return;
+    }
+    this.enactAll(
+      rules,
+      note.id,
+      sceneGlossOf(
+        scene.place,
+        rules.map((rule) => rule.explanation),
+      ),
+    );
+    this.remark(scene.line);
+    await this.dress(scene, note, stillHere);
+  }
+
+  private async dress(scene: Destination, note: Note, stillHere: () => boolean): Promise<void> {
+    const summoner = this.modules.summoner;
+    if (summoner === undefined) return;
+    const pictures = await Promise.all(
+      scene.props.map(async (prop) => ({ prop, exemplar: await summoner.exemplar(prop.word) })),
+    );
+    const writing = this.notes.boundsOf(note.id);
+    if (!stillHere() || writing === null) return;
+    let drawnIn = 0;
+    for (const { prop, exemplar } of pictures) {
+      if (exemplar === null) continue;
+      const strokes = placeProp(exemplar.strokes, writing, prop, this.modules.sim.aliceBounds());
+      const drawing = this.conjure(strokes, this.nowMs + drawnIn * PROP_STAGGER_MS);
+      drawnIn += 1;
+      void this.label(drawing, exemplar.word);
+    }
+  }
+
+  /** Kami names a drawing of his own, writing the word beside it, without a word more. */
+  private async label(drawing: Drawing, word: string): Promise<void> {
+    const epoch = this.epoch;
+    const ruling = await this.modules.cat.name(word, drawing);
+    if (epoch !== this.epoch || this.ledger.get(drawing.id) === null) return;
+    const label = this.kamiWrites(ruling.name, guessCornerOf(drawing.strokes), { drift: "down" });
     this.labelsByKami.add(label.id);
-    return label;
+    this.name(drawing.id, ruling, label, { quietly: true });
   }
 
   private witness(noteId: NoteId): () => boolean {
@@ -892,14 +976,31 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     return () => epoch === this.epoch && this.notes.get(noteId) !== null;
   }
 
-  private async ponder(text: string, noteId: NoteId): Promise<CompiledRule | null> {
+  private ponder(text: string, noteId: NoteId): Promise<CompiledRule | null> {
+    return this.whilePondering(noteId, () => this.modules.thinker.compile(text));
+  }
+
+  /** A place the atlas knows is there at once; for anywhere else the model is asked, and Kami says so. */
+  private async sceneOf(text: string, where: string, noteId: NoteId): Promise<Destination | null> {
+    const scenes = this.modules.scenes;
+    if (scenes === undefined) return null;
+    if (placeCalled(where) !== null) return scenes.compile(text);
+    return this.whilePondering(noteId, () => scenes.compile(text));
+  }
+
+  private async whilePondering<Thought>(
+    noteId: NoteId,
+    think: () => Promise<Thought>,
+  ): Promise<Thought> {
     const under = this.notes.below(noteId);
     const pondering: NoteAnchor = { type: "note", id: noteId };
     if (under !== null)
       this.kamiWrites(PONDERING_LINE, under, { anchor: pondering, drift: "down" });
-    const thought = await this.modules.thinker.compile(text);
-    this.notes.removeAnchoredTo(pondering);
-    return thought;
+    try {
+      return await think();
+    } finally {
+      this.notes.removeAnchoredTo(pondering);
+    }
   }
 
   private ruleFrom(compiled: CompiledRule, note: Note): Rule {
@@ -919,15 +1020,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private enactIfAllowed(rule: Rule): void {
     if (this.allowsRule(rule)) this.enact(rule);
-    else this.refuseLaw(rule);
+    else this.refuseLaw(rule.noteId);
   }
 
-  private refuseLaw(rule: Rule): void {
-    this.notes.restyle(rule.noteId, "plain");
-    const under = this.notes.below(rule.noteId);
+  private refuseLaw(noteId: NoteId): void {
+    this.notes.restyle(noteId, "plain");
+    const under = this.notes.below(noteId);
     if (under !== null) {
       this.kamiWrites(LAW_OUTSIDE_MODE_LINE, under, {
-        anchor: { type: "note", id: rule.noteId },
+        anchor: { type: "note", id: noteId },
         lifetimeMs: REMARK_LIFETIME_MS,
         drift: "down",
       });
@@ -935,13 +1036,19 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private enact(rule: Rule): void {
-    this.rules.enact(rule);
+    this.enactAll([rule], rule.noteId, glossOf(rule.explanation));
+  }
+
+  private enactAll(rules: readonly Rule[], noteId: NoteId, gloss: string): void {
+    for (const rule of rules) {
+      this.rules.enact(rule);
+      this.modules.store.saveRule(this.board.id, rule);
+    }
     this.showLaws();
     this.applyLaws({ silently: false });
     this.modules.autopilot.invalidate();
-    this.modules.store.saveRule(this.board.id, rule);
-    this.understood(rule.noteId);
-    this.writeGloss(rule);
+    this.understood(noteId);
+    this.writeGloss(noteId, gloss);
     this.stuck.progress(this.nowMs);
   }
 
@@ -953,7 +1060,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (epoch === this.epoch) this.name(id, ruling, label);
   }
 
-  private name(id: DrawingId, ruling: Ruling, label: Note): void {
+  private name(
+    id: DrawingId,
+    ruling: Ruling,
+    label: Note,
+    { quietly = false }: { readonly quietly?: boolean } = {},
+  ): void {
     const awake = this.ledger.awaken(id, ruling, this.nowMs);
     if (awake === null) return;
 
@@ -964,7 +1076,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const attached = this.notes.attachToDrawing(label.id, id);
     if (ruling.nature !== "ink") this.understood(label.id);
     else if (attached !== null) this.modules.store.saveNote(this.board.id, attached);
-    const under = this.notes.below(label.id);
+    const under = quietly ? null : this.notes.below(label.id);
     if (under !== null) {
       this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
     }
@@ -1025,23 +1137,24 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (note !== null) this.modules.store.saveNote(this.board.id, note);
   }
 
+  /** One entry per note: a scene's laws share their words and are repealed together. */
+  /** One entry per note: a scene's several laws stand together, and are repealed together. */
   private showLaws(): void {
+    const standing = this.rules.all.filter((rule) => this.allowsRule(rule));
     this.laws.setLaws(
-      this.rules.all
-        .filter((rule) => this.allowsRule(rule))
-        .map((rule) => ({
-          id: rule.id,
-          text: rule.sourceText,
-          gloss: rule.explanation,
-        })),
+      [...groupedByNote(standing).values()].map((ofNote) => ({
+        id: ofNote[0].id,
+        text: ofNote[0].sourceText,
+        gloss: ofNote.map((rule) => rule.explanation).join(", "),
+      })),
     );
   }
 
-  private writeGloss(rule: Rule): void {
-    const under = this.notes.below(rule.noteId);
+  private writeGloss(noteId: NoteId, gloss: string): void {
+    const under = this.notes.below(noteId);
     if (under === null) return;
-    this.kamiWrites(glossOf(rule.explanation), under, {
-      anchor: { type: "note", id: rule.noteId },
+    this.kamiWrites(gloss, under, {
+      anchor: { type: "note", id: noteId },
       tone: "understood",
       drift: "down",
     });
@@ -1182,9 +1295,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private eraseNote(id: NoteId): void {
     this.forget(this.notes.remove(id));
     const repealed = this.rules.repealByNote(id);
-    if (repealed === null) return;
+    if (repealed.length === 0) return;
     this.showLaws();
-    this.modules.store.deleteRule(this.board.id, repealed.id);
+    for (const rule of repealed) this.modules.store.deleteRule(this.board.id, rule.id);
     const sealed = this.applyLaws({ silently: false });
     this.modules.autopilot.invalidate();
     if (!sealed) this.remark(RULE_REPEALED_LINE);

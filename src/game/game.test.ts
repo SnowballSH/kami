@@ -12,8 +12,8 @@ import { HttpBoardStore } from "../persistence/httpBoardStore";
 import type { BoardSnapshot, BoardStore, HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
 import type { Completion, Exemplar, LiveRecognizer, Sighting } from "../recognition/types";
-import { createRuleCompiler, resolvePhysics } from "../rules";
-import type { CompiledRule } from "../rules/types";
+import { createRuleCompiler, createSceneCompiler, resolvePhysics } from "../rules";
+import type { CompiledRule, Scene } from "../rules/types";
 import { createSimulation } from "../sim";
 import { drawingOf } from "../sim/testSupport";
 import { type SketchCatalogue, SUMMONED_SIZE, Summoner } from "../summoning";
@@ -23,6 +23,8 @@ import { HELD_INK_FADE_MS } from "./heldInk";
 import {
   CANNOT_DRAW_LINE,
   LAW_OUTSIDE_MODE_LINE,
+  NOWHERE_LINE,
+  PONDERING_LINE,
   RULE_REPEALED_LINE,
   SUMIKUI_LORE_LINE_DELAY_MS,
   SUMIKUI_SEALED_LINE,
@@ -63,6 +65,7 @@ interface PlayerOptions {
   readonly thoughts?: Thoughts;
   readonly eyes?: Eyes;
   readonly reader?: HandwritingReader;
+  readonly farPlaces?: Readonly<Record<string, Scene>>;
 }
 
 const seen = (word: string, nature: Sighting["nature"], certain = false): Sighting => ({
@@ -170,6 +173,7 @@ class ScriptedReader implements HandwritingReader {
 class Player {
   readonly sim = createSimulation();
   readonly renderer = new FakeRenderer();
+  private readonly handwriting = new FakeHandwriting();
   readonly store: BoardStore;
   readonly game: Game;
   private hudRef: FakeHud | null = null;
@@ -178,10 +182,18 @@ class Player {
   private nowMs = 0;
 
   readonly pondered: string[] = [];
+  readonly travelled: string[] = [];
 
   constructor(
     boardId: string,
-    { store = new MemoryBoardStore(), thoughts = {}, eyes, reader, mode }: PlayerOptions = {},
+    {
+      store = new MemoryBoardStore(),
+      thoughts = {},
+      eyes,
+      reader,
+      mode,
+      farPlaces = {},
+    }: PlayerOptions = {},
   ) {
     this.store = store;
     this.game = new Game(
@@ -191,7 +203,7 @@ class Player {
         cat: createCat(eyes),
         ...(eyes === undefined ? {} : { finisher: eyes, summoner: new Summoner(eyes, eyes) }),
         renderer: this.renderer,
-        handwriting: new FakeHandwriting(),
+        handwriting: this.handwriting,
         compiler: createRuleCompiler(),
         thinker: {
           compile: (text) => {
@@ -199,6 +211,12 @@ class Player {
             return Promise.resolve(thoughts[text] ?? null);
           },
         },
+        scenes: createSceneCompiler({
+          compile: (text) => {
+            this.travelled.push(text);
+            return Promise.resolve(farPlaces[text] ?? null);
+          },
+        }),
         store,
         ...(reader === undefined ? {} : { penReader: createPenReader(reader) }),
         ...(mode === undefined ? {} : { mode }),
@@ -249,6 +267,10 @@ class Player {
   get laws(): FakeLawsPanel {
     if (this.lawsRef === null) throw new Error("Laws panel was never created");
     return this.lawsRef;
+  }
+
+  get everWritten(): readonly string[] {
+    return this.handwriting.everWritten;
   }
 
   get written(): readonly string[] {
@@ -1317,6 +1339,112 @@ describe("Game with a Kami who draws", () => {
     await player.write("summon the ink eater", { x: 300, y: 500 });
     expect(eyes.summoned).toEqual([]);
     expect(player.written).toContain(SUMIKUI_SUMMONED_LINES[0]);
+  });
+});
+
+describe("Game with a Kami who takes everyone places", () => {
+  const STAR: Exemplar = {
+    word: "star",
+    strokes: [
+      [
+        { x: 0, y: 100 },
+        { x: 50, y: 0 },
+        { x: 100, y: 100 },
+      ],
+    ],
+  };
+  const traveller = () => {
+    const eyes = new Eyes([], []);
+    eyes.pictures.set("star", STAR);
+    eyes.pictures.set("moon", { ...STAR, word: "moon" });
+    return eyes;
+  };
+
+  it("goes to a place the atlas knows without a moment's thought", async () => {
+    const player = new Player("wonderland", { eyes: traveller() });
+    await player.arrive();
+    await player.write("teleport us to the moon", { x: 300, y: 500 });
+    expect(player.travelled).toEqual([]);
+    expect(player.everWritten).not.toContain(PONDERING_LINE);
+  });
+
+  it("says he is thinking while the model invents a place the atlas does not know", async () => {
+    const player = new Player("wonderland", { eyes: traveller() });
+    await player.arrive();
+    await player.write("teleport us to the land of lost socks", { x: 300, y: 500 });
+    expect(player.travelled).toEqual(["teleport us to the land of lost socks"]);
+    expect(player.everWritten).toContain(PONDERING_LINE);
+    expect(player.written).not.toContain(PONDERING_LINE);
+  });
+
+  it("makes the Moon: its laws at once, its props drawn in one after another, all under one note", async () => {
+    const eyes = traveller();
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+
+    await player.write("teleport us to the moon", { x: 300, y: 500 });
+    expect(player.travelled).toEqual([]);
+    expect(player.pondered).toEqual([]);
+
+    const rules = (await player.store.load("wonderland")).rules;
+    expect(rules.map((rule) => rule.effect.governs)).toEqual(["gravity", "airDrag", "daylight"]);
+    expect(player.sim.snapshot().alice).toBeDefined();
+    expect(player.renderer.lastFrame?.daylight).toBe(0.3);
+    expect(player.laws.laws.map((law) => law.text)).toEqual(["teleport us to the moon"]);
+    expect(player.laws.laws[0]?.gloss).toMatch(/gravity/);
+    expect(player.written.some((text) => text.startsWith("kami: the Moon:"))).toBe(true);
+    expect(player.written).toContain("One small step. Mind the dust.");
+
+    expect(eyes.summoned).toEqual(["moon", "star", "star", "star"]);
+    await player.wait(ARRIVAL_MS * 3);
+    const drawings = (await player.store.load("wonderland")).drawings;
+    expect(drawings).toHaveLength(4);
+    expect(player.sim.snapshot().drawings).toHaveLength(4);
+    expect(drawings.every((stored) => stored.ruling !== null)).toBe(true);
+    for (const { drawing } of drawings) {
+      expect(
+        boundsOf(drawing.strokes.flat()).y + boundsOf(drawing.strokes.flat()).height,
+      ).toBeLessThan(500);
+    }
+
+    await player.erase({ x: 310, y: 515 });
+    expect((await player.store.load("wonderland")).rules).toHaveLength(0);
+    expect(player.laws.laws).toEqual([]);
+    expect(player.renderer.lastFrame?.daylight).toBe(1);
+    expect(player.sim.snapshot().drawings).toHaveLength(4);
+  });
+
+  it("asks the model for a place the atlas has never heard of, and refuses none it knows", async () => {
+    const eyes = traveller();
+    const chocolate: Scene = {
+      place: "the chocolate factory",
+      laws: [{ effect: { governs: "friction", value: 0.2 }, explanation: "floors of fudge" }],
+      props: [{ word: "star", at: { x: 0, y: -200 }, size: 1 }],
+      line: "Mind the river.",
+    };
+    const player = new Player("wonderland", {
+      eyes,
+      farPlaces: { "take us to the chocolate factory": chocolate },
+    });
+    await player.arrive();
+
+    await player.write("take us to the chocolate factory", { x: 300, y: 500 });
+    expect(player.travelled).toEqual(["take us to the chocolate factory"]);
+    expect(player.pondered).toEqual([]);
+    expect(player.written).toContain("Mind the river.");
+    expect(player.laws.laws.map((law) => law.gloss)).toEqual(["floors of fudge"]);
+    expect(eyes.summoned).toEqual(["star"]);
+  });
+
+  it("says he does not know the way when nobody can make the place, after asking the thinker", async () => {
+    const player = new Player("wonderland", { eyes: traveller() });
+    await player.arrive();
+
+    await player.write("take us to narnia", { x: 300, y: 500 });
+    expect(await player.until(() => player.written.includes(NOWHERE_LINE("narnia")))).toBe(true);
+    expect(player.travelled).toEqual(["take us to narnia"]);
+    expect(player.pondered).toEqual(["take us to narnia"]);
+    expect((await player.store.load("wonderland")).rules).toHaveLength(0);
   });
 });
 

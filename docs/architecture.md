@@ -45,23 +45,12 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
  pointer → InkSession → PenReader → words? → text funnel
                          └ no words → sim + ledger + store → Cat.look → naming
  typing / voice transcript ───────────────→ text funnel
- text funnel: offline compile → nearby non-ink naming → remote compile
-               └ law              └ ruling              └ law / plain-ink name / shrug
+ text funnel: offline compile → scene → summons → nearby non-ink naming → remote compile
+               └ law              └ laws + props   └ Kami inks an exemplar   └ ruling     └ law / plain-ink name / shrug
  keyboard / stick / controller SSE → WalkIntentMerger → sim
  optional autopilot ──────────────────────────────────→ sim (when manual input is idle)
  persistent entities → BoardStore → Bun API → MongoDB
  each frame → render (camera, simulation, ink ledger, handwritten notes)
- pointers/wheel ─► ui/attachCanvasInput ─► game ─┬─ draw ─► ink/InkSession ─ commit ─► sim (solid NOW)
- autopilot.drive(scene) ─► sim.setWalkIntent ──►│              │ every pen-lift  ├─► recognition ─► cat.guess ─► Kami writes 3 tappable guesses
-                                                 │              └─► reading/PenReader ─► server /api/transcribe ─► words? ─► the funnel below (the ink lifts off)
- arrow keys (override) ─► ui/Hud ──────────────►│
- write tool ────► hud.promptText ─► text ────────┤
-                                                 ├─ rules.compile(text) ─► Rule ─► resolvePhysics ─► sim.setPhysics
-                                                 ├─ else "summon a rabbit" ─► server /api/exemplar ─► Kami inks it stroke by stroke ─► cat.name
-                                                 ├─ else near a drawing ─► cat.name ─► Ruling ─► sim.applyRuling
-                                                 └─ else ─► Kami shrugs, in ink
-                       every change ─► persistence/BoardStore ─► server ─► MongoDB
-                       every frame  ─► render (camera, board, inks, notes via handwriting.reveal, Alice)
 ```
 
 `game/` coordinates the modules. Shared geometry, validation and domain helpers also have runtime
@@ -112,6 +101,8 @@ matter-js 0.20. What changed from the page build:
 - **Roles.** `solid` ink is static exactly where it was drawn, anchored or not. `goal` and `spawn` ink is static and does not collide with Alice. `hazard` ink is static; touching it respawns her (`fell`).
 - **World physics.** `setPhysics(p)` persists across `loadBoard`: `gravity` (g, either axis, zero and negative allowed) drives `engine.gravity`; `wind` is a per-body force in g on every dynamic body including Alice; `timeScale` multiplies with bullet-time; `airDrag`, `friction` and `bounciness` scale or set `frictionAir`, `friction` and `restitution` on ink and Alice. Alice's walk stays a set horizontal velocity; under sideways or zero gravity she may drift — that is the point.
 - **Creatures.** `walker`, `hopper` and `flier` are natures with a per-drawing `Mind` (facing, clock, rest) that is reset whenever the ruling changes; their bodies are kept upright (infinite inertia) and never anchor. Each tick the nature's `beforeStep` hook feels the world through `Feelers` — the same nudge probes Alice uses, plus a thin probe dropped ahead of the front foot — and sets a velocity: walkers pace and turn at walls, drops and Alice; hoppers rest, then leap about `HOP_REACH` and turn if there is no ground where they would land; fliers cancel gravity, bob, and turn back beyond `FLY_ROAM_PX` from where they were drawn. Alice standing on a walker or flier is carried (`alice.ride`). Speeds scale with the ruling's strength. The autopilot's chart stamps creatures where they stand right now; the plan is redrawn every few ticks as they move.
+- **Tempers.** A creature's `Ruling` may carry a `temper` (`follows` | `flees`), resolved by `cat/temper.ts` from the player's words first (`FOLLOWING_WORDS`, `FLEEING_WORDS`) and the animal's nature second (`FOLLOWERS`, `FLEERS`); it is copied onto the `InkEntity`. Each creature strategy asks `urgeOf(ink, world)` once a tick — `heel` (a follower within `HEEL_PX` of Alice waits), `toward`, `away` (a fleer within `FLEE_RADIUS_PX`, at `FLEE_HASTE`) or `roam` (no temper, or a fleer she has left behind) — and the same walk/hop/fly code runs with the facing set toward or away from her instead of by the roam rules. Fliers that follow head for a perch `PERCH_ABOVE_PX` over her head. Alice's own steering is untouched; the creatures read her position, never her intent.
+- **Portals.** `portal` is a role (`solidToAlice: false`, charted as air) whose `onAliceTouch` calls `world.warp(ink)`. `sim/portals.ts` orders portals by the ink layer (drawing order) and sends her out of the next one, the last leading back to the first, with `alice.warpTo(centre)` keeping her velocity. The portal she came out of refuses her until a tick in which she no longer touches it, so she cannot ping-pong; a lone portal emits `portal-lonely` (throttled by `PORTAL_LONELY_COOLDOWN_MS`) and does nothing else. The game answers `warped` with a Kami line and an autopilot replan.
 - **Vehicles.** `vehicle` is a creature-shaped nature (upright, never anchored) driven by the player instead of a mind: `drive` (`vehicles.ts`) boards Alice once both her feet are over the body and keeps her the driver while she stands on it, ramps `mind.speed` toward `intent.x × VEHICLE_SPEED × strength` by `VEHICLE_ACCELERATION` a tick, sets the body's velocity, and `alice.drive`s her along with it so she rides instead of walking against it. Letting go brakes; pointing the other way reverses; jumping (`takeOff` clears her footing) or stepping off an end leaves it where it stands. The stick and the autopilot both drive it, because both are the one `intent`. The chart treats it as a creature: never a wall in Alice's own square.
 - **Load-bearing strokes.** Only `bearingStrokes(drawing)` (`src/ink/bearing.ts`) become body parts and chart stamps: every straight, near-level span at least `MIN_SPAN` wide, and every stroke reaching past or below one; strokes wholly above and within a span — a bridge's towers and cables — are scenery. Rendering, hit-testing and erasing still use every stroke, and a lone stroke is always solid.
 - **Laws on Alice and the world** (`docs/laws.md`). `flight` makes her `climbing` wherever she is, so air holds her like a ladder; `walkSpeed` and `aliceSize` multiply her pace and body scale (`applyPhysics` re-runs the resize tween); `attraction` calls `pullToward(alice, g, dynamicInks)` each tick (`attraction.ts`, `1/r²` past 160 px, capped inside); `clones` keeps `Twins` — extra `AliceController`s in the same negative collision group, driven by the same intent, recalled to her feet if they fall — at the folded count; `temperature` runs `weather.ts`, which heats `slippery` above 30 °C and `floaty` above 60 °C until they `perished`. `attractor` is a nature whose `beforeStep` pulls everything but itself; `lantern` is inert in the sim and only matters to the renderer.
@@ -258,6 +249,26 @@ The player writes with the pen like they draw with it; nothing is selected first
 
 - **Funnel** (`Game.interpret`): reject oversized text/invalid position; answer help locally; write the
   player note; try the offline compiler first. If it returns a law, apply the mode policy and stop.
+  Otherwise a wish (`summoning/`: the lexicon is built once from `GET /api/exemplars`; the grammar
+  reads "summon a rabbit", "draw me a bridge here", "three rabbits", "a house and a tree", "a forest
+  with a river", with counts, plurals, aliases and scene words) → `LiveRecognizer.exemplar(category)`
+  per thing → Kami's own drawings, fitted to `SUMMONED_SIZE` in rows (`layoutBoxes`, `fitSketch`),
+  stood over the words and clear of Alice (`standOver`), solid at once (`sim.addDrawing`), inked in
+  over `ARRIVAL_MS` (`InkLedger.conjure`) and named by the server's word through the same
+  `cat.name` → `name` path as the player's ink, minus the tidy they do not need — or Kami asks the
+  player to draw what he has never seen. A bare name ("a rabbit") beside a drawing names it instead,
+  and words beside unnamed ink always name it, even "draw a ladder". Laws come first so "summon the
+  ink eater" stays a law.
+  Before a summons, a scene (`rules/scenes/`: `destinationOf` reads "teleport us to the moon",
+  "let's go underwater", "welcome to Candy Land"; `AtlasSceneCompiler` answers from the offline
+  atlas of ~25 places and otherwise asks the remote `scenes` compiler, `POST /api/scene`) →
+  `Game.travel`: the scene's laws become rules all sharing the travel note (`enactAll`; the mode
+  policy is applied to the bundle, so a scene is enacted whole or refused whole) and listed as one
+  entry in the laws panel; then `dress` fetches an exemplar per prop and conjures each above the
+  words, clear of Alice, staggered by `PROP_STAGGER_MS`, named by its word. Erasing the note repeals
+  every rule of the scene at once (`RuleBook.repealByNote` returns them all); the props stay as
+  ordinary ink. A travel sentence nobody can make falls through the rest of the funnel and ends in
+  "I don't know the way" instead of a shrug.
   Otherwise try `cat.name` on the nearest drawing. A non-`ink` ruling wins immediately. Only then
   ask the remote `thinker`; if it returns a law, apply the mode policy and stop. If it returns
   `null`, use the available plain-ink ruling or write a shrug. A forbidden law remains plain
@@ -266,7 +277,6 @@ The player writes with the pen like they draw with it; nothing is selected first
 - **Naming geometry:** `NAMING_REACH = 190` world px, measured as rectangle gap from the laid-out
   note bounds to bounds of the drawing's strokes transformed by its current pose, including
   rotation. This is neither a distance from Alice nor a five-second naming window.
-- **Funnel** for written text at a world point: `rules.compile` → a `Rule` (note turns green, Kami writes the gloss beneath, `sim.setPhysics(resolvePhysics(rules))`); else a wish (`summoning/`: the lexicon is built once from `GET /api/exemplars`, the grammar reads "summon a rabbit", "three rabbits", "a house and a tree", "a forest with a river", with counts, plurals and scene words) → `LiveRecognizer.exemplar(category)` per thing → Kami's own drawings, fitted to `SUMMONED_SIZE` in rows (`layoutBoxes`, `fitSketch`), stood over the words and clear of Alice (`standOver`), solid at once (`sim.addDrawing`), inked in over `ARRIVAL_MS` (`InkLedger.conjure`) and named by the server's word through the same `cat.name` → `name` path as the player's ink, minus the tidy they do not need — or Kami asks the player to draw what he has never seen; a bare name ("a rabbit") beside a drawing names it instead, and words beside unnamed ink always name it, even "draw a ladder"; else the nearest drawing within ~160 px → `cat.name` → `applyRuling` (Kami writes his line); else Kami writes a shrug and the note stays as plain writing. Laws come first so "summon the ink eater" stays a law.
 - **Law precedence** is captured when the player submits the note, before compilation. `createdAt` is a logical millisecond timestamp: at least wall time and strictly greater than the preceding submission or any restored note/rule. Same-millisecond submissions therefore keep their order across out-of-order responses, reload and repeal. Existing equal timestamps retain the rule-id tie-breaker.
 - **Guesses.** Prefix `cat.glimpse` calls use `partial: true`, coalesced to at most one in flight.
   An empty answer retains the current guess. Prefixes only display a suggestion; automatic naming

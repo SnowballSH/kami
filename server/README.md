@@ -65,6 +65,7 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | `POST /api/recognize` `{ strokes: {x,y}[][], partial?: boolean }` | Structured parallel arrays plus `certain`; at most three, best first. See the API contract below. |
 | `POST /api/beautify` `{ strokes, name? }` | Upstream model response; the current browser validates point-for-point `{ tidied, added, category, confidence }` into its `Completion` type. |
 | `POST /api/compile` `{ text }` | `{ rule: CompiledRule \| null }` |
+| `POST /api/scene` `{ text }` | `{ scene: Scene \| null }` — a place as a bundle of laws and props Kami draws ("Scenes" below) |
 | `POST /api/controllers/:id/state` `<x> <y> [buttons]` (plain text) | `204`; a joystick's whole state, axes -100 … 100 with y up (`docs/controllers.md`) |
 | `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
 | `GET /api/controllers` | `[{ id, x, y, held, buttons, transport, idleMs }]` |
@@ -280,6 +281,7 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 | `GET /api/exemplar?word=rabbit` | `word`: what to draw, as the player said it ("a rabbit", "rabbits", "the hot air balloon") | `{ word: string, strokes: {x,y}[][] }` — one clean drawing of it, a different one each time, in the Quick, Draw! frame: 0–256 px, y down, every stroke at least two points; `word` is the Quick, Draw! category it is a drawing of, which the game names it by. **`404`** `{ error }` when no category matches or there is no drawing of it (`KAMI_SKETCHES` covers all 345; without it, what was ingested or Quick, Draw! itself); **`400`** without a word. The client is `LiveRecognizer.exemplar(word)` (`src/recognition`); the game fits and places the strokes itself ("Summons" below). |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
 | `GET /api/exemplars` | — | `{ categories: string[] }` — every Quick, Draw! category `/api/exemplar` has a drawing of; the client builds its summoning lexicon from it |
+| `POST /api/scene` | `{ text }` — the whole travel sentence ("teleport us to the moon") | `{ scene: Scene \| null }` where `Scene = { place: string, laws: CompiledRule[], props: { word: string, at: {x,y}, size: number }[], line: string }`. `laws` are ordinary compiled rules (at most five, one per setting, clamped to `effectRanges`); `props` are Quick, Draw! categories with where to stand them relative to the note (`at.x` ±450, `at.y` −350 … −40, y up is negative) and a size factor 0.3–2; `line` is what Kami says on arrival. `null` when the text asks to go nowhere or the model cannot make the place. Only asked for places the client's own atlas lacks (`src/rules/scenes/atlas.ts`). |
 | `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no model is configured or its image warm-up has not passed (`KAMI_LLM_URL` and `KAMI_TRANSCRIBE_MODEL`, falling back to `KAMI_LLM_MODEL`). Stateless; the client may abort a request (the read of a prefix) freely. |
 | boards, drawings, notes, rules | see the table above | |
 | `POST /api/controllers/:id/state` | `text/plain` `<x> <y> [buttons]`, e.g. `100 0 A`: axes -100 … 100 (y up), then the letters of the buttons held (`A` `B` `X` `Y`). `:id` is `[a-z0-9-]{1,32}` | `204`, or `400` `{ error }` |
@@ -309,6 +311,17 @@ the client scales them to the size of a drawing, stands them over the words that
 summoned rabbit hops like a drawn one. Vector strokes only: whatever Kami draws stays erasable, chewable and
 tidyable ink like the player's own. A model that can draw things the dataset lacks can answer the same route
 with the same shape.
+
+**Scenes.** "Teleport us to the moon" / "let's go underwater" / "welcome to Candy Land": one sentence becomes a
+bundle of laws and a few props Kami draws. The client (`src/rules/scenes/`) recognises the travel phrase and
+answers from its own atlas of ~25 places first (the Moon is 0.165 g, thin air and a dim sky, with a moon and
+stars sketched above the words). For a place the atlas lacks it asks `POST /api/scene` with the sentence;
+`server/scene/llmSceneCompiler.ts` puts it to the same model as `/api/compile` with the law vocabulary plus
+the category table, and validates the answer into the `Scene` shape above: the laws through the same
+`rawRuleEffectSchema` and `clampEffect` as single laws, the props filtered to categories with drawings and
+clamped into reach. Everything in a scene then travels the ordinary paths: the laws are enacted as one
+group under the travel note (erasing it repeals the whole scene), and each prop is fetched through
+`GET /api/exemplar` and inked like a summons.
 
 **Naming without asking.** When Kami is sure what a drawing is, the game names it instead of offering three
 guesses. The server decides, because only it knows which recogniser answered and how far that one's

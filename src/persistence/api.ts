@@ -16,6 +16,8 @@ export const entityPath = (boardId: string, kind: EntityKind, id: string): strin
 
 export const compilePath = (): string => `${API_BASE}/compile`;
 
+export const scenePath = (): string => `${API_BASE}/scene`;
+
 export const transcribePath = (): string => `${API_BASE}/transcribe`;
 
 export const exemplarsPath = (): string => `${API_BASE}/exemplars`;

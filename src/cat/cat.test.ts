@@ -126,6 +126,40 @@ describe("ScriptedCat", () => {
       expect(await cat.name("a hero", SKETCH)).toMatchObject({ nature: "walker", name: "a hero" });
     });
 
+    it("knows which animals take to Alice and which run from her", async () => {
+      cat.enterRoom(hallOfDoors);
+      expect(await cat.name("a dog", SKETCH)).toMatchObject({
+        nature: "walker",
+        temper: "follows",
+      });
+      expect(await cat.name("a mouse", SKETCH)).toMatchObject({
+        nature: "walker",
+        temper: "flees",
+      });
+      expect(await cat.name("a tortoise", SKETCH)).not.toHaveProperty("temper");
+    });
+
+    it("lets a description overrule an animal's usual temper", async () => {
+      cat.enterRoom(hallOfDoors);
+      expect(await cat.name("a shy dog", SKETCH)).toMatchObject({ temper: "flees" });
+      expect(await cat.name("a loyal mouse", SKETCH)).toMatchObject({ temper: "follows" });
+      expect(await cat.name("a tortoise that follows alice", SKETCH)).toMatchObject({
+        nature: "walker",
+        temper: "follows",
+      });
+      expect(await cat.name("a friendly rock", SKETCH)).not.toHaveProperty("temper");
+    });
+
+    it("hears a portal as a portal, not as the goal", async () => {
+      cat.enterRoom(hallOfDoors);
+      expect(await cat.name("a portal", SKETCH)).toMatchObject({
+        nature: "portal",
+        name: "a portal",
+      });
+      expect(await cat.name("the looking glass", SKETCH)).toMatchObject({ nature: "portal" });
+      expect(await cat.name("the exit", SKETCH)).toMatchObject({ nature: "goal" });
+    });
+
     it("hears a car as something to drive", async () => {
       cat.enterRoom(hallOfDoors);
       expect(await cat.name("a car", SKETCH)).toMatchObject({ nature: "vehicle", name: "a car" });

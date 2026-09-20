@@ -1,5 +1,5 @@
 import type Matter from "matter-js";
-import type { Nature } from "../cat/types";
+import type { Nature, Temper } from "../cat/types";
 import { type Pose, poseToWorld, type Stroke, type Vec } from "../core/geometry";
 import type { Drawing, DrawingId } from "../ink/types";
 import { type Motion, type MotionEdit, STILL } from "../rules/types";
@@ -10,6 +10,8 @@ export class InkEntity {
   name = "";
   strength = 1;
   frozen = false;
+  /** How it takes to Alice, if it is a creature with feelings about her. */
+  temper: Temper | null = null;
   /** What its name asked for; `motion` is that under every standing law that speaks of it. */
   own: MotionEdit = {};
   motion: Motion = STILL;

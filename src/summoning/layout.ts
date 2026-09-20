@@ -1,4 +1,5 @@
 import { boundsOf, type Rect, rectsOverlap, type Stroke, type Vec } from "../core/geometry";
+import type { Prop } from "../rules/types";
 
 /** How tall or wide a summoned drawing stands, in world px (Alice is 60 tall). */
 export const SUMMONED_SIZE = { small: 55, usual: 110, big: 190 } as const;
@@ -70,6 +71,11 @@ export const layoutBoxes = (sizes: readonly SummonedSize[], origin: Vec): readon
 const shifted = (strokes: readonly Stroke[], by: Vec): readonly Stroke[] =>
   strokes.map((stroke) => stroke.map(({ x, y }) => ({ x: x + by.x, y: y + by.y })));
 
+const clearOfAlice = (landing: Rect, alice: Rect | null): number =>
+  alice !== null && rectsOverlap(landing, alice)
+    ? alice.y - ABOVE_WRITING - landing.height
+    : landing.y;
+
 /**
  * Where summoned drawings land: as laid out, centred over the words that asked for them and
  * standing just above, lifted clear of Alice when she is in the way.
@@ -81,11 +87,38 @@ export const standOver = (
 ): readonly (readonly Stroke[])[] => {
   const frame = boundsOf(drawings.flat(2));
   const left = writing.x + writing.width / 2 - frame.width / 2;
-  const overWords = writing.y - ABOVE_WRITING - frame.height;
-  const inAlicesWay =
-    alice !== null &&
-    rectsOverlap({ x: left, y: overWords, width: frame.width, height: frame.height }, alice);
-  const top = inAlicesWay ? alice.y - ABOVE_WRITING - frame.height : overWords;
+  const top = clearOfAlice(
+    {
+      x: left,
+      y: writing.y - ABOVE_WRITING - frame.height,
+      width: frame.width,
+      height: frame.height,
+    },
+    alice,
+  );
   const by = { x: left - frame.x, y: top - frame.y };
   return drawings.map((strokes) => shifted(strokes, by));
+};
+
+/**
+ * Where a prop of a scene lands: `size` times a usual summoned drawing along its longer side,
+ * centred at `at` from the top-centre of the words that took everyone there, lifted clear of Alice.
+ */
+export const placeProp = (
+  strokes: readonly Stroke[],
+  writing: Rect,
+  prop: Pick<Prop, "at" | "size">,
+  alice: Rect | null,
+): readonly Stroke[] => {
+  const frame = boundsOf(strokes.flat());
+  const scale = (SUMMONED_SIZE.usual * prop.size) / Math.max(frame.width, frame.height, 1);
+  const width = frame.width * scale;
+  const height = frame.height * scale;
+  const centre: Vec = { x: writing.x + writing.width / 2 + prop.at.x, y: writing.y + prop.at.y };
+  const left = centre.x - width / 2;
+  const top = clearOfAlice({ x: left, y: centre.y - height / 2, width, height }, alice);
+  const origin: Vec = { x: left - frame.x * scale, y: top - frame.y * scale };
+  return strokes.map((stroke) =>
+    stroke.map(({ x, y }) => ({ x: origin.x + x * scale, y: origin.y + y * scale })),
+  );
 };

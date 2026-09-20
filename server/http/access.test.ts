@@ -38,6 +38,15 @@ const ENV = {
   KAMI_CREDENTIALS: JSON.stringify(SHARED.credentials),
 };
 const STROKES = [[{ x: 1, y: 2 }]];
+const RABBIT = {
+  word: "rabbit",
+  strokes: [
+    [
+      { x: 0, y: 0 },
+      { x: 255, y: 255 },
+    ],
+  ],
+};
 const NOTE = {
   id: "note",
   text: "hello",
@@ -132,6 +141,7 @@ describe("shared API access", () => {
   const beautify = vi.fn(async () => Response.json({ tidied: STROKES, added: [] }));
   const transcribe = vi.fn(async () => "hello");
   const speak = vi.fn(async () => new Uint8Array([73, 68, 51]).buffer);
+  const exemplar = vi.fn(async (word: string) => (word === "rabbit" ? RABBIT : null));
 
   beforeAll(async () => {
     connection = await startMemoryDatabase();
@@ -152,6 +162,7 @@ describe("shared API access", () => {
       beautifier: { beautify },
       transcriber: { transcribe, ready: true, warmUp: async () => true },
       speaker: { speak },
+      exemplars: { categories: ["rabbit"], exemplar },
     });
     vi.clearAllMocks();
     await boards.upsert("notes", "my game", NOTE.id, NOTE);
@@ -184,6 +195,8 @@ describe("shared API access", () => {
     ["POST", "beautify"],
     ["POST", "transcribe"],
     ["POST", "voice/speak"],
+    ["GET", "exemplar?word=rabbit"],
+    ["GET", "exemplars"],
   ])("denies unauthenticated %s %s before touching data or models", async (method, path) => {
     const response = await api.handle(request(path, { method }));
     expect(response.status).toBe(401);
@@ -192,6 +205,7 @@ describe("shared API access", () => {
     expect(beautify).not.toHaveBeenCalled();
     expect(transcribe).not.toHaveBeenCalled();
     expect(speak).not.toHaveBeenCalled();
+    expect(exemplar).not.toHaveBeenCalled();
     expect((await boards.snapshot("my game")).notes).toHaveLength(1);
     expect(controllers.list()).toEqual([]);
   });
@@ -295,6 +309,98 @@ describe("shared API access", () => {
     expect(denied.status).toBe(403);
     expect(speak).toHaveBeenCalledTimes(1);
   });
+
+  it("allows exemplar reads with a model grant through cookies and bearer credentials", async () => {
+    const cookie = await login();
+    for (const headers of [{ cookie, origin: ORIGIN }, bearer()]) {
+      const response = await api.handle(request("exemplar?word=rabbit", { headers }));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual(RABBIT);
+      expect(response.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    }
+    expect(exemplar).toHaveBeenCalledTimes(2);
+    expect(exemplar).toHaveBeenCalledWith("rabbit");
+  });
+
+  it("denies exemplar reads without a model grant or from a hostile origin before lookup", async () => {
+    for (const headers of [bearer(BOB), { ...bearer(), origin: "https://evil.test" }]) {
+      expect((await api.handle(request("exemplar?word=rabbit", { headers }))).status).toBe(403);
+      expect((await api.handle(request("exemplars", { headers }))).status).toBe(403);
+    }
+    expect(exemplar).not.toHaveBeenCalled();
+  });
+
+  it("lists the catalogue with a model grant", async () => {
+    const response = await api.handle(request("exemplars", { headers: bearer() }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ categories: ["rabbit"] });
+  });
+
+  it("keeps exemplar validation, missing drawings and unsupported methods after authorization", async () => {
+    expect((await api.handle(request("exemplar", { headers: bearer() }))).status).toBe(400);
+    expect((await api.handle(request("exemplar?word=unknown", { headers: bearer() }))).status).toBe(
+      404,
+    );
+    expect(
+      (await api.handle(request("exemplar?word=rabbit", { method: "POST", headers: bearer() })))
+        .status,
+    ).toBe(404);
+    expect(exemplar).toHaveBeenCalledOnce();
+    expect(exemplar).toHaveBeenCalledWith("unknown");
+  });
+
+  it.each([DEMO_ACCESS, SHARED])(
+    "shares exemplar rate and concurrency limits with model work in $mode mode",
+    async (config) => {
+      const limited = createApi({
+        boards,
+        controllers,
+        access: new ApiAccess(
+          { ...config, modelRequestsPerMinute: 2, modelConcurrency: 1 },
+          () => now,
+        ),
+        compiler: { compile },
+        recognizer: { read: recognize },
+        beautifier: { beautify },
+        exemplars: { categories: [], exemplar },
+      });
+      let finish: () => void = () => {};
+      exemplar.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = () => resolve(RABBIT);
+          }),
+      );
+      const first = limited.handle(request("exemplar?word=rabbit", { headers: bearer() }));
+      const compileRequest = () =>
+        request("compile", {
+          method: "POST",
+          headers: bearer(),
+          body: JSON.stringify({ text: "gravity like mars" }),
+        });
+      try {
+        expect((await limited.handle(compileRequest())).status).toBe(429);
+        expect(compile).not.toHaveBeenCalled();
+      } finally {
+        finish();
+      }
+      expect(await (await first).json()).toEqual(RABBIT);
+      expect((await limited.handle(compileRequest())).status).toBe(200);
+      const rejected = await limited.handle(
+        request("exemplar//?word=rabbit", { headers: bearer() }),
+      );
+      expect(rejected.status).toBe(429);
+      expect(rejected.headers.get("retry-after")).toBe("60");
+      expect(exemplar).toHaveBeenCalledOnce();
+      expect(
+        (await limited.handle(request("boards/my%20game", { headers: bearer() }))).status,
+      ).toBe(200);
+      now += 60_000;
+      expect(
+        (await limited.handle(request("exemplar?word=rabbit", { headers: bearer() }))).status,
+      ).toBe(200);
+    },
+  );
 
   it("authenticates native EventSource cookies and HTTP controller reports", async () => {
     const cookie = await login();

@@ -2,6 +2,7 @@ export { MOST_SUMMONED, parseWish, type Wish } from "./grammar";
 export {
   fitSketch,
   layoutBoxes,
+  placeProp,
   SUMMONED_SIZE,
   type SummonedSize,
   sizeOf,

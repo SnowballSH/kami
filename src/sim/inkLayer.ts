@@ -98,6 +98,7 @@ export class InkLayer {
     ink.name = ruling.name;
     ink.strength = ruling.strength;
     ink.own = ruling.motion ?? {};
+    ink.temper = ruling.temper ?? null;
     ink.frozen = false;
     ink.mind = freshMind(ink.id);
     this.resolveMotion(ink);
