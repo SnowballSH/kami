@@ -273,24 +273,6 @@
   height: 20px;
 }
 
-.kami-page-clear {
-  gap: 6px;
-}
-
-.kami-page-clear.is-confirming {
-  padding: 0 10px 0 8px;
-  background: var(--kami-danger);
-}
-
-.kami-page-confirm {
-  font-family: var(--kami-ui);
-  font-size: 14px;
-}
-
-.kami-page-confirm[hidden] {
-  display: none;
-}
-
 .kami-share {
   position: relative;
 }

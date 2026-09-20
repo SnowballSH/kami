@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blankBoard } from "../board/boards/blank";
-import { endlessBoard } from "../board/boards/endless";
+import { ENDLESS_STRIP, endlessPage } from "../board/boards/endless";
 import type { BoardDefinition } from "../board/types";
 import type { Stroke } from "../core/geometry";
 import { VEHICLE_SPEED, WALK_SPEED } from "./constants";
@@ -30,7 +30,7 @@ const flatBoard: BoardDefinition = {
   ...blankBoard("flat"),
   solids: [{ rect: { x: -2000, y: 0, width: 4000, height: 36 }, material: "marker" }],
 };
-const endlessFlatBoard = endlessBoard("vehicle-endless");
+const endlessFlatBoard = endlessPage("vehicle-endless", [ENDLESS_STRIP]);
 const ledgeBoard: BoardDefinition = {
   ...blankBoard("ledge"),
   solids: [{ rect: { x: -320, y: 0, width: 480, height: 36 }, material: "marker" }],

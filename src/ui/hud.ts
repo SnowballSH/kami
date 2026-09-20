@@ -55,7 +55,7 @@ export class DomHud implements Hud {
     );
     this.toolbar.show(this.tools.inForce);
     this.boards = new BoardMenu(handlers);
-    this.page = new PageActions(handlers, () => host.location.assign(homeUrl(host.location)));
+    this.page = new PageActions(() => host.location.assign(homeUrl(host.location)));
     this.persistence = new PersistenceStatus(() => handlers.onRetryPersistence());
     this.boards.element.append(this.persistence.element);
     this.prompt = new TextPrompt(host);
@@ -89,7 +89,6 @@ export class DomHud implements Hud {
       new ToolHotkeys(this.tools).attach(host),
       this.boards.attach(owner),
       this.share.attach(owner),
-      this.page.attach(owner),
       this.prompt.attach(),
       installTouchGuards(owner),
     ];
