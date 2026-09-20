@@ -14,7 +14,8 @@ const isPoint = (value: unknown): value is Vec =>
 const isStroke = (value: unknown): value is Stroke =>
   Array.isArray(value) && value.length > 1 && value.every(isPoint);
 
-const inBox = ({ x, y }: Vec): boolean => x >= 0 && x <= EXEMPLAR_BOX && y >= 0 && y <= EXEMPLAR_BOX;
+const inBox = ({ x, y }: Vec): boolean =>
+  x >= 0 && x <= EXEMPLAR_BOX && y >= 0 && y <= EXEMPLAR_BOX;
 
 /** The server's picture of a word; null for anything that is not strokes inside the 256 px frame. */
 export const exemplarOf = (body: unknown): Exemplar | null => {
@@ -23,5 +24,8 @@ export const exemplarOf = (body: unknown): Exemplar | null => {
   if (typeof word !== "string" || word.trim().length === 0) return null;
   if (!Array.isArray(strokes) || strokes.length === 0 || !strokes.every(isStroke)) return null;
   if (!strokes.every((stroke) => stroke.every(inBox))) return null;
-  return { word: word.trim(), strokes: strokes.map((stroke) => stroke.map(({ x, y }) => ({ x, y }))) };
+  return {
+    word: word.trim(),
+    strokes: strokes.map((stroke) => stroke.map(({ x, y }) => ({ x, y }))),
+  };
 };

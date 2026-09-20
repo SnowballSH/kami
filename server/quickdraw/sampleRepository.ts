@@ -102,6 +102,18 @@ export class QuickdrawSampleRepository {
       .toArray();
   }
 
+  /** One stored drawing of the category, a different one each time; null for a category never ingested. */
+  async anyOf(category: string): Promise<StoredSketch | null> {
+    const [picked] = await this.#samples
+      .aggregate<StoredSketch>([
+        { $match: { category } },
+        { $sample: { size: 1 } },
+        { $project: { _id: 0, category: 1, keyId: 1, drawing: 1 } },
+      ])
+      .toArray();
+    return picked ?? null;
+  }
+
   async keyIdsOf(category: string): Promise<ReadonlySet<string>> {
     const documents = await this.#samples
       .find({ category }, { projection: { _id: 0, keyId: 1 } })

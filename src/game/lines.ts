@@ -24,6 +24,8 @@ export const GOAL_LINE = "Down the rabbit hole. You drew your way here.";
 export const RULE_REPEALED_LINE = "Struck from the laws of nature.";
 export const STUCK_LINE = "She can't see a way on. Draw her one.";
 export const PONDERING_LINE = "hmm...";
+export const CANNOT_DRAW_LINE = (what: string): string =>
+  `I've never seen ${what}. Draw one for me, and I'll learn its name.`;
 export const OFFER_HELP_HINT = "(write 'help' anywhere)";
 
 /**

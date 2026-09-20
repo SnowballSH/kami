@@ -53,7 +53,9 @@ export class HttpRecognizer implements LiveRecognizer {
     const wanted = word.trim();
     if (wanted.length === 0) return null;
     const path = `${EXEMPLAR_PATH}?${new URLSearchParams({ word: wanted })}`;
-    return exemplarOf(await this.#answer(path, { signal: AbortSignal.timeout(RECOGNIZE_TIMEOUT_MS) }));
+    return exemplarOf(
+      await this.#answer(path, { signal: AbortSignal.timeout(RECOGNIZE_TIMEOUT_MS) }),
+    );
   }
 
   #ask(path: string, request: object, timeoutMs = RECOGNIZE_TIMEOUT_MS): Promise<unknown> {

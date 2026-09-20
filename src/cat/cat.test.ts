@@ -55,6 +55,7 @@ const sightingsOf = (
   recognize: () => Promise.resolve(final.map(({ word }) => word)),
   sight: (_, options) => Promise.resolve(options?.partial === true ? partial : final),
   complete: () => Promise.resolve(null),
+  exemplar: () => Promise.resolve(null),
 });
 
 const drawingOf = (...strokes: Stroke[]): Drawing => ({

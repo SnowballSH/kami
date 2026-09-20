@@ -63,6 +63,7 @@ export function startGame(root: HTMLElement): void {
       autopilot: createAutopilot(),
       cat: createCat(recognizer),
       finisher: recognizer,
+      summoner: recognizer,
       renderer,
       handwriting,
       compiler: createRuleCompiler(),

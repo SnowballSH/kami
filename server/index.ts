@@ -4,8 +4,10 @@ import { readConfig } from "./config";
 import { startControllers } from "./controllers";
 import { BoardRepository } from "./db/boardRepository";
 import { connectDatabase } from "./db/connect";
+import { createExemplarSource } from "./exemplar/exemplars";
 import { createApi } from "./http/api";
 import { createStaticSite } from "./http/staticSite";
+import { quickdrawNatureTable } from "./natures/natureTable";
 import { QuickdrawRecognizer } from "./quickdraw/recognizer";
 import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
 import { createRecognizerChain } from "./recognition/chain";
@@ -19,9 +21,8 @@ const connection = await connectDatabase(config.database);
 const boards = new BoardRepository(connection.db);
 await boards.ensureIndexes();
 
-const knn = new QuickdrawRecognizer(
-  await new QuickdrawSampleRepository(connection.db).loadFeatures(),
-);
+const sketches = new QuickdrawSampleRepository(connection.db);
+const knn = new QuickdrawRecognizer(await sketches.loadFeatures());
 const eye = createRecognizerChain(config.recognizerUrl, knn, {
   log: (line) => console.log(`  ${line}`),
 });
@@ -39,6 +40,7 @@ const api = createApi({
   beautifier: createBeautifier(config.beautifyUrl),
   controllers: controllers.hub,
   transcriber,
+  exemplars: createExemplarSource(sketches, quickdrawNatureTable),
 });
 const site = config.webDirectory === null ? null : createStaticSite(config.webDirectory);
 const isApiCall = (request: Request): boolean =>
