@@ -1,4 +1,4 @@
-import type { Governs } from "./types";
+import type { WorldGoverns } from "./types";
 import { type Vocabulary, vocabulary } from "./vocabulary";
 
 export const GOVERNS = [
@@ -16,13 +16,13 @@ export const GOVERNS = [
   "attraction",
   "clones",
   "inkEater",
-] as const satisfies readonly Governs[];
+] as const satisfies readonly WorldGoverns[];
 
 /** How the player refers to Alice; the dials on her need one of these beside the topic. */
 export const ALICE = vocabulary("alice, alices, her, she, herself");
 
 /** The topic word each dial answers to: what a sentence must mention to be about it. */
-export const SUBJECTS: Readonly<Record<Governs, Vocabulary>> = {
+export const SUBJECTS: Readonly<Record<WorldGoverns, Vocabulary>> = {
   gravity: vocabulary(`
     g, gs, gravity, gravitational, gravitation, grav, antigravity, fall, falls, falling
   `),

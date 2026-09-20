@@ -17,6 +17,10 @@ const MOON = rule("moon", 100, { governs: "gravity", x: 0, y: 0.165 });
 const MARS = rule("mars", 200, { governs: "gravity", x: 0, y: 0.38 });
 const SLOW = rule("slow", 150, { governs: "timeScale", value: 0.5 });
 const GUST = rule("gust", 50, { governs: "wind", x: 0.3, y: 0 });
+const WHEEL = { kind: "named", name: "wheel" } as const;
+const TURNS = rule("turns", 300, { governs: "spin", of: WHEEL, value: 1 });
+const TURNS_BACK = rule("turns-back", 400, { governs: "spin", of: WHEEL, value: -1 });
+const ALL_HEAVY = rule("all-heavy", 350, { governs: "mass", of: { kind: "all" }, value: 2 });
 
 describe("resolvePhysics", () => {
   it("is Earth when nothing has been written", () => {
@@ -51,6 +55,22 @@ describe("resolvePhysics", () => {
     resolvePhysics(rules);
     expect(rules).toEqual([MARS, MOON]);
     expect(EARTH.gravity).toEqual({ x: 0, y: 1 });
+  });
+
+  it("keeps every law about drawings, oldest first, for the bodies to read at tick time", () => {
+    expect(resolvePhysics([TURNS_BACK, ALL_HEAVY, TURNS]).bodies).toEqual([
+      { of: WHEEL, edit: { spin: 1 } },
+      { of: { kind: "all" }, edit: { mass: 2 } },
+      { of: WHEEL, edit: { spin: -1 } },
+    ]);
+  });
+
+  it("forgets a drawing law when its note is erased, leaving the world dials alone", () => {
+    const physics = resolvePhysics(
+      [MOON, TURNS, TURNS_BACK].filter((standing) => standing !== TURNS_BACK),
+    );
+    expect(physics.bodies).toEqual([{ of: WHEEL, edit: { spin: 1 } }]);
+    expect(physics.gravity).toEqual({ x: 0, y: 0.165 });
   });
 
   it("ignores unsafe historic effects without hiding a valid older law or its repeal", () => {

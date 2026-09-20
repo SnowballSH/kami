@@ -6,6 +6,7 @@ import { recogniseBounciness } from "./recognisers/bounciness";
 import { recogniseDials } from "./recognisers/dials";
 import { recogniseFriction } from "./recognisers/friction";
 import { recogniseGravity } from "./recognisers/gravity";
+import { recogniseMotion } from "./recognisers/motion";
 import { recogniseReset } from "./recognisers/resets";
 import { recogniseTime } from "./recognisers/time";
 import { recogniseWind } from "./recognisers/wind";
@@ -20,6 +21,7 @@ const RECOGNISERS: readonly Recogniser[] = [
   recogniseAir,
   recogniseWind,
   recogniseDials,
+  recogniseMotion,
 ];
 
 const MAX_NUMBERS = 1;

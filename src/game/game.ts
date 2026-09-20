@@ -21,6 +21,8 @@ import type {
   PlacementRejection,
   PosedDrawing,
 } from "../ink/types";
+import { allowsLaw, createDirector, EMBODIED_MODE, EmbodiedDirector } from "../modes";
+import type { GameMode, ModeDirector } from "../modes/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore } from "../persistence/types";
 import type { PenReader } from "../reading/types";
@@ -49,6 +51,7 @@ import {
   glossOf,
   isHelpRequest,
   KEY_TAKEN_LINE,
+  LAW_OUTSIDE_MODE_LINE,
   OFFER_HELP_HINT,
   PONDERING_LINE,
   REJECTION_LINES,
@@ -72,6 +75,9 @@ const MAX_STEPS_PER_FRAME = 5;
 const ERASER_TOLERANCE = 18;
 const NAMING_REACH = 190;
 const GUESS_OFFSET = { x: 30, y: -4, line: 42 } as const;
+
+const directorFor = (mode: GameMode): ModeDirector =>
+  createDirector(mode) ?? new EmbodiedDirector(EMBODIED_MODE);
 
 const guessCornerOf = (strokes: readonly Stroke[]): Vec => {
   const bounds = boundsOf(strokes.flat());
@@ -120,6 +126,8 @@ export interface GameModules {
     tolerance: number,
   ) => DrawingId | null;
   readonly onBoardOpened?: (boardId: string) => void;
+  /** How the board is played; `EMBODIED_MODE` unless said otherwise. A mode nobody has built a director for yet plays as embodied. */
+  readonly mode?: GameMode;
   /** Whether Alice starts out walking herself; the player can switch it from the HUD. */
   readonly selfDriving?: boolean;
   readonly onSelfDrivingChanged?: (enabled: boolean) => void;
@@ -138,6 +146,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly stuck = new StuckDetector();
   private readonly ids = new IdMint();
   private readonly introduced = new Set<string>();
+  private readonly director: ModeDirector;
 
   private board: BoardDefinition;
   private epoch = 0;
@@ -168,9 +177,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     initialBoardId: string,
   ) {
     this.board = modules.boardFor(initialBoardId);
-    this.selfDriving = modules.selfDriving ?? true;
+    this.director = directorFor(modules.mode ?? EMBODIED_MODE);
+    this.selfDriving = (modules.selfDriving ?? true) && this.walksHerself();
     this.notes = new NoteBook(modules.handwriting);
-    this.rules = new RuleBook(modules.resolvePhysics);
+    this.rules = new RuleBook((rules) =>
+      modules.resolvePhysics(rules.filter((rule) => this.allowsRule(rule))),
+    );
     this.ink = modules.createInkSession(this);
     this.penReader = modules.penReader ?? null;
     this.hud = modules.createHud(this);
@@ -311,11 +323,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   onAutopilotToggled(enabled: boolean): void {
-    this.selfDriving = enabled;
+    this.selfDriving = enabled && this.walksHerself();
     this.wasStuck = false;
     this.modules.autopilot.reset();
-    this.hud.setAutopilot(enabled);
-    this.modules.onSelfDrivingChanged?.(enabled);
+    this.hud.setAutopilot(this.selfDriving);
+    this.modules.onSelfDrivingChanged?.(this.selfDriving);
+  }
+
+  private walksHerself(): boolean {
+    return this.director.mode.autopilot === "allowed";
   }
 
   onRecenter(): void {
@@ -348,6 +364,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.board = boardFor(boardId);
 
     sim.loadBoard(this.board);
+    this.director.open(this.board);
     this.modules.autopilot.reset();
     this.wasStuck = false;
     renderer.setBoard(this.board);
@@ -404,7 +421,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     this.rules.replaceAll(rules);
     this.showLaws();
-    for (const rule of rules) this.writeGloss(rule);
+    for (const rule of rules) {
+      if (this.allowsRule(rule)) this.writeGloss(rule);
+      else this.refuseLaw(rule);
+    }
     this.applyLaws({ silently: true });
     this.modules.autopilot.invalidate();
   }
@@ -449,9 +469,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private handle(event: SimEvent): void {
+    if (this.director.won(event)) this.remark(GOAL_LINE, HINT_LIFETIME_MS);
     switch (event.type) {
       case "goal-reached":
-        this.remark(GOAL_LINE, HINT_LIFETIME_MS);
         return;
       case "fell":
         this.stuck.fell();
@@ -663,7 +683,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const law = await this.modules.compiler.compile(text);
     if (!stillHere()) return;
     if (law !== null) {
-      this.enact(this.ruleFrom(law, note));
+      this.enactIfAllowed(this.ruleFrom(law, note));
       return;
     }
 
@@ -677,7 +697,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
     const thought = await this.ponder(text, note.id);
     if (!stillHere()) return;
-    if (thought !== null) this.enact(this.ruleFrom(thought, note));
+    if (thought !== null) this.enactIfAllowed(this.ruleFrom(thought, note));
     else if (subject !== null && ruling !== null) this.name(subject.drawing.id, ruling, note);
     else this.shrug(note.id);
   }
@@ -707,6 +727,27 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       position: note.position,
       createdAt: note.createdAt,
     };
+  }
+
+  private allowsRule(rule: Rule): boolean {
+    return allowsLaw(this.director.mode.laws, rule.effect.governs);
+  }
+
+  private enactIfAllowed(rule: Rule): void {
+    if (this.allowsRule(rule)) this.enact(rule);
+    else this.refuseLaw(rule);
+  }
+
+  private refuseLaw(rule: Rule): void {
+    this.notes.restyle(rule.noteId, "plain");
+    const under = this.notes.below(rule.noteId);
+    if (under !== null) {
+      this.kamiWrites(LAW_OUTSIDE_MODE_LINE, under, {
+        anchor: { type: "note", id: rule.noteId },
+        lifetimeMs: REMARK_LIFETIME_MS,
+        drift: "down",
+      });
+    }
   }
 
   private enact(rule: Rule): void {
@@ -793,11 +834,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private showLaws(): void {
     this.laws.setLaws(
-      this.rules.all.map((rule) => ({
-        id: rule.id,
-        text: rule.sourceText,
-        gloss: rule.explanation,
-      })),
+      this.rules.all
+        .filter((rule) => this.allowsRule(rule))
+        .map((rule) => ({
+          id: rule.id,
+          text: rule.sourceText,
+          gloss: rule.explanation,
+        })),
     );
   }
 

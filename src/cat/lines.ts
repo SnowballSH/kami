@@ -21,6 +21,12 @@ export const forbiddenThingLine = (thing: string): string =>
 
 export const smallestThingLine = (thing: string): string => `The smallest ${thing} I ever saw.`;
 
+export const MOVING_INK: LineSet = [
+  "Round and round, or off it goes. Ink with ideas.",
+  "It moves by itself now. Don't say I didn't warn you.",
+  "Restless ink. Mind where it ends up.",
+];
+
 export const ACCEPTANCE: Readonly<Record<Nature, LineSet>> = {
   ink: [
     "If you say so. It's ink to me.",

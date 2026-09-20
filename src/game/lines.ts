@@ -17,6 +17,8 @@ export const SHRUGS: readonly string[] = [
   "Curious. But what should it do?",
 ];
 
+export const LAW_OUTSIDE_MODE_LINE = "Not in this game. The page won't take that law here.";
+
 export const KEY_TAKEN_LINE = "A key! Now, whichever door could it be for?";
 export const DOOR_OPENED_LINE = "Click. After you.";
 export const GROW_BLOCKED_LINE = "No room to grow in here.";

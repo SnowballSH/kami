@@ -4,7 +4,7 @@ import { strokesSchema, textSchema, vecSchema } from "../core/input";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import { validEffect } from "../rules/effectDomains";
-import type { CompiledRule, Rule, RuleEffect, RuleId } from "../rules/types";
+import type { CompiledRule, MotionEdit, Rule, RuleEffect, RuleId, Target } from "../rules/types";
 import type { BoardSnapshot, BoardSummary, StoredDrawing } from "./types";
 
 const MAX_ID_LENGTH = 200;
@@ -28,12 +28,21 @@ export const drawingSchema = z.looseObject({
   cost: z.number().nonnegative(),
 }) satisfies z.ZodType<Drawing>;
 
+export const motionEditSchema = z.object({
+  spin: z.number().exactOptional(),
+  thrust: vecSchema.exactOptional(),
+  mass: z.number().exactOptional(),
+  bounce: z.number().exactOptional(),
+  grip: z.number().exactOptional(),
+}) satisfies z.ZodType<MotionEdit>;
+
 export const rulingSchema = z.looseObject({
   name: text,
   nature: z.enum(NATURES),
   strength: z.number().min(STRENGTH_RANGE.min).max(STRENGTH_RANGE.max),
   tags: z.array(text),
   line: text,
+  motion: motionEditSchema.exactOptional(),
 }) satisfies z.ZodType<Ruling>;
 
 export const storedDrawingSchema = z.looseObject({
@@ -81,6 +90,17 @@ const scalarEffect = <
   governs: Governs,
 ) => z.object({ governs: z.literal(governs), value: z.number() });
 
+const targetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("all") }),
+  z.object({ kind: z.literal("named"), name: text.min(1) }),
+]) satisfies z.ZodType<Target>;
+
+const bodyVectorEffect = <Governs extends "thrust">(governs: Governs) =>
+  z.object({ governs: z.literal(governs), of: targetSchema, x: z.number(), y: z.number() });
+
+const bodyScalarEffect = <Governs extends "spin" | "mass" | "bounce" | "grip">(governs: Governs) =>
+  z.object({ governs: z.literal(governs), of: targetSchema, value: z.number() });
+
 export const rawRuleEffectSchema = z.discriminatedUnion("governs", [
   vectorEffect("gravity"),
   vectorEffect("wind"),
@@ -96,6 +116,11 @@ export const rawRuleEffectSchema = z.discriminatedUnion("governs", [
   scalarEffect("attraction"),
   scalarEffect("clones"),
   scalarEffect("inkEater"),
+  bodyScalarEffect("spin"),
+  bodyVectorEffect("thrust"),
+  bodyScalarEffect("mass"),
+  bodyScalarEffect("bounce"),
+  bodyScalarEffect("grip"),
 ]) satisfies z.ZodType<RuleEffect>;
 
 export const ruleEffectSchema = rawRuleEffectSchema.refine(validEffect, {
