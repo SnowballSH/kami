@@ -1,7 +1,15 @@
 import type { Autopilot, Scene } from "../autopilot/types";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Ruling } from "../cat/types";
-import { boundsOf, poseToWorld, type Rect, rectGap, type Stroke, type Vec } from "../core/geometry";
+import {
+  boundsOf,
+  type PenPoint,
+  poseToWorld,
+  type Rect,
+  rectGap,
+  type Stroke,
+  type Vec,
+} from "../core/geometry";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
 import type { Handwriting } from "../handwriting/types";
 import type {
@@ -12,6 +20,8 @@ import type {
   PlacementRejection,
   PosedDrawing,
 } from "../ink/types";
+import { allowsLaw, createDirector, EMBODIED_MODE, EmbodiedDirector } from "../modes";
+import type { GameMode, ModeDirector } from "../modes/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore } from "../persistence/types";
 import type { PenReader } from "../reading/types";
@@ -29,6 +39,7 @@ import type {
 } from "../ui/types";
 import { CameraRig } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
+import { HeldInkBook } from "./heldInk";
 import { IdMint } from "./idMint";
 import { InkLedger, type InkRecord } from "./inkLedger";
 import {
@@ -39,6 +50,7 @@ import {
   glossOf,
   isHelpRequest,
   KEY_TAKEN_LINE,
+  LAW_OUTSIDE_MODE_LINE,
   OFFER_HELP_HINT,
   PONDERING_LINE,
   REJECTION_LINES,
@@ -62,6 +74,9 @@ const MAX_STEPS_PER_FRAME = 5;
 const ERASER_TOLERANCE = 18;
 const NAMING_REACH = 190;
 const GUESS_OFFSET = { x: 30, y: -4, line: 42 } as const;
+
+const directorFor = (mode: GameMode): ModeDirector =>
+  createDirector(mode) ?? new EmbodiedDirector(EMBODIED_MODE);
 
 const guessCornerOf = (strokes: readonly Stroke[]): Vec => {
   const bounds = boundsOf(strokes.flat());
@@ -110,6 +125,8 @@ export interface GameModules {
     tolerance: number,
   ) => DrawingId | null;
   readonly onBoardOpened?: (boardId: string) => void;
+  /** How the board is played; `EMBODIED_MODE` unless said otherwise. A mode nobody has built a director for yet plays as embodied. */
+  readonly mode?: GameMode;
   /** Whether Alice starts out walking herself; the player can switch it from the HUD. */
   readonly selfDriving?: boolean;
   readonly onSelfDrivingChanged?: (enabled: boolean) => void;
@@ -128,6 +145,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly stuck = new StuckDetector();
   private readonly ids = new IdMint();
   private readonly introduced = new Set<string>();
+  private readonly director: ModeDirector;
 
   private board: BoardDefinition;
   private epoch = 0;
@@ -144,8 +162,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private sumikuiLoose = false;
   private meals = 0;
   private recital: Recital[] = [];
-  /** Ink that landed while the pen reader was still reading it: Kami does not name it himself until the reader has answered. */
-  private readonly unread = new Map<DrawingId, Promise<string | null>>();
+  /** Settled ink the pen reader is still reading: weightless until it is known to be a drawing. */
+  private readonly held = new HeldInkBook();
   private glimpsing = false;
   private glimpseAgain = false;
   private glimpse: { readonly noteId: NoteId; readonly word: string } | null = null;
@@ -158,9 +176,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     initialBoardId: string,
   ) {
     this.board = modules.boardFor(initialBoardId);
-    this.selfDriving = modules.selfDriving ?? true;
+    this.director = directorFor(modules.mode ?? EMBODIED_MODE);
+    this.selfDriving = (modules.selfDriving ?? true) && this.walksHerself();
     this.notes = new NoteBook(modules.handwriting);
-    this.rules = new RuleBook(modules.resolvePhysics);
+    this.rules = new RuleBook((rules) =>
+      modules.resolvePhysics(rules.filter((rule) => this.allowsRule(rule))),
+    );
     this.ink = modules.createInkSession(this);
     this.penReader = modules.penReader ?? null;
     this.hud = modules.createHud(this);
@@ -185,7 +206,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.nowMs = nowMs;
     this.lastFrameMs = nowMs;
 
-    sim.setTimeScale(this.ink.isDrawing ? BULLET_TIME_SCALE : 1);
+    sim.setTimeScale(this.ink.isDrawing || this.held.isHolding ? BULLET_TIME_SCALE : 1);
     for (let step = 0; !this.loading && step < steps; step++) {
       sim.setWalkIntent(this.chooseIntent());
       for (const event of sim.step()) this.handle(event);
@@ -210,20 +231,21 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       notes: this.notes.views(nowMs),
       activeStrokes: this.ink.activeStrokes,
       activeVerdict: this.ink.activeVerdict,
+      heldInks: this.held.views(nowMs),
       eraserActive: this.tool === "erase",
     });
   }
 
-  penDown(client: Vec): void {
+  penDown(client: PenPoint): void {
     if (this.loading) return;
     if (this.tool === "erase") this.eraseAt(this.toWorld(client));
-    else this.ink.penDown(this.toWorld(client));
+    else this.ink.penDown(this.penPointToWorld(client));
   }
 
-  penMove(client: Vec): void {
+  penMove(client: PenPoint): void {
     if (this.loading) return;
     if (this.tool === "erase") this.eraseAt(this.toWorld(client));
-    else this.ink.penMove(this.toWorld(client));
+    else this.ink.penMove(this.penPointToWorld(client));
   }
 
   penUp(): void {
@@ -261,14 +283,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     const known = this.penReader.recall(drawing.strokes);
     const reading = this.penReader.settle(drawing.strokes);
-    if (typeof known === "string") {
-      this.ink.refund(drawing.cost);
-      void this.interpret(known, writingOrigin(drawing.strokes));
+    if (known === null) {
+      this.land(drawing);
       return;
     }
-    if (known === undefined) this.unread.set(drawing.id, reading);
-    this.land(drawing);
-    if (known === undefined) void this.liftWords(drawing, reading);
+    this.held.hold(drawing.id, drawing.strokes);
+    void this.settleWords(drawing, reading);
   }
 
   onReject(reason: PlacementRejection, strokes: readonly Stroke[]): void {
@@ -302,11 +322,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   onAutopilotToggled(enabled: boolean): void {
-    this.selfDriving = enabled;
+    this.selfDriving = enabled && this.walksHerself();
     this.wasStuck = false;
     this.modules.autopilot.reset();
-    this.hud.setAutopilot(enabled);
-    this.modules.onSelfDrivingChanged?.(enabled);
+    this.hud.setAutopilot(this.selfDriving);
+    this.modules.onSelfDrivingChanged?.(this.selfDriving);
+  }
+
+  private walksHerself(): boolean {
+    return this.director.mode.autopilot === "allowed";
   }
 
   onRecenter(): void {
@@ -339,12 +363,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.board = boardFor(boardId);
 
     sim.loadBoard(this.board);
+    this.director.open(this.board);
     this.modules.autopilot.reset();
     this.wasStuck = false;
     renderer.setBoard(this.board);
     this.ink.reset(Number.POSITIVE_INFINITY);
     this.penReader?.forget();
-    this.unread.clear();
+    this.held.clear();
     this.tidied.clear();
     this.ledger.clear();
     this.notes.clear();
@@ -395,7 +420,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     this.rules.replaceAll(rules);
     this.showLaws();
-    for (const rule of rules) this.writeGloss(rule);
+    for (const rule of rules) {
+      if (this.allowsRule(rule)) this.writeGloss(rule);
+      else this.refuseLaw(rule);
+    }
     this.applyLaws({ silently: true });
     this.modules.autopilot.invalidate();
   }
@@ -440,9 +468,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private handle(event: SimEvent): void {
+    if (this.director.won(event)) this.remark(GOAL_LINE, HINT_LIFETIME_MS);
     switch (event.type) {
       case "goal-reached":
-        this.remark(GOAL_LINE, HINT_LIFETIME_MS);
         return;
       case "fell":
         this.stuck.fell();
@@ -556,15 +584,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     void this.offerGuesses(drawing);
   }
 
-  /** The ink landed before the reader answered: if it was words after all, take it back up. */
-  private async liftWords(drawing: Drawing, reading: Promise<string | null>): Promise<void> {
+  /** Held ink is let down into the world if it was a drawing, or fades away as the words it was. */
+  private async settleWords(drawing: Drawing, reading: Promise<string | null>): Promise<void> {
     const epoch = this.epoch;
     const text = await reading;
-    this.unread.delete(drawing.id);
-    if (text === null || epoch !== this.epoch) return;
-    const record = this.ledger.get(drawing.id);
-    if (record === null || record.ruling !== null) return;
-    this.discard(drawing.id);
+    if (epoch !== this.epoch) return;
+    if (text === null) {
+      this.held.release(drawing.id);
+      this.land(drawing);
+      return;
+    }
+    this.held.fade(drawing.id, drawing.strokes, this.nowMs);
     this.ink.refund(drawing.cost);
     await this.interpret(text, writingOrigin(drawing.strokes));
   }
@@ -581,7 +611,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private async offerGuesses(drawing: Drawing): Promise<void> {
     const epoch = this.epoch;
     const { certain, rulings } = await this.modules.cat.look(drawing);
-    if (certain !== null) await this.unread.get(drawing.id);
     if (epoch !== this.epoch || this.ledger.get(drawing.id)?.ruling !== null) return;
 
     const corner = guessCornerOf(drawing.strokes);
@@ -645,7 +674,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const law = await this.modules.compiler.compile(text);
     if (!stillHere()) return;
     if (law !== null) {
-      this.enact(this.ruleFrom(law, note));
+      this.enactIfAllowed(this.ruleFrom(law, note));
       return;
     }
 
@@ -659,7 +688,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
     const thought = await this.ponder(text, note.id);
     if (!stillHere()) return;
-    if (thought !== null) this.enact(this.ruleFrom(thought, note));
+    if (thought !== null) this.enactIfAllowed(this.ruleFrom(thought, note));
     else if (subject !== null && ruling !== null) this.name(subject.drawing.id, ruling, note);
     else this.shrug(note.id);
   }
@@ -689,6 +718,27 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       position: note.position,
       createdAt: note.createdAt,
     };
+  }
+
+  private allowsRule(rule: Rule): boolean {
+    return allowsLaw(this.director.mode.laws, rule.effect.governs);
+  }
+
+  private enactIfAllowed(rule: Rule): void {
+    if (this.allowsRule(rule)) this.enact(rule);
+    else this.refuseLaw(rule);
+  }
+
+  private refuseLaw(rule: Rule): void {
+    this.notes.restyle(rule.noteId, "plain");
+    const under = this.notes.below(rule.noteId);
+    if (under !== null) {
+      this.kamiWrites(LAW_OUTSIDE_MODE_LINE, under, {
+        anchor: { type: "note", id: rule.noteId },
+        lifetimeMs: REMARK_LIFETIME_MS,
+        drift: "down",
+      });
+    }
   }
 
   private enact(rule: Rule): void {
@@ -775,11 +825,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private showLaws(): void {
     this.laws.setLaws(
-      this.rules.all.map((rule) => ({
-        id: rule.id,
-        text: rule.sourceText,
-        gloss: rule.explanation,
-      })),
+      this.rules.all
+        .filter((rule) => this.allowsRule(rule))
+        .map((rule) => ({
+          id: rule.id,
+          text: rule.sourceText,
+          gloss: rule.explanation,
+        })),
     );
   }
 
@@ -963,6 +1015,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private toWorld(client: Vec): Vec {
     return this.modules.renderer.toWorld(client, this.camera.camera);
+  }
+
+  private penPointToWorld(client: PenPoint): PenPoint {
+    const world = this.toWorld(client);
+    return client.pressure === undefined ? world : { ...world, pressure: client.pressure };
   }
 }
 

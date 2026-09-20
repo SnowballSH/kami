@@ -53,6 +53,7 @@ const frame = (eraserActive: boolean): RenderFrame => ({
   notes: [],
   activeStrokes: [],
   activeVerdict: "ok",
+  heldInks: [],
   eraserActive,
 });
 

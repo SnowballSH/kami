@@ -1,6 +1,6 @@
-import type Matter from "matter-js";
+import Matter from "matter-js";
 import type { Vec } from "../core/geometry";
-import type { WorldPhysics } from "../rules/types";
+import type { Motion, WorldPhysics } from "../rules/types";
 import { GRAVITY_SCALE, MAX_AIR_FRICTION } from "./constants";
 
 export interface BodyMaterial {
@@ -26,10 +26,19 @@ export const materialUnder = (physics: WorldPhysics, base: BodyMaterial): BodyMa
   restitution: physics.bounciness,
 });
 
+/** A drawing's own dials, over the world's: heavier, grippier, bouncier than the paper around it. */
+export const materialMoved = (material: BodyMaterial, motion: Motion): BodyMaterial => ({
+  ...material,
+  density: material.density * motion.mass,
+  friction: material.friction * motion.grip,
+  restitution: Math.max(material.restitution, motion.bounce),
+});
+
 export const retune = (body: Matter.Body, material: BodyMaterial): void => {
   body.friction = material.friction;
   body.frictionAir = material.frictionAir;
   body.restitution = material.restitution;
+  if (body.density !== material.density) Matter.Body.setDensity(body, material.density);
 };
 
 /** Call before the engine update; matter-js clears forces after every step. */

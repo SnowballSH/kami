@@ -1,0 +1,102 @@
+import type { BoardDefinition } from "../board/types";
+import type { AllowedNatures, Ruling } from "../cat/types";
+import type { DrawingId } from "../ink/types";
+import type { Governs } from "../rules/types";
+import type { SimEvent } from "../sim/types";
+
+export type GameModeId = string & { readonly __brand: "GameModeId" };
+
+/**
+ * How a spirit comes to have a body. `born`: Alice stands at the spawn from the first frame.
+ * `drawn`: the player sketches her and names the sketch one of `names`; that drawing becomes her,
+ * its strokes her body.
+ */
+export type Incarnation =
+  | { readonly kind: "born" }
+  | { readonly kind: "drawn"; readonly names: readonly string[] };
+
+/**
+ * What the player is when the room opens. With a `body` the player is Alice — steering her or
+ * watching her walk herself — and she stands at the spawn. A `spirit` has no body: the player is
+ * only a hand that draws and writes, and nobody is on the board until the incarnation happens.
+ */
+export type Opening =
+  | { readonly player: "body" }
+  | { readonly player: "spirit"; readonly incarnation: Incarnation };
+
+/** `reach-goal` is the rabbit hole or a drawing named goal; `endless` never ends; `outlast` is surviving that long. */
+export type WinRule =
+  | { readonly kind: "reach-goal" }
+  | { readonly kind: "endless" }
+  | { readonly kind: "outlast"; readonly ms: number };
+
+/**
+ * What losing her body means. `respawn`: she is set down at her checkpoint. `unmade`: the body is
+ * gone and the player is a spirit again until they draw her anew. `board-restarts`: the room opens over.
+ */
+export type LossRule =
+  | { readonly kind: "respawn" }
+  | { readonly kind: "unmade" }
+  | { readonly kind: "board-restarts" };
+
+/** Which dials written laws may turn in this mode. */
+export type LawPolicy =
+  | { readonly kind: "all" }
+  | { readonly kind: "only"; readonly dials: readonly Governs[] }
+  | { readonly kind: "except"; readonly dials: readonly Governs[] };
+
+/** Narrows the board's own `RoomBrief.allowedNatures`; never widens it. */
+export type NaturePolicy = AllowedNatures;
+
+/** What the title card and Kami say about the mode. */
+export interface ModeCard {
+  readonly title: string;
+  readonly tagline: string;
+  /** Kami's first line when a room opens in this mode. */
+  readonly opening: string;
+}
+
+/**
+ * A way to play a board. Modes are data: the game reads one and behaves accordingly, so a new mode
+ * is a new constant, not new code, until it needs an `Incarnation` or `LossRule` nobody has built.
+ */
+export interface GameMode {
+  readonly id: GameModeId;
+  readonly card: ModeCard;
+  readonly opening: Opening;
+  readonly win: WinRule;
+  readonly loss: LossRule;
+  readonly laws: LawPolicy;
+  readonly natures: NaturePolicy;
+  /** Whether she may walk herself; a spirit's drawn Alice may be meant to be steered by hand. */
+  readonly autopilot: "allowed" | "forbidden";
+}
+
+/** What the player is right now, as opposed to at the opening. */
+export type PlayerState =
+  | { readonly kind: "body" }
+  | { readonly kind: "spirit"; readonly incarnation: Incarnation };
+
+/** A change of body, reported by the director for the game to enact and Kami to remark on. */
+export type EmbodimentTransition =
+  | { readonly kind: "incarnated"; readonly by: "spawn" }
+  | { readonly kind: "incarnated"; readonly by: "drawing"; readonly drawingId: DrawingId }
+  | { readonly kind: "unmade"; readonly cause: "fell" | "devoured" };
+
+/**
+ * The mode's referee for one open room. The game calls it at the seams where a mode could differ —
+ * opening, every sim event, every naming — and enacts whatever transitions it returns. It holds
+ * the player's state; the game does not.
+ */
+export interface ModeDirector {
+  readonly mode: GameMode;
+  readonly state: PlayerState;
+  /** The board is loaded and nothing has stepped yet. */
+  open(board: BoardDefinition): PlayerState;
+  witness(event: SimEvent): readonly EmbodimentTransition[];
+  /** A drawing was named. In a spirit room this is where she may be drawn into being. */
+  named(drawingId: DrawingId, ruling: Ruling): EmbodimentTransition | null;
+  /** True when the room has been won under this mode's `WinRule`. */
+  won(event: SimEvent): boolean;
+  close(): void;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRuleCompiler } from "./index";
-import type { RuleEffect } from "./types";
+import type { RuleEffect, Target } from "./types";
 
 type Understood = readonly [says: string, effect: RuleEffect, gloss: string];
 
@@ -31,6 +31,13 @@ const aliceSize = dial("aliceSize");
 const attraction = dial("attraction");
 const clones = dial("clones");
 const inkEater = dial("inkEater");
+const named = (name: string): Target => ({ kind: "named", name });
+const ALL: Target = { kind: "all" };
+const spin = (of: Target, value: number): RuleEffect => ({ governs: "spin", of, value });
+const thrust = (of: Target, x: number, y: number): RuleEffect => ({ governs: "thrust", of, x, y });
+const mass = (of: Target, value: number): RuleEffect => ({ governs: "mass", of, value });
+const bounce = (of: Target, value: number): RuleEffect => ({ governs: "bounce", of, value });
+const grip = (of: Target, value: number): RuleEffect => ({ governs: "grip", of, value });
 
 const UNDERSTOOD: readonly Understood[] = [
   ["g = moon", gravity(0, 0.165), "gravity = 0.17 g (the Moon)"],
@@ -118,6 +125,31 @@ const UNDERSTOOD: readonly Understood[] = [
   ["freezing cold", temperature(-10), "temperature = -10 °C"],
   ["it's night", daylight(0.1), "daylight = 0.1"],
   ["morning", daylight(1), "daylight = 1"],
+  ["the wheel spins", spin(named("wheel"), 1), "the wheel: spin = 1 turns/s"],
+  ["make the wheel spin faster", spin(named("wheel"), 2), "the wheel: spin = 2 turns/s"],
+  ["the wheel spins backwards", spin(named("wheel"), -1), "the wheel: spin = -1 turns/s"],
+  ["the wheel spins at 3 turns per second", spin(named("wheel"), 3), "the wheel: spin = 3 turns/s"],
+  ["the wheel stops spinning", spin(named("wheel"), 0), "the wheel: spin off"],
+  ["everything spins", spin(ALL, 1), "everything: spin = 1 turns/s"],
+  ["the cart accelerates", thrust(named("cart"), 0.5, 0), "the cart: thrust = 0.5 g, to the right"],
+  [
+    "the rocket accelerates upward",
+    thrust(named("rocket"), 0, -0.5),
+    "the rocket: thrust = 0.5 g, upward",
+  ],
+  [
+    "the cart accelerates to the left at 2g",
+    thrust(named("cart"), -2, 0),
+    "the cart: thrust = 2 g, to the left",
+  ],
+  ["the rock is heavier", mass(named("rock"), 2), "the rock: weight = 2x"],
+  ["the rock is twice as heavy", mass(named("rock"), 2), "the rock: weight = 2x"],
+  ["every rock weighs 3 times more", mass(named("rock"), 3), "the rock: weight = 3x"],
+  ["the rock is weightless", mass(named("rock"), 0.1), "the rock: weight = 0.1x"],
+  ["everything is heavier", mass(ALL, 2), "everything: weight = 2x"],
+  ["the ball is bouncy", bounce(named("ball"), 0.8), "the ball: bounce = 0.8"],
+  ["the ramp is slippery", grip(named("ramp"), 0), "the ramp: grip off, slick as ice"],
+  ["the ramp is sticky", grip(named("ramp"), 3), "the ramp: grip = 3x"],
   ["ink eater", inkEater(1), "the Sumikui, the ink eater, is loose"],
   ["summon the ink eater", inkEater(1), "the Sumikui, the ink eater, is loose"],
   ["summon the Sumikui", inkEater(1), "the Sumikui, the ink eater, is loose"],
@@ -188,6 +220,10 @@ const NOT_RULES: readonly string[] = [
   "black ink",
   "eat me",
   "a hungry cat",
+  "a spinning wheel",
+  "the wheel",
+  "alice spins",
+  "the girl spins",
 ];
 
 describe("the offline rule grammar", () => {

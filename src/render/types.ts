@@ -21,6 +21,13 @@ export interface InkView {
   readonly awakenedAtMs: number | null;
 }
 
+/** Settled strokes not yet in the world: held still while being read, then fading out as words. */
+export interface HeldInkView {
+  readonly strokes: readonly Stroke[];
+  /** 1 while being read; drops toward 0 once the strokes were read as words. */
+  readonly opacity: number;
+}
+
 export interface NoteView {
   readonly id: NoteId;
   readonly author: NoteAuthor;
@@ -44,6 +51,7 @@ export interface RenderFrame {
   readonly notes: readonly NoteView[];
   readonly activeStrokes: readonly Stroke[];
   readonly activeVerdict: PlacementVerdict;
+  readonly heldInks: readonly HeldInkView[];
   readonly eraserActive: boolean;
 }
 

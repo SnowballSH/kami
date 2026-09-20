@@ -5,6 +5,8 @@ import { createCat } from "../cat";
 import { poseToWorld, rectsOverlap, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
+import { EMBODIED_MODE } from "../modes";
+import type { GameMode } from "../modes/types";
 import type { BoardSnapshot, HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
 import type { Completion, LiveRecognizer, Sighting } from "../recognition/types";
@@ -14,7 +16,9 @@ import { createSimulation } from "../sim";
 import { drawingOf } from "../sim/testSupport";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
+import { HELD_INK_FADE_MS } from "./heldInk";
 import {
+  LAW_OUTSIDE_MODE_LINE,
   RULE_REPEALED_LINE,
   SUMIKUI_LORE_LINE_DELAY_MS,
   SUMIKUI_SEALED_LINE,
@@ -49,6 +53,7 @@ type Thoughts = Readonly<Record<string, CompiledRule | Promise<CompiledRule | nu
 
 interface PlayerOptions {
   readonly store?: MemoryBoardStore;
+  readonly mode?: GameMode;
   readonly thoughts?: Thoughts;
   readonly eyes?: LiveRecognizer;
   readonly reader?: HandwritingReader;
@@ -107,7 +112,7 @@ class ScriptedReader implements HandwritingReader {
   readonly pending: (() => void)[] = [];
 
   constructor(
-    private readonly says: string,
+    private readonly says: string | null,
     private readonly slow = false,
   ) {}
 
@@ -136,7 +141,7 @@ class Player {
 
   constructor(
     boardId: string,
-    { store = new MemoryBoardStore(), thoughts = {}, eyes, reader }: PlayerOptions = {},
+    { store = new MemoryBoardStore(), thoughts = {}, eyes, reader, mode }: PlayerOptions = {},
   ) {
     this.store = store;
     this.game = new Game(
@@ -156,6 +161,7 @@ class Player {
         },
         store,
         ...(reader === undefined ? {} : { penReader: createPenReader(reader) }),
+        ...(mode === undefined ? {} : { mode }),
         resolvePhysics,
         boardFor,
         createInkSession,
@@ -993,7 +999,7 @@ describe("Game with a pen that reads", () => {
     await player.arrive();
 
     await player.scrawl(scrawl({ x: 200, y: 200 }, 4));
-    expect(reader.asked).toEqual([3, 4]);
+    expect(reader.asked).toEqual([1, 2, 3, 4]);
     expect(player.written).toContain("no gravity");
     expect(player.renderer.lastFrame?.inks).toHaveLength(0);
     const board = await player.store.load("wonderland");
@@ -1001,22 +1007,45 @@ describe("Game with a pen that reads", () => {
     expect(board.rules.map((rule) => rule.sourceText)).toEqual(["no gravity"]);
   });
 
-  it("lifts a landed drawing into words when the reading comes in late", async () => {
+  it("holds a scrawl weightless while the reading is out, then fades it away as words", async () => {
     const reader = new ScriptedReader("slow motion", true);
     const player = new Player("wonderland", { reader });
     await player.arrive();
 
     await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
-    expect((await player.store.load("wonderland")).drawings).toHaveLength(1);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.heldInks.map((held) => held.opacity)).toEqual([1]);
     expect(player.written).not.toContain("slow motion");
 
     reader.answerAll();
     await player.wait(100);
     expect(player.written).toContain("slow motion");
     expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    const [fading] = player.renderer.lastFrame?.heldInks ?? [];
+    expect(fading?.opacity).toBeGreaterThan(0);
+    expect(fading?.opacity).toBeLessThan(1);
+    await player.wait(HELD_INK_FADE_MS);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(0);
     const board = await player.store.load("wonderland");
     expect(board.drawings).toHaveLength(0);
     expect(board.rules.map((rule) => rule.sourceText)).toEqual(["slow motion"]);
+  });
+
+  it("lets held ink down into the world once the reader has seen no words in it", async () => {
+    const reader = new ScriptedReader(null, true);
+    const player = new Player("wonderland", { reader });
+    await player.arrive();
+
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(1);
+
+    reader.answerAll();
+    await player.wait(100);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(1);
   });
 
   it("does not let Kami name ink he is sure about while the reader may still call it words", async () => {
@@ -1026,7 +1055,7 @@ describe("Game with a pen that reads", () => {
     await player.arrive();
 
     await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
-    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(1);
     expect(player.written).not.toContain("a snake");
 
     reader.answerAll();
@@ -1042,7 +1071,7 @@ describe("Game with a pen that reads", () => {
     const player = new Player("wonderland", { reader, eyes });
     await player.arrive();
 
-    await player.scrawl(scrawl({ x: 200, y: 200 }, 2, 28));
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 2));
     expect(player.written).not.toContain("a snake");
 
     reader.answerAll();
@@ -1062,6 +1091,86 @@ describe("Game with a pen that reads", () => {
     expect(reader.asked).toEqual([1]);
     expect((await player.store.load("wonderland")).drawings).toHaveLength(2);
     expect(player.written).not.toContain("never");
+  });
+});
+
+describe("Game under a mode", () => {
+  it("suspends forbidden saved laws without deleting them, and erasing their note still repeals them", async () => {
+    const original = new Player("wonderland");
+    await original.arrive();
+    await original.write("it is night", { x: 200, y: 200 });
+    await original.write("no gravity", { x: 200, y: 300 });
+    const saved = await original.store.load("wonderland");
+    const mode: GameMode = { ...EMBODIED_MODE, laws: { kind: "except", dials: ["daylight"] } };
+    const restricted = new Player("wonderland", { store: original.store, mode });
+    await restricted.arrive();
+
+    expect(restricted.renderer.lastFrame?.daylight).toBe(1);
+    expect(restricted.laws.laws.map((law) => law.text)).toEqual(["no gravity"]);
+    expect(restricted.written).toContain(LAW_OUTSIDE_MODE_LINE);
+    const note = restricted.renderer.lastFrame?.notes.find(
+      (entry) => entry.script.text === "it is night",
+    );
+    expect(note?.tone).toBe("plain");
+    expect(await original.store.load("wonderland")).toEqual(saved);
+
+    const unrestricted = new Player("wonderland", { store: original.store });
+    await unrestricted.arrive();
+    expect(unrestricted.renderer.lastFrame?.daylight).toBe(original.renderer.lastFrame?.daylight);
+    expect(unrestricted.renderer.lastFrame?.daylight).toBeLessThan(1);
+    expect(unrestricted.laws.laws).toHaveLength(2);
+
+    if (note === undefined) throw new Error("night note missing");
+    const { x, y } = note.script.bounds;
+    await restricted.erase({ x: x + 1, y: y + 1 });
+    expect((await original.store.load("wonderland")).rules.map((rule) => rule.sourceText)).toEqual([
+      "no gravity",
+    ]);
+    const reopened = new Player("wonderland", { store: original.store });
+    await reopened.arrive();
+    expect(reopened.renderer.lastFrame?.daylight).toBe(1);
+  });
+
+  it("also refuses forbidden model-compiled laws", async () => {
+    const text = "make this page Martian";
+    const mode: GameMode = { ...EMBODIED_MODE, laws: { kind: "only", dials: ["daylight"] } };
+    const player = new Player("wonderland", {
+      mode,
+      thoughts: {
+        [text]: {
+          effect: { governs: "gravity", x: 0, y: 0.38 },
+          explanation: "gravity = 0.38 g",
+        },
+      },
+    });
+    await player.arrive();
+    await player.write(text, { x: 200, y: 200 });
+    expect(player.pondered).toContain(text);
+    expect(player.laws.laws).toHaveLength(0);
+    expect((await player.store.load("wonderland")).rules).toHaveLength(0);
+    expect(player.written).toContain(LAW_OUTSIDE_MODE_LINE);
+  });
+
+  it("refuses a law the mode forbids, in Kami's hand, and the note stays plain writing", async () => {
+    const mode: GameMode = { ...EMBODIED_MODE, laws: { kind: "except", dials: ["gravity"] } };
+    const player = new Player("wonderland", { mode });
+    await player.arrive();
+    await player.write("set g equal to the moon's gravity", { x: 200, y: 200 });
+    expect((await player.store.load("wonderland")).rules).toHaveLength(0);
+    expect(player.written).toContain(LAW_OUTSIDE_MODE_LINE);
+
+    await player.write("it is night", { x: 200, y: 300 });
+    expect((await player.store.load("wonderland")).rules).toHaveLength(1);
+  });
+
+  it("keeps Alice from walking herself when the mode forbids it", async () => {
+    const player = new Player("wonderland", { mode: { ...EMBODIED_MODE, autopilot: "forbidden" } });
+    await player.arrive();
+    const parked = player.alice.center.x;
+    player.game.onAutopilotToggled(true);
+    expect(player.hud.autopilot).toBe(false);
+    await player.wait(1_500);
+    expect(player.alice.center.x).toBeCloseTo(parked, 0);
   });
 });
 

@@ -5,10 +5,23 @@ import { ruleEffectSchema, rulingSchema } from "./schemas";
 describe("persisted numeric domains", () => {
   it("accepts every inclusive boundary and rejects values outside it", () => {
     for (const [governs, { min, max }] of Object.entries(EFFECT_DOMAINS)) {
-      const effect = (value: number) =>
-        governs === "gravity" || governs === "wind"
-          ? { governs, x: value, y: value }
-          : { governs, value };
+      const of = { kind: "all" };
+      const effect = (value: number) => {
+        switch (governs) {
+          case "gravity":
+          case "wind":
+            return { governs, x: value, y: value };
+          case "thrust":
+            return { governs, of, x: value, y: value };
+          case "spin":
+          case "mass":
+          case "bounce":
+          case "grip":
+            return { governs, of, value };
+          default:
+            return { governs, value };
+        }
+      };
       for (const value of [min, max]) {
         expect(ruleEffectSchema.safeParse(effect(value)).success, `${governs}=${value}`).toBe(true);
       }
