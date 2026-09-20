@@ -16,9 +16,12 @@
 
 .start-screen h1 {
   margin: 0;
-  font-size: 3rem;
-  font-weight: 500;
-  letter-spacing: 0.05em;
+  line-height: 0;
+}
+
+.start-wordmark {
+  width: min(320px, 70vw);
+  height: auto;
 }
 
 .start-choices {
