@@ -15,7 +15,7 @@ export const NOTE_STYLE = {
   kami: { size: 26, maxWidth: 460 },
 } as const;
 
-/** What a note hangs off: erase the anchor and the note goes with it. Not persisted. */
+/** What a note hangs off: erase the anchor and the note goes with it. */
 export type NoteAnchor =
   | { readonly type: "note"; readonly id: NoteId }
   | { readonly type: "drawing"; readonly id: DrawingId };
@@ -53,7 +53,9 @@ export class NoteBook {
 
   /** A note from a previous session: already on the board, fully written. */
   restore(note: Note, nowMs: number): void {
-    this.inscribe(note, nowMs - ALREADY_WRITTEN_MS, null);
+    const anchor: NoteAnchor | null =
+      note.drawingId === undefined ? null : { type: "drawing", id: note.drawingId };
+    this.inscribe(note, nowMs - ALREADY_WRITTEN_MS, anchor);
   }
 
   get(id: NoteId): Note | null {
@@ -69,9 +71,12 @@ export class NoteBook {
     return bounds === null ? null : { x: bounds.x, y: bounds.y + bounds.height + LINE_GAP };
   }
 
-  attach(id: NoteId, anchor: NoteAnchor): void {
+  attachToDrawing(id: NoteId, drawingId: DrawingId): Note | null {
     const entry = this.entries.get(id);
-    if (entry !== undefined) this.entries.set(id, { ...entry, anchor });
+    if (entry === undefined) return null;
+    const note = { ...entry.note, drawingId };
+    this.entries.set(id, { ...entry, note, anchor: { type: "drawing", id: drawingId } });
+    return note;
   }
 
   restyle(id: NoteId, tone: Note["tone"]): Note | null {

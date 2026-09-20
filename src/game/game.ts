@@ -718,8 +718,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.modules.autopilot.invalidate();
     this.modules.store.saveDrawing(this.board.id, { drawing: awake.drawing, ruling });
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
-    this.notes.attach(label.id, { type: "drawing", id });
+    const attached = this.notes.attachToDrawing(label.id, id);
     if (ruling.nature !== "ink") this.understood(label.id);
+    else if (attached !== null) this.modules.store.saveNote(this.board.id, attached);
     const under = this.notes.below(label.id);
     if (under !== null) {
       this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
