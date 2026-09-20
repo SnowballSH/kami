@@ -3,6 +3,8 @@ import { el } from "./dom";
 import { activateOnTap } from "./tap";
 
 export const TITLE_CARD_SHOWN_MS = 4500;
+export const titleCardShownMs = (card: ModeCard, shownMs = TITLE_CARD_SHOWN_MS): number =>
+  shownMs + ((card.roles?.length ?? 0) > 0 ? 2_000 : 0);
 const FADING_CLASS = "is-fading";
 const FADE_MS = 600;
 
@@ -14,6 +16,7 @@ export class TitleCard {
   readonly element: HTMLElement;
   private readonly title = el("h1", { className: "kami-title-card-title" });
   private readonly tagline = el("p", { className: "kami-title-card-tagline" });
+  private readonly roles = el("ul", { className: "kami-title-card-roles" });
   private hideAt: ReturnType<typeof setTimeout> | null = null;
   private goneAt: ReturnType<typeof setTimeout> | null = null;
 
@@ -21,7 +24,7 @@ export class TitleCard {
     this.element = el(
       "div",
       { className: "kami-title-card", attrs: { role: "status", "aria-live": "polite" } },
-      [this.title, this.tagline],
+      [this.title, this.tagline, this.roles],
     );
     this.element.hidden = true;
     activateOnTap(this.element, () => this.fade());
@@ -35,9 +38,11 @@ export class TitleCard {
     this.clearTimers();
     this.title.textContent = card.title;
     this.tagline.textContent = card.tagline;
+    this.roles.replaceChildren(...(card.roles ?? []).map((role) => el("li", { text: role })));
+    this.roles.hidden = (card.roles?.length ?? 0) === 0;
     this.element.classList.remove(FADING_CLASS);
     this.element.hidden = false;
-    this.hideAt = setTimeout(() => this.fade(), this.shownMs);
+    this.hideAt = setTimeout(() => this.fade(), titleCardShownMs(card, this.shownMs));
   }
 
   private fade(): void {

@@ -15,7 +15,7 @@ export const SANDBOX_MODE: GameMode = {
     tagline: "An endless page. Draw together.",
     opening: "The page goes on forever. Draw, and she will follow.",
   },
-  opening: { player: "body" },
+  opening: { player: "body", freshPage: false },
   win: { kind: "endless" },
   loss: { kind: "respawn" },
   laws: { kind: "except", dials: ["inkEater"] },

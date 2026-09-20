@@ -95,6 +95,14 @@ describe("DomHud", () => {
       expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-erase")]);
     });
 
+    it("shows a clear-page button that calls the clear handler", () => {
+      const { root, handlers } = setup();
+      const clear = find<HTMLButtonElement>(root, ".kami-clear-page");
+      expect(clear.getAttribute("aria-label")).toBe("Clear the page");
+      tap(clear);
+      expect(handlers.onClearBoard).toHaveBeenCalledOnce();
+    });
+
     it("switches tools with D, T, E and H", () => {
       const { handlers, pressedTools } = setup();
 
@@ -591,6 +599,7 @@ describe("DomHud", () => {
       hud.setShare(SHARE);
       expect(share.hidden).toBe(false);
       expect(boards.hidden).toBe(true);
+      expect(find<HTMLButtonElement>(root, ".kami-clear-page").hidden).toBe(false);
       expect(find(share, ".kami-share-page").textContent).toBe("together");
       hud.setShare(null);
       expect(share.hidden).toBe(true);

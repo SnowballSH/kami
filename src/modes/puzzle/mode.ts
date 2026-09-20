@@ -14,7 +14,7 @@ export const PUZZLE_MODE: GameMode = {
     tagline: "Seven rooms. One idea each. Something under the page is hungry.",
     opening: "Ink is precious here. Draw only what you mean.",
   },
-  opening: { player: "body" },
+  opening: { player: "body", freshPage: false },
   win: { kind: "reach-goal" },
   loss: { kind: "respawn" },
   laws: { kind: "only", dials: ["inkEater"] },

@@ -30,7 +30,7 @@ describe("what it goes for", () => {
   it("snips the legs first, then arms, then the head, and the heart only when bare", () => {
     const body = figureBody();
     expect(targetOf(body)).toBe("legs");
-    const legless = snip(body, { from: { x: -30, y: 40 }, to: { x: 30, y: 40 } }).body;
+    const legless = snip(body, { from: { x: -30, y: 40 }, to: { x: 30, y: 40 } }, "legs").body;
     expect(targetOf(legless)).toBe("arms");
     const blob = { ...body, strokes: [], fullest: body.fullest };
     expect(targetOf(blob)).toBeNull();
@@ -80,6 +80,19 @@ describe("the snipper's round", () => {
     expect(snipper.snapshot().cut).toBeNull();
     untilPhase(snipper, prey, "circling");
     expect(snipper.ramp).toBeCloseTo(1 + SNIPPER_TUNING.servant.speedRampPerSnip);
+  });
+
+  it("gives the servant a longer first circle before winding up", () => {
+    const snipper = new Snipper("servant", FAR);
+    const prey = preyOf();
+    untilPhase(snipper, prey, "circling");
+    for (
+      let elapsed = 0;
+      elapsed < SNIPPER_TUNING.servant.firstCircleMs - TICK * 2;
+      elapsed += TICK
+    )
+      snipper.tick(TICK, prey, false);
+    expect(snipper.currentPhase.kind).toBe("circling");
   });
 
   it("keeps the cut where it was shown even when the body moves away", () => {
@@ -165,7 +178,7 @@ describe("cutting a drawn body", () => {
       from: { x: deed.cut.from.x - 100, y: deed.cut.from.y - 109 },
       to: { x: deed.cut.to.x - 100, y: deed.cut.to.y - 109 },
     };
-    const { lost, removed } = snip(body, local);
+    const { lost, removed } = snip(body, local, "legs");
     expect(lost).toEqual(["legs"]);
     expect(removed).toHaveLength(2);
     expect(FIGURE).toHaveLength(6);

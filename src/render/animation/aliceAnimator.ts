@@ -40,6 +40,7 @@ export const POP_MS = 220;
 export const REINK_MS = 350;
 export const DRIP_MS = 300;
 export const KEY_MS = 350;
+export const SEAT_SINK = 0.3;
 
 /** Fractions of her height. */
 const MOUNT_HOP = 0.35;
@@ -244,6 +245,7 @@ export class AliceAnimator {
         figure.offset.y += FLIER_BOB * alice.height * Math.sin(nowMs * FLIER_FLAP_RATE);
         return;
       case "vehicle":
+        figure.offset.y += SEAT_SINK * alice.height;
         figure.lean -= clampAbs(velocity.x * VEHICLE_LEAN_PER_SPEED, VEHICLE_LEAN_LIMIT);
         return;
     }

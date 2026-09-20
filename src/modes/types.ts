@@ -21,8 +21,8 @@ export type Incarnation =
  * only a hand that draws and writes, and nobody is on the board until the incarnation happens.
  */
 export type Opening =
-  | { readonly player: "body" }
-  | { readonly player: "spirit"; readonly incarnation: Incarnation };
+  | { readonly player: "body"; readonly freshPage: boolean }
+  | { readonly player: "spirit"; readonly incarnation: Incarnation; readonly freshPage: boolean };
 
 /**
  * `reach-goal` is the rabbit hole or a drawing named goal; `endless` never ends; `outlast` is
@@ -72,6 +72,11 @@ export interface ModeCard {
   readonly opening: string;
   /** One line per player when the mode is for more than one pair of hands. */
   readonly roles?: readonly string[];
+  /** The title card shown when a loss reopens the room. */
+  readonly again?: {
+    readonly title: string;
+    readonly tagline: string;
+  };
 }
 
 /**
@@ -145,6 +150,7 @@ export interface RoomStaging {
 export interface ModeDirector {
   readonly mode: GameMode;
   readonly state: PlayerState;
+  readonly bodyNames: readonly string[];
   /** How the open board is staged; `null` when the mode plays the board as it is, under `mode.laws` over EARTH. */
   readonly room: RoomStaging | null;
   /** The board is loaded and nothing has stepped yet. */

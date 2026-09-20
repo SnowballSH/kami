@@ -1,3 +1,4 @@
+import wordmarkUrl from "../brand/assets/kami-wordmark.gif";
 import { MODE_PARAM } from "../game/launch";
 import { BOSS_MODE_ID, type GameModeId, PUZZLE_MODE_ID, SANDBOX_MODE_ID } from "../modes";
 import "./styles/start.css";
@@ -39,7 +40,11 @@ export const chooseMode = (
   const screen = document.createElement("div");
   screen.className = "start-screen";
   const heading = document.createElement("h1");
-  heading.textContent = "Kami";
+  const wordmark = document.createElement("img");
+  wordmark.className = "start-wordmark";
+  wordmark.src = wordmarkUrl;
+  wordmark.alt = "kami";
+  heading.append(wordmark);
   const choices = document.createElement("div");
   choices.className = "start-choices";
   for (const choice of START_CHOICES) {

@@ -85,6 +85,8 @@ export const SUMIKUI_HOVER = { x: 110, y: -80 } as const;
 export const SUMIKUI_BASE_SPEED = 0.065;
 export const SUMIKUI_DOUBLES_EVERY_MS = 20_000;
 export const SUMIKUI_MAX_SPEED = 0.6;
+/** Fresh awake (or freshly gorged) it eats drawings only; her and the paper under her come after this long. */
+export const SUMIKUI_STALKS_HER_AFTER_MS = 20_000;
 export const SUMIKUI_NEAR_PX = 600;
 export const SUMIKUI_REACH = 24;
 /** A drawing takes this long to eat, plus `SUMIKUI_CHEW_MS_PER_PX` for every px of stroke, up to the cap. */

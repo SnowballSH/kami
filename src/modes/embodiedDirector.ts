@@ -18,6 +18,7 @@ const BODY: PlayerState = { kind: "body" };
 export class EmbodiedDirector implements ModeDirector {
   state: PlayerState = BODY;
   room: RoomStaging | null = null;
+  readonly bodyNames: readonly string[] = [];
 
   constructor(readonly mode: GameMode) {}
 

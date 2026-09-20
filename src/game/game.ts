@@ -5,6 +5,7 @@ import type { Cat, Ruling } from "../cat/types";
 import {
   boundsOf,
   clamp,
+  expandRect,
   type PenPoint,
   poseToWorld,
   type Rect,
@@ -27,7 +28,14 @@ import type {
   PlacementRejection,
   PosedDrawing,
 } from "../ink/types";
-import { allowsLaw, createDirector, EMBODIED_MODE, EMBODIED_MODE_ID, refusalLine } from "../modes";
+import {
+  allowsLaw,
+  createDirector,
+  EMBODIED_MODE,
+  EMBODIED_MODE_ID,
+  namesABody,
+  refusalLine,
+} from "../modes";
 import type { EmbodimentTransition, GameMode, ModeDirector } from "../modes/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore, StoredDrawing } from "../persistence/types";
@@ -45,6 +53,7 @@ import type {
   SceneCompiler,
   WorldPhysics,
 } from "../rules/types";
+import { BODY_TUNING } from "../sim/boss/tuning";
 import {
   ALICE_HERSELF,
   type DrawingPose,
@@ -55,6 +64,8 @@ import {
 } from "../sim/types";
 import { placeProp, type Summoner, type Wish } from "../summoning";
 import type { BoardChange, BoardLink, Ghost, PeerId } from "../sync";
+import { roomCardShownMs } from "../ui/roomCard";
+import { titleCardShownMs } from "../ui/titleCard";
 import type {
   CanvasInputSink,
   Detach,
@@ -66,9 +77,12 @@ import type {
   Tool,
 } from "../ui/types";
 import type { EarsHandlers, Voice } from "../voice/types";
+import { type ClusterDrawing, clusterAround } from "./bossCluster";
 import {
   HEART_SWALLOWED_LINE,
   INCARNATED_LINE,
+  INCARNATED_PARTS_LINE,
+  IS_THIS_HER_LINE,
   PART_RESTORED_LINE,
   SERVANT_CAME_LINE,
   SERVANT_PERISHED_LINE,
@@ -79,6 +93,7 @@ import {
   SNIPPED_LINE,
   SOUL_WAITS_LINE,
   TEAR_CLOSED_LINE,
+  TEAR_LINE_DELAY_MS,
   TEAR_OPENS_LINES,
   UNMADE_LINE,
 } from "./bossLines";
@@ -124,12 +139,12 @@ import {
   WARPED_LINES,
   WORDMARK,
 } from "./lines";
-import { type NoteAnchor, NoteBook } from "./noteBook";
+import { NOTE_STYLE, type NoteAnchor, NoteBook } from "./noteBook";
 import type { Drift } from "./noteLayout";
 import { type Hire, type Page, Party } from "./party";
 import { groupedByNote, RuleBook } from "./ruleBook";
 import { StuckDetector } from "./stuckDetector";
-import { deafLine } from "./voiceLines";
+import { deafLine, FELL_OFF_PAGE_LINE } from "./voiceLines";
 
 const MAX_STEPS_PER_FRAME = 5;
 export const DEFAULT_TIDINESS = 0.5;
@@ -147,6 +162,7 @@ const GUESS_LIFETIME_MS = 12_000;
 const GLIMPSE_LIFETIME_MS = 8_000;
 const REMARK_LIFETIME_MS = 6_000;
 const HINT_LIFETIME_MS = 10_000;
+export const MAX_REMARKS = 2;
 /** How long the player's words, and the labels Kami hangs on drawings, stay once answered. */
 const NOTE_LINGER_MS = 12_000;
 /** Long enough to read the closing line where she stands before the next room opens over it. */
@@ -156,7 +172,6 @@ const ABOVE_ALICE = { x: -90, y: -120 } as const;
 const SPOKEN_AT = { x: -60, y: -190 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
-const MODE_CARD_LINE = 34;
 const ALREADY_AWAKE_MS = 10_000;
 /** Kami dresses a scene one prop after another, not all at once. */
 const PROP_STAGGER_MS = 450;
@@ -168,6 +183,7 @@ interface Recital {
   readonly at: number;
   readonly line: string;
   readonly epoch: number;
+  readonly position?: Vec;
 }
 
 export interface GameModules {
@@ -237,6 +253,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly ids = new IdMint();
   private readonly introduced = new Set<string>();
   private readonly director: ModeDirector;
+  private sceneLawIds: RuleId[] = [];
 
   private board: BoardDefinition;
   private epoch = 0;
@@ -596,6 +613,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.labelsByKami.clear();
     this.glimpse = null;
     this.rules.replaceAll([]);
+    this.sceneLawIds = [];
     this.showLaws();
     this.applyLaws({ silently: true });
     this.introduced.clear();
@@ -608,19 +626,34 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (firstZone === undefined) cat.enterRoom(BLANK_BOARD_BRIEF);
     else this.introduce(firstZone);
     this.hud.showRoomCard(this.director.room?.card ?? null);
-    if (!this.embodied) this.remark(SOUL_WAITS_LINE, HINT_LIFETIME_MS);
-    else if (this.introducesItself) this.remark(this.director.mode.card.opening, HINT_LIFETIME_MS);
+    const openingLine = this.embodied
+      ? this.introducesItself
+        ? this.director.mode.card.opening
+        : null
+      : SOUL_WAITS_LINE;
+    if (openingLine !== null) {
+      if (this.introducesItself)
+        this.recite(
+          [openingLine],
+          SUMIKUI_LORE_LINE_DELAY_MS,
+          titleCardShownMs(this.director.mode.card) + 600,
+        );
+      else this.remark(openingLine, HINT_LIFETIME_MS);
+    }
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
+    if (this.director.mode.opening.freshPage) store.clear(boardId);
     if (!remember) {
       this.voiceReady = true;
       return;
     }
     const loadingNote = this.kamiWrites("Loading board…", this.board.spawn);
     try {
-      const snapshot = await store.load(boardId);
-      if (epoch === this.epoch) this.restore(snapshot);
+      if (!this.director.mode.opening.freshPage) {
+        const snapshot = await store.load(boardId);
+        if (epoch === this.epoch) this.restore(snapshot);
+      }
     } catch {
       // The store exposes the failure; drawing remains available.
     } finally {
@@ -791,7 +824,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   /** Held keys drive the selected Alice; every other one drives herself, unless the player switched that off. */
   private chooseIntents(): void {
     const { sim } = this.modules;
-    for (const { who, kind } of this.party.drive(sim, this.page(), this.selfDriving)) {
+    for (const { who, kind } of this.party.drive(sim, this.page(), this.selfDriving, this.nowMs)) {
       switch (kind) {
         case "flees":
           this.remark(
@@ -868,7 +901,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       case "goal-reached":
         return;
       case "fell":
-        if (event.who === this.party.selected) this.stuck.fell();
+        if (event.who === this.party.selected) {
+          this.stuck.fell();
+          if (this.director.mode.page === "endless")
+            this.remark(FELL_OFF_PAGE_LINE, HINT_LIFETIME_MS);
+        }
         return;
       case "zone-entered":
         this.enterZone(event.zoneId);
@@ -988,19 +1025,37 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       case "incarnated": {
         if (transition.by === "spawn") return;
         const { drawingId, name } = transition;
-        if (!sim.incarnate(drawingId, name)) return;
+        const cluster = this.bodyCluster(drawingId);
+        if (cluster === null) return;
+        if (!sim.incarnate(drawingId, name, cluster.strokes)) return;
         this.ledger.remove(drawingId);
         this.modules.store.deleteDrawing(this.board.id, drawingId);
         this.forget(this.notes.removeAnchoredTo({ type: "drawing", id: drawingId }));
+        cluster.members
+          .filter(({ id }) => id !== drawingId)
+          .forEach(({ id }) => {
+            this.discard(id);
+          });
         this.party.resync(sim.alices().length);
         this.camera.resumeFollowing();
         this.stuck.reset(this.nowMs);
         this.remark(INCARNATED_LINE(name), HINT_LIFETIME_MS);
+        const alice = sim.snapshot().alice;
+        const alive =
+          alice?.look.kind === "drawn"
+            ? [
+                ...(alice.look.abilities.walk ? (["legs"] as const) : []),
+                ...(alice.look.abilities.climb ? (["arms"] as const) : []),
+                ...(alice.look.abilities.see ? (["head"] as const) : []),
+              ]
+            : [];
+        const partsLine = INCARNATED_PARTS_LINE(alive);
+        if (partsLine !== null) this.remark(partsLine, HINT_LIFETIME_MS);
         return;
       }
       case "tear-opens":
         sim.openTear();
-        this.recite(TEAR_OPENS_LINES);
+        this.recite(TEAR_OPENS_LINES, TEAR_LINE_DELAY_MS);
         return;
       case "unmade":
         this.lose(transition.cause);
@@ -1027,6 +1082,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private restart(): void {
     this.restartDueAtMs = null;
     void this.open(this.board.id, { remember: false });
+    const { again } = this.director.mode.card;
+    if (again !== undefined) this.hud.showTitleCard({ ...this.director.mode.card, ...again });
   }
 
   private get embodied(): boolean {
@@ -1050,11 +1107,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.introduced.add(zone.id);
     this.modules.cat.enterRoom(zone);
     this.stuck.reset(this.nowMs);
-    this.kamiWrites(
-      zone.intro,
-      { x: zone.checkpoint.x + ABOVE_ALICE.x, y: zone.checkpoint.y + ABOVE_ALICE.y - 80 },
-      { lifetimeMs: HINT_LIFETIME_MS, minY: this.writingTop() },
-    );
+    if (this.introducesItself) return;
+    const position = {
+      x: zone.checkpoint.x + ABOVE_ALICE.x,
+      y: zone.checkpoint.y + ABOVE_ALICE.y - 80,
+    };
+    const startAfterMs = this.director.room === null ? 0 : roomCardShownMs() + 600;
+    if (startAfterMs === 0) this.remark(zone.intro, HINT_LIFETIME_MS, position);
+    else this.recite([zone.intro], HINT_LIFETIME_MS, startAfterMs, position);
   }
 
   private progress(line: string): void {
@@ -1117,6 +1177,28 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     void this.offerGuesses(drawing);
   }
 
+  private bodyCluster(seedId: DrawingId): {
+    readonly strokes: readonly Stroke[];
+    readonly members: readonly ClusterDrawing[];
+  } | null {
+    const soul = this.modules.sim.snapshot().soul;
+    if (soul === null) return null;
+    const candidates = this.modules.sim.snapshot().drawings.flatMap((pose) => {
+      const record = this.ledger.get(pose.id);
+      if (record === null || (record.ruling !== null && pose.id !== seedId)) return [];
+      return [
+        {
+          id: pose.id,
+          strokes: record.drawing.strokes,
+        },
+      ];
+    });
+    const seed = candidates.find(({ id }) => id === seedId);
+    if (seed === undefined) return null;
+    const members = clusterAround(seed, candidates, soul.at, BODY_TUNING.graftReach);
+    return { members, strokes: members.flatMap(({ strokes }) => strokes) };
+  }
+
   /** Held ink is let down into the world if it was a drawing, or fades away as the words it was. */
   private async settleWords(drawing: Drawing, reading: Promise<string | null>): Promise<void> {
     const epoch = this.epoch;
@@ -1147,6 +1229,35 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (epoch !== this.epoch || this.ledger.get(drawing.id)?.ruling !== null) return;
 
     const corner = guessCornerOf(drawing.strokes);
+    const soulDrawing = this.drawingNearestSoul();
+    const soulBody =
+      !this.embodied &&
+      this.director.bodyNames.length > 0 &&
+      soulDrawing?.drawing.id === drawing.id &&
+      (this.drawingGapFromSoul(soulDrawing) ?? Infinity) <= NAMING_REACH;
+    if (soulBody) {
+      const anchor: NoteAnchor = { type: "drawing", id: drawing.id };
+      this.hasAskedWhatItIs = true;
+      this.kamiWrites(
+        IS_THIS_HER_LINE,
+        { x: corner.x, y: corner.y - GUESS_OFFSET.line },
+        { lifetimeMs: GUESS_LIFETIME_MS, anchor, drift: "down" },
+      );
+      this.director.bodyNames.slice(0, 1).forEach((name, index) => {
+        const display = `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+        this.kamiWrites(
+          `${display}?`,
+          { x: corner.x, y: corner.y + index * GUESS_OFFSET.line },
+          {
+            lifetimeMs: GUESS_LIFETIME_MS,
+            anchor,
+            action: { type: "name-drawing", drawingId: drawing.id, name },
+            drift: "down",
+          },
+        );
+      });
+      return;
+    }
     if (certain !== null) {
       this.name(drawing.id, this.modules.cat.accept(certain), this.hangLabel(certain.name, corner));
       return;
@@ -1240,7 +1351,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       }
     }
 
-    const subject = this.drawingNear(note.id);
+    const subject = this.bodyNamedNearSoul(text) ?? this.drawingNear(note.id);
     const nameless = subject !== null && subject.ruling === null;
     const wish = (await this.modules.summoner?.wish(text)) ?? null;
     if (!stillHere()) return;
@@ -1275,7 +1386,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    */
   private async counsel(around: Scene, position: Vec): Promise<void> {
     const advice = counselFor(surroundingsOf(around), this.ideasGiven++);
-    this.kamiWrites(advice.line, position, { lifetimeMs: HINT_LIFETIME_MS });
+    this.remark(advice.line, HINT_LIFETIME_MS, position);
     if (advice.sketch === null) return;
     const epoch = this.epoch;
     const exemplar = (await this.modules.summoner?.exemplar(advice.sketch.word)) ?? null;
@@ -1351,6 +1462,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.refuseLaw(note.id, forbidden.effect.governs);
       return;
     }
+    for (const id of this.sceneLawIds) this.onRepealLaw(id);
+    this.sceneLawIds = [];
     this.enactAll(
       rules,
       note.id,
@@ -1359,6 +1472,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         rules.map((rule) => rule.explanation),
       ),
     );
+    this.sceneLawIds = rules.map((rule) => rule.id);
     this.remark(scene.line);
     await this.dress(scene, note, stillHere);
   }
@@ -1635,19 +1749,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       x: this.board.spawn.x + WORDMARK_OFFSET.x,
       y: this.board.spawn.y + WORDMARK_OFFSET.y,
     };
+    if (this.director.mode.id !== EMBODIED_MODE_ID) return;
     this.kamiWrites(WORDMARK, at, { silent: true });
     this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP }, { silent: true });
-    this.writeModeCard({ x: at.x, y: at.y + TAGLINE_DROP * 2 });
-  }
-
-  /** A mode that introduces itself says what it is, and who does what, under the wordmark. */
-  private writeModeCard(at: Vec): void {
-    if (!this.introducesItself) return;
-    const { mode } = this.director;
-    const lines = [`${mode.card.title} — ${mode.card.tagline}`, ...(mode.card.roles ?? [])];
-    lines.forEach((line, index) => {
-      this.kamiWrites(line, { x: at.x, y: at.y + index * MODE_CARD_LINE }, { silent: true });
-    });
   }
 
   private playerWrites(text: string, position: Vec): Note {
@@ -1688,16 +1792,28 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       anchor,
       action,
       tone = "plain",
-      drift = "up",
+      drift = anchor === undefined ? "up" : "down",
       silent = false,
       minY,
     } = options;
     if (!silent) this.voice?.say(aloud(text));
+    const visible = this.visibleWorldRect();
+    const notePosition =
+      anchor === undefined
+        ? {
+            ...position,
+            x: clamp(
+              position.x,
+              visible.x + 24,
+              visible.x + visible.width - NOTE_STYLE.kami.maxWidth - 24,
+            ),
+          }
+        : position;
     const note: Note = {
       id: this.ids.next<NoteId>("kami"),
       author: "kami",
       text,
-      position,
+      position: notePosition,
       tone,
       createdAt: Date.now(),
       fleeting: lifetimeMs !== undefined,
@@ -1710,6 +1826,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       ...(lifetimeMs === undefined ? {} : { lifetimeMs }),
       ...(anchor === undefined ? {} : { anchor }),
       ...(minY === undefined ? {} : { minY }),
+      obstacles: this.obstacles(),
+      within: this.visibleWorldRect(),
     });
   }
 
@@ -1729,12 +1847,18 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     return sealed;
   }
 
-  private recite(lines: readonly string[]): void {
+  private recite(
+    lines: readonly string[],
+    delayMs: number = SUMIKUI_LORE_LINE_DELAY_MS,
+    startAfterMs = 0,
+    position?: Vec,
+  ): void {
     const epoch = this.epoch;
     this.recital = lines.map((line, index) => ({
-      at: this.nowMs + index * SUMIKUI_LORE_LINE_DELAY_MS,
+      at: this.nowMs + startAfterMs + index * delayMs,
       line,
       epoch,
+      ...(position === undefined ? {} : { position }),
     }));
   }
 
@@ -1742,17 +1866,25 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const due = this.recital.filter(({ at }) => at <= this.nowMs);
     if (due.length === 0) return;
     this.recital = this.recital.filter(({ at }) => at > this.nowMs);
-    for (const { line, epoch } of due)
-      if (epoch === this.epoch) this.remark(line, HINT_LIFETIME_MS);
+    for (const { line, epoch, position } of due)
+      if (epoch === this.epoch) this.remark(line, HINT_LIFETIME_MS, position);
   }
 
-  private remark(line: string, lifetimeMs: number = REMARK_LIFETIME_MS): void {
+  private remark(line: string, lifetimeMs: number = REMARK_LIFETIME_MS, at?: Vec): void {
+    const fleeting = this.notes.fleetingBy("kami");
+    if (this.alreadySaid(line)) return;
+    const toHurry = fleeting.length - MAX_REMARKS + 1;
+    for (const note of fleeting.slice(0, Math.max(0, toHurry)))
+      this.notes.hurry(note.id, this.nowMs);
     const alice = this.modules.sim.aliceBounds(this.party.selected);
-    this.kamiWrites(
-      line,
-      { x: alice.x + ABOVE_ALICE.x, y: alice.y + ABOVE_ALICE.y },
-      { lifetimeMs, minY: this.writingTop() },
-    );
+    this.kamiWrites(line, at ?? { x: alice.x + ABOVE_ALICE.x, y: alice.y + ABOVE_ALICE.y }, {
+      lifetimeMs,
+      minY: this.writingTop(),
+    });
+  }
+
+  private alreadySaid(line: string): boolean {
+    return this.notes.fleetingBy("kami").some((note) => note.text === line);
   }
 
   private writingTop(): number {
@@ -1760,6 +1892,70 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       { x: 0, y: this.hud.toolbarBottom() + HUD_WRITING_GAP },
       this.camera.camera,
     ).y;
+  }
+
+  private visibleWorldRect(): Rect {
+    const viewport = this.modules.renderer.viewport();
+    const corners = [
+      { x: 0, y: 0 },
+      { x: viewport.width, y: 0 },
+      { x: 0, y: viewport.height },
+      { x: viewport.width, y: viewport.height },
+    ].map((corner) => this.modules.renderer.toWorld(corner, this.camera.camera));
+    const x = Math.min(...corners.map((corner) => corner.x));
+    const y = Math.min(...corners.map((corner) => corner.y));
+    const right = Math.max(...corners.map((corner) => corner.x));
+    const bottom = Math.max(...corners.map((corner) => corner.y));
+    return {
+      x,
+      y,
+      width: right - x,
+      height: bottom - y,
+    };
+  }
+
+  private obstacles(): readonly Rect[] {
+    const tear = this.modules.sim.snapshot().tear;
+    const viewport = this.modules.renderer.viewport();
+    const lawsWidth = Math.min(300, Math.max(0, viewport.width - 32));
+    const lawsRight = viewport.width - 16;
+    return [
+      ...this.board.solids.map(({ rect }) => rect),
+      expandRect(this.modules.sim.aliceBounds(this.party.selected), 12),
+      this.viewportBandToWorld(0, 100),
+      this.viewportRectToWorld(
+        lawsRight - lawsWidth,
+        100,
+        lawsRight,
+        Math.min(viewport.height, 100 + viewport.height * 0.4),
+      ),
+      this.viewportBandToWorld(viewport.height - 90, viewport.height),
+      ...(tear === null ? [] : [{ x: tear.at.x - 40, y: tear.at.y - 120, width: 80, height: 240 }]),
+    ];
+  }
+
+  private viewportBandToWorld(topPx: number, bottomPx: number): Rect {
+    const viewport = this.modules.renderer.viewport();
+    return this.viewportRectToWorld(0, topPx, viewport.width, bottomPx);
+  }
+
+  private viewportRectToWorld(
+    leftPx: number,
+    topPx: number,
+    rightPx: number,
+    bottomPx: number,
+  ): Rect {
+    const corners = [
+      { x: leftPx, y: topPx },
+      { x: rightPx, y: topPx },
+      { x: leftPx, y: bottomPx },
+      { x: rightPx, y: bottomPx },
+    ].map((corner) => this.modules.renderer.toWorld(corner, this.camera.camera));
+    const x = Math.min(...corners.map((corner) => corner.x));
+    const y = Math.min(...corners.map((corner) => corner.y));
+    const right = Math.max(...corners.map((corner) => corner.x));
+    const bottom = Math.max(...corners.map((corner) => corner.y));
+    return { x, y, width: right - x, height: bottom - y };
   }
 
   private eraseAt(point: Vec): void {
@@ -1814,6 +2010,44 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       .filter(({ gap }) => gap <= NAMING_REACH)
       .sort((a, b) => a.gap - b.gap);
     return nearest[0]?.record ?? null;
+  }
+
+  private bodyNamedNearSoul(text: string): InkRecord | null {
+    if (
+      this.embodied ||
+      this.director.bodyNames.length === 0 ||
+      !namesABody(text, this.director.bodyNames)
+    )
+      return null;
+    return this.drawingNearestSoul();
+  }
+
+  private drawingNearestSoul(): InkRecord | null {
+    const snapshot = this.modules.sim.snapshot();
+    const soul = snapshot.soul;
+    if (soul === null) return null;
+    const soulRect: Rect = { x: soul.at.x - 0.5, y: soul.at.y - 0.5, width: 1, height: 1 };
+    return (
+      snapshot.drawings
+        .flatMap((pose) => {
+          const record = this.ledger.get(pose.id);
+          return record?.ruling === null
+            ? [{ record, gap: rectGap(soulRect, currentBounds(record.drawing, pose)) }]
+            : [];
+        })
+        .sort((a, b) => a.gap - b.gap)[0]?.record ?? null
+    );
+  }
+
+  private drawingGapFromSoul(record: InkRecord): number | null {
+    const snapshot = this.modules.sim.snapshot();
+    const soul = snapshot.soul;
+    const pose = snapshot.drawings.find(({ id }) => id === record.drawing.id);
+    if (soul === null || pose === undefined) return null;
+    return rectGap(
+      { x: soul.at.x - 0.5, y: soul.at.y - 0.5, width: 1, height: 1 },
+      currentBounds(record.drawing, pose),
+    );
   }
 
   private aliceFeet(): Vec {

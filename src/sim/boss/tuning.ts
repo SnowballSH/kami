@@ -5,15 +5,17 @@ import type { BodyPartKind } from "../body/types";
 export const BODY_TUNING = {
   heartRadius: 9,
   torsoHug: 0.2,
-  legsBelow: 0.12,
-  headAbove: 0.12,
+  legsBelow: 0.18,
+  headAbove: 0.18,
   wingsOut: 0.3,
   namedWingsOut: 0.15,
   armsOut: 0.12,
   partAliveRatio: 0.5,
-  graftReach: 14,
+  graftReach: 36,
   graftGlowMs: 1_400,
 } as const;
+
+export const SOUL_HOVER_PX = 40;
 
 export const SNIPPER_RANKS = ["servant", "lesser"] as const;
 export type SnipperRank = (typeof SNIPPER_RANKS)[number];
@@ -24,6 +26,7 @@ export interface SnipperTuning {
   readonly orbitRadius: number;
   readonly orbitSpeed: number;
   readonly approachSpeed: number;
+  readonly firstCircleMs: number;
   readonly circleMs: number;
   readonly windUpMs: number;
   readonly lungeMs: number;
@@ -40,7 +43,8 @@ export const SNIPPER_TUNING: Readonly<Record<SnipperRank, SnipperTuning>> = {
     orbitRadius: 150,
     orbitSpeed: 1.1,
     approachSpeed: 0.24,
-    circleMs: 2_600,
+    firstCircleMs: 4_800,
+    circleMs: 3_400,
     windUpMs: 1_100,
     lungeMs: 260,
     recoverMs: 900,
@@ -54,6 +58,7 @@ export const SNIPPER_TUNING: Readonly<Record<SnipperRank, SnipperTuning>> = {
     orbitRadius: 105,
     orbitSpeed: 1.8,
     approachSpeed: 0.34,
+    firstCircleMs: 3_200,
     circleMs: 1_900,
     windUpMs: 800,
     lungeMs: 200,
@@ -67,7 +72,7 @@ export const SNIPPER_TUNING: Readonly<Record<SnipperRank, SnipperTuning>> = {
 export const TEAR_TUNING = {
   aboveHeart: 220,
   entryDelayMs: 3_000,
-  mercyMs: 1_600,
+  mercyMs: 3_200,
   waves: [
     { belowHealth: 0.6, lessers: 1 },
     { belowHealth: 0.3, lessers: 2 },

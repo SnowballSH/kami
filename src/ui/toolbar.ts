@@ -36,12 +36,21 @@ export class Toolbar {
   readonly element: HTMLElement;
   private readonly buttons: ReadonlyMap<Tool, HTMLButtonElement>;
 
-  constructor(onPick: (tool: Tool) => void) {
+  constructor(onPick: (tool: Tool) => void, onClear: () => void) {
     this.buttons = new Map(TOOL_SPECS.map((spec) => [spec.tool, createToolButton(spec, onPick)]));
+    const clear = el(
+      "button",
+      {
+        className: "kami-control kami-clear-page",
+        attrs: { type: "button", "aria-label": "Clear the page", title: "Clear the page" },
+      },
+      [icon("clear")],
+    );
+    activateOnTap(clear, onClear);
     this.element = el(
       "div",
       { className: "kami-island kami-toolbar", attrs: { role: "toolbar", "aria-label": "Tools" } },
-      [...this.buttons.values()],
+      [...this.buttons.values(), clear],
     );
   }
 

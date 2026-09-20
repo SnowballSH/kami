@@ -4,7 +4,7 @@ import { boardFor } from "../board";
 import { ENDLESS_STRIP as ENDLESS_GROUND, endlessPage } from "../board/boards/endless";
 import { createCat } from "../cat";
 import { OFFER_HELP } from "../cat/lines";
-import { boundsOf, poseToWorld, rectsOverlap, type Vec } from "../core/geometry";
+import { boundsOf, poseToWorld, rectsOverlap, type Stroke, type Vec } from "../core/geometry";
 import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { FIXED_STEP_MS } from "../core/world";
 import { BRIDGE_LINE, DROP_LINE, IDEAS, LADDER_LINE } from "../counsel";
@@ -32,16 +32,20 @@ import { type SketchCatalogue, SUMMONED_SIZE, Summoner } from "../summoning";
 import type { BoardLink } from "../sync/boardLink";
 import { SharedPage } from "../sync/testing/sharedPage";
 import type { PeerId } from "../sync/wire";
+import { roomCardShownMs } from "../ui/roomCard";
+import { titleCardShownMs } from "../ui/titleCard";
 import type { Tool } from "../ui/types";
 import {
   HEART_SWALLOWED_LINE,
   INCARNATED_LINE,
+  INCARNATED_PARTS_LINE,
+  IS_THIS_HER_LINE,
   PART_RESTORED_LINE,
   SERVANT_CAME_LINE,
   SOUL_WAITS_LINE,
   TEAR_OPENS_LINES,
 } from "./bossLines";
-import { Game } from "./game";
+import { Game, MAX_REMARKS } from "./game";
 import { HELD_INK_FADE_MS } from "./heldInk";
 import {
   CANNOT_DRAW_LINE,
@@ -54,6 +58,7 @@ import {
   SUMIKUI_SEALED_LINE,
   SUMIKUI_SUMMONED_LINES,
 } from "./lines";
+import { NOTE_STYLE, type NoteBook } from "./noteBook";
 import { ARRIVAL_MS } from "./retrace";
 import {
   FakeHandwriting,
@@ -63,9 +68,33 @@ import {
   FakeVoice,
   MemoryBoardStore,
 } from "./testing/fakes";
-import { deafLine } from "./voiceLines";
+import { deafLine, FELL_OFF_PAGE_LINE } from "./voiceLines";
 
 const COMMIT_WAIT_MS = 1_200;
+
+const bossPaceBody = (heart: Vec): readonly Stroke[] => {
+  const line = (from: Vec, to: Vec): Stroke =>
+    Array.from({ length: 13 }, (_, i) => ({
+      x: from.x + ((to.x - from.x) * i) / 12,
+      y: from.y + ((to.y - from.y) * i) / 12,
+    }));
+  const cx = heart.x;
+  const cy = heart.y;
+  return [
+    line({ x: cx - 16, y: cy - 22 }, { x: cx + 16, y: cy - 22 }),
+    line({ x: cx + 16, y: cy - 22 }, { x: cx + 16, y: cy + 18 }),
+    line({ x: cx + 16, y: cy + 18 }, { x: cx - 16, y: cy + 18 }),
+    line({ x: cx - 16, y: cy + 18 }, { x: cx - 16, y: cy - 22 }),
+    line({ x: cx - 10, y: cy + 18 }, { x: cx - 14, y: cy + 64 }),
+    line({ x: cx + 10, y: cy + 18 }, { x: cx + 14, y: cy + 64 }),
+    line({ x: cx - 16, y: cy - 15 }, { x: cx - 45, y: cy + 5 }),
+    line({ x: cx + 16, y: cy - 15 }, { x: cx + 45, y: cy + 5 }),
+    Array.from({ length: 17 }, (_, i) => ({
+      x: cx + 13 * Math.cos((i / 16) * 2 * Math.PI),
+      y: cy - 36 + 13 * Math.sin((i / 16) * 2 * Math.PI),
+    })),
+  ];
+};
 const PATIENCE_MS = 40_000;
 
 const line = (from: Vec, to: Vec, spacing = 8): Vec[] => {
@@ -519,6 +548,56 @@ describe("Game on the Wonderland board", () => {
     expect(player.hud.boards.map((board) => board.id)).toContain("wonderland");
   });
 
+  it("keeps a free Kami remark inside the visible world", () => {
+    const write = (
+      player.game as unknown as {
+        kamiWrites: (
+          text: string,
+          position: Vec,
+          options?: { lifetimeMs?: number },
+        ) => {
+          position: Vec;
+        };
+      }
+    ).kamiWrites;
+    const note = write.call(
+      player.game,
+      "right edge remark",
+      { x: 1100, y: 100 },
+      { lifetimeMs: 6_000 },
+    );
+    const right = player.renderer.viewport().width;
+    expect(note.position.x).toBeLessThanOrEqual(right - NOTE_STYLE.kami.maxWidth - 24);
+  });
+
+  it("deduplicates and caps fleeting Kami remarks", async () => {
+    player.game.onAutopilotToggled(false);
+    const remark = (text: string): void =>
+      (
+        player.game as unknown as {
+          remark: (line: string) => void;
+        }
+      ).remark(text);
+    remark("same remark");
+    remark("same remark");
+    remark("second remark");
+    remark("third remark");
+    await player.wait(FIXED_STEP_MS);
+
+    const same = () =>
+      (player.renderer.lastFrame?.notes ?? []).filter(
+        (note) => note.author === "kami" && note.script.text === "same remark",
+      );
+    expect(same()).toHaveLength(1);
+    await player.wait(800);
+    const opaque = (player.renderer.lastFrame?.notes ?? []).filter((note) => {
+      const notebook = (player.game as unknown as { notes: NoteBook }).notes;
+      return notebook.fleetingBy("kami").some(({ id }) => id === note.id) && note.opacity === 1;
+    });
+    expect(opaque.length).toBeLessThanOrEqual(2);
+    expect(same()).toHaveLength(0);
+  });
+
   it("offers three tappable guesses beside a fresh drawing, and a tap names it", async () => {
     await player.draw(blob({ x: 300, y: 530 }, 30, 20));
     await player.wait(100);
@@ -652,7 +731,9 @@ describe("Game on the Wonderland board", () => {
     await player.wait(SUMIKUI_LORE_LINE_DELAY_MS * 2 + 100);
     const notes = player.renderer.lastFrame?.notes ?? [];
     const lore = notes.filter((note) => SUMIKUI_SUMMONED_LINES.includes(note.script.text));
-    expect(lore).toHaveLength(SUMIKUI_SUMMONED_LINES.length);
+    expect(lore.length).toBeLessThanOrEqual(MAX_REMARKS);
+    expect(player.written).toContain(SUMIKUI_SUMMONED_LINES[1]);
+    expect(player.written).toContain(SUMIKUI_SUMMONED_LINES[2]);
     for (const note of lore) {
       expect(note.script.bounds.y).toBeGreaterThan(player.hud.toolbarBottomY);
       expect(
@@ -669,7 +750,8 @@ describe("Game on the Wonderland board", () => {
     expect(player.written).toContain("kami: the Sumikui, the ink eater, is loose");
     expect(player.written).toContain(SUMIKUI_SUMMONED_LINES[0]);
     await player.wait(SUMIKUI_LORE_LINE_DELAY_MS * 2 + 100);
-    for (const line of SUMIKUI_SUMMONED_LINES) expect(player.written).toContain(line);
+    expect(player.written).not.toContain(SUMIKUI_SUMMONED_LINES[0]);
+    for (const line of SUMIKUI_SUMMONED_LINES.slice(1)) expect(player.written).toContain(line);
 
     await player.erase({ x: 210, y: 215 });
     expect(player.renderer.lastFrame?.world.sumikui).toBeNull();
@@ -900,8 +982,8 @@ describe.each(["live", "reloaded"])("drawing labels on a %s board", (state) => {
     ).toBe(true);
     expect(player.written).not.toContain("a rock");
     const saved = await player.store.load(boardId);
-    expect(saved.drawings).toHaveLength(1);
-    expect(saved.notes.map((note) => note.text)).toEqual(["summon the ink eater"]);
+    expect(saved.drawings).toHaveLength(0);
+    expect(saved.notes.map((note) => note.text)).toEqual([]);
     expect(saved.rules).toHaveLength(1);
     const returning = new Player(boardId, { store: player.store });
     await returning.arrive();
@@ -1578,6 +1660,25 @@ describe("Game with a Kami who takes everyone places", () => {
     expect(player.sim.snapshot().drawings).toHaveLength(4);
   });
 
+  it("replaces a previous scene's laws when it takes us home", async () => {
+    const player = new Player("wonderland", { eyes: traveller() });
+    await player.arrive();
+
+    await player.write("teleport us to the moon", { x: 300, y: 500 });
+    expect(player.laws.laws.map((law) => law.text)).toEqual(["teleport us to the moon"]);
+
+    await player.write("take us home", { x: 300, y: 500 });
+
+    expect(
+      (await player.store.load("wonderland")).rules.every(
+        (rule) => rule.sourceText === "take us home",
+      ),
+    ).toBe(true);
+    expect(player.laws.laws).toHaveLength(1);
+    expect(player.laws.laws[0]?.text).toBe("take us home");
+    expect(player.renderer.lastFrame?.daylight).toBe(1);
+  });
+
   it("asks the model for a place the atlas has never heard of, and refuses none it knows", async () => {
     const eyes = traveller();
     const chocolate: Scene = {
@@ -1951,6 +2052,12 @@ describe("Game in puzzle mode", () => {
     expect(player.written).not.toContain(cardLineOf(PUZZLE_MODE));
     expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
     expect(player.laws.laws).toHaveLength(0);
+    const opening = "Too tall to climb. She could fall up, if something threw her.";
+    expect(player.written.filter((text) => text === opening)).toHaveLength(0);
+    await player.wait(roomCardShownMs() - 100);
+    expect(player.written.filter((text) => text === opening)).toHaveLength(0);
+    await player.wait(roomCardShownMs() + 600);
+    expect(player.written.filter((text) => text === opening)).toHaveLength(1);
 
     await player.write("we are on the moon", { x: 200, y: 200 });
     expect(player.written).toContain(LAW_OUTSIDE_MODE_LINE);
@@ -2007,10 +2114,49 @@ describe("Game in the Sandbox", () => {
   it("opens on an endless page with the mode's own opening line, and no rabbit hole to reach", async () => {
     const { player } = sandbox();
     await player.arrive();
-    expect(player.written).toContain(SANDBOX_MODE.card.opening);
-    expect(player.written).toContain(cardLineOf(SANDBOX_MODE));
+    expect(player.written).not.toContain(SANDBOX_MODE.card.opening);
+    expect(player.written).not.toContain(cardLineOf(SANDBOX_MODE));
     expect(player.renderer.board?.page).toBe("endless");
     expect(player.renderer.board?.goal).toBeUndefined();
+  });
+
+  it("keeps Kami's reply to a name clear of the ground and Alice", async () => {
+    const { player } = sandbox(["dog"]);
+    await player.arrive();
+    const centre = player.alice.center;
+    await player.draw(ringAround({ x: centre.x - 70, y: centre.y }, 25));
+    await player.write("a dog", { x: centre.x - 30, y: centre.y });
+    await player.wait(500);
+
+    const notebook = (player.game as unknown as { notes: NoteBook }).notes;
+    const notes = (player.renderer.lastFrame?.notes ?? []).filter((note) =>
+      notebook.fleetingBy("kami").some(({ id }) => id === note.id),
+    );
+    const alice = player.sim.aliceBounds(0);
+    const viewport = player.renderer.viewport();
+    const visible = { x: 0, y: 0, width: viewport.width, height: viewport.height };
+    for (const note of notes) {
+      expect(rectsOverlap(note.script.bounds, ENDLESS_GROUND)).toBe(false);
+      expect(rectsOverlap(note.script.bounds, alice)).toBe(false);
+      expect(note.script.bounds.x).toBeGreaterThanOrEqual(visible.x);
+      expect(note.script.bounds.y).toBeGreaterThanOrEqual(visible.y);
+      expect(note.script.bounds.x + note.script.bounds.width).toBeLessThanOrEqual(
+        visible.x + visible.width,
+      );
+      expect(note.script.bounds.y + note.script.bounds.height).toBeLessThanOrEqual(
+        visible.y + visible.height,
+      );
+    }
+  });
+
+  it("says when Alice falls off the endless page", async () => {
+    const { player } = sandbox();
+    await player.arrive();
+    player.game.onAutopilotToggled(false);
+    player.walk(1);
+    expect(await player.until(() => player.written.includes(FELL_OFF_PAGE_LINE), 10_000)).toBe(
+      true,
+    );
   });
 
   it("tells the player the page ends where the ground does, when asked for help at the edge", async () => {
@@ -2019,6 +2165,15 @@ describe("Game in the Sandbox", () => {
     await player.write("help", { x: 60, y: -160 });
     expect(player.written).toContain(DROP_LINE);
     expect(eyes.summoned).toEqual([]);
+  });
+
+  it("does not repeat the same counsel while the first line is still visible", async () => {
+    const { player } = sandbox();
+    await player.arrive();
+    await player.write("help", { x: 60, y: -160 });
+    await player.write("give me an idea", { x: 60, y: -160 });
+
+    expect(player.written.filter((text) => text === DROP_LINE)).toHaveLength(1);
   });
 
   it("starts a bridge across a gap when asked how to get across", async () => {
@@ -2117,9 +2272,11 @@ describe("Game in the Sandbox", () => {
     const { player } = sandbox();
     await player.arrive();
     player.walk(1);
-    expect(await player.until(() => player.alice.center.y > 1_000, 20_000)).toBe(true);
+    expect(await player.until(() => player.written.includes(FELL_OFF_PAGE_LINE), 20_000)).toBe(
+      true,
+    );
     player.walk(0);
-    expect(await player.until(() => player.alice.center.y < 0, 20_000)).toBe(true);
+    expect(player.alice.center.y).toBeLessThan(0);
     expect(player.alice.center.x).toBeLessThan(ENDLESS_GROUND.x + ENDLESS_GROUND.width);
     expect(player.alice.center.x).toBeGreaterThan(0);
   });
@@ -2266,16 +2423,47 @@ describe("Game in Boss mode", () => {
   it("opens as a soul, tells both players their part, and will not walk her by herself", async () => {
     expect(player.renderer.lastFrame?.world.alice).toBeNull();
     expect(soulOf(player).x).toBeCloseTo(boardFor("wonderland").spawn.x, 0);
-    expect(player.written).toContain(SOUL_WAITS_LINE);
+    expect(player.written).not.toContain(SOUL_WAITS_LINE);
     expect(player.written).not.toContain(BOSS_MODE.card.opening);
-    expect(player.written).toContain(cardLineOf(BOSS_MODE));
-    for (const role of BOSS_MODE.card.roles ?? []) expect(player.written).toContain(role);
+    expect(player.written).not.toContain("She can hop, not fly. You can draw.");
+    for (const role of BOSS_MODE.card.roles ?? []) expect(player.written).not.toContain(role);
     expect(player.hud.cards).toEqual([BOSS_MODE.card]);
+    await player.wait(titleCardShownMs(BOSS_MODE.card) + 600);
+    expect(player.written).toContain(SOUL_WAITS_LINE);
     player.game.onAutopilotToggled(true);
     expect(player.hud.autopilot).toBe(false);
     player.walk(1);
     await player.wait(500);
     expect(player.renderer.lastFrame?.world.alice).toBeNull();
+  });
+
+  it("clears player ink and laws while keeping the Boss soul", async () => {
+    const heart = soulOf(player);
+    player.game.onCommit(drawingOf("old ink", ringAround({ x: heart.x + 80, y: heart.y }, 20)));
+    await player.write("gravity is weaker", { x: heart.x + 200, y: heart.y + 200 });
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(player.laws.laws).toHaveLength(1);
+
+    player.game.onClearBoard();
+    await player.wait(100);
+
+    expect(soulOf(player)).toEqual(expect.objectContaining({ x: heart.x, y: heart.y }));
+    expect(player.renderer.lastFrame?.world.tear).toBeNull();
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.laws.laws).toHaveLength(0);
+  });
+
+  it("opens every Boss fight on a fresh page", async () => {
+    const drawing = drawingOf("old-fight", ringAround(soulOf(player), 30));
+    player.game.onCommit(drawing);
+    await player.wait(100);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(1);
+
+    player.game.onOpenBoard("wonderland");
+    await player.wait(100);
+
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
   });
 
   it("makes the drawing her body when it is named, and tears the page open above her", async () => {
@@ -2298,6 +2486,98 @@ describe("Game in Boss mode", () => {
     expect(player.written).toContain(SERVANT_CAME_LINE);
   });
 
+  it("names a body from anywhere on the page when the player is still a soul", async () => {
+    const heart = soulOf(player);
+    player.game.onCommit(drawingOf("body", ringAround(heart, 30)));
+    await player.wait(50);
+    await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
+    expect(player.renderer.lastFrame?.world.soul).toBeNull();
+    expect(drawnLook(player).body.strokes).toHaveLength(1);
+  });
+
+  it("makes a body drawn as several drawings one body when named", async () => {
+    const heart = soulOf(player);
+    const far = drawingOf("far", ringAround({ x: heart.x + 300, y: heart.y }, 20));
+    player.game.onCommit(far);
+    await player.wait(50);
+    for (const stroke of bossPaceBody(heart)) await player.draw(stroke);
+
+    await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
+
+    expect(player.sim.snapshot().alice?.look.kind).toBe("drawn");
+    const look = drawnLook(player);
+    expect(look.abilities.see).toBe(true);
+    expect(look.abilities.walk).toBe(true);
+    expect(look.abilities.climb).toBe(true);
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.drawing.id)).toEqual([far.id]);
+  });
+
+  it("keeps free combat remarks clear of the tear", async () => {
+    const heart = soulOf(player);
+    player.game.onCommit(drawingOf("body", ringAround(heart, 30)));
+    await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
+    const tear = tearOf(player);
+    if (tear === null) throw new Error("the tear did not open");
+
+    (
+      player.game as unknown as {
+        remark: (line: string) => void;
+      }
+    ).remark("clear of the tear");
+    await player.wait(50);
+
+    const note = player.renderer.lastFrame?.notes.find(
+      ({ script }) => script.text === "clear of the tear",
+    );
+    if (note === undefined) throw new Error("the combat remark was not written");
+    expect(
+      rectsOverlap(note.script.bounds, {
+        x: tear.at.x - 40,
+        y: tear.at.y - 120,
+        width: 80,
+        height: 240,
+      }),
+    ).toBe(false);
+  });
+
+  it("offers Alice instead of scenery guesses for the body nearest the soul", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "ink"), seen("cake", "ink")]);
+    const player = new Player("wonderland", { eyes, mode: BOSS_MODE });
+    await player.arrive();
+    const heart = soulOf(player);
+    player.game.onCommit(drawingOf("body", ringAround(heart, 30)));
+    await player.wait(100);
+
+    const guesses = player.renderer.lastFrame?.notes.filter((note) => note.tappable) ?? [];
+    expect(guesses.map((note) => note.script.text)).toEqual(["Alice?"]);
+    expect(player.written).toContain(IS_THIS_HER_LINE);
+
+    const first = guesses[0];
+    if (first === undefined) throw new Error("no Alice guess to tap");
+    const { x, y, width, height } = first.script.bounds;
+    player.game.tap({ x: x + width / 2, y: y + height / 2 });
+    await player.wait(100);
+
+    expect(player.renderer.lastFrame?.world.soul).toBeNull();
+    expect(drawnLook(player).body.strokes).toHaveLength(1);
+  });
+
+  it("keeps normal scenery guesses for drawings far from the soul", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "ink"), seen("cake", "ink")]);
+    const player = new Player("wonderland", { eyes, mode: BOSS_MODE });
+    await player.arrive();
+    const soul = soulOf(player);
+    player.game.onCommit(drawingOf("far", ringAround({ x: soul.x + 300, y: soul.y }, 20)));
+    await player.wait(100);
+
+    const guesses = player.renderer.lastFrame?.notes.filter((note) => note.tappable) ?? [];
+    expect(guesses.map((note) => note.script.text)).toEqual([
+      "a mushroom?",
+      "a cake?",
+      "a balloon?",
+    ]);
+  });
+
   it("never sends her body to be tidied: not when named, nor when the slider comes to rest", async () => {
     const eyes = new Eyes([], []);
     const twoPlayers = new Player("wonderland", { eyes, mode: BOSS_MODE });
@@ -2316,11 +2596,24 @@ describe("Game in Boss mode", () => {
 
   it("grafts legs drawn onto a legless body, and says so", async () => {
     const heart = soulOf(player);
-    player.game.onCommit(drawingOf("body", ...figureAround(heart).slice(0, 4)));
+    const legless = figureAround(heart)
+      .slice(0, 4)
+      .map((stroke, index) =>
+        index < 2 ? stroke : stroke.map((point) => ({ ...point, y: point.y - 10 })),
+      );
+    player.game.onCommit(drawingOf("body", ...legless));
     await player.write("alice", { x: heart.x, y: heart.y + 15 });
     expect(drawnLook(player).abilities.walk).toBe(false);
+    expect(player.written).toContain(INCARNATED_PARTS_LINE(["head", "arms"]));
 
-    const legs = legsBelow(heart);
+    await player.wait(500);
+    const current = player.alice;
+    if (current.look.kind !== "drawn") throw new Error("drawing did not incarnate");
+    const bodyHeart = {
+      x: current.center.x + current.look.body.heart.x * current.look.scale,
+      y: current.center.y + current.look.body.heart.y * current.look.scale,
+    };
+    const legs = legsBelow(bodyHeart);
     await player.scrawl(legs.map((stroke) => [...stroke]));
     expect(drawnLook(player).abilities.walk).toBe(true);
     expect(drawnLook(player).body.strokes).toHaveLength(6);
@@ -2347,5 +2640,10 @@ describe("Game in Boss mode", () => {
       ),
     ).toBe(true);
     expect(soulOf(player).x).toBeCloseTo(heart.x, 0);
+    expect(player.hud.cards.at(-1)).toMatchObject({
+      title: "Again",
+      tagline:
+        "It took the heart. Draw her a body around it and write who she is — faster this time.",
+    });
   });
 });

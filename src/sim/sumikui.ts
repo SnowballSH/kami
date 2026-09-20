@@ -18,6 +18,7 @@ import {
   SUMIKUI_PAPER_BITE_MS,
   SUMIKUI_REACH,
   SUMIKUI_SATED_MS,
+  SUMIKUI_STALKS_HER_AFTER_MS,
 } from "./constants";
 import type { InkEntity } from "./inkEntity";
 import { NATURES } from "./natures";
@@ -62,8 +63,8 @@ export const mealTimeFor = (inkPx: number): number =>
 const mealTimeOf = (ink: InkEntity): number => mealTimeFor(ink.drawing.cost * ink.motion.size);
 
 /** What it will eat: any drawing that is not a role fixed to the board nor a prop of a scene. */
-export const edible = (ink: InkEntity): boolean =>
-  !NATURES[ink.nature].pinned && ink.provenance !== "scenery";
+export const edible = (ink: InkEntity, namelessOnly = false): boolean =>
+  !NATURES[ink.nature].pinned && ink.provenance !== "scenery" && (!namelessOnly || ink.name === "");
 
 const nearness = (gap: number): number => 1 / (1 + gap / SUMIKUI_NEAR_PX);
 
@@ -81,8 +82,9 @@ const towards = (from: Vec, to: Vec, step: number): Vec => {
 /**
  * The Sumikui, the ink eater. A ghost over the board, not a body in it, awake from the moment it
  * is summoned. Everything on the paper is ink to it: every drawing that is not part of the scene,
- * the board's own ground under her feet, and Alice herself. What she depends on comes first — the
- * ink she stands on, the ground beneath her, herself when she is close — and far clutter after;
+ * the board's own ground under her feet, and Alice herself — though for its first
+ * `SUMIKUI_STALKS_HER_AFTER_MS` awake only drawings are on the menu. What she depends on comes
+ * first — the ink she stands on, the ground beneath her, herself when she is close — and far clutter after;
  * where Kami sets her down is hallowed: neither that paper nor Alice standing on it. Its pace
  * doubles every `SUMIKUI_DOUBLES_EVERY_MS` awake, up to `SUMIKUI_MAX_SPEED`; devouring her gorges
  * it, and the pace starts over.
@@ -100,6 +102,7 @@ export class Sumikui {
     alice: AliceController,
     private readonly hallowed: readonly Vec[],
     private readonly pageEndY: number,
+    private readonly options: { readonly bides: boolean },
   ) {
     this.centre = this.hoverSpotBehind(alice);
   }
@@ -115,6 +118,10 @@ export class Sumikui {
   /** Advances one tick; returns what it has finished devouring, if anything. */
   tick(elapsedMs: number, ground: HuntingGround): Quarry | null {
     const [alice] = ground.alices;
+    if (this.options.bides && !this.woke && !ground.inks.some((ink) => edible(ink))) {
+      this.drift(this.hoverSpotBehind(alice), elapsedMs);
+      return null;
+    }
     this.woke = true;
     this.awakeMs += elapsedMs;
     if (this.satedMs > 0) {
@@ -252,12 +259,15 @@ export class Sumikui {
   }
 
   private *candidates(ground: HuntingGround): Generator<Quarry> {
-    for (const each of ground.alices) yield { kind: "alice", alice: each };
-    for (const each of ground.alices) {
-      if (this.standsOnPaper(each, ground)) yield { kind: "paper", alice: each };
+    if (this.awakeMs >= SUMIKUI_STALKS_HER_AFTER_MS) {
+      for (const each of ground.alices) yield { kind: "alice", alice: each };
+      for (const each of ground.alices) {
+        if (this.standsOnPaper(each, ground)) yield { kind: "paper", alice: each };
+      }
     }
+    const namelessOnly = this.awakeMs < SUMIKUI_STALKS_HER_AFTER_MS;
     for (const ink of ground.inks) {
-      if (edible(ink) && this.onThePage(ink)) yield { kind: "ink", ink };
+      if (edible(ink, namelessOnly) && this.onThePage(ink)) yield { kind: "ink", ink };
     }
   }
 

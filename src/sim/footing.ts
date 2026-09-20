@@ -1,7 +1,7 @@
 import type { Vec } from "../core/geometry";
 
 /** Falling this far below the last place she stood is falling off an endless page. */
-export const FALL_LIMIT = 2400;
+export const FALL_LIMIT = 900;
 
 /**
  * Where Alice last stood on an endless page, and where that puts her back if she falls off it. If

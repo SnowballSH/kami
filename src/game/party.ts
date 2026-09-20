@@ -13,6 +13,8 @@ import {
 } from "../sim/types";
 
 const IDLE: WalkIntent = { x: 0, y: 0 };
+export const FLEE_CALM_MS = 6_000;
+export const STUCK_CALM_MS = 2_000;
 
 /** What every Alice sees alike this step: the page, as opposed to herself. */
 export interface Page {
@@ -57,6 +59,8 @@ export class Party {
   private readonly charts = new Map<readonly SceneInk[], Chart | null>();
   private readonly wasStuck: boolean[] = [];
   private readonly wasFleeing: boolean[] = [];
+  private readonly fleeCalmAtMs: number[] = [];
+  private readonly stuckCalmAtMs: number[] = [];
   private chosen: AliceIndex = ALICE_HERSELF;
   private manual: WalkIntent = IDLE;
 
@@ -91,6 +95,8 @@ export class Party {
   reset(): void {
     this.wasStuck.length = 0;
     this.wasFleeing.length = 0;
+    this.fleeCalmAtMs.length = 0;
+    this.stuckCalmAtMs.length = 0;
     for (const pilot of this.pilots) pilot.reset();
   }
 
@@ -104,7 +110,7 @@ export class Party {
    * moves, and only under the player's hand. Returns who has just now run out of ideas, taken
    * flight from the Sumikui or been cornered by it, so Kami can say so.
    */
-  drive(sim: Simulation, page: Page, selfDriving: boolean): readonly News[] {
+  drive(sim: Simulation, page: Page, selfDriving: boolean, nowMs: number): readonly News[] {
     const alices = sim.alices();
     this.match(alices.length);
     this.charts.clear();
@@ -123,13 +129,16 @@ export class Party {
       }
       sim.setWalkIntent(pilot.drive(this.scene(sim, page, alices, who, alice)), who);
       const { stuck, errand } = pilot.status;
-      const fleeing = errand.kind === "flee";
+      if (errand.kind === "flee") this.fleeCalmAtMs[who] = nowMs + FLEE_CALM_MS;
+      if (stuck) this.stuckCalmAtMs[who] = nowMs + STUCK_CALM_MS;
+      const fleeing = errand.kind === "flee" || nowMs < (this.fleeCalmAtMs[who] ?? 0);
+      const episodeStuck = stuck || nowMs < (this.stuckCalmAtMs[who] ?? 0);
       if (fleeing && this.wasFleeing[who] !== true) news.push({ who, kind: "flees" });
-      if (stuck && this.wasStuck[who] !== true) {
+      if (episodeStuck && this.wasStuck[who] !== true) {
         news.push({ who, kind: fleeing ? "cornered" : "stuck" });
       }
       this.wasFleeing[who] = fleeing;
-      this.wasStuck[who] = stuck;
+      this.wasStuck[who] = episodeStuck;
     }
     return news;
   }

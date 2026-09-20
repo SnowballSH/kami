@@ -1,6 +1,6 @@
 .kami-laws {
   position: absolute;
-  top: var(--kami-safe-top);
+  top: calc(var(--kami-safe-top) + var(--kami-control) + 12px);
   right: var(--kami-safe-right);
   z-index: 11;
   pointer-events: none;

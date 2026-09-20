@@ -33,7 +33,7 @@ describe("the game modes", () => {
   });
 
   it("today's play opens with a body that respawns and may walk itself", () => {
-    expect(EMBODIED_MODE.opening).toEqual({ player: "body" });
+    expect(EMBODIED_MODE.opening).toEqual({ player: "body", freshPage: false });
     expect(EMBODIED_MODE.loss).toEqual({ kind: "respawn" });
     expect(EMBODIED_MODE.autopilot).toBe("allowed");
     expect(opensWithAlice(EMBODIED_MODE)).toBe(true);

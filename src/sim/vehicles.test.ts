@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { blankBoard } from "../board/boards/blank";
+import { endlessBoard } from "../board/boards/endless";
+import type { BoardDefinition } from "../board/types";
 import type { Stroke } from "../core/geometry";
 import { VEHICLE_SPEED, WALK_SPEED } from "./constants";
 import {
   aliceOf,
-  blob,
   drawingOf,
   enter,
   feetOf,
@@ -17,10 +18,23 @@ import {
   runSteps,
   runUntil,
   STAY,
+  saw,
 } from "./testSupport";
 import type { Simulation } from "./types";
 
-const board = blankBoard("garage");
+const board: BoardDefinition = {
+  ...blankBoard("garage"),
+  solids: [{ rect: { x: -2000, y: 0, width: 4000, height: 36 }, material: "marker" }],
+};
+const flatBoard: BoardDefinition = {
+  ...blankBoard("flat"),
+  solids: [{ rect: { x: -2000, y: 0, width: 4000, height: 36 }, material: "marker" }],
+};
+const endlessFlatBoard = endlessBoard("vehicle-endless");
+const ledgeBoard: BoardDefinition = {
+  ...blankBoard("ledge"),
+  solids: [{ rect: { x: -320, y: 0, width: 480, height: 36 }, material: "marker" }],
+};
 const CAR = idOf("car");
 
 const centreOf = (sim: Simulation): number => {
@@ -29,17 +43,19 @@ const centreOf = (sim: Simulation): number => {
   return pose.position.x;
 };
 
-/** A flat-roofed cart on two wheels, parked just ahead of Alice, low enough to step onto. */
+/** A flat-roofed cart parked just ahead of Alice, low enough to step onto. */
 const cart = (): readonly Stroke[] => [
   line({ x: 35, y: -14 }, { x: 125, y: -14 }),
-  blob(50, -2, 16, 12),
-  blob(110, -2, 16, 12),
+  line({ x: 125, y: -14 }, { x: 125, y: 4 }),
+  line({ x: 125, y: 4 }, { x: 35, y: 4 }),
+  line({ x: 35, y: 4 }, { x: 35, y: -14 }),
 ];
+const stableCart = (): readonly Stroke[] => [line({ x: 35, y: -4 }, { x: 125, y: -4 })];
 
-const parkCar = (): Simulation => {
-  const sim = enter(board);
+const parkCar = (definition = board, strokes = stableCart()): Simulation => {
+  const sim = enter(definition);
   sim.setWalkIntent(STAY);
-  sim.addDrawing(drawingOf("car", ...cart()));
+  sim.addDrawing(drawingOf("car", ...strokes));
   sim.applyRuling(CAR, rulingOf("vehicle"));
   runSteps(sim, 60);
   return sim;
@@ -114,5 +130,44 @@ describe("ink ruled vehicle", () => {
     runSteps(sim, 30);
     expect(Math.abs(centreOf(sim) - car)).toBeLessThan(2);
     expect(feetOf(sim).x).toBeLessThan(car - 45);
+  });
+
+  it("keeps its angle damped while driven on flat ground", () => {
+    const sim = parkCar(flatBoard);
+    climbAboard(sim);
+    runSteps(sim, 120);
+    expect(Math.abs(poseOf(sim, "car")?.angle ?? Number.POSITIVE_INFINITY)).toBeLessThan(0.05);
+  });
+
+  it("stays level while Alice boards and stands on its rear", () => {
+    const sim = parkCar(flatBoard, cart());
+    climbAboard(sim);
+    sim.setWalkIntent(STAY);
+    runSteps(sim, 60);
+    expect(Math.abs(poseOf(sim, "car")?.angle ?? Number.POSITIVE_INFINITY)).toBeLessThan(0.08);
+    expect(aliceOf(sim).ride).toEqual({ id: CAR, gait: "vehicle" });
+  });
+
+  it("tips and tumbles after its footing ends", () => {
+    const sim = parkCar(ledgeBoard, cart());
+    climbAboard(sim);
+    sim.setWalkIntent(RIGHT);
+    runSteps(sim, 240);
+    expect(Math.abs(poseOf(sim, "car")?.angle ?? 0)).toBeGreaterThan(0.3);
+  });
+
+  it("brings a ridden car back when Alice falls off an endless page", () => {
+    const sim = parkCar(endlessFlatBoard, cart());
+    climbAboard(sim);
+    sim.setWalkIntent(RIGHT);
+    const events = runUntil(sim, saw("fell"));
+    const car = poseOf(sim, "car");
+    const alice = aliceOf(sim);
+    expect(events.some((event) => event.type === "fell")).toBe(true);
+    expect(car).toBeDefined();
+    expect(
+      Math.hypot((car?.position.x ?? 0) - alice.center.x, (car?.position.y ?? 0) - alice.center.y),
+    ).toBeLessThan(60);
+    expect(Math.abs(car?.angle ?? Number.POSITIVE_INFINITY)).toBeLessThan(0.01);
   });
 });

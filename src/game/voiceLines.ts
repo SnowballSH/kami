@@ -1,5 +1,7 @@
 import type { Deafness } from "../voice/types";
 
+export const FELL_OFF_PAGE_LINE = "Off the edge of the page. Back to where she last stood.";
+
 /** The box also listens on https here (scripts/gx10/box/start.sh), which is where microphones work. */
 const SECURE_PORT = 8443;
 

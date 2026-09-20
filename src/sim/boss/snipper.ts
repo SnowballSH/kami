@@ -179,7 +179,7 @@ export class Snipper {
       case "arriving": {
         const spot = this.orbitSpot(prey);
         this.drift(spot, tuning.approachSpeed * ramp * elapsedMs);
-        if (distance(this.position, spot) <= ARRIVED_PX) this.circle();
+        if (distance(this.position, spot) <= ARRIVED_PX) this.circle(tuning.firstCircleMs);
         return null;
       }
       case "circling": {
@@ -247,8 +247,8 @@ export class Snipper {
     }
   }
 
-  private circle(): void {
-    this.phase = { kind: "circling", untilMs: this.clock + this.tuning.circleMs / this.ramp };
+  private circle(durationMs = this.tuning.circleMs): void {
+    this.phase = { kind: "circling", untilMs: this.clock + durationMs / this.ramp };
   }
 
   private windUp(prey: Prey): void {
