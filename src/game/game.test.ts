@@ -11,6 +11,7 @@ import type { Completion, LiveRecognizer, Sighting } from "../recognition/types"
 import { createRuleCompiler, resolvePhysics } from "../rules";
 import type { CompiledRule } from "../rules/types";
 import { createSimulation } from "../sim";
+import { drawingOf } from "../sim/testSupport";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
 import {
@@ -123,6 +124,7 @@ class ScriptedReader implements HandwritingReader {
 }
 
 class Player {
+  readonly sim = createSimulation();
   readonly renderer = new FakeRenderer();
   readonly store: MemoryBoardStore;
   readonly game: Game;
@@ -139,7 +141,7 @@ class Player {
     this.store = store;
     this.game = new Game(
       {
-        sim: createSimulation(),
+        sim: this.sim,
         autopilot: createAutopilot(),
         cat: createCat(eyes),
         ...(eyes === undefined ? {} : { finisher: eyes }),
@@ -266,6 +268,43 @@ describe("Game on the Wonderland board", () => {
     player = new Player("wonderland");
     await player.arrive();
   });
+
+  it.each([
+    { angle: Math.PI / 2, at: { x: 1000, y: 1180 }, competingY: 1120 },
+    { angle: -Math.PI / 2, at: { x: 1000, y: 800 }, competingY: 860 },
+    { angle: 0, at: { x: 1190, y: 1000 }, competingY: 1100 },
+  ])(
+    "names the nearest drawing under a full pose with angle $angle",
+    async ({ angle, at, competingY }) => {
+      const target = drawingOf("target", [
+        { x: 300, y: 300 },
+        { x: 700, y: 300 },
+      ]);
+      const competitor = drawingOf("competitor", [
+        { x: at.x, y: competingY },
+        { x: at.x + 40, y: competingY },
+      ]);
+      player.game.onCommit(target);
+      player.game.onCommit(competitor);
+      const snapshot = player.sim.snapshot();
+      vi.spyOn(player.sim, "snapshot").mockReturnValue({
+        ...snapshot,
+        drawings: snapshot.drawings.map((drawing) => ({
+          ...drawing,
+          pose:
+            drawing.id === target.id
+              ? { origin: { x: 500, y: 300 }, position: { x: 1000, y: 1000 }, angle }
+              : { origin: { x: 0, y: 0 }, position: { x: 0, y: 0 }, angle: 0 },
+        })),
+      });
+
+      await player.write("a rock", at);
+
+      const { drawings } = await player.store.load("wonderland");
+      expect(drawings.find(({ drawing }) => drawing.id === target.id)?.ruling?.name).toBe("a rock");
+      expect(drawings.find(({ drawing }) => drawing.id === competitor.id)?.ruling).toBeNull();
+    },
+  );
 
   it("opens with Kami's wordmark and the first zone's line written on the board", () => {
     expect(player.written).toContain("kami");
