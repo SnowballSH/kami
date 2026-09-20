@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from morph import MorphSettings, morph, resample
+from morph import MorphSettings, boldness_of, morph, resample
 
 Points = NDArray[np.float64]
 CENTRE = np.array([400.0, 300.0])
@@ -43,7 +43,7 @@ def test_a_wobbly_circle_is_tidied_but_stays_the_players() -> None:
     assert [len(stroke) for stroke in result.tidied] == [180]
     assert radial_error(result.tidied[0]) < 0.75 * radial_error(player[0])
     moved = np.linalg.norm(result.tidied[0] - player[0], axis=1)
-    assert moved.max() <= DEFAULT.max_shift * DIAGONAL * 1.05 + 1e-9
+    assert moved.max() <= DEFAULT.bold_shift * DIAGONAL * 1.05 + 1e-9
     assert result.added == []
 
 
@@ -81,15 +81,34 @@ def test_ink_the_exemplar_does_not_have_is_left_alone() -> None:
     player = [arc(0.0, 2 * np.pi, count=90, wobble=4.0), flag]
     settings = MorphSettings(fit_scales=(1.0,), fit_offsets=(0.0,))
     exemplar = [np.column_stack([u[:, 0] * (200 / 360), u[:, 1]]) for u in unit_circle()]
-    result = morph(player, exemplar, settings)
+    result = morph(player, exemplar, settings=settings)
     assert result is not None
     assert len(result.tidied) == 2 and result.tidied[1].shape == flag.shape
 
 
 def test_strength_zero_changes_nothing() -> None:
     player = [arc(0.0, 2 * np.pi, wobble=5.0)]
-    result = morph(player, unit_circle(), MorphSettings(strength=0.0))
+    still = MorphSettings(gentle_strength=0.0, bold_strength=0.0)
+    result = morph(player, unit_circle(), settings=still)
     assert result is not None and np.allclose(result.tidied[0], player[0])
+
+
+def test_the_surer_kami_is_the_more_firmly_he_tidies() -> None:
+    player = [arc(0.0, 2 * np.pi, count=180, wobble=6.0)]
+    unsure = morph(player, unit_circle(), certainty=0.2)
+    sure = morph(player, unit_circle(), certainty=0.95)
+    assert unsure is not None and sure is not None
+    assert unsure.boldness == 0.0 and sure.boldness > 0.8
+    assert radial_error(sure.tidied[0]) < 0.6 * radial_error(unsure.tidied[0])
+    gentle_reach = np.linalg.norm(unsure.tidied[0] - player[0], axis=1).max()
+    assert gentle_reach <= DEFAULT.gentle_shift * DIAGONAL * 1.05 + 1e-9
+
+
+def test_a_loose_fit_keeps_his_hand_light_however_sure_he_is() -> None:
+    assert boldness_of(0.99, DEFAULT.loose_at, DEFAULT) == 0.0
+    assert boldness_of(0.99, DEFAULT.loose_from, DEFAULT) > 0.95
+    assert boldness_of(DEFAULT.sure_from, 0.0, DEFAULT) == 0.0
+    assert 0.0 < boldness_of(0.6, 0.03, DEFAULT) < 1.0
 
 
 @pytest.mark.parametrize(

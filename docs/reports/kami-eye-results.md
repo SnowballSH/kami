@@ -58,10 +58,12 @@ easiest. The hard ones are mostly pairs people draw alike.
 
 **Figure 5 — Kami tidies a drawing without taking it over** (`fig5_morph_contact_sheet`). Real held-out
 Quick, Draw! sketches, shaken to imitate an unsteady hand, finished and cut to their first half. Grey: the
-ink sent; black: the same strokes after the morph (every point moves at most 6 % of the drawing's
-diagonal; median largest move 4–5 %); blue: parts added, only when the exemplar fits tightly. Over 96
-finished and 96 half-drawn sketches of eight categories: something was added to 4 % of finished and 21 %
-of half-drawn ones; 39 ms median, 84 ms p95 per drawing on the box's CPU.
+ink sent; black: the same strokes after the morph; blue: parts added, only when the exemplar fits tightly.
+The morph is as firm as Kami is sure: on finished drawings (median confidence 0.85) the median boldness is
+0.81 and the largest move of any point is 6.7 % of the drawing's diagonal (never over 10 %); on half-drawn
+ones (median confidence 0.40) the median boldness is 0.02 and the largest move 4.8 %. Something was added
+to 4 % of finished and 21 % of half-drawn sketches. 46 ms median, 104 ms p95 per drawing on the box's CPU,
+measured while a training run had the GPU and several cores.
 
 ![Figure 5](figures/fig5_morph_contact_sheet.png)
 

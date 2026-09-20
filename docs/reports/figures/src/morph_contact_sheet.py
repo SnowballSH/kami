@@ -42,7 +42,7 @@ def wobbly(strokes):
         shaken.append(dense)
     return shaken
 
-rows, stats, timings = [], [], []
+rows, stats, timings, bolds = [], [], [], []
 for category in CATEGORIES:
     recognised = (d for d in read_drawings(category_path(DATA, category)) if d.recognized)
     for drawing in itertools.islice(recognised, HELD_OUT_AFTER, HELD_OUT_AFTER + PER_CATEGORY):
@@ -53,6 +53,7 @@ for category in CATEGORIES:
             timings.append(1000 * (time.perf_counter() - started))
             if answer is None:
                 stats.append((kind, None)); continue
+            bolds.append((kind, answer.boldness, answer.confidence))
             diagonal = np.hypot(*(np.concatenate(ink).max(0) - np.concatenate(ink).min(0)))
             moved = max(float(np.linalg.norm(t - i, axis=1).max()) for t, i in zip(answer.tidied, ink))
             length = lambda ss: sum(float(np.hypot(*np.diff(s, axis=0).T).sum()) for s in ss if len(s) > 1)
@@ -66,6 +67,9 @@ for kind in ("finished", "half"):
     none = sum(1 for k, s in stats if k == kind and s is None)
     moved, added, pieces = map(np.array, zip(*got))
     print(f"{kind:9} n={len(got)} declined={none}  max move/diag median {np.median(moved):.3f} max {moved.max():.3f}   added length / own ink median {np.median(added):.2f} p90 {np.percentile(added, 90):.2f}   drawings with nothing added {np.mean(pieces == 0):.0%}")
+for kind in ("finished", "half"):
+    b = np.array([x[1] for x in bolds if x[0] == kind]); c = np.array([x[2] for x in bolds if x[0] == kind])
+    print(f"{kind:9} boldness median {np.median(b):.2f} p10 {np.percentile(b, 10):.2f} p90 {np.percentile(b, 90):.2f}   confidence median {np.median(c):.2f}")
 print(f"latency ms: median {np.median(timings):.1f} p95 {np.percentile(timings, 95):.1f}")
 
 figure, axes = plt.subplots(4, 8, figsize=(16, 8.4))
