@@ -58,6 +58,8 @@ import { HeldInkBook } from "./heldInk";
 import { IdMint } from "./idMint";
 import { InkLedger, type InkRecord } from "./inkLedger";
 import {
+  ALICE_CORNERED_LINE,
+  ALICE_FLEES_LINES,
   aloud,
   BLANK_BOARD_BRIEF,
   CANNOT_DRAW_LINE,
@@ -199,6 +201,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private tool: Tool = "draw";
   private manualIntent: WalkIntent = IDLE_INTENT;
   private wasStuck = false;
+  private wasFleeing = false;
+  private flights = 0;
   private selfDriving: boolean;
   private tidiness: number;
   private hasAskedWhatItIs = false;
@@ -386,6 +390,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   onAutopilotToggled(enabled: boolean): void {
     this.selfDriving = enabled && this.walksHerself();
     this.wasStuck = false;
+    this.wasFleeing = false;
     this.modules.autopilot.reset();
     this.hud.setAutopilot(this.selfDriving);
     this.modules.onSelfDrivingChanged?.(this.selfDriving);
@@ -476,6 +481,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.voice?.hush();
     this.modules.autopilot.reset();
     this.wasStuck = false;
+    this.wasFleeing = false;
     renderer.setBoard(this.board);
     this.ink.reset(Number.POSITIVE_INFINITY);
     this.penReader?.forget();
@@ -553,8 +559,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const steered = this.manualIntent.x !== 0 || this.manualIntent.y !== 0;
     if (steered || !this.selfDriving) return this.manualIntent;
     const intent = autopilot.drive(this.scene());
-    const { stuck } = autopilot.status;
-    if (stuck && !this.wasStuck) this.remark(STUCK_LINE);
+    const { stuck, errand } = autopilot.status;
+    const fleeing = errand.kind === "flee";
+    if (fleeing && !this.wasFleeing) {
+      this.remark(ALICE_FLEES_LINES[this.flights++ % ALICE_FLEES_LINES.length] ?? "");
+    }
+    if (stuck && !this.wasStuck) this.remark(fleeing ? ALICE_CORNERED_LINE : STUCK_LINE);
+    this.wasFleeing = fleeing;
     this.wasStuck = stuck;
     return intent;
   }
@@ -567,6 +578,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       alice: world.alice,
       inks: this.ledger.sceneInks(world.drawings),
       bites: world.bites,
+      sumikui: world.sumikui,
       keyTaken: world.keyTaken,
       doorOpen: world.doorOpen,
       walkSpeed: sim.walkSpeed(),

@@ -2,7 +2,7 @@ import type { BoardDefinition } from "../board/types";
 import type { Nature } from "../cat/types";
 import type { Pose, Rect, Vec } from "../core/geometry";
 import type { Drawing } from "../ink/types";
-import type { AliceSnapshot, BounceArc, WalkIntent } from "../sim/types";
+import type { AliceSnapshot, BounceArc, SumikuiSnapshot, WalkIntent } from "../sim/types";
 
 export interface SceneInk {
   readonly drawing: Drawing;
@@ -18,6 +18,8 @@ export interface Scene {
   readonly inks: readonly SceneInk[];
   /** Holes the Sumikui has bitten out of the board's solids: air where the sketch says ground. */
   readonly bites: readonly Rect[];
+  /** The ink eater, if it is loose: where it is, what it hunts and what it is chewing. */
+  readonly sumikui: SumikuiSnapshot | null;
   readonly keyTaken: boolean;
   readonly doorOpen: boolean;
   /** Walking speed in px per tick at her current size, so the planner can model flight. */
@@ -38,6 +40,8 @@ export type Errand =
   | { readonly kind: "eat"; readonly drawingId: Drawing["id"] }
   /** Nothing helps yet: walk as close to the objective as the board allows, then wait. */
   | { readonly kind: "wait"; readonly objective: Objective }
+  /** The Sumikui is on her: run for the nearest footing out of its reach, the errand can wait. */
+  | { readonly kind: "flee" }
   /** The board has nothing to reach for yet — no key, door or goal. */
   | { readonly kind: "idle" };
 

@@ -1,4 +1,11 @@
-import { distanceToRect, expandRect, type Rect, rectsOverlap, type Vec } from "../core/geometry";
+import {
+  distance,
+  distanceToRect,
+  expandRect,
+  type Rect,
+  rectsOverlap,
+  type Vec,
+} from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 import {
   type AliceSize,
@@ -9,6 +16,12 @@ import {
 } from "../sim/types";
 import { CELL_PX, CellFlag, type CellRange, type Chart } from "./chart";
 import type { Objective, Scene } from "./types";
+
+/** A way out from under a threat; `safe` when it ends out of the threat's reach. */
+export interface Flight {
+  readonly path: readonly Waypoint[];
+  readonly safe: boolean;
+}
 
 /** Where her feet are on the grid: body spans columns [c0, c0 + cols) and rows [r0 - rows, r0). */
 export interface Node {
@@ -259,6 +272,28 @@ export class Pathfinder {
       return false;
     });
     return closest === null ? null : this.unwind(closest, cameFrom);
+  }
+
+  /**
+   * The cheapest way to footing at least `safe` from `threat`; failing that, to the footing she can
+   * reach that is farthest from it, marked unsafe. Null only when she can stand nowhere at all.
+   */
+  awayFrom(start: Node, threat: Vec, safe: number): Flight | null {
+    this.goal = null;
+    const cameFrom = new Map<string, Waypoint>();
+    let farthest: Node | null = null;
+    let farthestGap = Number.NEGATIVE_INFINITY;
+    const refuge = this.search(start, cameFrom, (node) => {
+      if (!this.isStance(node)) return false;
+      const gap = distance(feetOf(node, this.footprint), threat);
+      if (gap > farthestGap) {
+        farthestGap = gap;
+        farthest = node;
+      }
+      return gap >= safe;
+    });
+    if (refuge !== null) return { path: this.unwind(refuge, cameFrom), safe: true };
+    return farthest === null ? null : { path: this.unwind(farthest, cameFrom), safe: false };
   }
 
   private search(
