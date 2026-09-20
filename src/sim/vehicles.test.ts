@@ -136,6 +136,15 @@ describe("ink ruled vehicle", () => {
     expect(Math.abs(poseOf(sim, "car")?.angle ?? Number.POSITIVE_INFINITY)).toBeLessThan(0.05);
   });
 
+  it("stays level while Alice boards and stands on its rear", () => {
+    const sim = parkCar(flatBoard, cart());
+    climbAboard(sim);
+    sim.setWalkIntent(STAY);
+    runSteps(sim, 60);
+    expect(Math.abs(poseOf(sim, "car")?.angle ?? Number.POSITIVE_INFINITY)).toBeLessThan(0.08);
+    expect(aliceOf(sim).ride).toEqual({ id: CAR, gait: "vehicle" });
+  });
+
   it("tips and tumbles after its footing ends", () => {
     const sim = parkCar(ledgeBoard, cart());
     climbAboard(sim);
