@@ -5,9 +5,10 @@
 #include <DebouncedButton.h>
 #include "stick.h"
 
-const uint8_t PIN_X = A0, PIN_Y = A1, PIN_PUSH = 2;  // push: LOW = pressed
-const int X_SIGN = 1;                                // -1 if pushing right reads negative
-const int Y_SIGN = 1;                                // -1 if pushing up reads negative
+// The module sits a quarter turn round on the box: its VRy (A1) runs left–right, its VRx (A0) up–down.
+const uint8_t PIN_X = A1, PIN_Y = A0, PIN_PUSH = 2;  // push: LOW = pressed
+const int X_SIGN = -1;                               // -1 when pushing right reads lower
+const int Y_SIGN = -1;                               // -1 when pushing up reads lower
 const char CONTROLLER[] = "arcade";
 const uint8_t ADC_BITS = 12;
 const int ADC_MAX = (1 << ADC_BITS) - 1;

@@ -526,6 +526,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const viewport = this.modules.renderer.viewport();
     this.board = this.arena(this.board.id);
     this.modules.sim.loadBoard(this.board);
+    if (this.director.state.kind === "spirit") this.modules.sim.disembody();
     this.modules.renderer.setBoard(this.board);
     this.pinArena(viewport);
   }

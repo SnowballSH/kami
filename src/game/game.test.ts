@@ -2121,6 +2121,16 @@ describe("Game in the Sandbox", () => {
     expect(player.renderer.board?.goal).toBeUndefined();
   });
 
+  it("quietly drops ink beneath the endless page ground", async () => {
+    const { player } = sandbox();
+    await player.arrive();
+    await player.draw(line({ x: 100, y: 100 }, { x: 220, y: 100 }));
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+
+    await player.draw(line({ x: 100, y: -40 }, { x: 220, y: -40 }));
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+  });
+
   it("keeps Kami's reply to a name clear of the ground and Alice", async () => {
     const { player } = sandbox(["dog"]);
     await player.arrive();
@@ -2438,6 +2448,13 @@ describe("Game in Boss mode", () => {
     expect(player.hud.autopilot).toBe(false);
     player.walk(1);
     await player.wait(500);
+    expect(player.renderer.lastFrame?.world.alice).toBeNull();
+  });
+
+  it("keeps the soul when the arena is rebuilt on resize", async () => {
+    expect(soulOf(player)).toBeDefined();
+    player.game.onResize();
+    expect(soulOf(player)).toBeDefined();
     expect(player.renderer.lastFrame?.world.alice).toBeNull();
   });
 

@@ -16,6 +16,17 @@ describe("start screen", () => {
     expect(START_CHOICES.map((choice) => choice.id)).toEqual(["sandbox", "puzzle", "boss"]);
   });
 
+  it("credits the dataset Kami learnt from, with its licence", () => {
+    const host = root();
+    chooseMode(host, () => {});
+    const links = [...host.querySelectorAll<HTMLAnchorElement>(".start-credit a")];
+    expect(host.querySelector(".start-credit")?.textContent).toContain("Quick, Draw!");
+    expect(links.map((link) => link.href)).toEqual([
+      "https://github.com/googlecreativelab/quickdraw-dataset",
+      "https://creativecommons.org/licenses/by/4.0/",
+    ]);
+  });
+
   it("starts straight away when the address already names a mode", () => {
     window.history.replaceState(null, "", "/?mode=puzzle");
     const host = root();
