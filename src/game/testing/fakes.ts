@@ -7,6 +7,7 @@ import type {
   BoardSnapshot,
   BoardStore,
   BoardSummary,
+  PersistenceState,
   StoredDrawing,
 } from "../../persistence/types";
 import type { Camera, Renderer, RenderFrame } from "../../render/types";
@@ -20,10 +21,59 @@ import type {
   LawsPanelHandlers,
   Tool,
 } from "../../ui/types";
+import type { EarsHandlers, Voice } from "../../voice/types";
+
+export class FakeVoice implements Voice {
+  readonly said: string[] = [];
+  listening = false;
+  waking = false;
+
+  constructor(readonly handlers: EarsHandlers) {}
+
+  wake(enabled: boolean): void {
+    this.waking = enabled;
+    this.handlers.onWakingChanged(enabled);
+  }
+
+  /** The player said his name and then something, with the microphone standing by. */
+  woke(text: string): void {
+    this.handlers.onHeard(text);
+  }
+
+  hold(): void {
+    this.listening = true;
+    this.handlers.onListeningChanged(true);
+  }
+
+  release(): void {
+    this.listening = false;
+    this.handlers.onListeningChanged(false);
+  }
+
+  cancel(): void {
+    this.release();
+    this.wake(false);
+  }
+
+  /** The player spoke, and Deepgram made out `text`. */
+  heard(text: string): void {
+    this.release();
+    this.handlers.onHeard(text);
+  }
+
+  say(text: string): void {
+    this.said.push(text);
+  }
+
+  hush(): void {
+    this.said.length = 0;
+  }
+}
 
 export class FakeHud implements Hud {
   tool: Tool = "draw";
   boards: readonly BoardListing[] = [];
+  persistence: PersistenceState | null = null;
   private readonly answers: (string | null)[] = [];
 
   constructor(readonly handlers: HudHandlers) {}
@@ -33,6 +83,8 @@ export class FakeHud implements Hud {
   }
 
   autopilot: boolean | null = null;
+  listening = false;
+  waking = false;
   toolbarBottomY = 64;
 
   toolbarBottom(): number {
@@ -43,12 +95,24 @@ export class FakeHud implements Hud {
     this.autopilot = enabled;
   }
 
+  setListening(listening: boolean): void {
+    this.listening = listening;
+  }
+
+  setWaking(waking: boolean): void {
+    this.waking = waking;
+  }
+
   setTool(tool: Tool): void {
     this.tool = tool;
   }
 
   setBoards(boards: readonly BoardListing[]): void {
     this.boards = boards;
+  }
+
+  setPersistence(state: PersistenceState): void {
+    this.persistence = state;
   }
 
   promptText(): Promise<string | null> {
@@ -123,6 +187,15 @@ interface Shelf {
 
 export class MemoryBoardStore implements BoardStore {
   private readonly shelves = new Map<string, Shelf>();
+  readonly hasUnsavedChanges = false;
+
+  state(): PersistenceState {
+    return { loading: false, saving: false, unsaved: 0, errors: [] };
+  }
+
+  retry(): Promise<void> {
+    return Promise.resolve();
+  }
 
   load(boardId: string): Promise<BoardSnapshot> {
     const shelf = this.shelf(boardId);

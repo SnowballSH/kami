@@ -1,3 +1,4 @@
+import { INPUT_LIMITS } from "../src/core/inputLimits";
 import { createBeautifier } from "./beautify/beautifier";
 import { createLlmCompiler } from "./compile/llmCompiler";
 import { readConfig } from "./config";
@@ -12,6 +13,8 @@ import { QuickdrawRecognizer } from "./quickdraw/recognizer";
 import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
 import { createRecognizerChain } from "./recognition/chain";
 import { createLlmTranscriber } from "./transcribe/llmTranscriber";
+import { VOICE_SOCKET_PATH, type VoiceSocketData, voiceSockets } from "./voice/socket";
+import { createSpeaker } from "./voice/speaker";
 
 const API_PREFIX = "/api";
 
@@ -33,6 +36,7 @@ const controllers = await startControllers(config.controllers, {
 
 const compiler = createLlmCompiler(config.llm);
 const transcriber = createLlmTranscriber(config.transcribe);
+const voice = voiceSockets(config.voice);
 const api = createApi({
   boards,
   recognizer: eye.recognizer,
@@ -41,18 +45,26 @@ const api = createApi({
   controllers: controllers.hub,
   transcriber,
   exemplars: createExemplarSource(sketches, quickdrawNatureTable),
+  speaker: createSpeaker(config.voice),
 });
 const site = config.webDirectory === null ? null : createStaticSite(config.webDirectory);
 const isApiCall = (request: Request): boolean =>
   new URL(request.url).pathname.startsWith(API_PREFIX);
 
-const server = Bun.serve({
+const isVoiceSocket = (request: Request): boolean =>
+  new URL(request.url).pathname === VOICE_SOCKET_PATH;
+
+const server = Bun.serve<VoiceSocketData>({
+  maxRequestBodySize: INPUT_LIMITS.sketchBytes,
   port: config.port,
   hostname: "0.0.0.0",
-  fetch: async (request) =>
-    isApiCall(request) || site === null
+  fetch: async (request, listening) => {
+    if (isVoiceSocket(request) && voice.upgrade(request, listening)) return undefined;
+    return isApiCall(request) || site === null
       ? api.handle(request)
-      : ((await site(request)) ?? api.handle(request)),
+      : ((await site(request)) ?? api.handle(request));
+  },
+  websocket: voice.websocket,
 });
 
 console.log(`Kami server on http://localhost:${server.port}`);
@@ -66,6 +78,9 @@ console.log(
 void eye.describe().then((line) => console.log(`  ${line}`));
 console.log(`  beautifier: ${config.beautifyUrl ?? "none attached"}`);
 console.log(`  controllers: ${controllers.description}`);
+console.log(
+  `  voice: ${config.voice === null ? "off (set DEEPGRAM_API_KEY)" : `${config.voice.listenModel} in, ${config.voice.speakModel} out`}`,
+);
 console.log(`  model compile: ${config.llm === null ? "off" : config.llm.model}`);
 console.log(
   `  handwriting: ${config.transcribe === null ? "off" : `${config.transcribe.model} (checking vision)`}`,

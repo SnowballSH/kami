@@ -27,6 +27,20 @@ For scale: the k-NN baseline it replaces reaches 65.1 % / 82.9 % on finished dra
 categories (`prefix-knn.md`); this model is 16 points better at top-1 over **eight times** the vocabulary.
 The two are not measured on the same set, so the comparison in Figure 2 is indicative only.
 
+### Like for like with the k-NN's 42 categories
+
+The same model with its answer restricted to the 42 categories the k-NN knows, on the test drawings of
+those categories (`figures/src/like_for_like.py`, run on the box). The k-NN column is from
+`prefix-knn.md`; its held-out drawings are different ones from the same dataset, its index holds 300
+drawings per category against the model's 8,000, and its "ink shown" points are single values where the
+model's are ranges — so read the gap, not the decimals.
+
+| Ink shown | Kami's Eye, top-1 / top-3 | n | Prefix k-NN, top-1 / top-3 |
+|---|---|---|---|
+| finished | **94.0 % / 99.3 %** | 8,430 | 65.1 % / 82.9 % |
+| 50–70 % (k-NN: 60 %) | 84.0 % / 97.1 % | 2,466 | 47.3 % / 69.0 % |
+| 30–50 % (k-NN: 40 %) | 67.9 % / 90.2 % | 2,402 | 32.7 % / 57.9 % |
+
 ## Figures
 
 **Figure 1 — Training progress** (`fig1_training`). (a) Training loss per epoch; (b) validation top-1 and
@@ -58,10 +72,12 @@ easiest. The hard ones are mostly pairs people draw alike.
 
 **Figure 5 — Kami tidies a drawing without taking it over** (`fig5_morph_contact_sheet`). Real held-out
 Quick, Draw! sketches, shaken to imitate an unsteady hand, finished and cut to their first half. Grey: the
-ink sent; black: the same strokes after the morph (every point moves at most 6 % of the drawing's
-diagonal; median largest move 4–5 %); blue: parts added, only when the exemplar fits tightly. Over 96
-finished and 96 half-drawn sketches of eight categories: something was added to 4 % of finished and 21 %
-of half-drawn ones; 39 ms median, 84 ms p95 per drawing on the box's CPU.
+ink sent; black: the same strokes after the morph; blue: parts added, only when the exemplar fits tightly.
+The morph is as firm as Kami is sure: on finished drawings (median confidence 0.85) the median boldness is
+0.81 and the largest move of any point is 6.7 % of the drawing's diagonal (never over 10 %); on half-drawn
+ones (median confidence 0.40) the median boldness is 0.02 and the largest move 4.8 %. Something was added
+to 4 % of finished and 21 % of half-drawn sketches. 46 ms median, 104 ms p95 per drawing on the box's CPU,
+measured while a training run had the GPU and several cores.
 
 ![Figure 5](figures/fig5_morph_contact_sheet.png)
 

@@ -3,11 +3,13 @@ import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
 import { boundsOf, poseToWorld, rectsOverlap, type Vec } from "../core/geometry";
+import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
 import { EMBODIED_MODE } from "../modes";
 import type { GameMode } from "../modes/types";
-import type { BoardSnapshot, HandwritingReader } from "../persistence/types";
+import { HttpBoardStore } from "../persistence/httpBoardStore";
+import type { BoardSnapshot, BoardStore, HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
 import type { Completion, Exemplar, LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, resolvePhysics } from "../rules";
@@ -32,6 +34,7 @@ import {
   FakeHud,
   FakeLawsPanel,
   FakeRenderer,
+  FakeVoice,
   MemoryBoardStore,
 } from "./testing/fakes";
 
@@ -55,7 +58,7 @@ const blob = (center: Vec, rx: number, ry: number): Vec[] =>
 type Thoughts = Readonly<Record<string, CompiledRule | Promise<CompiledRule | null>>>;
 
 interface PlayerOptions {
-  readonly store?: MemoryBoardStore;
+  readonly store?: BoardStore;
   readonly mode?: GameMode;
   readonly thoughts?: Thoughts;
   readonly eyes?: LiveRecognizer;
@@ -143,10 +146,11 @@ class ScriptedReader implements HandwritingReader {
 class Player {
   readonly sim = createSimulation();
   readonly renderer = new FakeRenderer();
-  readonly store: MemoryBoardStore;
+  readonly store: BoardStore;
   readonly game: Game;
   private hudRef: FakeHud | null = null;
   private lawsRef: FakeLawsPanel | null = null;
+  private voiceRef: FakeVoice | null = null;
   private nowMs = 0;
 
   readonly pondered: string[] = [];
@@ -185,6 +189,10 @@ class Player {
           this.lawsRef = new FakeLawsPanel(handlers);
           return this.lawsRef;
         },
+        createVoice: (handlers) => {
+          this.voiceRef = new FakeVoice(handlers);
+          return this.voiceRef;
+        },
         findDrawingAt,
       },
       boardId,
@@ -194,6 +202,24 @@ class Player {
   get hud(): FakeHud {
     if (this.hudRef === null) throw new Error("HUD was never created");
     return this.hudRef;
+  }
+
+  get voice(): FakeVoice {
+    if (this.voiceRef === null) throw new Error("Voice was never created");
+    return this.voiceRef;
+  }
+
+  async speak(text: string): Promise<void> {
+    this.game.onTalkStarted();
+    this.voice.heard(text);
+    await this.wait(100);
+  }
+
+  /** Said with the microphone standing by, after his name woke him. */
+  async wake(text: string): Promise<void> {
+    this.game.onWakeToggled(true);
+    this.voice.woke(text);
+    await this.wait(100);
   }
 
   get laws(): FakeLawsPanel {
@@ -279,6 +305,76 @@ class Player {
   }
 }
 
+describe("Game during persistence outages", () => {
+  it("keeps drawing and board navigation usable after load/list failure and recovers unsaved ink", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const saved = new MemoryBoardStore();
+    let offline = true;
+    const store = new HttpBoardStore(async (path, init) => {
+      if (offline) throw new TypeError("offline");
+      if (init?.method === "PUT") return Response.json({ ok: true });
+      return Response.json(
+        path === "/api/boards"
+          ? { boards: [{ id: "remembered", drawings: 0, rules: 0 }] }
+          : await saved.load("wonderland"),
+      );
+    });
+    try {
+      const player = new Player("wonderland", { store });
+      await player.arrive();
+      expect(player.hud.persistence?.errors.map(({ operation }) => operation)).toEqual([
+        "load",
+        "list",
+      ]);
+      await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+      await store.whenIdle();
+      const local = await store.load("wonderland");
+      expect(local.drawings).toHaveLength(1);
+      player.game.onOpenBoard("elsewhere");
+      await player.wait(100);
+      expect(player.hud.boards.map(({ id }) => id)).toContain("wonderland");
+      player.game.onOpenBoard("wonderland");
+      await player.wait(100);
+      expect(player.renderer.lastFrame?.world.drawings).toHaveLength(1);
+      expect(player.hud.persistence?.unsaved).toBeGreaterThan(0);
+
+      for (const entity of local.drawings) saved.saveDrawing("wonderland", entity);
+      for (const entity of local.notes) saved.saveNote("wonderland", entity);
+      offline = false;
+      await player.game.onRetryPersistence();
+      await player.wait(100);
+      expect(player.renderer.lastFrame?.world.drawings).toHaveLength(1);
+      expect(player.hud.persistence).toEqual({
+        loading: false,
+        saving: false,
+        unsaved: 0,
+        errors: [],
+      });
+      expect(player.hud.boards.map(({ id }) => id)).toContain("remembered");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("does not reopen a board after retry completes on a different board", async () => {
+    class RetryingStore extends MemoryBoardStore {
+      readonly retrying = Promise.withResolvers<void>();
+      override retry(): Promise<void> {
+        return this.retrying.promise;
+      }
+    }
+    const store = new RetryingStore();
+    const player = new Player("wonderland", { store });
+    await player.arrive();
+    const retry = player.game.onRetryPersistence();
+    player.game.onOpenBoard("elsewhere");
+    await player.wait(100);
+    store.retrying.resolve();
+    await retry;
+    expect(player.renderer.board?.id).toBe("elsewhere");
+  });
+});
+
 describe("Game on the Wonderland board", () => {
   let player: Player;
 
@@ -347,6 +443,52 @@ describe("Game on the Wonderland board", () => {
     expect(stored?.ruling?.name).toBe(first.script.text.replace(/\?$/, ""));
   });
 
+  it("takes a spoken law as if it had been written, and says his answer aloud", async () => {
+    await player.speak("set g equal to the moon's gravity");
+
+    expect(player.written).toContain("set g equal to the moon's gravity");
+    expect((await player.store.load("wonderland")).rules[0]?.effect).toMatchObject({
+      governs: "gravity",
+    });
+    expect(player.written.some((text) => text.startsWith("kami: gravity"))).toBe(true);
+    expect(player.voice.said.some((line) => line.startsWith("gravity"))).toBe(true);
+    expect(player.voice.said.some((line) => line.startsWith("kami:"))).toBe(false);
+    expect(player.hud.listening).toBe(false);
+  });
+
+  it("takes a law woken by his name, with nothing held down", async () => {
+    await player.wake("set g equal to the moon's gravity");
+
+    expect(player.hud.waking).toBe(true);
+    expect(player.written).toContain("set g equal to the moon's gravity");
+    expect((await player.store.load("wonderland")).rules[0]?.effect).toMatchObject({
+      governs: "gravity",
+    });
+  });
+
+  it("cancels listening on navigation and rejects speech while the board is loading", async () => {
+    player.game.onWakeToggled(true);
+    player.game.onTalkStarted();
+    const loading = Promise.withResolvers<BoardSnapshot>();
+    const load = vi.spyOn(player.store, "load").mockReturnValueOnce(loading.promise);
+    player.game.onOpenBoard("another");
+    expect(player.voice.listening).toBe(false);
+    expect(player.voice.waking).toBe(false);
+    player.game.onTalkStarted();
+    player.game.onWakeToggled(true);
+    expect(player.voice.listening).toBe(false);
+    expect(player.voice.waking).toBe(false);
+    player.voice.heard("gravity off");
+    await player.wait(100);
+    expect(player.written).not.toContain("gravity off");
+    loading.resolve({ drawings: [], notes: [], rules: [] });
+    await player.wait(100);
+    load.mockRestore();
+    await player.speak("gravity off");
+    expect(player.written).toContain("gravity off");
+    expect((await player.store.load("another")).rules).toHaveLength(1);
+  });
+
   it("turns a written law into physics, remembers it, and repeals it when erased", async () => {
     await player.write("set g equal to the moon's gravity", { x: 200, y: 200 });
     const remembered = (await player.store.load("wonderland")).rules;
@@ -357,6 +499,14 @@ describe("Game on the Wonderland board", () => {
     await player.erase({ x: 210, y: 215 });
     expect((await player.store.load("wonderland")).rules).toHaveLength(0);
     expect(player.written.some((text) => text.startsWith("kami: gravity"))).toBe(false);
+  });
+
+  it("rejects oversized notes before drawing or persisting them", async () => {
+    const tooLong = "x".repeat(INPUT_LIMITS.text + 1);
+    await player.write(tooLong, { x: 200, y: 200 });
+    expect(player.written.some((text) => text.includes(tooLong))).toBe(false);
+    expect(player.written.some((text) => text.includes(TEXT_LIMIT_MESSAGE))).toBe(true);
+    expect((await player.store.load("wonderland")).notes).toHaveLength(0);
   });
 
   it("lists the standing laws in order, and a tap on one repeals it and erases its note", async () => {

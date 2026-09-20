@@ -127,7 +127,8 @@ describe("board read barriers", () => {
     const read = store.load("demo");
     store.saveDrawing("demo", stored);
     await vi.advanceTimersByTimeAsync(PERSISTENCE_TIMEOUT_MS);
-    expect(await read).toEqual(empty);
+    expect(await read).toEqual({ ...empty, drawings: [stored] });
+    expect(store.state("demo").errors).toContainEqual({ operation: "load", reason: "timeout" });
     await store.whenIdle();
     expect(calls).toEqual(["GET", "PUT"]);
     expect(vi.getTimerCount()).toBe(0);

@@ -5,7 +5,7 @@ import { awakening, inkTint, isSettled, shiverOffset } from "./awakening";
 import { posedInView } from "./culling";
 import { INK_PEN, strokesPath } from "./inkPath";
 import { MARKER, mapNatures, NATURE_TINTS, rgbCss } from "./palette";
-import type { HeldInkView, InkView } from "./types";
+import type { Chew, HeldInkView, InkView } from "./types";
 
 interface SettledInk {
   readonly strokes: Drawing["strokes"];
@@ -26,6 +26,19 @@ const REJECTED_CSS = rgbCss(MARKER.red);
 const SOLID_EXTRA_WIDTH = 4;
 const CULL_MARGIN = INK_THICKNESS * 2;
 
+/** The strokes still standing while the Sumikui chews: eaten from the last stroke drawn backwards. */
+const uneaten = (strokes: readonly Stroke[], bite: number): Stroke[] => {
+  const pointsLeft = strokes.reduce((sum, stroke) => sum + stroke.length, 0) * (1 - bite);
+  const kept: Stroke[] = [];
+  let budget = pointsLeft;
+  for (const stroke of strokes) {
+    if (budget <= 0) break;
+    kept.push(budget >= stroke.length ? stroke : stroke.slice(0, Math.max(2, Math.floor(budget))));
+    budget -= stroke.length;
+  }
+  return kept;
+};
+
 export class InkPainter {
   private readonly settled = new Map<DrawingId, SettledInk>();
   private readonly held = new WeakMap<readonly Stroke[], Path2D>();
@@ -41,8 +54,9 @@ export class InkPainter {
     inks: readonly InkView[],
     view: Rect,
     nowMs: number,
+    chew: Chew | null = null,
   ): void {
-    for (const ink of inks) this.paintInk(ctx, ink, view, nowMs);
+    for (const ink of inks) this.paintInk(ctx, ink, view, nowMs, chew);
     if (this.settled.size > inks.length) this.prune(inks);
   }
 
@@ -78,9 +92,19 @@ export class InkPainter {
     return path;
   }
 
-  private paintInk(ctx: CanvasRenderingContext2D, ink: InkView, view: Rect, nowMs: number): void {
-    const { path, bounds } = this.settledInk(ink.drawing);
-    if (!posedInView(bounds, ink.pose, view, CULL_MARGIN)) return;
+  private paintInk(
+    ctx: CanvasRenderingContext2D,
+    ink: InkView,
+    view: Rect,
+    nowMs: number,
+    chew: Chew | null,
+  ): void {
+    const settled = this.settledInk(ink.drawing);
+    if (!posedInView(settled.bounds, ink.pose, view, CULL_MARGIN)) return;
+    const path =
+      chew?.drawingId === ink.drawing.id
+        ? strokesPath(uneaten(ink.drawing.strokes, chew.bite), INK_PEN)
+        : settled.path;
     const progress = awakening(nowMs, ink.awakenedAtMs);
     const awake = ink.awakenedAtMs !== null;
     const { origin, position, angle } = ink.pose;

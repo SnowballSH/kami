@@ -19,9 +19,15 @@ Points = NDArray[np.float64]
 class MorphSettings:
     """Distances are shares of the player's bounding-box diagonal, so the morph is scale-free."""
 
-    strength: float = 0.5
+    gentle_strength: float = 0.5
+    bold_strength: float = 0.9
+    gentle_shift: float = 0.06
+    bold_shift: float = 0.10
+    sure_from: float = 0.3
+    sure_at: float = 0.9
+    loose_from: float = 0.03
+    loose_at: float = 0.08
     reach: float = 0.12
-    max_shift: float = 0.06
     smoothing_window: int = 9
     cover_radius: float = 0.10
     min_added_length: float = 0.15
@@ -41,6 +47,7 @@ class Morph:
     tidied: list[Points]
     added: list[Points]
     misfit: float
+    boldness: float
 
 
 DEFAULT_SETTINGS = MorphSettings()
@@ -154,14 +161,32 @@ def _smoothed(shifts: Points, window: int) -> Points:
     return np.column_stack([np.convolve(padded[:, axis], kernel, mode="valid") for axis in (0, 1)])
 
 
-def _tidy(stroke: Points, target: Points, diagonal: float, settings: MorphSettings) -> Points:
+def _smoothstep(value: float, low: float, high: float) -> float:
+    share = min(1.0, max(0.0, (value - low) / (high - low)))
+    return share * share * (3.0 - 2.0 * share)
+
+
+def boldness_of(certainty: float, misfit: float, settings: MorphSettings) -> float:
+    """0 (gentle) to 1 (bold): bold only when Kami is sure what the drawing is AND the exemplar
+    lies closely on the player's ink; doubt about either keeps his hand light."""
+    sure = _smoothstep(certainty, settings.sure_from, settings.sure_at)
+    close = 1.0 - _smoothstep(misfit, settings.loose_from, settings.loose_at)
+    return sure * close
+
+
+def _tidy(
+    stroke: Points, target: Points, diagonal: float, boldness: float, settings: MorphSettings
+) -> Points:
+    strength = settings.gentle_strength + boldness * (
+        settings.bold_strength - settings.gentle_strength
+    )
+    max_shift = settings.gentle_shift + boldness * (settings.bold_shift - settings.gentle_shift)
     nearest, distance = _nearest(stroke, target)
     shifts = target[nearest] - stroke
     shifts[distance > settings.reach * diagonal] = 0.0
-    shifts = _smoothed(shifts, settings.smoothing_window) * settings.strength
+    shifts = _smoothed(shifts, settings.smoothing_window) * strength
     lengths = np.linalg.norm(shifts, axis=1, keepdims=True)
-    limit = settings.max_shift * diagonal
-    shifts *= np.minimum(1.0, limit / np.maximum(lengths, 1e-12))
+    shifts *= np.minimum(1.0, max_shift * diagonal / np.maximum(lengths, 1e-12))
     return stroke + shifts
 
 
@@ -219,7 +244,10 @@ def _worth_adding(
 
 
 def morph(
-    player: list[Points], exemplar: list[Points], settings: MorphSettings = DEFAULT_SETTINGS
+    player: list[Points],
+    exemplar: list[Points],
+    certainty: float = 1.0,
+    settings: MorphSettings = DEFAULT_SETTINGS,
 ) -> Morph | None:
     """None when either drawing has no extent to work with. `tidied` always has the player's shape:
     the same strokes in the same order, each with the same number of points."""
@@ -235,13 +263,17 @@ def morph(
     target = np.concatenate([resample(stroke, spacing) for stroke in fitted])
     player_cloud = np.concatenate([resample(stroke, spacing) for stroke in inked])
     misfit = float(_nearest(player_cloud, target)[1].mean() / diagonal)
+    boldness = boldness_of(certainty, misfit, settings)
     return Morph(
         tidied=[
-            _tidy(stroke, target, diagonal, settings) if len(stroke) > 0 else stroke.copy()
+            _tidy(stroke, target, diagonal, boldness, settings)
+            if len(stroke) > 0
+            else stroke.copy()
             for stroke in player
         ],
         added=_worth_adding(
             _missing(fitted, player_cloud, diagonal, settings), inked, misfit, settings
         ),
         misfit=misfit,
+        boldness=boldness,
     )

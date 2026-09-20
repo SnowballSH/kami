@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import type { WalkIntent } from "../sim/types";
 import { DomHud } from "./hud";
 import type { BoardListing, HudHandlers, Tool } from "./types";
@@ -19,6 +20,10 @@ const createHandlers = () =>
     onOpenBoard: vi.fn<(boardId: string) => void>(),
     onNewBoard: vi.fn(),
     onClearBoard: vi.fn(),
+    onRetryPersistence: vi.fn(),
+    onTalkStarted: vi.fn(),
+    onTalkEnded: vi.fn(),
+    onWakeToggled: vi.fn<(enabled: boolean) => void>(),
   }) satisfies HudHandlers;
 
 const find = <T extends Element>(root: Element, selector: string): T => {
@@ -130,6 +135,50 @@ describe("DomHud", () => {
       window.dispatchEvent(new Event("blur"));
 
       expect(handlers.onToolChanged.mock.calls).toEqual([["pan"], ["draw"]]);
+    });
+  });
+
+  describe("persistence feedback", () => {
+    it("announces unsaved work and accepts one keyboard or pen retry without changing tools", () => {
+      const { root, hud, handlers, pressedTools } = setup();
+      const state = {
+        loading: false,
+        saving: false,
+        unsaved: 1,
+        errors: [{ operation: "save", reason: "network" }],
+      } satisfies Parameters<DomHud["setPersistence"]>[0];
+      hud.setPersistence(state);
+      const status = find(root, ".kami-persistence [role='status']");
+      const retry = find<HTMLButtonElement>(root, "[aria-label='Retry board persistence']");
+      expect(status.getAttribute("aria-live")).toBe("polite");
+      expect(status.textContent).toContain("keep this tab open");
+      expect(retry.hidden).toBe(false);
+      retry.click();
+      tap(retry);
+      expect(handlers.onRetryPersistence).toHaveBeenCalledTimes(2);
+      expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-draw")]);
+      hud.setPersistence({ ...state, saving: true });
+      expect(status.textContent).toBe("Saving…");
+      expect(retry.disabled).toBe(true);
+      tap(retry);
+      expect(handlers.onRetryPersistence).toHaveBeenCalledTimes(2);
+      hud.setPersistence({ loading: false, saving: false, unsaved: 0, errors: [] });
+      expect(status.textContent).toBe("Saved");
+      expect(retry.hidden).toBe(true);
+    });
+
+    it("distinguishes a load failure from an empty saved board and from loading", () => {
+      const { root, hud } = setup();
+      hud.setPersistence({
+        loading: false,
+        saving: false,
+        unsaved: 0,
+        errors: [{ operation: "load", reason: "invalid-response" }],
+      });
+      const status = find(root, ".kami-persistence [role='status']");
+      expect(status.textContent).toBe("Saved board unavailable.");
+      hud.setPersistence({ loading: true, saving: false, unsaved: 0, errors: [] });
+      expect(status.textContent).toBe("Loading board…");
     });
   });
 
@@ -263,6 +312,24 @@ describe("DomHud", () => {
       await expect(answer).resolves.toBe("a ladder");
     });
 
+    it("explains the text budget before committing and keeps excess text editable", async () => {
+      const { hud, prompt, root } = setup();
+      const answer = hud.promptText({ x: 0, y: 0 });
+      const feedback = find<HTMLElement>(root, ".kami-prompt-limit");
+      expect(prompt.maxLength).toBe(INPUT_LIMITS.text);
+      expect(feedback.hidden).toBe(false);
+      expect(feedback.textContent).toContain(String(INPUT_LIMITS.text));
+      prompt.value = "x".repeat(INPUT_LIMITS.text + 1);
+      prompt.dispatchEvent(key("keydown", { key: "Enter" }));
+      expect(prompt.hidden).toBe(false);
+      expect(prompt.getAttribute("aria-invalid")).toBe("true");
+      expect(feedback.textContent).toBe(TEXT_LIMIT_MESSAGE);
+      prompt.value = "x".repeat(INPUT_LIMITS.text);
+      prompt.dispatchEvent(key("keydown", { key: "Enter" }));
+      await expect(answer).resolves.toHaveLength(INPUT_LIMITS.text);
+      expect(feedback.hidden).toBe(true);
+    });
+
     it("abandons the first prompt when a second opens", async () => {
       const { hud, prompt } = setup();
 
@@ -318,6 +385,62 @@ describe("DomHud", () => {
       expect(toggle.getAttribute("aria-pressed")).toBe("false");
       toggle.click();
       expect(handlers.onAutopilotToggled).toHaveBeenLastCalledWith(true);
+    });
+  });
+
+  describe("Hold to talk", () => {
+    it("talks while the CAT button is held, and stops when it is let go", () => {
+      const { root, hud, handlers } = setup();
+      const button = find<HTMLButtonElement>(root, ".kami-talk");
+
+      button.dispatchEvent(pointer("pointerdown", 3, { pointerType: "touch", isPrimary: true }));
+      expect(handlers.onTalkStarted).toHaveBeenCalledOnce();
+      expect(handlers.onTalkEnded).not.toHaveBeenCalled();
+
+      hud.setListening(true);
+      expect(button.getAttribute("aria-pressed")).toBe("true");
+
+      button.dispatchEvent(pointer("pointerup", 3, { pointerType: "touch", isPrimary: true }));
+      expect(handlers.onTalkEnded).toHaveBeenCalledOnce();
+      hud.setListening(false);
+      expect(button.getAttribute("aria-pressed")).toBe("false");
+    });
+
+    it("talks while Space is held, once, and never inside a text field", () => {
+      const { handlers } = setup();
+      window.dispatchEvent(key("keydown", { code: "Space" }));
+      window.dispatchEvent(key("keydown", { code: "Space" }));
+      expect(handlers.onTalkStarted).toHaveBeenCalledOnce();
+      window.dispatchEvent(key("keyup", { code: "Space" }));
+      expect(handlers.onTalkEnded).toHaveBeenCalledOnce();
+
+      const field = document.createElement("input");
+      document.body.append(field);
+      field.dispatchEvent(key("keydown", { code: "Space" }));
+      expect(handlers.onTalkStarted).toHaveBeenCalledOnce();
+      field.remove();
+    });
+
+    it("stops listening when the page loses focus mid-press", () => {
+      const { handlers } = setup();
+      window.dispatchEvent(key("keydown", { code: "Space" }));
+      window.dispatchEvent(new FocusEvent("blur"));
+      expect(handlers.onTalkEnded).toHaveBeenCalledOnce();
+    });
+
+    it("turns waiting for the wake word on and off from the ear", () => {
+      const { root, handlers, hud } = setup();
+      const ear = find<HTMLButtonElement>(root, ".kami-wake");
+
+      tap(ear);
+      expect(handlers.onWakeToggled.mock.calls).toEqual([[true]]);
+      hud.setWaking(true);
+      expect(ear.getAttribute("aria-pressed")).toBe("true");
+
+      tap(ear);
+      expect(handlers.onWakeToggled.mock.calls).toEqual([[true], [false]]);
+      hud.setWaking(false);
+      expect(ear.getAttribute("aria-pressed")).toBe("false");
     });
   });
 

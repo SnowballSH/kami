@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { LlmConfig } from "./compile/llmCompiler";
 import { AUTO_SERIAL_DEVICE, type ControllerTransportConfig } from "./controllers/types";
 import type { DatabaseOptions } from "./db/connect";
+import type { VoiceConfig } from "./voice/types";
 
 const DEFAULT_PORT = 8787;
 const DEFAULT_CONTROLLER_UDP_PORT = 8788;
@@ -23,6 +24,8 @@ export interface ServerConfig {
   readonly recognizerUrl: string | null;
   /** How physical controllers reach the hub (docs/controllers.md); a `null` transport is switched off. */
   readonly controllers: ControllerTransportConfig;
+  /** Deepgram, for hearing the player and giving Kami a voice (docs/voice.md); null keeps him silent. */
+  readonly voice: VoiceConfig | null;
 }
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -54,6 +57,19 @@ const llmFrom = (env: Env): LlmConfig | null => {
   return apiKey === undefined ? { url, model } : { url, model, apiKey };
 };
 
+const DEFAULT_LISTEN_MODEL = "nova-3";
+const DEFAULT_SPEAK_MODEL = "aura-2-draco-en";
+
+const voiceFrom = (env: Env): VoiceConfig | null => {
+  const apiKey = nonEmpty(env.DEEPGRAM_API_KEY);
+  if (apiKey === undefined) return null;
+  return {
+    apiKey,
+    listenModel: nonEmpty(env.KAMI_VOICE_LISTEN_MODEL) ?? DEFAULT_LISTEN_MODEL,
+    speakModel: nonEmpty(env.KAMI_VOICE_SPEAK_MODEL) ?? DEFAULT_SPEAK_MODEL,
+  };
+};
+
 const webDirectoryFrom = (env: Env): string | null => {
   const directory = nonEmpty(env.KAMI_WEB_DIR) ?? BUILT_WEB_DIRECTORY;
   return existsSync(directory) ? directory : null;
@@ -71,4 +87,5 @@ export const readConfig = (env: Env = process.env): ServerConfig => ({
   beautifyUrl: nonEmpty(env.KAMI_BEAUTIFY_URL) ?? null,
   recognizerUrl: nonEmpty(env.KAMI_RECOGNIZER_URL) ?? null,
   controllers: controllersFrom(env),
+  voice: voiceFrom(env),
 });

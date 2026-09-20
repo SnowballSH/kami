@@ -11,7 +11,13 @@ import { pullToward } from "./attraction";
 import { BoardProps } from "./boardProps";
 import { exactBounds } from "./bodyBounds";
 import { Checkpoints } from "./checkpoints";
-import { GRAVITY_SCALE, GROW_REFUSAL_COOLDOWN_MS, MIN_TIME_SCALE } from "./constants";
+import {
+  GRAVITY_SCALE,
+  GROW_REFUSAL_COOLDOWN_MS,
+  MIN_TIME_SCALE,
+  SUMIKUI_BITE_DEPTH,
+  SUMIKUI_BITE_WIDTH,
+} from "./constants";
 import { type Contact, contactsAt, contactsWith, toContact } from "./contacts";
 import { EMPTY_BOARD } from "./emptyBoard";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "./flight";
@@ -34,6 +40,14 @@ import { weather } from "./weather";
 import { accelerationOf, push } from "./worldPhysics";
 
 const IDLE: WalkIntent = { x: 0, y: 0 };
+
+/** The Sumikui's mouth closing on the paper under a pair of feet. */
+const mouthAt = (feet: Vec): Rect => ({
+  x: feet.x - SUMIKUI_BITE_WIDTH / 2,
+  y: feet.y - SUMIKUI_BITE_DEPTH / 2,
+  width: SUMIKUI_BITE_WIDTH,
+  height: SUMIKUI_BITE_DEPTH,
+});
 const HEADROOM_INSET = 1;
 
 interface BoardWorld {
@@ -51,6 +65,12 @@ interface BoardWorld {
   goalReached: boolean;
   aliceLost: boolean;
 }
+
+/** Where Kami sets Alice down: the Sumikui will not eat there. */
+const hallowedOf = (board: BoardDefinition): readonly Vec[] => [
+  board.spawn,
+  ...board.zones.map((zone) => zone.checkpoint),
+];
 
 const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld => {
   const engine = Matter.Engine.create();
@@ -72,14 +92,14 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
     board,
     engine,
     props,
-    inks: new InkLayer(engine.world, props.anchorRects, physics),
+    inks: new InkLayer(engine.world, props, physics),
     alice,
     twins,
     checkpoints: new Checkpoints(board),
     activePairs,
     growthRefusedAt: new Map(),
     touchedAt: new Map(),
-    sumikui: physics.inkEater > 0 ? new Sumikui(alice) : null,
+    sumikui: physics.inkEater > 0 ? new Sumikui(alice, hallowedOf(board)) : null,
     goalReached: false,
     aliceLost: false,
   };
@@ -109,8 +129,9 @@ export class MatterSimulation implements Simulation {
   }
 
   private matchSumikui(inkEater: number): void {
-    const { sumikui, alice } = this.world;
-    if (inkEater > 0 && sumikui === null) this.world.sumikui = new Sumikui(alice);
+    const { sumikui, alice, board } = this.world;
+    if (inkEater > 0 && sumikui === null)
+      this.world.sumikui = new Sumikui(alice, hallowedOf(board));
     if (inkEater <= 0) this.world.sumikui = null;
   }
 
@@ -149,6 +170,7 @@ export class MatterSimulation implements Simulation {
       twins: twins.snapshots(),
       sumikui: sumikui?.snapshot() ?? null,
       drawings: inks.poses,
+      bites: props.bites,
       keyTaken: props.keyTaken,
       doorOpen: props.doorOpen,
     };
@@ -322,20 +344,35 @@ export class MatterSimulation implements Simulation {
   }
 
   private feedSumikui(elapsedMs: number): void {
-    const { sumikui, alice, twins, inks, touchedAt, engine } = this.world;
+    const { sumikui, alice, twins, inks, touchedAt, engine, props } = this.world;
+    const now = engine.timing.timestamp;
+    if (props.heal(now) > 0) this.events.push({ type: "paper-healed" });
     if (sumikui === null) return;
     const wasAwake = sumikui.isAwake;
-    const eaten = sumikui.tick(
-      elapsedMs,
-      engine.timing.timestamp,
-      [alice, ...twins.all],
-      inks.all,
-      touchedAt,
-    );
+    const meal = sumikui.tick(elapsedMs, {
+      now,
+      alices: [alice, ...twins.all],
+      inks: inks.all,
+      memory: touchedAt,
+      paper: props.paper,
+    });
     if (!wasAwake && sumikui.isAwake) this.events.push({ type: "sumikui-woke" });
-    if (eaten === null) return;
-    this.forgetInk(eaten.id);
-    this.events.push({ type: "devoured", drawingId: eaten.id, nature: eaten.nature });
+    if (meal === null) return;
+    switch (meal.kind) {
+      case "ink":
+        this.forgetInk(meal.ink.id);
+        this.events.push({ type: "devoured", drawingId: meal.ink.id, nature: meal.ink.nature });
+        return;
+      case "paper":
+        for (const hole of props.bite(mouthAt(meal.alice.feet()), now)) {
+          this.events.push({ type: "paper-bitten", hole });
+        }
+        return;
+      case "alice":
+        this.world.aliceLost = true;
+        this.events.push({ type: "alice-devoured" });
+        return;
+    }
   }
 
   private resolveInkTouches(natureWorld: NatureWorld): void {

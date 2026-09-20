@@ -1,30 +1,61 @@
 # Kami — Software Demo Architecture
 
-**Direction (19 Sept, supersedes the page-by-page build):** Kami is the original *Paper* idea (`archive/ideation-v1.md`) made playable with the Alice demo from `spec.md`. One endless whiteboard. You sketch; ink is solid. You write a note beside a sketch and it *is* that thing. You write a note anywhere else — "g = the moon's gravity" — and the world obeys. Kami answers by writing on the board in his own hand. Everything is remembered in MongoDB. The Alice in Wonderland puzzles are one pre-sketched board; a new game is a blank board plus your sketches and notes.
+This is the current integration guide, checked against main **`1b2ceed` (20 September 2026)**.
+[spec.md](spec.md) is authoritative for product requirements. This guide describes the code;
+differences from the spec are tracked [below](#product-scope-and-verification), not approved by
+changing a description. [Archived engineering notes](archive/engineering-notes-v3.md) and the
+other archive plans are historical proposals.
 
-Carried over from the original design, unchanged: **compile once, run forever** — text becomes a small deterministic rule; no model is ever in the frame loop. **One funnel** — a name, a rule and a remark all enter the same way and position decides the target. **Show the gloss** — Kami writes back what he understood.
+The demo is one endless whiteboard. You sketch, name drawings and write laws. Kami answers in
+handwriting. The Wonderland puzzles are one pre-sketched board; a new board starts blank.
+Drawings, persistent notes and laws are saved through MongoDB; transient guesses, live poses and
+unacknowledged edits are not durable.
+
+**Compile once, run forever:** text becomes a deterministic rule; no model is called from the
+simulation step. Typed, handwritten and spoken text share the same
+[ordered funnel](#game). Known laws take priority over position; a known nearby name takes priority
+over model fallback. Kami writes the gloss of what was understood.
+
+## Contract map and ownership
+
+| Contract | Source and detail |
+|---|---|
+| Browser wiring and text dispatch | [game/index.ts](../src/game/index.ts), [game/game.ts](../src/game/game.ts) |
+| HTTP payloads, configuration and failure responses | [server API contract](../server/README.md#api-contract-what-the-client-may-rely-on) |
+| Rule types, persistence domains and model clamps | [rules/types.ts](../src/rules/types.ts), [effectDomains.ts](../src/rules/effectDomains.ts), [persistence/schemas.ts](../src/persistence/schemas.ts), [effectRanges.ts](../server/compile/effectRanges.ts); [laws](laws.md) |
+| Sketch input budgets and browser model answers | [inputLimits.ts](../src/core/inputLimits.ts), [recognition/types.ts](../src/recognition/types.ts) |
+| Training/serving tensor, artifact and completion contract | [ml/CONTRACT.md](../ml/CONTRACT.md) |
+| Board response validation and ordering | [validation](persistence-validation.md), [ordering](persistence-ordering.md) |
+| Physical controller protocol and speech | [controllers](controllers.md), [voice](voice.md) |
+
+Follow [AGENTS.md](../AGENTS.md): the client owns gameplay under `src/`; the server owns
+`server/`, deployment, ML and the two HTTP-client areas `src/persistence` and `src/recognition`.
+Coordinate additive changes across this seam. `RuleEffect` changes require the shared persistence
+schema (re-exported by `server/schemas.ts`), effect domains and model clamp to stay compatible;
+coordinate the model prompt and remote decoder as well. Typechecking catches schema/type drift;
+it does not prove model output quality. Specialist docs above expand this guide.
 
 ## Look
 
-A clean whiteboard, not a book page. White board, black marker, no pictures, no textures, no gradients, no panels with drop shadows. Colour is what a whiteboard tray holds and is used sparingly: **black** the player, **blue** Kami's handwriting, **green** understood, **red** confused / hazards / no-ink, plus one marker tint per nature once a drawing wakes. Pre-sketched board geometry is black roughjs marker line with light hatching. Every word on the board — the player's notes, Kami's replies, the "kami 紙" wordmark near each board's spawn — is pen strokes from the handwriting module, never a DOM bubble. The only DOM is a small floating toolbar, zoom buttons and the board menu, styled like Excalidraw's: thin, light, quiet.
+A clean whiteboard, not a book page. White board, black marker, no pictures, no textures, no gradients, no panels with drop shadows. Colour is what a whiteboard tray holds and is used sparingly: **black** the player, **blue** Kami's handwriting, **green** understood, **red** confused / hazards / no-ink, plus one marker tint per nature once a drawing wakes. Pre-sketched board geometry is black roughjs marker line with light hatching. Every word on the board — the player's notes, Kami's replies, the "kami 紙" wordmark near each board's spawn — is pen strokes from the handwriting module, never a DOM bubble. Controls and status use a light, quiet DOM overlay.
 
 ## Shape
 
 ```
- pointers/wheel ─► ui/attachCanvasInput ─► game ─┬─ draw ─► ink/InkSession ─ commit ─► sim (solid NOW)
- autopilot.drive(scene) ─► sim.setWalkIntent ──►│              │ every pen-lift  ├─► recognition ─► cat.guess ─► Kami writes 3 tappable guesses
-                                                 │              └─► reading/PenReader ─► server /api/transcribe ─► words? ─► the funnel below (the ink lifts off)
- arrow keys (override) ─► ui/Hud ──────────────►│
- write tool ────► hud.promptText ─► text ────────┤
-                                                 ├─ rules.compile(text) ─► Rule ─► resolvePhysics ─► sim.setPhysics
-                                                 ├─ else "summon a rabbit" ─► server /api/exemplar ─► Kami inks it stroke by stroke ─► cat.name
-                                                 ├─ else near a drawing ─► cat.name ─► Ruling ─► sim.applyRuling
-                                                 └─ else ─► Kami shrugs, in ink
-                       every change ─► persistence/BoardStore ─► server ─► MongoDB
-                       every frame  ─► render (camera, board, inks, notes via handwriting.reveal, Alice)
+ pointer → InkSession → PenReader → words? → text funnel
+                         └ no words → sim + ledger + store → Cat.look → naming
+ typing / voice transcript ───────────────→ text funnel
+ text funnel: offline compile → summons → nearby non-ink naming → remote compile
+               └ law              └ Kami inks an exemplar   └ ruling     └ law / plain-ink name / shrug
+ keyboard / stick / controller SSE → WalkIntentMerger → sim
+ optional autopilot ──────────────────────────────────→ sim (when manual input is idle)
+ persistent entities → BoardStore → Bun API → MongoDB
+ each frame → render (camera, simulation, ink ledger, handwritten notes)
 ```
 
-`game/` is the only module that knows the others. Everything else depends on `core/` and on other modules' **`types.ts` only**. `server/` shares types with `src/` but nothing in `src/` imports `server/`.
+`game/` coordinates the modules. Shared geometry, validation and domain helpers also have runtime
+consumers across module boundaries; this is not a types-only dependency graph. `server/` imports
+browser-safe contracts from `src/`; the browser does not import server implementation.
 
 | Module | Owns | Entry points |
 |---|---|---|
@@ -38,13 +69,15 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
 | `handwriting/` | Text → timed pen strokes in a single-stroke font | `createHandwriting` |
 | `modes/` | `GameMode`: what the player is when a room opens, win/loss, which laws and natures the page takes; `EMBODIED_MODE` is today's play, `SPIRIT_MODE` a contract (`docs/modes.md`) | `createDirector`, `modeFor`, `allowsLaw` |
 | `notes/` | The `Note` type | — |
-| `recognition/` | Client for Quick, Draw! recognition | `createRecognizer` |
+| `recognition/` | HTTP recognition, structured sightings and validated completion | `createRecognizer` |
+| `controller/` | Server event stream → held directions, released on error | `createRemoteStick` |
 | `persistence/` | Client for the board store, the remote rule compiler and the handwriting reader | `createBoardStore`, `createRemoteRuleCompiler`, `createHandwritingReader` |
 | `reading/` | Pen strokes → words while the player is still writing: a read per pen-lift, newest strokes win | `createPenReader`, `couldBeWriting` |
 | `render/` | Canvas 2D: camera, board, ink, notes, Alice, props | `createRenderer` |
-| `ui/` | Toolbar, zoom, board menu, text prompt; pointers → pen/tap/pan/zoom | `createHud`, `attachCanvasInput` |
+| `ui/` | Toolbar, zoom, board menu, text prompt, hold-to-talk; pointers → pen/tap/pan/zoom | `createHud`, `attachCanvasInput` |
+| `voice/` | Hold-to-talk or wake-word mic → the server's Deepgram proxy → words for the funnel; Kami's lines spoken back (`docs/voice.md`) | `createVoice` |
 | `game/` | The frame loop, the funnel, the camera, all wiring | `startGame` |
-| `server/` | Bun HTTP API, MongoDB, Quick, Draw! k-NN, model-backed compile and handwriting reading | `bun run server` |
+| `server/` | Bun API, MongoDB, Eye → k-NN recognition, completion proxy, model compile/transcription, controller hub and Deepgram proxy | `bun run server` |
 
 ## Conventions
 
@@ -73,6 +106,7 @@ matter-js 0.20. What changed from the page build:
 - **Laws on Alice and the world** (`docs/laws.md`). `flight` makes her `climbing` wherever she is, so air holds her like a ladder; `walkSpeed` and `aliceSize` multiply her pace and body scale (`applyPhysics` re-runs the resize tween); `attraction` calls `pullToward(alice, g, dynamicInks)` each tick (`attraction.ts`, `1/r²` past 160 px, capped inside); `clones` keeps `Twins` — extra `AliceController`s in the same negative collision group, driven by the same intent, recalled to her feet if they fall — at the folded count; `temperature` runs `weather.ts`, which heats `slippery` above 30 °C and `floaty` above 60 °C until they `perished`. `attractor` is a nature whose `beforeStep` pulls everything but itself; `lantern` is inert in the sim and only matters to the renderer.
 - **Motion on drawings** (`motion.ts`, `docs/laws.md` §2.1). Every `InkEntity` carries a `Motion` — spin (turns/s), thrust (g), mass, bounce, grip — resolved by `InkLayer` from what its *name* asked for (`Ruling.motion`, e.g. "a spinning wheel") under every standing `BodyLaw` in `physics.bodies` that speaks of it (`rules/motion.ts`: `all`, or a `named` word shared with the drawing's name; later laws win). `moveOfItself` runs before the engine step: `spin` sets a loose body's angular velocity or turns a held body in place (creatures and roles are exempt); `thrust` is `push(body, g)`. `materialMoved` folds mass, grip and bounce into the body's density, friction and restitution over the world material, so "the rock is heavier" really does sink a see-saw.
 - **The Sumikui, the ink eater** (`sumikui.ts`). Off by default; `inkEater = 1` puts one in the world (`BoardWorld.sumikui`), `0` removes it, so erasing the summoning note or writing a banishment seals it through the same fold as every other law. It is not a Matter body: a point that drifts behind Alice's shoulder, stirs once the board holds two drawings, and hunts only the drawings Alice has touched in the last 20 s (`BoardWorld.touchedAt`, written by `resolveAliceTouches`) or stands on — so untouched scribbles are never bait — and never roles (`pinned` natures). It sits on its prey for 1.5 s then `inks.remove`s it and emits `devoured`. Its pace doubles every 20 s awake, clamped to `SUMIKUI_MAX_SPEED`. `sumikuiPainter.ts` draws it (a breathing blot with one pale eye and a dripping trail; the halo darkens with time awake) and `game.ts` recites the summoning lore over three notes, remarks when it wakes and feeds, and says the sealing line in place of "struck from the laws" when its law goes. The player's strokes are never touched: presentation only, and only `InkLayer.remove` takes ink out of the world.
+- **The Sumikui, the ink eater** (`sumikui.ts`). Off by default; `inkEater = 1` puts one in the world (`BoardWorld.sumikui`), `0` removes it, so erasing the summoning note or writing a banishment seals it through the same fold as every other law. It is not a Matter body: a point that drifts behind Alice's shoulder and stirs once the board holds two drawings. Everything on the paper is ink to it, so each tick it scores a `Quarry` over a `HuntingGround` and returns what it has finished eating: **ink** — drawings Alice or a clone has touched in the last 20 s (`BoardWorld.touchedAt`) or stands on, never roles (`pinned` natures), chewed for 1.5 s and then `inks.remove`d (`devoured`); **paper** — the board's own solid under an Alice's feet, chewed for 1.5 s and then bitten out (`paper-bitten`); **Alice** herself, held for 0.7 s and swallowed (`alice-devoured`, which sets `aliceLost` so she respawns through the ordinary `fell` path; it is gorged for 8 s afterwards and its pace starts over). Where Kami sets her down (spawn and checkpoints, `SUMIKUI_HALLOWED_PX`) is hallowed: neither that paper nor an Alice standing on it is prey. Untouched scribbles are never bait — until it has been awake `SUMIKUI_SWEEPS_AFTER_MS`, after which nameless clutter she never used is swept up in one gulp instead of stalked; named things are still spared unless she leaned on them. Its pace doubles every 20 s awake, clamped to `SUMIKUI_MAX_SPEED`, and it only holds a meal while it can keep up with it, so a moving Alice is safe from a slow Sumikui and not from a quick one. `BoardProps` owns the bitten paper: each solid is split into the rectangles left around its `Scar`s and rebuilt as static bodies, scars heal after `SUMIKUI_SCAR_HEALS_MS` (`paper-healed`), and `WorldSnapshot.bites` carries the holes to the chart (`Scene.bites`, cleared from the solid cells) and the renderer. `sumikuiPainter.ts` draws it (a breathing blot with one pale eye whose pupil widens with what it hunts, a dripping trail, a halo that darkens with time awake); `inkPainter` dissolves the drawing between its teeth stroke by stroke as `SumikuiSnapshot.bite` climbs, Alice fades as it closes on her, and `boardPainter` paints the ragged holes. `game.ts` recites the summoning lore over three notes, remarks when it wakes, feeds, bites the ground and swallows her, and says the sealing line in place of "struck from the laws" when its law goes. The player's strokes are never touched: presentation only, and only `InkLayer.remove` takes ink out of the world.
 - Everything else (ink compounds, anchoring on `marker` solids only, step-assist, slope limit, resize, natures, key, door) is unchanged. The three Wonderland puzzles must stay solvable on the continuous board — `sim/rooms.test.ts` holds that line, plus one test that moon gravity makes a bounce go higher.
 
 ## rules/
@@ -100,11 +134,18 @@ matter-js 0.20. What changed from the page build:
 
 The Alice/ambience/Sumikui rows come from one table-driven recogniser (`recognisers/dials.ts`): a `Dial` row per scalar governs, with its vocabulary, word→value readings and an implied value. New scalar dials are new rows. The last three rows are `recognisers/motion.ts`, the same table plus a target: the noun after "the"/"every" that is not a physics word, or "everything"; sentences about Alice fall through to her own dials, and the world's recognisers run first so "everything is bouncy" is still world `bounciness`. The formal model — rules as morphisms on `WorldPhysics`, the fold, repeal by refolding, systems — is `docs/laws.md`.
 
-A bare noun phrase with no physics word ("a mushroom", "rock") is never a rule. `resolvePhysics` folds rules over `EARTH`, newest per `governs` wins, so erasing the newest gravity note restores the one before it. `chainCompilers([offline, remote])` lets the server's model try what the grammar can't.
+A bare noun phrase with no physics word ("a mushroom", "rock") is never an offline rule.
+`resolvePhysics` folds rules over `EARTH`; erasing the newest gravity note restores the one before
+it. Body laws retain their named/all targets. Although `chainCompilers` exists, the game wires
+offline `compiler` and remote `thinker` separately so nearby naming runs between them.
 
 ## autopilot/
 
-Alice walks herself; the player only draws. `game/` hands the pilot a `Scene` every step — the board, Alice's snapshot, every committed drawing with its live `Pose` and its nature, key/door progress, and the sim's own figures (`walkSpeed`, `bounceArc(strength)`, `jumpArc`) so plans are made with the world's actual physics — and gets back a `WalkIntent`.
+Alice is manually controlled by default. `?autopilot=on|off` overrides the device's remembered
+HUD choice; only `"on"` enables self-driving, and a mode can forbid it. When enabled and no manual
+intent is held, `game/` hands the pilot a `Scene` — the board, Alice's snapshot, drawings with live
+poses, key/door progress, and the sim's `walkSpeed`, `bounceArc(strength)` and `jumpArc` — and gets
+back a `WalkIntent`.
 
 Alice's snapshot carries the law's desired `sizeMultiplier` and the granted `headingScale`. Current planning footprints cover both the live body and its active resize target, allowing Alice to leave a low ceiling while law growth is deferred; hypothetical meals use the same law-scaled dimensions as simulation growth clearance. Plans expire when the multiplier or footprint changes. Growth checks the full target body against fixed solids, excluding the meal being consumed, for Alice and her twins.
 
@@ -117,7 +158,13 @@ Alice's snapshot carries the law's desired `sizeMultiplier` and the granted `hea
 
 ## cat/
 
-As before, plus: creature words — every animal (and *robot, knight, person*) is a `walker`, `hopper` or `flier` by how it moves, and *walking / hopping / flying* as adjectives put any noun there; vehicle words — *car, cart, boat, bicycle, train, skateboard…* and *drivable / wheeled* → `vehicle`; role words — *ground, floor, wall, platform, block* → `solid`; *goal, finish, flag, exit, rabbit hole, home* → `goal`; *lava, spikes, fire, danger, acid* → `hazard`; *start, spawn, "alice starts here"* → `spawn`. `createCat(recognizer)`: `guess` asks the recognizer first and maps Quick, Draw! words onto names he knows ("birthday cake" → "a cake", "hot air balloon" → "a balloon"), filling up to three with the geometric hunch; with no recognizer or an empty answer it is the hunch alone.
+`ScriptedCat.name` applies the offline noun/adjective lexicon, room restrictions and any remembered
+matching sighting for an unknown name. Creature, vehicle and role words map to the natures in
+`cat/types.ts`. `look` uses structured sightings from `LiveRecognizer`, filling up to three choices
+with geometric hunches. Tapped guesses and certain finished sightings go through `Cat.accept`:
+the offered `name`, `nature`, `strength` and `line` survive rather than being reparsed by the
+typed-name lexicon. Restrictions still apply. A recognizer with only the legacy string-list
+interface uses the older name mapping; empty/unavailable recognition uses geometry alone.
 
 ## handwriting/
 
@@ -125,7 +172,18 @@ A single-stroke handwriting font — **EMS Readability** (SIL OFL, from the `her
 
 ## recognition/ and persistence/
 
-Thin HTTP clients for the server, same origin (`/api`, proxied by Vite in dev). Both swallow every failure: `recognize` → `[]`, `load` → an empty snapshot, writes → dropped with one console warning. `createRemoteRuleCompiler` → `null` when the server has no model.
+Thin HTTP clients for the server, same origin (`/api`, proxied by Vite in dev). Recognition falls back to `[]`; `createRemoteRuleCompiler` returns `null` when the server has no model.
+
+`BoardStore.state(boardId)` exposes loading, saving, the number of unacknowledged mutations, and typed load/save/list failures. HTTP requests (including response bodies) have a 10-second abort deadline. An unavailable board rejects its first load; a previously opened or edited board can reopen its in-memory snapshot with its load failure still visible. The board menu retains known boards when listing fails. Drawing remains available after a failed load.
+
+Failed writes remain in a per-board in-memory outbox. **Retry** below the board menu explicitly retries the latest mutation per entity through the same write queue; erase supersedes an older save, clear supersedes all older mutations, and writes after a failed clear wait for its successful retry. There is no automatic retry loop. Load failures retry by reopening that board after retrying its writes. `whenIdle()` only means settled; `unsaved === 0` means all current writes were acknowledged. Switching boards preserves unsaved edits during this session. Closing/reloading the tab loses the in-memory outbox: the indicator says to keep the tab open and a `beforeunload` guard requests the browser's confirmation while any board has unsaved work. Browser confirmation is best-effort, not durable offline storage. An HTTP timeout cannot establish whether the server already committed a request; PUT/DELETE retries are idempotent.
+
+Reads wait behind preceding writes and clears for that board; other boards remain independent.
+Nested snapshots and summaries are validated by shared schemas before restoration. A malformed
+snapshot fails as a whole without deleting stored data; an existing in-session snapshot can remain
+available with the load error visible. `Note.drawingId` preserves label cleanup on rename, erase,
+consumption and devouring after reload. Legacy labels without an association are not guessed.
+There is no cross-tab transaction/revision protocol.
 
 ## render/
 
@@ -133,7 +191,12 @@ Canvas 2D at device pixel ratio (cap 2). `toWorld(client, camera)` and `viewport
 
 ## ui/
 
-`touch-action: none` and every iPad guard from before. Floating **toolbar** top-centre: draw ✎ · write T · erase ⌫ · pan ✋ (`aria-pressed`, keys `D` `T` `E` `H`; holding Space pans temporarily). Alice walks herself; a translucent **thumbstick** bottom-left (`Joystick`: one pointer, pen, finger or mouse, dead zone then the pushed axis, a real diagonal takes both, springs back on lift or window blur) and the arrow keys are the manual override. A physical arcade stick is a third source of the same `WalkIntentMerger`: `controller/` (`createRemoteStick` → `RemoteStick`) listens to the server's event stream for the controller `?controller=` names (`arcade` by default, `off` for none) and reports its held directions, button A counting as ↑; it lets go of everything when the stream errors — the protocol is in `docs/controllers.md`. **Zoom** − / + / ⌖ recentre bottom-right. **Board menu** top-left: the wordmark "kami", current board, a list of boards, "new board", "clear board". No bubbles, meters, title cards or modals.
+The canvas uses `touch-action: none`. The floating toolbar picks draw/write/erase/pan
+(`aria-pressed`, keys `D`/`T`/`E`/`H`). Space holds the on-screen CAT speech input; it is no longer a
+temporary pan shortcut. A thumbstick, arrow keys and the remote controller feed independent
+sources into `WalkIntentMerger`; manual input overrides enabled autopilot. The HUD also owns zoom,
+recentre/self-driving controls, the board menu, save/retry status, the text prompt and voice controls.
+The standing laws panel is DOM; board notes are canvas handwriting.
 
 Every control activates on `pointerup` (`activateOnTap`), so Apple Pencil, finger and mouse taps all work; the click a browser then synthesises is swallowed, while clicks with no pointer behind them (Enter, Space, `.click()`) still activate. A press that is cancelled or lifts off the control does nothing.
 
@@ -151,15 +214,30 @@ Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_U
 | `GET /api/boards/:board` | `{ drawings, notes, rules }` |
 | `PUT` / `DELETE /api/boards/:board/{drawings,notes,rules}/:id` | upsert / remove one document |
 | `DELETE /api/boards/:board` | clear the board |
-| `POST /api/recognize` `{ strokes }` | `{ guesses: string[] }` |
+| `POST /api/recognize` `{ strokes, partial? }` | Parallel `guesses`, `confidence`, `names`, `natures`, `strengths`, `lines`, plus `certain`; adapted to `Sighting[]` |
+| `POST /api/beautify` `{ strokes, name? }` | Upstream completion JSON (or another model's image); the browser accepts only validated stroke completion |
 | `POST /api/compile` `{ text }` | `{ rule: CompiledRule \| null }` |
 | `POST /api/transcribe` `{ strokes }` | `{ text: string \| null }` |
+| `GET /api/controllers`, `POST /api/controllers/:id/state`, `GET /api/controllers/:id/events` | Controller discovery, whole-state reports and SSE |
+| `WS /api/voice/listen`, `POST /api/voice/speak` | Deepgram transcription stream and speech audio |
 
-**Quick, Draw!** `bun run quickdraw:ingest` range-fetches the first few hundred drawings of ~40 curated categories (mushroom, ladder, cloud, cake, stairs, key, door, …) from the public simplified ndjson into the `quickdraw` collection, each with a precomputed feature: strokes normalised to their bounds, rasterised to a small grid, blurred, L2-normalised. `/api/recognize` builds the same feature from the player's strokes and answers by cosine k-NN over the in-memory set, voting by category. No ingest yet → `[]`, and the Cat falls back to geometry. The ASUS Ascent GX10 can replace k-NN with a trained classifier behind the same route.
+These are summaries; request limits and full wire shapes live in the
+[API contract](../server/README.md#api-contract-what-the-client-may-rely-on).
+
+**Recognition.** `KAMI_RECOGNIZER_URL` selects Kami's Eye on GX10, with a short-timeout/circuit-breaker
+fallback to the built-in Quick, Draw! k-NN. Without a sidecar, k-NN answers alone; without ingested
+samples it returns no guesses and the Cat uses geometry. `quickdraw:ingest` defaults to 300 samples
+for each of 42 curated categories; restart the API to load a changed index. The reviewed nature
+table covers all 345 categories, independently of which recognizer supplied them. Aliases are
+merged before selecting the best three and calculating certainty.
 
 **Model-backed compile.** If `KAMI_LLM_URL` (any OpenAI-compatible `/v1/chat/completions`, e.g. vLLM or Ollama on the GX10) and `KAMI_LLM_MODEL` are set, `/api/compile` asks the model for a `RuleEffect` as JSON, validates it with zod, clamps it, and returns it; otherwise `{ rule: null }`. Compile once: the result is stored as a `Rule` and never asks the model again.
 
-**Handwriting reading.** With the same model, `/api/transcribe` draws the strokes into a small PNG and asks it, as a vision model, whether they are words or a drawing (`server/README.md` → "Handwriting reading"). `null` means a drawing.
+**Handwriting reading.** `KAMI_TRANSCRIBE_MODEL` selects the vision reader, falling back to
+`KAMI_LLM_MODEL`; URL/key are shared with compilation. Startup must correctly read a known image
+before the route becomes ready. Until then, or without a reader, it returns `501`. A ready reader
+returns words or `null`; the client treats failure as no words and keeps the ink. See
+[handwriting reading](../server/README.md#handwriting-reading).
 
 ## reading/
 
@@ -167,15 +245,35 @@ The player writes with the pen like they draw with it; nothing is selected first
 
 ## game/
 
-- **Funnel** for written text at a world point: `rules.compile` → a `Rule` (note turns green, Kami writes the gloss beneath, `sim.setPhysics(resolvePhysics(rules))`); else a summons (`game/summons.ts`: "summon a rabbit", "draw me a bridge here") → `LiveRecognizer.exemplar(word)` → Kami's own drawing, fitted to `SUMMONED_SIZE`, stood over the words and clear of Alice, solid at once (`sim.addDrawing`), inked in over `ARRIVAL_MS` (`InkLedger.conjure`) and named by the server's word through the same `cat.name` → `name` path as the player's ink, minus the tidy it does not need — or Kami asks the player to draw what he has never seen; else the nearest drawing within ~160 px → `cat.name` → `applyRuling` (Kami writes his line); else Kami writes a shrug and the note stays as plain writing. Laws come first so "summon the ink eater" stays a law.
+- **Funnel** (`Game.interpret`): reject oversized text/invalid position; answer help locally; write the
+  player note; try the offline compiler first. If it returns a law, apply the mode policy and stop.
+  Otherwise a summons (`game/summons.ts`: "summon a rabbit", "draw me a bridge here") →
+  `LiveRecognizer.exemplar(word)` → Kami's own drawing, fitted to `SUMMONED_SIZE`, stood over the
+  words and clear of Alice, solid at once (`sim.addDrawing`), inked in over `ARRIVAL_MS`
+  (`InkLedger.conjure`) and named by the server's word through the same `cat.name` → `name` path as
+  the player's ink, minus the tidy it does not need — or Kami asks the player to draw what he has
+  never seen. Laws come first so "summon the ink eater" stays a law.
+  Otherwise try `cat.name` on the nearest drawing. A non-`ink` ruling wins immediately. Only then
+  ask the remote `thinker`; if it returns a law, apply the mode policy and stop. If it returns
+  `null`, use the available plain-ink ruling or write a shrug. A forbidden law remains plain
+  writing with a refusal, not a naming attempt. Every asynchronous return checks the board epoch
+  and that its source note still exists.
+- **Naming geometry:** `NAMING_REACH = 190` world px, measured as rectangle gap from the laid-out
+  note bounds to bounds of the drawing's strokes transformed by its current pose, including
+  rotation. This is neither a distance from Alice nor a five-second naming window.
 - **Law precedence** is captured when the player submits the note, before compilation. `createdAt` is a logical millisecond timestamp: at least wall time and strictly greater than the preceding submission or any restored note/rule. Same-millisecond submissions therefore keep their order across out-of-order responses, reload and repeal. Existing equal timestamps retain the rule-id tie-breaker.
-- **Guesses.** While the pen is down, each stroke asks `cat.glimpse` (`sight(strokes, { partial: true })`, calls coalesced so at most one is in flight) and Kami pencils his current best guess beside the ink; an empty answer keeps the last one. On commit, `cat.look` asks once more without `partial`: a `certain` first sighting names the drawing at once and Kami writes the label himself (writing another name still renames it); otherwise Kami writes three tappable guesses beside the drawing; tapping one names it; they vanish when it is named, erased, or after ~20 s. Where the local lexicon only sees "ink", the sighting's `name`, `nature`, `strength` and `line` rule the drawing. Nothing blocks and nothing holds time still.
+- **Guesses.** Prefix `cat.glimpse` calls use `partial: true`, coalesced to at most one in flight.
+  An empty answer retains the current guess. Prefixes only display a suggestion; automatic naming
+  requires the finished `cat.look`. A certain first sighting is accepted directly; otherwise Kami
+  offers tappable structured rulings, removed on naming/erasure or after about 20 seconds.
 - **Eraser** removes drawings (and their guesses) and notes; erasing a rule's note repeals the rule. The standing laws are also listed top-right (`ui/lawsPanel`) long after their notes fade; tapping a law twice repeals it through the same path.
 - **Layout.** No note is written on top of another. `NoteBook.write` measures the script where it was asked for and, if that overlaps existing writing, slides it whole line-heights clear (`noteLayout.settle`): Kami's remarks above Alice drift up, replies beneath a note and guess chips drift down, and the player's own notes drift down off Kami's glosses. The placed position is what gets persisted.
 - **Camera** follows Alice loosely when she walks outside a central dead-zone; any manual pan or zoom suspends following until she walks again or ⌖ is pressed. Zoom 0.25–4.
-- **Walking.** Before every sim step: a held arrow key wins, else `autopilot.drive(scene)`. The pilot is reset on board open and invalidated on every ink or rule change (see `autopilot/`).
+- **Walking.** Before each sim step manual intent wins; otherwise use the pilot only when
+  self-driving is enabled and allowed by the mode. The pilot resets on board open and invalidates
+  on ink or rule changes.
 - **Boards.** `?board=<id>` in the URL; default `wonderland`. On load: `store.load` → re-add drawings and rulings, notes, rules. A loading note is shown while simulation and editing are paused; panning, switching boards and clearing remain available. Clearing starts an editable empty board immediately. An older load cannot restore or unlock a newer board. Held walk input survives a board load.
-- **Bullet-time** only while the pen is down.
+- **Bullet-time** while the ink session is drawing or settled ink is held awaiting transcription.
 - On `goal-reached` Kami writes a closing line; play continues.
 - **Mode.** `GameModules.mode` (default `EMBODIED_MODE`) picks a `ModeDirector` that is asked on room open and whether a sim event won the room (its `witness`/`named` seams for changing bodies are declared, not yet called). Laws the mode forbids stay plain writing with Kami's refusal beneath; `autopilot: "forbidden"` keeps her from walking herself. See `docs/modes.md`.
 
@@ -185,9 +283,92 @@ point for point, each nudged a bounded distance toward a clean drawing of the sa
 theirs was missing (`ml/CONTRACT.md`, "Completion"). `InkLedger.retrace` swaps the strokes in and keeps the
 old ones as a `Retrace`; for `RETRACE_MS` `views()` shows `retracedStrokes(from, to, progress)` — the ink
 glides into place, then what was added is drawn in — and the tidied drawing is saved. No answer, a late
-answer on another board, or ink that changed meanwhile: nothing happens. The sim keeps the body it built
-from the ink as drawn (the two differ by less than a pen's width) and builds from the tidied strokes
-the next time the board opens, so an added part is solid from then on.
+answer on another board, or ink that changed meanwhile: nothing happens. The browser requires the
+same stroke/point counts in `tidied`, finite bounded coordinates and a combined drawing within
+the input budget; images and old replacement-only responses are ignored. Its return type is
+`{ tidied, added, word, confidence } | null`.
+
+The sim and pilot keep the original collision geometry until reload, when the saved tidied/added
+strokes become bodies. Visual ink can therefore differ from collision geometry during play.
+The current morph bounds displacement by the drawing diagonal, not a pen width; the browser
+does not independently enforce that displacement cap. This is an implementation limit requiring
+gameplay/model validation, not a change to the drawing-preservation requirement.
+
+## Controllers and voice
+
+```
+UDP :8788 / USB serial / HTTP state report
+  → server/controllers hub → SSE /api/controllers/:id/events
+  → src/controller/RemoteStick → WalkIntentMerger → Game → sim
+```
+
+The current serial/UDP protocol is `kami <id> <x> <y> [buttons]`; HTTP sends the same axes/buttons
+without the prefix/id. Reports are whole held state. The hub applies dead zones and releases stale
+input after one second; serial discovery rescans every three seconds. `?controller=arcade` is the
+default, `off` disables it. Button A counts as up (jump/climb); other buttons have no gameplay
+binding. SSE error releases the remote source, and EventSource reconnects. Keyboard/touch remain
+independent sources. See [controllers.md](controllers.md).
+
+The cabinet firmware's `S,dir,ink,cat,px,py` frames are **not accepted by this base's generic
+parser**. [R19 / #41](https://github.com/SnowballSH/kami/pull/41) adds the server-side adapter,
+firmware debounce/framing checks and pinned compilation. Its supported integration is movement
+relay. Knob drawing, INK gestures, physical CAT-to-speech binding, game-driven LED feedback and a
+visible reconnect UI remain deferred even with R19. The browser Web Serial example and full-panel
+behavior in [hardware.md](hardware.md) are historical design, not the current browser path; #41
+replaces them. Do not treat its reported firmware compilation as physical acceptance.
+
+The on-screen CAT button/Space and wake-word mode use browser microphone capture →
+`/api/voice/listen` WebSocket → Deepgram → the text funnel. Replies use `/api/voice/speak`.
+The Deepgram key stays on the server. Missing credentials/upstream failure leaves written play
+available. LAN microphone capture needs a secure context; plain HTTP LAN play does not verify
+voice. See [voice.md](voice.md).
+
+## Deployment and security status
+
+At the base revision above, the API/Vite are LAN-oriented, API CORS is wildcard, and there is no
+client authentication, board/controller authorization or aggregate model quota. Anyone who can
+reach the API can modify boards, submit controller state and consume configured upstreams.
+Use this build only on an isolated trusted network; keeping a service key off the browser does
+not protect an unauthenticated proxy.
+
+[R12 / #40](https://github.com/SnowballSH/kami/pull/40) is **open at this documentation review**.
+Its [access guide](https://github.com/SnowballSH/kami/blob/38d480dc1577ac1cf89d810ea917259218e0eb0b/docs/access.md)
+defines these modes; setting these variables on the base revision does **not** install them:
+
+| R12 mode | Trust and deployment contract |
+|---|---|
+| `KAMI_ACCESS_MODE=demo` (default) | Trusted reachable LAN peers; explicit browser-origin checks, no participant authentication. API/Vite remain LAN-accessible unless explicitly bound to loopback. |
+| `KAMI_ACCESS_MODE=shared` | Loopback API default behind a same-origin HTTPS proxy; exact allowed HTTPS origins; credentials grant exact boards/controllers and model permission. Browser token exchange uses an HttpOnly/Secure/SameSite cookie; non-browser clients use bearer credentials. Unauthenticated UDP is disabled; local serial is trusted host input. |
+
+The inspected R12 revision also protects voice: sketch/text model routes, `voice/speak` and
+voice-listening upgrades share a per-process request/concurrency budget in both modes. A listening
+socket holds a concurrency slot until closed, including continuous wake-word listening.
+Its upgrade path checks origin, credentials and model permission through the same access object;
+the WebSocket transport does not pass through the ordinary HTTP router. These are process-local
+limits; cold-start pen traffic plus an active microphone still needs GX10 capacity testing.
+
+After security integration, an operator must still verify actual bind addresses/firewall,
+private database/model ports, HTTPS certificates, origin handling and SSE/WebSocket proxying
+on the intended iPad/booth network. No live GX10 configuration is established by repository tests.
+The user has [kept #40 open for their deployment gate](https://github.com/SnowballSH/kami/pull/40#issuecomment-5746417102):
+demo-mode deployment on GX10, live guessing under the limits, controller SSE and iPad cold start.
+Its local access/voice tests do not release that hold or establish production readiness.
+
+## Product scope and verification
+
+The spec's chapter progression, NPC/guard behaviors, teacup scoring and full cabinet are product
+targets, not promises made by this endless-board build. [Modes](modes.md) likewise separates the
+playable embodied director from the unimplemented spirit-mode contract. Preserve those product
+requirements and record mismatches explicitly; archived room/store/edge-function code is not a
+mandate to reconstruct the old design.
+
+| Verification layer | What it establishes; what remains |
+|---|---|
+| Local `bun run check`, `bun run build`, documentation links | TypeScript/Biome, unit/headless regressions and a production bundle. Does not establish a working microphone, deployed service, real tablet or cabinet. |
+| [R18 / #42](https://github.com/SnowballSH/kami/pull/42), open at review | Adds frozen Bun CI and isolated Python/shell checks. `check:lightweight` and `check:gx10` are not commands on this base yet; see its [check guide](https://github.com/SnowballSH/kami/blob/55341ca320b318de355880e89d8ed0636ea73a6e/scripts/ci/README.md). |
+| GX10-only model checks | All training, model inference (including tiny-model tests), full ML tests and heavy work stay on GX10. R18's explicit `bun run check:gx10 <full-commit-sha> <artifact-name>` records source/artifact identity; a local or hosted green gate does not replace golden parity, model quality or live latency checks. |
+| Cabinet and booth acceptance | R19 reports native/TypeScript regressions and UNO R4 WiFi compilation. Wiring/power, firmware upload, held/released controls, unplug/replug, feedback and the real host/browser/proxy still require physical verification. |
+| This documentation review | Source/contract inspection and local repository gates only. No live model, GX10 service, browser, microphone, Apple Pencil or physical cabinet was exercised. Existing benchmark figures describe their original runs, not this revision's readiness. |
 
 ## Known limits of the demo
 
@@ -195,7 +376,7 @@ the next time the board opens, so an added part is solid from then on.
 - **Poses are not remembered.** A drawing is stored where it was drawn, so after a reload dynamic ink reappears there and settles again.
 - **One effect per rule.** "low gravity and slow time" is two notes. Relative phrasings ("flip", "double") are relative to Earth, not to the current value.
 - **Clamps differ** between the offline grammar (`rules/`) and the model-backed compiler (`server/compile/effectRanges.ts`); the latter is wider.
-- **The model-backed compiler has never met a real model.** It is tested against an injected fetch and a fake OpenAI-compatible server only.
-- **Recognition is k-NN**, good on distinctive shapes (mushroom, ladder) and weak on scribbly ones (zigzag, bird); measured accuracy is in `server/README.md`. Restart the server after an ingest.
+- **Model quality is separate from transport correctness.** Mock/fake OpenAI-compatible tests validate parsing and fallback, not real compilation, handwriting or completion quality.
+- **Recognition depends on configured artifacts/data.** Eye falls back to k-NN; published k-NN measurements in `server/README.md` do not measure a current trained release. Restart the server after ingest.
 - **No eraser cursor**, since the renderer is never told where the pointer is.
-- **Not yet touched by a real finger.** Gestures and palm rejection are unit-tested with synthetic pointers, and the page renders correctly in iPadOS Safari (simulator), but nobody has drawn on it with an Apple Pencil.
+- **Real-device interaction remains a verification gap.** Synthetic pointer tests do not establish Apple Pencil/palm rejection, microphone permission or booth browser behavior.

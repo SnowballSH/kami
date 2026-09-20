@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NATURES, type Ruling, STRENGTH_RANGE } from "../cat/types";
-import type { Stroke, Vec } from "../core/geometry";
+import { strokesSchema, textSchema, vecSchema } from "../core/input";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import { validEffect } from "../rules/effectDomains";
@@ -8,30 +8,19 @@ import type { CompiledRule, MotionEdit, Rule, RuleEffect, RuleId, Target } from 
 import type { BoardSnapshot, BoardSummary, StoredDrawing } from "./types";
 
 const MAX_ID_LENGTH = 200;
-const MAX_TEXT_LENGTH = 4000;
-const MAX_STROKES = 2000;
-const MAX_POINTS_PER_STROKE = 20000;
+
+export { strokeSchema, strokesSchema, textSchema, vecSchema } from "../core/input";
 
 const isId = (value: unknown): boolean =>
   typeof value === "string" && value.length > 0 && value.length <= MAX_ID_LENGTH;
 
 const brandedId = <Id extends string>() => z.custom<Id>(isId, "expected a non-empty id");
 
-export const textSchema = z.string().max(MAX_TEXT_LENGTH);
-
 const text = textSchema;
 
 export const boardIdSchema = z.string().min(1).max(MAX_ID_LENGTH);
 
 export const entityIdSchema = z.string().min(1).max(MAX_ID_LENGTH);
-
-export const vecSchema = z.object({ x: z.number(), y: z.number() }) satisfies z.ZodType<Vec>;
-
-export const strokeSchema = z
-  .array(vecSchema)
-  .max(MAX_POINTS_PER_STROKE) satisfies z.ZodType<Stroke>;
-
-export const strokesSchema = z.array(strokeSchema).max(MAX_STROKES);
 
 export const drawingSchema = z.looseObject({
   id: brandedId<DrawingId>(),

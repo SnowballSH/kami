@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import { distance, distanceToSegment, type Stroke, type Vec } from "../core/geometry";
+import { isInputStrokes } from "../core/inputLimits";
 import { INK_THICKNESS } from "../core/world";
 import { INK_DOT_RADIUS, MIN_SEGMENT_LENGTH, SIMPLIFY_TOLERANCE } from "./constants";
 import type { BodyMaterial } from "./worldPhysics";
@@ -13,17 +14,30 @@ export interface InkBodyOptions {
 
 /** Ramer–Douglas–Peucker: fewer, longer collider segments with the same silhouette. */
 export const simplifyStroke = (stroke: Stroke, tolerance = SIMPLIFY_TOLERANCE): Stroke => {
-  const first = stroke[0];
-  const last = stroke.at(-1);
-  if (first === undefined || last === undefined || stroke.length < 3) return stroke;
-  const deviations = stroke.slice(1, -1).map((point) => distanceToSegment(point, first, last));
-  const farthest = Math.max(...deviations);
-  if (farthest <= tolerance) return [first, last];
-  const split = deviations.indexOf(farthest) + 1;
-  return [
-    ...simplifyStroke(stroke.slice(0, split + 1), tolerance).slice(0, -1),
-    ...simplifyStroke(stroke.slice(split), tolerance),
-  ];
+  if (stroke.length < 3) return stroke;
+  const kept = new Set([0, stroke.length - 1]);
+  const pending: (readonly [number, number])[] = [[0, stroke.length - 1]];
+  for (let range = pending.pop(); range !== undefined; range = pending.pop()) {
+    const [start, end] = range;
+    const first = stroke[start];
+    const last = stroke[end];
+    if (first === undefined || last === undefined) continue;
+    let farthest = tolerance;
+    let split = -1;
+    for (let i = start + 1; i < end; i++) {
+      const point = stroke[i];
+      if (point === undefined) continue;
+      const deviation = distanceToSegment(point, first, last);
+      if (deviation > farthest) {
+        farthest = deviation;
+        split = i;
+      }
+    }
+    if (split < 0) continue;
+    kept.add(split);
+    pending.push([start, split], [split, end]);
+  }
+  return stroke.filter((_point, index) => kept.has(index));
 };
 
 const segmentPart = (start: Vec, end: Vec): Matter.Body =>
@@ -66,6 +80,7 @@ export const buildInkBody = (
   strokes: readonly Stroke[],
   options: InkBodyOptions,
 ): Matter.Body | null => {
+  if (!isInputStrokes(strokes)) return null;
   const parts = strokes.flatMap(strokeParts);
   if (parts.length === 0) return null;
   const body = Matter.Body.create({

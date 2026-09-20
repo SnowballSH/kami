@@ -7,6 +7,8 @@ export const TAGLINE = "draw it. name it. it wakes up.";
 export const REJECTION_LINES: Readonly<Record<PlacementRejection, string>> = {
   "no-ink-zone": "That part's painted red. It won't take ink.",
   "overlaps-alice": "Not on Alice, if you please. Beside her.",
+  "too-detailed": "Too much detail for one drawing. Try drawing it in smaller parts.",
+  "out-of-bounds": "That is beyond the edge of this board. Draw closer to Alice.",
 };
 
 export const SHRUGS: readonly string[] = [
@@ -44,10 +46,23 @@ export const SUMIKUI_DEVOURED_LINES: readonly string[] = [
   "Another one. It only takes what she leans on.",
   "It fed. It is quicker than it was.",
 ];
+export const SUMIKUI_PAPER_BITTEN_LINES: readonly string[] = [
+  "It bit the ground itself. The page is ink too, to it.",
+  "A hole where she stood. Paper heals; slowly.",
+  "It eats the floor out from under her now. Draw her a way across.",
+];
+export const SUMIKUI_ALICE_DEVOURED_LINES: readonly string[] = [
+  "It had her. She is ink like the rest, and I have set her down again.",
+  "Gone in one swallow. It is gorged now, and slow. Run while it is.",
+  "Keep her moving. It only catches what stands still.",
+];
 export const SUMIKUI_SEALED_LINE = "Sealed. It waits under the page, with the one it came from.";
 export const SUMIKUI_LORE_LINE_DELAY_MS = 3_200;
 
 export const glossOf = (explanation: string): string => `kami: ${explanation}`;
+
+/** Said aloud, he does not sign his own name — and would only wake himself if he did. */
+export const aloud = (text: string): string => text.replace(/^kami:\s*/i, "");
 
 const HELP_REQUEST = /^(help|hint|hints|stuck|i'?m stuck|i am stuck|\?+|what now|tell me)\b/i;
 

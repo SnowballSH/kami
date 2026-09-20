@@ -48,9 +48,20 @@ Listens on `127.0.0.1:8790` (`KAMI_EYE_PORT`), loads `KAMI_EYE_MODEL` (an artifa
 | `GET /health` | | `{ "ok": true, "classes": K, "model": "<name>", "exemplars": N }` — `N` is 0 when the model has no exemplar set |
 | `POST /recognize` | `{ "strokes": [[{"x":1,"y":2},...],...], "partial": false, "top": 5 }` | `{ "labels": [...], "probs": [...] }` — best first, temperature-scaled softmax, `top` entries (default 5) |
 | `POST /embed` | `{ "strokes": ... }` | `{ "embedding": [512 floats, L2-normalised] }` |
-| `POST /complete` | `{ "strokes": ..., "name": "a mushroom" }` (`name` optional) | `{ "tidied": [[{"x":..,"y":..},...],...], "added": [...], "category": "mushroom", "confidence": 0.93, "similarity": 0.81, "exemplar": "5152802093400064" }`, or `404 {"error"}` — see Completion |
+| `POST /complete` | `{ "strokes": ..., "name": "a mushroom" }` (`name` optional) | `{ "tidied": [[{"x":..,"y":..},...],...], "added": [...], "category": "mushroom", "confidence": 0.93, "similarity": 0.81, "boldness": 0.9, "exemplar": "5152802093400064" }`, or `404 {"error"}` — see Completion |
 
 Strokes arrive raw, in world px; the sidecar owns rendering. Bad input → `400 {"error"}`; never a crash.
+
+The game, Bun API and sidecar share these per-drawing limits: 256 strokes (including empty strokes),
+1024 points per stroke, 2048 points in total, finite coordinates within ±1,000,000,000, and 262,144
+UTF-8 request bytes. Aggregate counts are checked before converting points or running models.
+The sidecar requires a positive Content-Length; Bun also counts streamed bodies without that header.
+`src/core/inputLimits.ts` is the client/API contract; the pure sidecar budget test checks parity.
+Text notes allow 4000 UTF-16 code units and use a 131,072-byte envelope; controller readings allow
+256 bytes. Names allow 80 UTF-16 code units. Limits include both ends. Oversized ink is rejected
+with feedback and its pending ink refunded; split detailed sketches into smaller drawings.
+Completion results must fit the same combined drawing budget before the client applies them.
+Already stored drawings over budget cannot create physics bodies; they are not silently rewritten.
 
 ## Completion — "Kami finishes your drawing"
 
@@ -97,7 +108,7 @@ none); it is never an error.
 
 ### `POST /complete`
 
-Same body limits, validation and logging as `/recognize`. `name` is optional, a string of at most 200
+Same body limits, validation and logging as `/recognize`. `name` is optional, a string of at most 80
 characters; `null` and `""` mean no name.
 
 1. **Category.** The name — lower-cased, whitespace collapsed, a leading "a", "an" or "the" dropped
@@ -113,14 +124,19 @@ characters; `null` and `""` mean no name.
      rounds of scale-and-shift least squares on nearest points. What counts is the player's ink lying
      on the exemplar; the exemplar lying on their ink counts a tenth as much, so a half-drawn sketch
      gets a whole exemplar of the right size around it rather than one squeezed into its bounds.
-   - *Tidy.* Every point of the player's moves toward the nearest point of the fitted exemplar:
-     by `strength` (0.5) of the way, smoothed along the stroke so lines bend rather than jitter, never
-     more than 6 % of the ink's bounding-box diagonal, and not at all when the exemplar has nothing
-     within 12 % of it (ink the exemplar does not have is left alone).
+   - *Tidy.* Every point of the player's moves toward the nearest point of the fitted exemplar,
+     smoothed along the stroke so lines bend rather than jitter, and not at all when the exemplar has
+     nothing within 12 % of the diagonal (ink the exemplar does not have is left alone). **How firmly
+     depends on how sure Kami is**: `boldness` = smoothstep(confidence, 0.3 → 0.9) ×
+     (1 − smoothstep(misfit, 3 % → 8 % of the diagonal)), where confidence is the model's calibrated
+     probability of the category and misfit the mean distance from the player's ink to the fitted
+     exemplar. At boldness 0 a point moves half of the way and never more than 6 % of the diagonal;
+     at boldness 1, nine tenths of the way and never more than 10 %. A name the model does not
+     believe, or an exemplar that lies loosely, keeps his hand light.
    - *Add.* Runs of the fitted exemplar farther than 8 % of the diagonal from any of the player's ink,
      and at least 10 % of it long, become new strokes. A finished drawing usually gets none.
 
-`200 { "tidied", "added", "category", "confidence", "similarity", "exemplar" }`. **`tidied` has exactly
+`200 { "tidied", "added", "category", "confidence", "similarity", "boldness", "exemplar" }`. **`tidied` has exactly
 the request's shape** — the same strokes in the same order, each with the same number of points — so a
 client can tween point for point from the ink to it. `added` is the missing parts, to be drawn in; they
 may lie outside the ink's bounds. Both are in the request's world space, rounded to 0.01 px.

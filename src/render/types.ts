@@ -2,7 +2,7 @@ import type { BoardDefinition } from "../board/types";
 import type { Nature } from "../cat/types";
 import type { Pose, Stroke, Vec } from "../core/geometry";
 import type { PenScript } from "../handwriting/types";
-import type { Drawing, PlacementVerdict } from "../ink/types";
+import type { Drawing, DrawingId, PlacementVerdict } from "../ink/types";
 import type { NoteAuthor, NoteId, NoteTone } from "../notes/types";
 import type { WorldSnapshot } from "../sim/types";
 
@@ -19,6 +19,12 @@ export interface InkView {
   readonly nature: Nature;
   /** When the ruling landed, for the shiver-and-tint beat. Null while it is still unnamed. */
   readonly awakenedAtMs: number | null;
+}
+
+/** A drawing between the Sumikui's teeth, and how far through it is. */
+export interface Chew {
+  readonly drawingId: DrawingId;
+  readonly bite: number;
 }
 
 /** Settled strokes not yet in the world: held still while being read, then fading out as words. */

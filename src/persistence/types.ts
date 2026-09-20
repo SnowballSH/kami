@@ -21,11 +21,24 @@ export interface BoardSummary {
   readonly rules: number;
 }
 
-/**
- * Kami's memory. Writes are fire-and-forget: they never reject, and a board keeps working
- * (unremembered) when the server or MongoDB is away.
- */
+export interface PersistenceFailure {
+  readonly operation: "load" | "save" | "list";
+  readonly reason: "network" | "timeout" | "http" | "invalid-response";
+  readonly status?: number;
+}
+
+export interface PersistenceState {
+  readonly loading: boolean;
+  readonly saving: boolean;
+  readonly unsaved: number;
+  readonly errors: readonly PersistenceFailure[];
+}
+
+/** Failed writes stay in memory until acknowledged or superseded. Reads may reject. */
 export interface BoardStore {
+  readonly hasUnsavedChanges: boolean;
+  state(boardId: string): PersistenceState;
+  retry(boardId: string): Promise<void>;
   /** Malformed saved data rejects instead of being presented as an empty board. */
   load(boardId: string): Promise<BoardSnapshot>;
   listBoards(): Promise<readonly BoardSummary[]>;

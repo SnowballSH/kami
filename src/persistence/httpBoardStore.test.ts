@@ -89,14 +89,17 @@ describe("HttpBoardStore reads", () => {
     expect(await store.listBoards()).toEqual(boards);
   });
 
-  it("answers with an empty board when the server is away or broken", async () => {
+  it("reports unavailable saved data instead of confirming an empty board", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const empty = { drawings: [], notes: [], rules: [] };
     const broken: FetchLike = async () => new Response("boom", { status: 500 });
     for (const fetchFn of [offline, broken]) {
       const store = new HttpBoardStore(fetchFn);
-      expect(await store.load("demo")).toEqual(empty);
-      expect(await store.listBoards()).toEqual([]);
+      await expect(store.load("demo")).rejects.toThrow();
+      await expect(store.listBoards()).rejects.toThrow();
+      expect(store.state("demo").errors.map(({ operation }) => operation)).toEqual([
+        "load",
+        "list",
+      ]);
     }
   });
 });
@@ -172,7 +175,7 @@ describe("HttpBoardStore writes", () => {
     expect(server.calls[0]?.body).toMatchObject({ text: "before" });
   });
 
-  it("drops writes quietly when the server is away, warning only once", async () => {
+  it("keeps the latest writes when offline without interrupting drawing, warning only once", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const store = new HttpBoardStore(offline);
     expect(() => {
@@ -183,6 +186,7 @@ describe("HttpBoardStore writes", () => {
     }).not.toThrow();
     await store.whenIdle();
     await store.load("demo");
+    expect(store.state("demo").unsaved).toBe(2);
     expect(warn).toHaveBeenCalledTimes(1);
   });
 

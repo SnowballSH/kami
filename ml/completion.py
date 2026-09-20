@@ -42,6 +42,7 @@ class Completion:
     category: str
     confidence: float
     similarity: float
+    boldness: float
     exemplar_key_id: int
 
     def to_json(self) -> dict[str, object]:
@@ -51,6 +52,7 @@ class Completion:
             "category": self.category,
             "confidence": self.confidence,
             "similarity": self.similarity,
+            "boldness": self.boldness,
             "exemplar": str(self.exemplar_key_id),
         }
 
@@ -111,15 +113,19 @@ class SketchCompleter:
         if best is None:
             return None
         index, similarity = best
-        shaped = morph(_as_arrays(strokes), _as_arrays(self._exemplars.strokes(index)))
+        confidence = float(reading.probabilities[0, label])
+        shaped = morph(
+            _as_arrays(strokes), _as_arrays(self._exemplars.strokes(index)), certainty=confidence
+        )
         if shaped is None:
             return None
         return Completion(
             tidied=shaped.tidied,
             added=shaped.added,
             category=self._exemplars.categories[label],
-            confidence=float(reading.probabilities[0, label]),
+            confidence=confidence,
             similarity=similarity,
+            boldness=shaped.boldness,
             exemplar_key_id=int(self._exemplars.key_ids[index]),
         )
 

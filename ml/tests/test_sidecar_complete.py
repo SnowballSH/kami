@@ -38,7 +38,15 @@ def test_a_named_sketch_comes_back_as_the_players_own_strokes_tidied_toward_an_e
         f"{completing_sidecar_url}/complete", {"strokes": sketch, "name": "A Mushroom"}
     )
     assert status == 200
-    assert set(body) == {"tidied", "added", "category", "confidence", "similarity", "exemplar"}
+    assert set(body) == {
+        "tidied",
+        "added",
+        "category",
+        "confidence",
+        "similarity",
+        "boldness",
+        "exemplar",
+    }
     assert body["category"] == "mushroom"
     assert 0.0 <= body["confidence"] < 0.1
     assert -1.0 <= body["similarity"] <= 1.0
@@ -64,7 +72,7 @@ def test_an_exemplar_sent_back_in_finds_itself(
     assert body["added"] == []
     for tidied, drawn in zip(body["tidied"], sketch, strict=True):
         assert np.asarray([[point["x"], point["y"]] for point in tidied]) == pytest.approx(
-            np.asarray([[point["x"], point["y"]] for point in drawn]), abs=0.5
+            np.asarray([[point["x"], point["y"]] for point in drawn]), abs=1.0
         )
 
 

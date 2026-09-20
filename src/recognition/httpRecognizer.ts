@@ -1,4 +1,6 @@
 import type { Stroke } from "../core/geometry";
+import { INPUT_LIMITS, isInputStrokes } from "../core/inputLimits";
+import { readBoundedText } from "../core/readBody";
 import type { Drawing } from "../ink/types";
 import { completionOf } from "./completion";
 import { exemplarOf } from "./exemplar";
@@ -31,6 +33,7 @@ export class HttpRecognizer implements LiveRecognizer {
   }
 
   async recognize(drawing: Drawing): Promise<readonly string[]> {
+    if (!isInputStrokes(drawing.strokes)) return [];
     const body = await this.#ask(RECOGNIZE_PATH, { strokes: drawing.strokes });
     return isGuessList(body) ? body.guesses : [];
   }
@@ -39,12 +42,15 @@ export class HttpRecognizer implements LiveRecognizer {
     strokes: readonly Stroke[],
     { partial = false }: SightOptions = {},
   ): Promise<readonly Sighting[]> {
+    if (!isInputStrokes(strokes)) return [];
     const request = partial ? { strokes, partial } : { strokes };
     return sightingsOf(await this.#ask(RECOGNIZE_PATH, request));
   }
 
   async complete(strokes: readonly Stroke[], name?: string): Promise<Completion | null> {
+    if (!isInputStrokes(strokes)) return null;
     const called = name?.trim() ?? "";
+    if (called.length > INPUT_LIMITS.name) return null;
     const request = called.length > 0 ? { strokes, name: called } : { strokes };
     return completionOf(await this.#ask(COMPLETE_PATH, request, COMPLETE_TIMEOUT_MS), strokes);
   }
@@ -71,7 +77,9 @@ export class HttpRecognizer implements LiveRecognizer {
     try {
       const response = await this.#fetch(path, init);
       const answersJson = response.headers.get("content-type")?.includes(JSON_TYPE) ?? false;
-      return response.ok && answersJson ? await response.json() : null;
+      return response.ok && answersJson
+        ? JSON.parse(await readBoundedText(response, INPUT_LIMITS.sketchBytes))
+        : null;
     } catch {
       return null;
     }
