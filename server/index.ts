@@ -5,7 +5,7 @@ import { readConfig } from "./config";
 import { startControllers } from "./controllers";
 import { BoardRepository } from "./db/boardRepository";
 import { connectDatabase } from "./db/connect";
-import { createExemplarSource } from "./exemplar/exemplars";
+import { categoryOf, createExemplarSource } from "./exemplar/exemplars";
 import { ApiAccess } from "./http/access";
 import { createApi } from "./http/api";
 import { createStaticSite } from "./http/staticSite";
@@ -13,6 +13,7 @@ import { quickdrawNatureTable } from "./natures/natureTable";
 import { QuickdrawRecognizer } from "./quickdraw/recognizer";
 import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
 import { createRecognizerChain } from "./recognition/chain";
+import { createLlmSceneCompiler } from "./scene/llmSceneCompiler";
 import { createLlmTranscriber } from "./transcribe/llmTranscriber";
 import { VOICE_SOCKET_PATH, type VoiceSocketData, voiceSockets } from "./voice/socket";
 import { createSpeaker } from "./voice/speaker";
@@ -47,8 +48,12 @@ const api = createApi({
   beautifier: createBeautifier(config.beautifyUrl),
   controllers: controllers.hub,
   transcriber,
-  speaker: createSpeaker(config.voice),
   exemplars: createExemplarSource(sketches, quickdrawNatureTable),
+  speaker: createSpeaker(config.voice),
+  scenes: createLlmSceneCompiler(
+    config.llm,
+    (word) => categoryOf(word, quickdrawNatureTable) !== null,
+  ),
 });
 const site = config.webDirectory === null ? null : createStaticSite(config.webDirectory);
 const isApiCall = (request: Request): boolean =>

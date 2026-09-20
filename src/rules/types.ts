@@ -92,6 +92,34 @@ export interface RuleCompiler {
   compile(text: string): Promise<CompiledRule | null>;
 }
 
+/** Something Kami draws to dress a place: a word he has a picture of, and where it goes. */
+export interface Prop {
+  readonly word: string;
+  /** The prop's centre, from the top-centre of the words that asked, in world px (y down). */
+  readonly at: Vec;
+  /** Its longer side, as a multiple of a summoned drawing's size. */
+  readonly size: number;
+}
+
+/**
+ * A place, as the laws that make it behave like itself and the props that make it look the part.
+ * "Teleport us to the moon" is a bundle of dial sets (docs/laws.md §2.2), all bound to the one
+ * note, so erasing the note brings everyone home; the props are ordinary ink and stay.
+ */
+export interface Scene {
+  /** As Kami names it in the gloss, e.g. "the Moon". */
+  readonly place: string;
+  readonly laws: readonly CompiledRule[];
+  readonly props: readonly Prop[];
+  /** What Kami says on arrival. */
+  readonly line: string;
+}
+
+/** Null means "this text does not ask to go anywhere" — never an error. */
+export interface SceneCompiler {
+  compile(text: string): Promise<Scene | null>;
+}
+
 /**
  * Every dial of the board — world and Alice — once every standing rule is applied, and the laws
  * about bodies, oldest first, for the simulation to resolve against each drawing's name.

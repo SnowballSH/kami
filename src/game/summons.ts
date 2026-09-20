@@ -1,4 +1,5 @@
 import { boundsOf, type Rect, rectsOverlap, type Stroke, type Vec } from "../core/geometry";
+import type { Prop } from "../rules/types";
 
 /**
  * "summon a rabbit", "kami, draw me a bridge here", "conjure up two clouds" → what to draw. Null
@@ -44,11 +45,45 @@ export const placeSummoned = (
   const width = frame.width * scale;
   const height = frame.height * scale;
   const left = writing.x + writing.width / 2 - width / 2;
-  const overWords = writing.y - ABOVE_WRITING - height;
-  const inAlicesWay =
-    alice !== null && rectsOverlap({ x: left, y: overWords, width, height }, alice);
-  const top = inAlicesWay ? alice.y - ABOVE_WRITING - height : overWords;
-  const origin: Vec = { x: left - frame.x * scale, y: top - frame.y * scale };
+  const top = clearOfAlice(
+    { x: left, y: writing.y - ABOVE_WRITING - height, width, height },
+    alice,
+  );
+  return fitted(strokes, frame, scale, { x: left, y: top });
+};
+
+const clearOfAlice = (landing: Rect, alice: Rect | null): number =>
+  alice !== null && rectsOverlap(landing, alice)
+    ? alice.y - ABOVE_WRITING - landing.height
+    : landing.y;
+
+/**
+ * Where a prop of a scene lands: `size` times `SUMMONED_SIZE` along its longer side, centred at
+ * `at` from the top-centre of the words that took everyone there, lifted clear of Alice.
+ */
+export const placeProp = (
+  strokes: readonly Stroke[],
+  writing: Rect,
+  prop: Pick<Prop, "at" | "size">,
+  alice: Rect | null,
+): readonly Stroke[] => {
+  const frame = boundsOf(strokes.flat());
+  const scale = (SUMMONED_SIZE * prop.size) / Math.max(frame.width, frame.height, 1);
+  const width = frame.width * scale;
+  const height = frame.height * scale;
+  const centre: Vec = { x: writing.x + writing.width / 2 + prop.at.x, y: writing.y + prop.at.y };
+  const left = centre.x - width / 2;
+  const top = clearOfAlice({ x: left, y: centre.y - height / 2, width, height }, alice);
+  return fitted(strokes, frame, scale, { x: left, y: top });
+};
+
+const fitted = (
+  strokes: readonly Stroke[],
+  frame: Rect,
+  scale: number,
+  topLeft: Vec,
+): readonly Stroke[] => {
+  const origin: Vec = { x: topLeft.x - frame.x * scale, y: topLeft.y - frame.y * scale };
   return strokes.map((stroke) =>
     stroke.map(({ x, y }) => ({ x: origin.x + x * scale, y: origin.y + y * scale })),
   );

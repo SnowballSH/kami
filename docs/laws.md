@@ -120,6 +120,14 @@ The offline grammar (`src/rules/grammarCompiler.ts`) is a chain of **recognisers
 
 The model-backed compiler on the server is asked to emit the same shape. `server/schemas.ts` and `server/compile/effectRanges.ts` are the shared contract; the server typecheck fails if the two ends drift. A remote answer that does not validate is dropped, not repaired — the model may pick values, never a shape.
 
+### 4.1 Scenes: one sentence, many edits
+
+```
+scene : Text → Maybe (Place × [Edit × Gloss] × [Prop] × Line)
+```
+
+“Teleport us to the moon” is not one dial. A **scene** (`src/rules/scenes/`) is a finite list of ordinary edits — the Moon is `set(gravity,(0,.165))`, `set(airDrag, low)`, `set(daylight, .3)` — plus props Kami draws (`{ word, at, size }`, each a summons) and an arrival line. Nothing new is added to `Edit`: the scene's edits are enacted in order and each becomes a rule of its own, but all of them carry the same source note, so **erasing the note repeals the whole list** and the refold is the ordinary one. The composite is just `e_n ∘ … ∘ e_1`, the fold of the list; a scene is a name for a word in the free monoid of edits. The offline atlas (`atlas.ts`) is a table of such words; the model (`server/scene/`) may write another for a place the table lacks, validated edit by edit against the same schema and ranges as single laws (§5), so it too can only pick values. A scene is enacted whole or refused whole under the mode policy — a half-Moon is not a place.
+
 ## 5. Validation and clamping
 
 Every dial `d` has a closed range `[lo_d, hi_d]` (`src/rules/effects.ts`; the server's wider table in `effectRanges.ts`). `set(d, v)` is only admitted with `v := clamp(v, lo_d, hi_d)` and the gloss says “(capped)” when clamping bit. Because the fold only ever composes admitted dial sets, `physics(R)` lies inside the product of the ranges for *any* `R` — the invariant the simulation relies on, and the reason a model or a mischievous player cannot produce a world the engine cannot simulate.
@@ -176,6 +184,7 @@ The autopilot is a system too: `Scene.canFly` marks every cell of air climbable,
 | `everything spins` then `the rock stops spinning` | `set(spin, 1) of all`, `set(spin, 0) of named(rock)` | both kept; `motion("rock") = { spin: 0 }`, `motion("wheel") = { spin: 1 }` | motion |
 | `a spinning wheel` (as a name) | `null` (identity); the ruling carries `own = { spin: 1 }` | — | funnel names the drawing; motion turns it |
 | `a mushroom` | `null` (identity) | — | funnel falls through to naming |
+| `teleport us to the moon` | `[set(gravity,(0,.165)), set(airDrag,·), set(daylight,.3)]`, all of one note; props `moon`, `star ×3` | the three edits in order; erasing the note refolds without all three | gravity, drag, lighting; Kami inks the props above the words |
 
 ## 9. Extension paths
 

@@ -38,10 +38,10 @@ const EFFECT_SHAPES: { readonly [Setting in Governs]: ShapeOf<Setting> } = {
 
 const isGoverns = (setting: string): setting is Governs => Object.hasOwn(EFFECT_SHAPES, setting);
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+export const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null;
 
-const isFiniteNumber = (value: unknown): value is number =>
+export const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
 const isTarget = (value: unknown): value is Target =>
@@ -59,7 +59,7 @@ const isRuleEffect = (value: unknown): value is RuleEffect => {
     : isFiniteNumber(value.value);
 };
 
-const isCompiledRule = (value: unknown): value is CompiledRule =>
+export const isCompiledRule = (value: unknown): value is CompiledRule =>
   isRecord(value) && isRuleEffect(value.effect) && typeof value.explanation === "string";
 
 export class RemoteRuleCompiler implements RuleCompiler {

@@ -1,7 +1,8 @@
-import type { RuleCompiler } from "../rules/types";
+import type { RuleCompiler, SceneCompiler } from "../rules/types";
 import { HttpBoardStore } from "./httpBoardStore";
 import { HttpHandwritingReader } from "./httpHandwritingReader";
 import { RemoteRuleCompiler } from "./remoteRuleCompiler";
+import { RemoteSceneCompiler } from "./remoteSceneCompiler";
 import type { BoardStore, HandwritingReader } from "./types";
 
 export type * from "./types";
@@ -15,6 +16,11 @@ export function createBoardStore(): BoardStore {
 /** `POST /api/compile`: the server's model-backed compiler (the GX10). Null when it has none. */
 export function createRemoteRuleCompiler(): RuleCompiler {
   return new RemoteRuleCompiler();
+}
+
+/** `POST /api/scene`: the server's model makes a place the offline atlas does not know. */
+export function createRemoteSceneCompiler(): SceneCompiler {
+  return new RemoteSceneCompiler();
 }
 
 /** `POST /api/transcribe`: the server's vision model reads pen strokes as words (or not). */
