@@ -1330,6 +1330,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private applyLaws({ silently }: { readonly silently: boolean }): boolean {
     const physics = this.rules.physics;
     this.modules.sim.setPhysics(physics);
+    this.party.resync(this.modules.sim.alices().length);
     const loose = physics.inkEater > 0;
     const summoned = loose && !this.sumikuiLoose;
     const sealed = !loose && this.sumikuiLoose;

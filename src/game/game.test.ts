@@ -1785,6 +1785,26 @@ describe("Game on a blank board", () => {
     ).toBe(true);
   });
 
+  it("gives the controls back to Alice herself when the law that made the chosen twin is erased", async () => {
+    const player = new Player("my-first-game");
+    await player.arrive();
+    await player.write("clone alice", { x: -200, y: -200 });
+    const twin = () => player.renderer.lastFrame?.world.twins[0];
+    expect(await player.until(() => twin() !== undefined)).toBe(true);
+    const tapped = twin();
+    if (tapped === undefined) throw new Error("no twin to tap");
+    player.use("draw");
+    player.game.tap(tapped.center);
+    await player.wait(100);
+    expect(player.renderer.lastFrame?.selectedAlice).toBe(1);
+
+    await player.erase({ x: -190, y: -185 });
+    await player.wait(100);
+    expect(player.renderer.lastFrame?.world.twins).toEqual([]);
+    expect(player.renderer.lastFrame?.selectedAlice).toBe(0);
+    expect(player.written).toContain(RULE_REPEALED_LINE);
+  });
+
   it("hands the controls to a tapped twin, and says which Alice found the rabbit hole", async () => {
     const player = new Player("my-first-game");
     await player.arrive();
