@@ -45,6 +45,18 @@ const figure = (name = "alice"): DrawnBody => incarnate(FIGURE, HEART, name, 0).
 
 const partsOf = (body: DrawnBody): readonly BodyPartKind[] => body.strokes.map((s) => s.part);
 
+const NATURAL_STICK_FIGURE: readonly Stroke[] = [
+  line({ x: 84, y: 78 }, { x: 116, y: 78 }),
+  line({ x: 116, y: 78 }, { x: 116, y: 118 }),
+  line({ x: 116, y: 118 }, { x: 84, y: 118 }),
+  line({ x: 84, y: 118 }, { x: 84, y: 78 }),
+  line({ x: 90, y: 118 }, { x: 86, y: 164 }),
+  line({ x: 110, y: 118 }, { x: 114, y: 164 }),
+  line({ x: 84, y: 85 }, { x: 55, y: 105 }),
+  line({ x: 116, y: 85 }, { x: 145, y: 105 }),
+  line({ x: 92, y: 64 }, { x: 108, y: 64 }),
+];
+
 describe("incarnating a drawing", () => {
   it("centres the body on the drawing and keeps the heart where it was drawn around", () => {
     const { body, centre } = incarnate(FIGURE, HEART, "alice", 0);
@@ -56,6 +68,28 @@ describe("incarnating a drawing", () => {
 
   it("segments strokes about the heart: torso around it, head above, arms beside, legs below", () => {
     expect(partsOf(figure())).toEqual(["head", "torso", "arms", "arms", "legs", "legs"]);
+  });
+
+  it("reads a long-legged stick figure relative to its torso", () => {
+    const body = incarnate(NATURAL_STICK_FIGURE, HEART, "alice", 0).body;
+    expect(abilitiesOf(body)).toEqual({
+      walk: true,
+      jump: true,
+      climb: true,
+      fly: false,
+      see: true,
+    });
+    expect(partsOf(body)).toEqual([
+      "arms",
+      "torso",
+      "torso",
+      "torso",
+      "legs",
+      "legs",
+      "arms",
+      "arms",
+      "head",
+    ]);
   });
 
   it("uses frame-relative bands when the heart sits low in the body", () => {
