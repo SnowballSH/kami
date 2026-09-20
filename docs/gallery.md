@@ -19,6 +19,30 @@ what was wrong, what was fixed and what still needs polish. Branch: `devin/ux-sw
   news fires every time the pilot replans. Notes stack on top of each other and cover Alice.
 - **Status:** fixing — one remark per dread episode, and Kami keeps at most two remarks on screen (the older one leaves).
 
+### puzzle-01-wall-open-after.png — room 1, first frame, after the fix
+- **Shows:** the room card alone; the Sumikui stirs quietly behind Alice (grey, biding) instead of hunting.
+- **Fixed:** a room's ink-eater law folded at entry bides until the first drawing (`Simulation.underway`); the
+  wordmark/tagline are no longer handwritten in Puzzle/Boss; flee/stuck lines have a calm window; ≤ 2 Kami remarks.
+- **Still wrong:** the handwritten room intro is written exactly where the DOM room card sits, so the two overlap for the
+  card's lifetime. → fix: hold Kami's opening lines until the room card has left (or write them below it).
+
+### puzzle-01-wall-first-ink-after.png / puzzle-01-wall-line-eaten-after.png — first drawing wakes it
+- **Shows:** a flat line at Alice's feet; the Sumikui wakes ("It smells ink…"), goes for the line, and chews it
+  (particles, "Gone. It drank that line to the last drop."). Alice is left alone for the first 20 s awake.
+- **Wrong:** guess chips ("a trampoline? a mushroom? a ball?") are laid out downward over the ground hatch and under the
+  tidiness slider — they should stay above the ground line, on the paper.
+
+### puzzle-01-wall-note-clipped.png — 24 s
+- **Wrong:** Kami's lines are written at the spawn column regardless of the camera, and run off the right edge
+  ("Draw her somewher…"). Notes need to be laid out inside the visible viewport (shift left, or wrap earlier).
+- **Wrong:** Kami says "She sees it. She runs." but Alice stood still for the next 10 s with the eater on her.
+  → check the pilot's flee route on a flat one-way room (nothing to flee *to* → cornered, so she should at least
+  keep walking away).
+
+### puzzle-01-wall-30s-caught.png — 34 s
+- **Shows:** grace over (20 s awake) — it bites the ground under her / swallows her. Intended stakes; fair now that the
+  player had 20 s and a wake line first.
+
 ## Sweep plan — every mode × every feature × the edge cases
 
 Checked as I go; each item gets a screenshot (or a note why not). Edge cases looked for on every item:
