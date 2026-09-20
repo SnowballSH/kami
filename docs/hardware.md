@@ -1,7 +1,8 @@
 # Kami — Hardware: the Wonderland Cabinet
 
 Companion to `docs/spec.md` §11. The cabinet remains an **optional, incomplete milestone**.
-The implemented controller relay is described in [controllers.md](controllers.md).
+The implemented controller relay is described in [controllers.md](controllers.md) and the
+[current integration guide](architecture.md#controllers-and-voice).
 
 **Goal:** a self-contained cabinet that plays the whole game. Today only the arcade stick's
 walking/jumping/climbing path is connected to the game. Knob drawing, INK gestures, CAT speech,
