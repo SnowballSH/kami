@@ -77,7 +77,11 @@ microphone — which is why it is a toggle the player turns on, and never the de
 `DEEPGRAM_API_KEY` on the server turns voice on; without it the socket refuses and
 `POST /api/voice/speak` answers `501`, which the client treats as silence. `KAMI_VOICE_LISTEN_MODEL`
 (default `nova-3`) and `KAMI_VOICE_SPEAK_MODEL` (default `aura-2-draco-en`) override the models.
-See `server/README.md`.
+
+Microphones need HTTPS when the game is opened over the LAN. The GX10 box serves
+`https://<box>:8443` with a self-signed certificate; accept it once on the iPad/Chrome. Set
+`KAMI_TLS_CERT` and `KAMI_TLS_KEY` to enable the listener, and optionally set `KAMI_TLS_PORT`
+(default `8443`). See `server/README.md`.
 
 ## Why not Deepgram's Voice Agent API
 

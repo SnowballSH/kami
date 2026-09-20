@@ -31,6 +31,8 @@ boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod`
 | Env | |
 |---|---|
 | `PORT` | HTTP port, default `8787` (what `vite.config.ts` proxies `/api` to) |
+| `KAMI_TLS_CERT` / `KAMI_TLS_KEY` | Enable the optional HTTPS listener when both are non-empty; certificate and private-key files. |
+| `KAMI_TLS_PORT` | HTTPS port, default `8443`. |
 | `KAMI_ACCESS_MODE` | `demo` (default, trusted LAN only) or `shared` (scoped authentication). See [access and deployment](../docs/access.md). |
 | `KAMI_BIND_HOST` | HTTP bind address: `0.0.0.0` in demo, `127.0.0.1` in shared mode. |
 | `KAMI_WEB_HOST` | Vite development bind address, default `0.0.0.0`; use `127.0.0.1` for local-only development. |

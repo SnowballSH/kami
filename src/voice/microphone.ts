@@ -1,5 +1,5 @@
 import { toPcm16 } from "./pcm";
-import type { Microphone, MicrophoneSession } from "./types";
+import type { Microphone, MicrophoneDeafness, MicrophoneSession } from "./types";
 
 const TAP_NAME = "kami-pcm-tap";
 
@@ -24,9 +24,11 @@ const tapModuleUrl = (): string => {
 
 /** One microphone, opened per press and closed on release: never an open mic (`docs/spec.md`). */
 export class BrowserMicrophone implements Microphone {
-  async open(onAudio: (frame: Uint8Array<ArrayBuffer>) => void): Promise<MicrophoneSession | null> {
+  async open(
+    onAudio: (frame: Uint8Array<ArrayBuffer>) => void,
+  ): Promise<MicrophoneSession | MicrophoneDeafness> {
     const media = navigator.mediaDevices;
-    if (media === undefined) return null;
+    if (media === undefined) return window.isSecureContext ? "refused" : "insecure";
     let stream: MediaStream | null = null;
     let context: AudioContext | null = null;
     try {
@@ -54,7 +56,7 @@ export class BrowserMicrophone implements Microphone {
     } catch {
       for (const track of stream?.getTracks() ?? []) track.stop();
       await context?.close();
-      return null;
+      return "refused";
     }
   }
 }

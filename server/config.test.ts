@@ -44,6 +44,22 @@ describe("readConfig", () => {
     expect(readConfig({ PORT: "eighty" }).port).toBe(8787);
   });
 
+  it("enables TLS when both certificate and key are configured", () => {
+    expect(
+      readConfig({
+        KAMI_TLS_CERT: " /etc/kami/cert.pem ",
+        KAMI_TLS_KEY: " /etc/kami/key.pem ",
+        KAMI_TLS_PORT: " 9443 ",
+      }).tls,
+    ).toEqual({ certFile: "/etc/kami/cert.pem", keyFile: "/etc/kami/key.pem", port: 9443 });
+    expect(readConfig({ KAMI_TLS_CERT: "/etc/kami/cert.pem" }).tls).toBeNull();
+    expect(readConfig({ KAMI_TLS_KEY: "/etc/kami/key.pem" }).tls).toBeNull();
+    expect(
+      readConfig({ KAMI_TLS_CERT: "/etc/kami/cert.pem", KAMI_TLS_KEY: "/etc/kami/key.pem" }).tls
+        ?.port,
+    ).toBe(8443);
+  });
+
   it("listens for controllers on UDP 8788 and any Arduino's serial line unless told otherwise", () => {
     expect(readConfig({}).controllers).toEqual({ udpPort: 8788, serialDevice: "auto" });
     expect(

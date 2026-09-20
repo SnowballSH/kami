@@ -6,7 +6,8 @@
 all IPv4 interfaces, so **every reachable peer can read, overwrite and delete every board, report
 controller state, and spend model capacity**. Use an isolated, trusted LAN with no public port
 forwarding. The iPad opens the existing Vite network URL in development or the built game on
-GX10 port 8787. Ordinary same-origin requests need no token. A browser origin other than the
+GX10 port 8787. For microphone access on the LAN, use the server's built-in TLS listener at
+`https://<box>:8443` and accept its self-signed certificate once. Ordinary same-origin requests need no token. A browser origin other than the
 request's own origin must appear in `KAMI_ALLOWED_ORIGINS`; there is no wildcard CORS response.
 Origin checks protect browser requests but do not authenticate non-browser peers.
 

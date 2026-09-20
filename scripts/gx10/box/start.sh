@@ -8,6 +8,7 @@
 set -euo pipefail
 cd -P "$(dirname "$0")/.."
 PORT=${PORT:-8787}
+TLS_PORT=${TLS_PORT:-8443}
 MONGO_PORT=27017
 EYE_PORT=${KAMI_EYE_PORT:-8790}
 EYE_URL="http://127.0.0.1:$EYE_PORT"
@@ -17,6 +18,27 @@ LIVE_MODEL_FILE=$ML_HOME/artifacts/LIVE
 EYE_MODEL_NAME=${KAMI_EYE_MODEL_NAME:-$(cat "$LIVE_MODEL_FILE" 2>/dev/null || echo kami-eye)}
 MODEL=${KAMI_LLM_MODEL:-qwen3.8:latest}
 export MONGODB_URI="mongodb://127.0.0.1:$MONGO_PORT"
+
+ensure_tls_cert() {
+  local cert=run/tls/kami.crt
+  local key=run/tls/kami.key
+  if [ -s "$cert" ] && [ -s "$key" ]; then
+    KAMI_TLS_CERT="$PWD/$cert"
+    KAMI_TLS_KEY="$PWD/$key"
+    return 0
+  fi
+  if ! command -v openssl >/dev/null 2>&1; then
+    echo "  ! openssl is missing — skipping TLS"
+    return 0
+  fi
+  mkdir -p run/tls
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 3650 \
+    -subj "/CN=kami" \
+    -addext "subjectAltName=DNS:kami,DNS:$(hostname),DNS:$(hostname).local,IP:127.0.0.1$(hostname -I | tr ' ' '\n' | grep . | sed 's/^/,IP:/' | tr -d '\n')" \
+    -keyout "$key" -out "$cert"
+  KAMI_TLS_CERT="$PWD/$cert"
+  KAMI_TLS_KEY="$PWD/$key"
+}
 
 wait_for_port() {
   for _ in $(seq 1 120); do (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null && return 0; sleep 0.25; done
@@ -103,7 +125,11 @@ if [ -z "${KAMI_SKETCHES:-}" ] && [ -n "$EYE_MODEL" ] && [ -s "$EYE_MODEL/exempl
   export KAMI_SKETCHES="$EYE_MODEL/exemplars"
 fi
 
+KAMI_TLS_CERT=
+KAMI_TLS_KEY=
+ensure_tls_cert
 PORT=$PORT KAMI_WEB_DIR="$PWD/dist" KAMI_LLM_URL="http://127.0.0.1:11434" KAMI_LLM_MODEL="$MODEL" \
+  KAMI_TLS_CERT="$KAMI_TLS_CERT" KAMI_TLS_KEY="$KAMI_TLS_KEY" KAMI_TLS_PORT="$TLS_PORT" \
   nohup runtime/bun app/server.js > logs/server.log 2>&1 &
 echo $! > run/server.pid
 wait_for_port "$PORT" || { echo "✗ the Kami server did not start:"; tail -15 logs/server.log; exit 1; }
@@ -120,4 +146,4 @@ done
 
 sleep 1
 sed 's/^/  /' logs/server.log
-echo "✓ running on this box, port $PORT (model: $MODEL, eye: ${KAMI_RECOGNIZER_URL:-k-NN only}, finishes drawings: ${KAMI_BEAUTIFY_URL:-no})"
+echo "✓ running on this box, ports $PORT (http) and $TLS_PORT (https) (model: $MODEL, eye: ${KAMI_RECOGNIZER_URL:-k-NN only}, finishes drawings: ${KAMI_BEAUTIFY_URL:-no})"

@@ -63,6 +63,7 @@ import {
   FakeVoice,
   MemoryBoardStore,
 } from "./testing/fakes";
+import { DEAF_LINES } from "./voiceLines";
 
 const COMMIT_WAIT_MS = 1_200;
 const PATIENCE_MS = 40_000;
@@ -555,6 +556,14 @@ describe("Game on the Wonderland board", () => {
     expect((await player.store.load("wonderland")).rules[0]?.effect).toMatchObject({
       governs: "gravity",
     });
+  });
+
+  it("says why nothing could be heard instead of leaving the buttons mute", async () => {
+    player.game.onTalkStarted();
+    player.voice.deaf("insecure");
+    await player.wait(100);
+    expect(player.hud.listening).toBe(false);
+    expect(player.written.some((text) => text.includes(DEAF_LINES.insecure))).toBe(true);
   });
 
   it("cancels listening on navigation and rejects speech while the board is loading", async () => {

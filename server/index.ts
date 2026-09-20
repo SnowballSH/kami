@@ -67,10 +67,8 @@ const isApiCall = (request: Request): boolean =>
 const isVoiceSocket = (request: Request): boolean =>
   new URL(request.url).pathname === VOICE_SOCKET_PATH;
 
-const server = Bun.serve<VoiceSocketData>({
+const serving = {
   maxRequestBodySize: INPUT_LIMITS.sketchBytes,
-  port: config.port,
-  hostname: config.hostname,
   fetch: async (request, listening) => {
     if (isVoiceSocket(request)) return voice.upgrade(request, listening);
     return isApiCall(request) || site === null
@@ -78,9 +76,32 @@ const server = Bun.serve<VoiceSocketData>({
       : ((await site(request)) ?? api.handle(request));
   },
   websocket: voice.websocket,
+} satisfies Pick<Bun.Serve.Options<VoiceSocketData>, "fetch" | "websocket" | "maxRequestBodySize">;
+
+const server = Bun.serve<VoiceSocketData>({
+  ...serving,
+  port: config.port,
+  hostname: config.hostname,
 });
+const tlsServer =
+  config.tls === null
+    ? null
+    : Bun.serve<VoiceSocketData>({
+        ...serving,
+        port: config.tls.port,
+        hostname: config.hostname,
+        tls: {
+          cert: Bun.file(config.tls.certFile),
+          key: Bun.file(config.tls.keyFile),
+        },
+      });
 
 console.log(`Kami server on http://${config.hostname}:${server.port} (${config.access.mode})`);
+console.log(
+  config.tls === null
+    ? "  https: off (set KAMI_TLS_CERT/KAMI_TLS_KEY)"
+    : `Kami server on https://${config.hostname}:${config.tls.port} (microphone-capable)`,
+);
 console.log(`  memory: ${connection.description}`);
 console.log(`  game: ${config.webDirectory ?? "not built (Vite serves it in development)"}`);
 console.log(
@@ -121,6 +142,7 @@ const once = (task: () => Promise<void>): (() => Promise<void>) => {
 
 const shutDown = once(async () => {
   await controllers.close();
+  await tlsServer?.stop(true);
   await server.stop(true);
   await connection.close();
   process.exit(0);

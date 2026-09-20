@@ -1,6 +1,7 @@
 import { DONE, readVoiceMessage } from "./messages";
 import { spoken } from "./spoken";
 import type {
+  Deafness,
   DialVoice,
   EarsHandlers,
   Listening,
@@ -104,12 +105,12 @@ export class Ears implements Listening {
     const session = await this.#microphone.open((frame) => {
       if (this.#current(generation)) this.#capture(frame);
     });
-    if (!this.#current(generation)) {
-      void session?.close();
+    if (typeof session === "string") {
+      if (this.#current(generation)) this.#unheard(session);
       return;
     }
-    if (session === null) {
-      this.#unheard();
+    if (!this.#current(generation)) {
+      void session.close();
       return;
     }
     this.#session = session;
@@ -162,7 +163,9 @@ export class Ears implements Listening {
         else this.#wakeHeard(message.text);
         return;
       case "listening":
+        return;
       case "trouble":
+        this.#unheard("server");
         return;
     }
   }
@@ -183,6 +186,10 @@ export class Ears implements Listening {
   }
 
   #closed(mode: Exclude<Mode, null>): void {
+    if (!this.#open) {
+      this.#unheard("server");
+      return;
+    }
     if (mode === "press") {
       this.#end({ resume: true });
       return;
@@ -191,13 +198,15 @@ export class Ears implements Listening {
     if (this.#wanted && !this.#held) this.#later(() => this.#reopen(), REOPEN_MS);
   }
 
-  /** The player refused the microphone, or the browser has none: waking is off, and says so. */
-  #unheard(): void {
+  /** Nothing could be heard: the listening ends, waking is off, and the player is told why. */
+  #unheard(reason: Deafness): void {
     const waking = this.#mode === "wake";
     this.#end();
-    if (!waking) return;
-    this.#wanted = false;
-    this.#handlers.onWakingChanged(false);
+    if (waking) {
+      this.#wanted = false;
+      this.#handlers.onWakingChanged(false);
+    }
+    this.#handlers.onDeaf(reason);
   }
 
   #reopen(): void {

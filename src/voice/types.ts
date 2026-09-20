@@ -11,9 +11,19 @@ export interface MicrophoneSession {
   close(): Promise<void>;
 }
 
+/**
+ * Why nothing can be heard: the page is plain http away from localhost (browsers give no
+ * microphone there), the player or the browser withheld the microphone, or the server has no
+ * voice to relay to.
+ */
+export type Deafness = "insecure" | "refused" | "server";
+
+export type MicrophoneDeafness = Exclude<Deafness, "server">;
+
 export interface Microphone {
-  /** Null when the player refuses the microphone, or the browser has none. */
-  open(onAudio: (frame: Uint8Array<ArrayBuffer>) => void): Promise<MicrophoneSession | null>;
+  open(
+    onAudio: (frame: Uint8Array<ArrayBuffer>) => void,
+  ): Promise<MicrophoneSession | MicrophoneDeafness>;
 }
 
 export interface SocketHandlers {
@@ -49,6 +59,8 @@ export interface EarsHandlers {
   onListeningChanged(listening: boolean): void;
   /** The microphone is open waiting for "kami" — or it is not, because it could not be. */
   onWakingChanged(waking: boolean): void;
+  /** A press or a waking that could not hear at all, and why. */
+  onDeaf(reason: Deafness): void;
 }
 
 /** Hold to talk: `hold` while the button or Space is down, `release` when it comes up. */

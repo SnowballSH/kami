@@ -3,9 +3,11 @@ import { listenSocketUrl } from "./api";
 import { Ears } from "./ears";
 import { toPcm16 } from "./pcm";
 import type {
+  Deafness,
   DialVoice,
   EarsHandlers,
   Microphone,
+  MicrophoneDeafness,
   MicrophoneSession,
   SocketHandlers,
   VoiceSocket,
@@ -14,14 +16,16 @@ import type {
 class FakeMicrophone implements Microphone {
   onAudio: ((frame: Uint8Array<ArrayBuffer>) => void) | null = null;
   closed = false;
-  #opening: ((session: MicrophoneSession | null) => void) | null = null;
-  readonly refuse: boolean;
+  #opening: ((session: MicrophoneSession | MicrophoneDeafness) => void) | null = null;
+  readonly refuse: MicrophoneDeafness | null;
 
-  constructor(refuse = false) {
+  constructor(refuse: MicrophoneDeafness | null = null) {
     this.refuse = refuse;
   }
 
-  open(onAudio: (frame: Uint8Array<ArrayBuffer>) => void): Promise<MicrophoneSession | null> {
+  open(
+    onAudio: (frame: Uint8Array<ArrayBuffer>) => void,
+  ): Promise<MicrophoneSession | MicrophoneDeafness> {
     this.onAudio = onAudio;
     return new Promise((resolve) => {
       this.#opening = resolve;
@@ -30,14 +34,12 @@ class FakeMicrophone implements Microphone {
 
   answer(): void {
     this.#opening?.(
-      this.refuse
-        ? null
-        : {
-            sampleRate: 48_000,
-            close: async () => {
-              this.closed = true;
-            },
-          },
+      this.refuse ?? {
+        sampleRate: 48_000,
+        close: async () => {
+          this.closed = true;
+        },
+      },
     );
     this.#opening = null;
   }
@@ -92,12 +94,14 @@ const listen = () => {
   const spoken: string[] = [];
   const listening: boolean[] = [];
   const waking: boolean[] = [];
+  const deaf: Deafness[] = [];
   const later: (() => void)[] = [];
   const handlers: EarsHandlers = {
     onHearing: (text) => said.push(text),
     onHeard: (text) => spoken.push(text),
     onListeningChanged: (on) => listening.push(on),
     onWakingChanged: (on) => waking.push(on),
+    onDeaf: (reason) => deaf.push(reason),
   };
   return {
     ears: new Ears(microphone, socket.dial, handlers, (todo) => later.push(todo)),
@@ -107,6 +111,7 @@ const listen = () => {
     spoken,
     listening,
     waking,
+    deaf,
     later,
   };
 };
@@ -193,21 +198,64 @@ describe("Ears", () => {
     expect(listening).toEqual([true, false]);
   });
 
-  it("gives up quietly when the microphone is refused", async () => {
-    const microphone = new FakeMicrophone(true);
+  it("gives up and says why when the microphone is refused", async () => {
+    const microphone = new FakeMicrophone("refused");
     const socket = new FakeSocket();
     const listening: boolean[] = [];
+    const deaf: Deafness[] = [];
     const ears = new Ears(microphone, socket.dial, {
       onHearing: () => heard.push("no"),
       onHeard: () => heard.push("no"),
       onListeningChanged: (on) => listening.push(on),
       onWakingChanged: () => heard.push("no"),
+      onDeaf: (reason) => deaf.push(reason),
     });
     ears.hold();
     microphone.answer();
     await Promise.resolve();
     expect(listening).toEqual([true, false]);
+    expect(deaf).toEqual(["refused"]);
     expect(ears.listening).toBe(false);
+  });
+
+  it("says the page is insecure when a plain http page has no microphone at all", async () => {
+    const microphone = new FakeMicrophone("insecure");
+    const socket = new FakeSocket();
+    const deaf: Deafness[] = [];
+    const ears = new Ears(microphone, socket.dial, {
+      onHearing: () => heard.push("no"),
+      onHeard: () => heard.push("no"),
+      onListeningChanged: () => {},
+      onWakingChanged: () => heard.push("no"),
+      onDeaf: (reason) => deaf.push(reason),
+    });
+    ears.hold();
+    microphone.answer();
+    await Promise.resolve();
+    expect(deaf).toEqual(["insecure"]);
+    expect(socket.sampleRate).toBe(0);
+  });
+
+  it("blames the server when the socket is refused before it opens", async () => {
+    const { ears, microphone, socket, listening, deaf } = listen();
+    ears.hold();
+    microphone.answer();
+    await Promise.resolve();
+    socket.handlers.closed();
+    expect(deaf).toEqual(["server"]);
+    expect(listening).toEqual([true, false]);
+    expect(microphone.closed).toBe(true);
+  });
+
+  it("blames the server on trouble, and stops waking rather than retrying forever", async () => {
+    const { ears, microphone, socket, waking, deaf, later } = listen();
+    ears.wake(true);
+    await settle(microphone, socket);
+    socket.tell({ type: "trouble" });
+    expect(deaf).toEqual(["server"]);
+    expect(waking).toEqual([true, false]);
+    expect(ears.waking).toBe(false);
+    expect(later).toHaveLength(0);
   });
 
   it("waits for his name, then takes the rest of the breath as the utterance", async () => {
@@ -292,7 +340,7 @@ describe("Ears", () => {
   });
 
   it("turns waiting back off when the microphone is refused", async () => {
-    const microphone = new FakeMicrophone(true);
+    const microphone = new FakeMicrophone("refused");
     const socket = new FakeSocket();
     const waking: boolean[] = [];
     const ears = new Ears(microphone, socket.dial, {
@@ -300,6 +348,7 @@ describe("Ears", () => {
       onHeard: () => heard.push("no"),
       onListeningChanged: () => heard.push("no"),
       onWakingChanged: (on) => waking.push(on),
+      onDeaf: () => {},
     });
     ears.wake(true);
     microphone.answer();

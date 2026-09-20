@@ -16,6 +16,7 @@ export interface ServerConfig {
   readonly hostname: string;
   readonly access: AccessConfig;
   readonly port: number;
+  readonly tls: TlsConfig | null;
   readonly database: DatabaseOptions;
   readonly llm: LlmConfig | null;
   readonly transcribe: LlmConfig | null;
@@ -33,6 +34,12 @@ export interface ServerConfig {
   readonly voice: VoiceConfig | null;
 }
 
+export interface TlsConfig {
+  readonly certFile: string;
+  readonly keyFile: string;
+  readonly port: number;
+}
+
 type Env = Readonly<Record<string, string | undefined>>;
 
 const nonEmpty = (value: string | undefined): string | undefined =>
@@ -44,6 +51,17 @@ const portFrom = (value: string | undefined, fallback: number): number => {
 };
 
 const isOff = (value: string | undefined): boolean => nonEmpty(value)?.toLowerCase() === OFF;
+
+const tlsFrom = (env: Env): TlsConfig | null => {
+  const certFile = nonEmpty(env.KAMI_TLS_CERT);
+  const keyFile = nonEmpty(env.KAMI_TLS_KEY);
+  if (certFile === undefined || keyFile === undefined) return null;
+  return {
+    certFile,
+    keyFile,
+    port: portFrom(env.KAMI_TLS_PORT, 8443),
+  };
+};
 
 const controllersFrom = (env: Env, access: AccessConfig): ControllerTransportConfig => ({
   udpPort:
@@ -87,6 +105,7 @@ export const readConfig = (env: Env = process.env): ServerConfig => {
     hostname: nonEmpty(env.KAMI_BIND_HOST) ?? (access.mode === "shared" ? "127.0.0.1" : "0.0.0.0"),
     access,
     port: portFrom(env.PORT, DEFAULT_PORT),
+    tls: tlsFrom(env),
     database: { uri: nonEmpty(env.MONGODB_URI), embeddedDataDirectory: EMBEDDED_DATA_DIRECTORY },
     llm: llmFrom(env),
     transcribe: llmFrom({

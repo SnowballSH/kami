@@ -23,7 +23,7 @@ import type {
   ShareInfo,
   Tool,
 } from "../../ui/types";
-import type { EarsHandlers, Voice } from "../../voice/types";
+import type { Deafness, EarsHandlers, Voice } from "../../voice/types";
 
 export class FakeVoice implements Voice {
   readonly said: string[] = [];
@@ -61,6 +61,12 @@ export class FakeVoice implements Voice {
   heard(text: string): void {
     this.release();
     this.handlers.onHeard(text);
+  }
+
+  /** Nothing could be heard at all. */
+  deaf(reason: Deafness): void {
+    this.release();
+    this.handlers.onDeaf(reason);
   }
 
   say(text: string): void {

@@ -66,8 +66,10 @@ ssh "$HOST_ALIAS" "bash ~/kami/releases/$RELEASE/box/activate.sh ~/kami/releases
 echo "→ Checking it from this side of the Wi-Fi"
 if curl -fs -m 8 "http://$BOX_ADDRESS:$PORT/api/boards" >/dev/null; then
   echo "✓ Kami is live. On the iPad, on the same network: http://$BOX_ADDRESS:$PORT"
+  echo "  On the iPad, for the microphone (accept the certificate once): https://$BOX_ADDRESS:8443"
 else
   echo "✗ The server runs on the box but port $PORT isn't reachable from here — likely its firewall."
   echo "  On the box:  sudo ufw allow $PORT/tcp     (needs the box password)"
+  echo "  On the box:  sudo ufw allow 8443/tcp    (needs the box password)"
 fi
 echo "(log saved to $LOG)"
