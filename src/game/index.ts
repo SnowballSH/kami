@@ -56,11 +56,13 @@ export function startGame(root: HTMLElement): void {
   root.prepend(canvas);
   const handwriting = createHandwriting();
   const renderer = createRenderer(canvas, handwriting);
+  const recognizer = createRecognizer();
   const game = new Game(
     {
       sim: createSimulation(),
       autopilot: createAutopilot(),
-      cat: createCat(createRecognizer()),
+      cat: createCat(recognizer),
+      finisher: recognizer,
       renderer,
       handwriting,
       compiler: createRuleCompiler(),
