@@ -133,6 +133,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly hud: Hud;
   private readonly laws: LawsPanel;
   private readonly voice: Voice | null;
+  private voiceReady = false;
   private readonly loop = new FixedStepLoop(FIXED_STEP_MS, MAX_STEPS_PER_FRAME);
   private readonly ledger = new InkLedger();
   private readonly notes: NoteBook;
@@ -329,6 +330,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   onTalkStarted(): void {
+    if (!this.voiceReady) return;
     this.voice?.hold();
   }
 
@@ -337,6 +339,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   onWakeToggled(enabled: boolean): void {
+    if (enabled && !this.voiceReady) return;
     this.voice?.wake(enabled);
   }
 
@@ -345,6 +348,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     return {
       onHearing: () => {},
       onHeard: (text) => {
+        if (!this.voiceReady) return;
         const alice = this.modules.sim.aliceBounds();
         void this.interpret(text, { x: alice.x + SPOKEN_AT.x, y: alice.y + SPOKEN_AT.y });
       },
@@ -367,6 +371,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const { sim, cat, renderer, store, boardFor, onBoardOpened } = this.modules;
     this.epoch += 1;
     const epoch = this.epoch;
+    this.voiceReady = false;
+    this.voice?.cancel();
     this.board = boardFor(boardId);
 
     sim.loadBoard(this.board);
@@ -396,9 +402,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
-    if (!remember) return;
+    if (!remember) {
+      this.voiceReady = true;
+      return;
+    }
     const snapshot = await store.load(boardId);
-    if (epoch === this.epoch) this.restore(snapshot);
+    if (epoch === this.epoch) {
+      this.restore(snapshot);
+      this.voiceReady = true;
+    }
   }
 
   private restore({ drawings, notes, rules }: BoardSnapshot): void {

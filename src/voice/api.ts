@@ -4,7 +4,7 @@ export const speakPath = (): string => `${API_BASE}/voice/speak`;
 
 export const listenPath = (): string => `${API_BASE}/voice/listen`;
 
-/** Same origin as the game, so the iPad's plain-HTTP LAN visit works too. */
+/** Same origin as the game, with the matching WebSocket transport. */
 export const listenSocketUrl = (
   sampleRate: number,
   location: Location,

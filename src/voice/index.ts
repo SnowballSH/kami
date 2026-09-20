@@ -34,6 +34,7 @@ export const createVoice = (
   return {
     hold: () => ears.hold(),
     release: () => ears.release(),
+    cancel: () => ears.cancel(),
     wake: (enabled) => ears.wake(enabled),
     get listening() {
       return ears.listening;

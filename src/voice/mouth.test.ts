@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FetchLike } from "../persistence/api";
-import { type AudioSink, Mouth } from "./mouth";
+import { type AudioSink, ElementAudioSink, Mouth } from "./mouth";
 import { toPcm16 } from "./pcm";
 
 class FakeSink implements AudioSink {
@@ -57,6 +57,51 @@ describe("Mouth", () => {
     const mouth = new Mouth(sink, deepgramSaying(4));
     mouth.hush();
     expect(sink.stopped).toBe(1);
+  });
+
+  it("discards a pending reply after hush and immediately permits new speech", async () => {
+    const pending = Promise.withResolvers<Response>();
+    const sink = new FakeSink();
+    const signals: (AbortSignal | null | undefined)[] = [];
+    const mouth = new Mouth(sink, async (_url, init) => {
+      signals.push(init?.signal);
+      return signals.length === 1 ? pending.promise : new Response(new Uint8Array(8));
+    });
+    mouth.say("Old board.");
+    mouth.hush();
+    expect(signals[0]?.aborted).toBe(true);
+    mouth.say("New board.");
+    await vi.waitFor(() => expect(sink.played).toEqual([8]));
+    pending.resolve(new Response(new Uint8Array(4)));
+    await pending.promise;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(sink.played).toEqual([8]);
+  });
+});
+
+describe("ElementAudioSink", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("settles stopped playback, releases its URL, and lets the queue resume", async () => {
+    const audio = new Audio();
+    const play = vi.spyOn(audio, "play").mockResolvedValue();
+    vi.spyOn(audio, "pause").mockImplementation(() => {});
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:speech");
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const sink = new ElementAudioSink(audio);
+    const mouth = new Mouth(sink, deepgramSaying(4));
+    mouth.say("Old board.");
+    await vi.waitFor(() => expect(play).toHaveBeenCalledTimes(1));
+    mouth.hush();
+    expect(revoke).toHaveBeenCalledTimes(1);
+    expect(audio.hasAttribute("src")).toBe(false);
+    mouth.say("New board.");
+    mouth.say("Another line.");
+    await vi.waitFor(() => expect(play).toHaveBeenCalledTimes(2));
+    audio.dispatchEvent(new Event("ended"));
+    await vi.waitFor(() => expect(play).toHaveBeenCalledTimes(3));
+    audio.dispatchEvent(new Event("ended"));
+    expect(revoke).toHaveBeenCalledTimes(3);
   });
 });
 

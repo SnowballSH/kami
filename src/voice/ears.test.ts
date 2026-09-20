@@ -318,6 +318,34 @@ describe("Ears", () => {
     ears.hold();
     expect(socket.sampleRate).toBe(48_000);
   });
+
+  it("cancels a pending transcript and wake reconnect on board navigation", async () => {
+    const { ears, microphone, socket, spoken, later } = listen();
+    ears.wake(true);
+    await settle(microphone, socket);
+    ears.hold();
+    await settle(microphone, socket);
+    ears.release();
+    const previous = socket.handlers;
+    ears.cancel();
+    previous.message(JSON.stringify({ type: "heard", text: "gravity off" }));
+    previous.closed();
+    expect(spoken).toEqual([]);
+    expect(later).toEqual([]);
+    expect(socket.closed).toBe(true);
+    expect(microphone.closed).toBe(true);
+    expect(ears.waking).toBe(false);
+  });
+
+  it("clears the listening indicator when an armed wake stream is switched off", async () => {
+    const { ears, microphone, socket, listening } = listen();
+    ears.wake(true);
+    await settle(microphone, socket);
+    socket.tell({ type: "heard", text: "Kami" });
+    ears.wake(false);
+    expect(listening).toEqual([true, false]);
+    expect(ears.listening).toBe(false);
+  });
 });
 
 describe("listenSocketUrl", () => {

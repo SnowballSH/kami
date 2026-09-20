@@ -55,6 +55,7 @@ export interface EarsHandlers {
 export interface Listening {
   hold(): void;
   release(): void;
+  cancel(): void;
   /** Or do not hold anything: leave the microphone open and say "kami" first. */
   wake(enabled: boolean): void;
   readonly listening: boolean;

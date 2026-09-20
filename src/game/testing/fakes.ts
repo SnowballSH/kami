@@ -49,6 +49,11 @@ export class FakeVoice implements Voice {
     this.handlers.onListeningChanged(false);
   }
 
+  cancel(): void {
+    this.release();
+    this.wake(false);
+  }
+
   /** The player spoke, and Deepgram made out `text`. */
   heard(text: string): void {
     this.release();

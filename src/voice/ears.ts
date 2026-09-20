@@ -81,13 +81,17 @@ export class Ears implements Listening {
   wake(enabled: boolean): void {
     if (enabled === this.#wanted) return;
     this.#wanted = enabled;
-    this.#wake.forget();
     this.#handlers.onWakingChanged(enabled);
     if (!enabled) {
       if (this.#mode === "wake") this.#end();
       return;
     }
     if (!this.#held && this.#mode === null) this.#begin("wake");
+  }
+
+  cancel(): void {
+    this.wake(false);
+    this.#end();
   }
 
   #begin(mode: Exclude<Mode, null>): void {
