@@ -24,6 +24,32 @@ export const START_CHOICES: readonly Choice[] = [
   { id: BOSS_MODE_ID, name: "Boss", line: "Two players: one draws, one moves. Start as a heart." },
 ];
 
+const DATASET_URL = "https://github.com/googlecreativelab/quickdraw-dataset";
+const DATASET_LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/";
+
+const linkTo = (href: string, text: string): HTMLAnchorElement => {
+  const link = document.createElement("a");
+  link.href = href;
+  link.target = "_blank";
+  link.rel = "noreferrer";
+  link.textContent = text;
+  return link;
+};
+
+/** The drawings Kami learnt from, summons and tidies with are other people's: CC BY 4.0 asks that we say so. */
+const datasetCredit = (): HTMLElement => {
+  const credit = document.createElement("p");
+  credit.className = "start-credit";
+  credit.append(
+    "Kami learnt to see from ",
+    linkTo(DATASET_URL, "The Quick, Draw! Dataset"),
+    ", made available by Google under ",
+    linkTo(DATASET_LICENCE_URL, "CC BY 4.0"),
+    ".",
+  );
+  return credit;
+};
+
 /** Whether the address already says how to play. */
 export const modeChosen = (search: string): boolean => new URLSearchParams(search).has(MODE_PARAM);
 
@@ -65,6 +91,6 @@ export const chooseMode = (
     });
     choices.append(button);
   }
-  screen.append(heading, choices);
+  screen.append(heading, choices, datasetCredit());
   root.append(screen);
 };
