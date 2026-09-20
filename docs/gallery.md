@@ -339,3 +339,17 @@ The right-edge guess-chip overflow visible around `sandbox-08`/`sandbox-09` rema
 | Sumikui Sandbox | Summon, then measure eating/particles | Sandbox refused `summon the ink eater` by design; no Sumikui appeared | Pass by design; Puzzle accepts `summon the Sumikui` / `release the sumikui` |
 
 The Dark Hall ate the **named lantern drawing**, not a separate light effect; removing that drawing removed its light.
+
+## Sweep 5 — clear page and laws on every mode
+
+![Sweep 5 Sandbox](gallery/sweep5-clear-laws-sandbox.png)
+![Sweep 5 Puzzle](gallery/sweep5-clear-laws-puzzle.png)
+![Sweep 5 Boss](gallery/sweep5-clear-laws-boss.png)
+![Sweep 5 Sandbox clear before/after](gallery/sweep5-clear-laws-sandbox-before-clear.png) ![after](gallery/sweep5-clear-laws-sandbox-after-clear.png)
+
+| Scenario | Expected | Observed | Status |
+| --- | --- | --- | --- |
+| Sandbox fresh | Clear button and an empty laws affordance are visible | Toolbar shows “Clear the page”; laws panel shows “laws in force” and the empty hint | Pass/fixed |
+| Puzzle fresh | Clear button and an empty laws affordance are visible | Both remain visible over the room card and room scenery | Pass/fixed |
+| Boss fresh | Clear button and an empty laws affordance are visible without covering the heart/health strip | Both remain visible; panel sits below the toolbar band | Pass/fixed |
+| Sandbox clear | Clear removes two drawings and one law while keeping the page | Before/after frames show the drawings and law disappearing; empty laws hint remains | Pass/fixed |

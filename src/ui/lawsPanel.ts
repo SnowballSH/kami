@@ -5,6 +5,7 @@ import type { LawListing, LawsPanel, LawsPanelHandlers } from "./types";
 
 const HEADING = "laws in force";
 const REPEAL_HINT = "tap a law to repeal it";
+const EMPTY_HINT = "None yet — write one, like 'gravity is weaker'.";
 const CONFIRM_LABEL = "tap again to repeal";
 const CONFIRMING_CLASS = "is-confirming";
 const DISARM_AFTER_MS = 3000;
@@ -21,6 +22,7 @@ export class DomLawsPanel implements LawsPanel {
     className: "kami-laws-list kami-scrollable",
     attrs: { role: "group", "aria-label": HEADING },
   });
+  private readonly hint = el("span", { className: "kami-laws-hint", text: EMPTY_HINT });
   private laws: readonly LawListing[] = [];
   private armed: RuleId | null = null;
   private disarming: ReturnType<typeof setTimeout> | null = null;
@@ -28,11 +30,11 @@ export class DomLawsPanel implements LawsPanel {
   constructor(private readonly handlers: LawsPanelHandlers) {
     this.element = el(
       "section",
-      { className: "kami-laws kami-island", attrs: { "aria-label": HEADING, hidden: "" } },
+      { className: "kami-laws kami-island", attrs: { "aria-label": HEADING } },
       [
         el("header", { className: "kami-laws-heading" }, [
           el("span", { text: HEADING }),
-          el("span", { className: "kami-laws-hint", text: REPEAL_HINT }),
+          this.hint,
         ]),
         this.list,
       ],
@@ -42,8 +44,8 @@ export class DomLawsPanel implements LawsPanel {
   setLaws(laws: readonly LawListing[]): void {
     this.laws = laws;
     if (laws.every((law) => law.id !== this.armed)) this.armed = null;
+    this.hint.textContent = laws.length === 0 ? EMPTY_HINT : REPEAL_HINT;
     this.list.replaceChildren(...laws.map((law) => this.itemFor(law)));
-    this.element.toggleAttribute("hidden", laws.length === 0);
   }
 
   private itemFor(law: LawListing): HTMLButtonElement {

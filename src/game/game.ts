@@ -1914,25 +1914,40 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private obstacles(): readonly Rect[] {
     const tear = this.modules.sim.snapshot().tear;
+    const viewport = this.modules.renderer.viewport();
+    const lawsWidth = Math.min(300, Math.max(0, viewport.width - 32));
+    const lawsRight = viewport.width - 16;
     return [
       ...this.board.solids.map(({ rect }) => rect),
       expandRect(this.modules.sim.aliceBounds(this.party.selected), 12),
       this.viewportBandToWorld(0, 100),
-      this.viewportBandToWorld(
-        this.modules.renderer.viewport().height - 90,
-        this.modules.renderer.viewport().height,
+      this.viewportRectToWorld(
+        lawsRight - lawsWidth,
+        100,
+        lawsRight,
+        Math.min(viewport.height, 100 + viewport.height * 0.4),
       ),
+      this.viewportBandToWorld(viewport.height - 90, viewport.height),
       ...(tear === null ? [] : [{ x: tear.at.x - 40, y: tear.at.y - 120, width: 80, height: 240 }]),
     ];
   }
 
   private viewportBandToWorld(topPx: number, bottomPx: number): Rect {
     const viewport = this.modules.renderer.viewport();
+    return this.viewportRectToWorld(0, topPx, viewport.width, bottomPx);
+  }
+
+  private viewportRectToWorld(
+    leftPx: number,
+    topPx: number,
+    rightPx: number,
+    bottomPx: number,
+  ): Rect {
     const corners = [
-      { x: 0, y: topPx },
-      { x: viewport.width, y: topPx },
-      { x: 0, y: bottomPx },
-      { x: viewport.width, y: bottomPx },
+      { x: leftPx, y: topPx },
+      { x: rightPx, y: topPx },
+      { x: leftPx, y: bottomPx },
+      { x: rightPx, y: bottomPx },
     ].map((corner) => this.modules.renderer.toWorld(corner, this.camera.camera));
     const x = Math.min(...corners.map((corner) => corner.x));
     const y = Math.min(...corners.map((corner) => corner.y));

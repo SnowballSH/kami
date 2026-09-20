@@ -2436,6 +2436,22 @@ describe("Game in Boss mode", () => {
     expect(player.renderer.lastFrame?.world.alice).toBeNull();
   });
 
+  it("clears player ink and laws while keeping the Boss soul", async () => {
+    const heart = soulOf(player);
+    player.game.onCommit(drawingOf("old ink", ringAround({ x: heart.x + 80, y: heart.y }, 20)));
+    await player.write("gravity is weaker", { x: heart.x + 200, y: heart.y + 200 });
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(player.laws.laws).toHaveLength(1);
+
+    player.game.onClearBoard();
+    await player.wait(100);
+
+    expect(soulOf(player)).toEqual(expect.objectContaining({ x: heart.x, y: heart.y }));
+    expect(player.renderer.lastFrame?.world.tear).toBeNull();
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.laws.laws).toHaveLength(0);
+  });
+
   it("opens every Boss fight on a fresh page", async () => {
     const drawing = drawingOf("old-fight", ringAround(soulOf(player), 30));
     player.game.onCommit(drawing);

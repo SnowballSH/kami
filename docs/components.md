@@ -181,7 +181,7 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 | Walk intent merger | `src/ui/walkIntent.ts` | built | keyboard + stick + controller → one `intent`, steering the selected Alice (`Party.steer`) |
 | Arduino / cabinet | `src/controller/*`, `server/controllers/*` | external | `kami arcade <x> <y> [buttons]` over UDP/serial/HTTP → SSE → `createRemoteStick` ([controllers.md](controllers.md), [hardware.md](hardware.md)) |
 | Voice | `src/voice/*`, `server/voice/*`, `src/ui/talkButton.ts` | external | hold-to-talk / wake word → Deepgram proxy → funnel; Kami speaks back ([voice.md](voice.md)) |
-| HUD | `src/ui/hud.ts`, `controls.ts`, `persistenceStatus.ts`, `accessGate.ts` | built | autopilot switch, laws panel, save status, access gate |
+| HUD | `src/ui/hud.ts`, `toolbar.ts`, `lawsPanel.ts`, `controls.ts`, `persistenceStatus.ts`, `accessGate.ts` | built | always-available clear-page button; laws panel stays visible with an empty-state hint; autopilot switch, save status, access gate |
 
 ## 11. The text funnel
 

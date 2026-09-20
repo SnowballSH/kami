@@ -47,7 +47,10 @@ export class DomHud implements Hud {
       this.toolbar.show(tool);
       if (source === "player") handlers.onToolChanged(tool);
     });
-    this.toolbar = new Toolbar((tool) => this.tools.pick(tool));
+    this.toolbar = new Toolbar(
+      (tool) => this.tools.pick(tool),
+      () => handlers.onClearBoard(),
+    );
     this.toolbar.show(this.tools.inForce);
     this.boards = new BoardMenu(handlers);
     this.persistence = new PersistenceStatus(() => handlers.onRetryPersistence());

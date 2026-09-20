@@ -35,9 +35,10 @@ describe("DomLawsPanel", () => {
     return { panel, onRepealLaw };
   };
 
-  it("hides itself until there is a law, then lists them in order with their glosses", () => {
+  it("stays visible with an empty hint, then lists laws in order with their glosses", () => {
     const { panel } = setup();
-    expect(panel.element.hidden).toBe(true);
+    expect(panel.element.hidden).toBe(false);
+    expect(panel.element.textContent).toContain("None yet — write one, like 'gravity is weaker'.");
     panel.setLaws(LAWS);
     expect(panel.element.hidden).toBe(false);
     expect(items(panel).map((item) => item.textContent)).toEqual([
@@ -45,7 +46,8 @@ describe("DomLawsPanel", () => {
       "it is nightdaylight at 0.1",
     ]);
     panel.setLaws([]);
-    expect(panel.element.hidden).toBe(true);
+    expect(panel.element.hidden).toBe(false);
+    expect(panel.element.textContent).toContain("None yet — write one, like 'gravity is weaker'.");
   });
 
   it("repeals a law on the second tap, and a tap elsewhere disarms the first", () => {
