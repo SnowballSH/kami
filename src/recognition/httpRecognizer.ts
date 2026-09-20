@@ -47,11 +47,19 @@ export class HttpRecognizer implements LiveRecognizer {
     return sightingsOf(await this.#ask(RECOGNIZE_PATH, request));
   }
 
-  async complete(strokes: readonly Stroke[], name?: string): Promise<Completion | null> {
+  async complete(
+    strokes: readonly Stroke[],
+    name?: string,
+    firmness?: number,
+  ): Promise<Completion | null> {
     if (!isInputStrokes(strokes)) return null;
     const called = name?.trim() ?? "";
     if (called.length > INPUT_LIMITS.name) return null;
-    const request = called.length > 0 ? { strokes, name: called } : { strokes };
+    const request = {
+      strokes,
+      ...(called.length > 0 ? { name: called } : {}),
+      ...(firmness === undefined ? {} : { strength: Math.min(1, Math.max(0, firmness)) }),
+    };
     return completionOf(await this.#ask(COMPLETE_PATH, request, COMPLETE_TIMEOUT_MS), strokes);
   }
 

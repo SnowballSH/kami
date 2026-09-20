@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from morph import MorphSettings, boldness_of, morph, resample
+from morph import DEFAULT_SETTINGS, MorphSettings, boldness_of, firmed, morph, resample
 
 Points = NDArray[np.float64]
 CENTRE = np.array([400.0, 300.0])
@@ -124,3 +124,24 @@ def test_an_empty_exemplar_gives_no_answer() -> None:
 
 
 DEFAULT = MorphSettings()
+
+
+def test_the_players_slider_scales_how_firmly_he_tidies() -> None:
+    player = [arc(0.0, 2 * np.pi, count=180, wobble=6.0)]
+    errors = []
+    for firmness in (0.0, 0.25, 0.5, 1.0):
+        result = morph(player, unit_circle(), certainty=0.95, firmness=firmness)
+        assert result is not None
+        errors.append(radial_error(result.tidied[0]))
+    assert errors[0] == pytest.approx(radial_error(player[0]))
+    assert errors[0] > errors[1] > errors[2] > errors[3]
+
+
+def test_half_firmness_is_the_settings_as_written_and_full_is_a_snap_with_twice_the_reach() -> None:
+    assert firmed(DEFAULT_SETTINGS, 0.5) == DEFAULT_SETTINGS
+    full = firmed(DEFAULT_SETTINGS, 1.0)
+    assert full.bold_strength == 1.0 and full.gentle_strength == 1.0
+    assert full.bold_shift == pytest.approx(2 * DEFAULT_SETTINGS.bold_shift)
+    none = firmed(DEFAULT_SETTINGS, 0.0)
+    assert none.bold_strength == 0.0 and none.bold_shift == 0.0
+    assert firmed(DEFAULT_SETTINGS, 7.0) == full

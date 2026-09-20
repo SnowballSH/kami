@@ -76,6 +76,37 @@ def test_an_exemplar_sent_back_in_finds_itself(
         )
 
 
+def test_strength_is_the_players_say_in_how_far_the_ink_moves(
+    completing_sidecar_url: str, sure_drawings: dict[str, list[Drawing]]
+) -> None:
+    sketch = as_json(sure_drawings["star"][0], WORLD_SCALE, WORLD_SHIFT)
+
+    def farthest_move(strength: float) -> float:
+        status, body = call(
+            f"{completing_sidecar_url}/complete",
+            {"strokes": sketch, "name": "star", "strength": strength},
+        )
+        assert status == 200
+        return max(
+            float(np.hypot(after["x"] - before["x"], after["y"] - before["y"]))
+            for tidied, drawn in zip(body["tidied"], sketch, strict=True)
+            for after, before in zip(tidied, drawn, strict=True)
+        )
+
+    assert farthest_move(0.0) == 0.0
+    assert farthest_move(1.0) >= farthest_move(0.5) >= farthest_move(0.1)
+
+
+@pytest.mark.parametrize("strength", [-0.1, 1.5, "firm", True, None])
+def test_a_strength_outside_zero_to_one_is_a_400(
+    completing_sidecar_url: str, strength: object
+) -> None:
+    status, answer = call(
+        f"{completing_sidecar_url}/complete", {"strokes": SQUARE, "strength": strength}
+    )
+    assert status == 400 and "strength" in answer["error"]
+
+
 def test_the_answer_is_the_completers_own(
     completing_sidecar_url: str, tiny_artifacts: Path, sure_drawings: dict[str, list[Drawing]]
 ) -> None:

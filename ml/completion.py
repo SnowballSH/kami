@@ -11,7 +11,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from exemplar_set import ExemplarSet
-from morph import Points, morph
+from morph import DEFAULT_FIRMNESS, Points, morph
 from recognizer import Reading
 from render import Strokes
 
@@ -101,7 +101,9 @@ class SketchCompleter:
     def exemplar_count(self) -> int:
         return self._exemplars.count
 
-    def complete(self, strokes: Strokes, name: str | None = None) -> Completion | None:
+    def complete(
+        self, strokes: Strokes, name: str | None = None, firmness: float = DEFAULT_FIRMNESS
+    ) -> Completion | None:
         ink = Bounds.of(strokes)
         if ink is None or not ink.size.any():
             return None
@@ -115,7 +117,10 @@ class SketchCompleter:
         index, similarity = best
         confidence = float(reading.probabilities[0, label])
         shaped = morph(
-            _as_arrays(strokes), _as_arrays(self._exemplars.strokes(index)), certainty=confidence
+            _as_arrays(strokes),
+            _as_arrays(self._exemplars.strokes(index)),
+            certainty=confidence,
+            firmness=firmness,
         )
         if shaped is None:
             return None

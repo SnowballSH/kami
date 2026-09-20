@@ -27,6 +27,7 @@ export const recognizeRequestSchema = z.object({
 export const beautifyRequestSchema = z.object({
   strokes: strokesSchema,
   name: z.string().trim().min(1).max(INPUT_LIMITS.name).exactOptional(),
+  strength: z.number().min(0).max(1).exactOptional(),
 });
 
 export const compileRequestSchema = z.object({ text: textSchema.min(1) });

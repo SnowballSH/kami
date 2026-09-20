@@ -106,7 +106,11 @@ class Eyes implements LiveRecognizer, SketchCatalogue {
   tidy: ((strokes: readonly Vec[][]) => Completion | null) | null = null;
   readonly tidiedAs: (string | undefined)[] = [];
 
-  complete(strokes: readonly Vec[][], name?: string): Promise<Completion | null> {
+  complete(
+    strokes: readonly Vec[][],
+    name?: string,
+    _firmness?: number,
+  ): Promise<Completion | null> {
     this.tidiedAs.push(name);
     return Promise.resolve(this.tidy?.(strokes) ?? null);
   }
@@ -1158,6 +1162,24 @@ describe("Game with a Kami who tidies", () => {
     const saved = (await player.store.load("wonderland")).drawings[0];
     expect(saved?.ruling?.nature).toBe("climbable");
     expect(saved?.drawing.strokes[0]?.[0]?.y).toBe((untouched[0]?.[0]?.y ?? 0) - 3);
+  });
+
+  it("tidies as firmly as the slider says, and not at all when it is all the way down", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "bouncy", true)]);
+    const firmnesses: (number | undefined)[] = [];
+    eyes.complete = (_strokes, _name, firmness) => {
+      firmnesses.push(firmness);
+      return Promise.resolve(null);
+    };
+    const player = new Player("wonderland", { eyes });
+    await player.arrive();
+    expect(player.hud.tidiness).toBe(0.5);
+
+    player.hud.handlers.onTidinessChanged(0.9);
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    player.hud.handlers.onTidinessChanged(0);
+    await player.draw(blob({ x: 500, y: 530 }, 30, 20));
+    expect(firmnesses).toEqual([0.9]);
   });
 
   it("leaves the player's ink exactly as drawn when Kami has nothing to offer", async () => {

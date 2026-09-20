@@ -6,6 +6,8 @@ export interface BeautifyRequest {
   readonly strokes: readonly Stroke[];
   /** What the player called it; without one the model goes by what it sees. */
   readonly name?: string;
+  /** 0–1: how boldly to tidy; the model's own default when left out. */
+  readonly strength?: number;
 }
 
 /**

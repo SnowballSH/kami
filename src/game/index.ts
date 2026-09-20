@@ -18,7 +18,7 @@ import { createSimulation } from "../sim";
 import { Summoner } from "../summoning";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
 import { createVoice } from "../voice";
-import { Game } from "./game";
+import { DEFAULT_TIDINESS, Game } from "./game";
 
 const BOARD_PARAM = "board";
 const AUTOPILOT_PARAM = "autopilot";
@@ -43,6 +43,23 @@ const startsSelfDriving = (): boolean =>
 const rememberSelfDriving = (enabled: boolean): void => {
   try {
     window.localStorage.setItem(AUTOPILOT_MEMORY, enabled ? ON : "off");
+  } catch {}
+};
+
+const TIDINESS_MEMORY = "kami.tidiness";
+
+const rememberedTidiness = (): number => {
+  try {
+    const kept = Number.parseFloat(window.localStorage.getItem(TIDINESS_MEMORY) ?? "");
+    return Number.isFinite(kept) ? kept : DEFAULT_TIDINESS;
+  } catch {
+    return DEFAULT_TIDINESS;
+  }
+};
+
+const rememberTidiness = (tidiness: number): void => {
+  try {
+    window.localStorage.setItem(TIDINESS_MEMORY, String(tidiness));
   } catch {}
 };
 
@@ -86,6 +103,8 @@ export function startGame(root: HTMLElement): void {
       onBoardOpened: rememberBoardInUrl,
       selfDriving: startsSelfDriving(),
       onSelfDrivingChanged: rememberSelfDriving,
+      tidiness: rememberedTidiness(),
+      onTidinessChanged: rememberTidiness,
     },
     boardInUrl(),
   );
