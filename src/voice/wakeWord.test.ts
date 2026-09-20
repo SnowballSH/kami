@@ -29,9 +29,30 @@ describe("WakeWord", () => {
     expect(wake.heard("KAMMY! fly")).toBe("fly");
   });
 
+  it("answers to spellings nobody thought to list", () => {
+    const wake = new WakeWord();
+    expect(wake.heard("Kahmi, help")).toBe("help");
+    expect(wake.heard("Qamee, help")).toBe("help");
+    expect(wake.heard("Karma, help")).toBe("help");
+  });
+
+  it("hears his name written as two words", () => {
+    const wake = new WakeWord();
+    expect(wake.heard("Cam me, gravity off")).toBe("gravity off");
+    expect(wake.heard("Car me, gravity off")).toBe("gravity off");
+  });
+
+  it("stays asleep through plain English that sounds like him", () => {
+    const wake = new WakeWord();
+    expect(wake.heard("come over here")).toBeNull();
+    expect(wake.heard("she came down")).toBeNull();
+    expect(wake.heard("put a comma there")).toBeNull();
+  });
+
   it("only hears him where his name is, not inside another word", () => {
     const wake = new WakeWord();
     expect(wake.heard("the origami crane")).toBeNull();
+    expect(wake.heard("the camera is heavy")).toBeNull();
   });
 
   it("forgets that it was woken", () => {

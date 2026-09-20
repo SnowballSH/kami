@@ -1,4 +1,5 @@
 import { DONE, readVoiceMessage } from "./messages";
+import { spoken } from "./spoken";
 import type {
   DialVoice,
   EarsHandlers,
@@ -168,14 +169,17 @@ export class Ears implements Listening {
 
   #pressHeard(text: string): void {
     this.#end({ resume: true });
-    if (text !== "") this.#handlers.onHeard(text);
+    const command = spoken(text);
+    if (command !== "") this.#handlers.onHeard(command);
   }
 
   #wakeHeard(text: string): void {
     const was = this.listening;
     const command = this.#wake.heard(text);
     if (this.listening !== was) this.#handlers.onListeningChanged(this.listening);
-    if (command !== null) this.#handlers.onHeard(command);
+    if (command === null) return;
+    const said = spoken(command);
+    if (said !== "") this.#handlers.onHeard(said);
   }
 
   #closed(mode: Exclude<Mode, null>): void {

@@ -1,30 +1,30 @@
 /**
- * "Kami, make her fly." Deepgram spells his name a dozen ways, so anything that sounds like it
- * wakes him; what follows in the same breath is the command, and if nothing follows, the next
- * thing said is.
+ * "Kami, make her fly." Deepgram spells his name a dozen ways and sometimes as two words, so
+ * anything that sounds like it wakes him; what follows in the same breath is the command, and if
+ * nothing follows, the next thing said is.
  */
-const VARIANTS = new Set([
-  "kami",
-  "kamis",
-  "kammy",
-  "kammi",
-  "cami",
-  "camy",
-  "cammy",
-  "khami",
-  "karmi",
-  "commie",
-  "comey",
-  "kamee",
-  "kamea",
-  "kamy",
-]);
+const SOUNDS_LIKE = /^k[aeiou]+r?m[aeiou]+s?$/;
 
-const WORDS = /[^\p{L}\p{N}'’]+/u;
+/** Words that sound like his name but are plainly English, and would wake him all day. */
+const PLAIN = new Set(["come", "comes", "came", "coma", "comma", "commas"]);
 
 const bare = (word: string): string => word.toLowerCase().replace(/[^a-z]/g, "");
 
-export const isWakeWord = (word: string): boolean => VARIANTS.has(bare(word));
+const sounded = (word: string): string =>
+  bare(word)
+    .replace(/ck|c|qu|q/g, "k")
+    .replace(/h/g, "")
+    .replace(/y/g, "i")
+    .replace(/(.)\1+/g, "$1");
+
+const WORDS = /[^\p{L}\p{N}'’]+/u;
+
+export const isWakeWord = (word: string): boolean =>
+  !PLAIN.has(bare(word)) && SOUNDS_LIKE.test(sounded(word));
+
+/** "Car me, gravity off": his name split in two is still his name. */
+const isWakePair = (word: string, next: string | undefined): boolean =>
+  next !== undefined && SOUNDS_LIKE.test(sounded(word + next));
 
 export class WakeWord {
   #armed = false;
@@ -37,14 +37,17 @@ export class WakeWord {
   /** The command in this utterance, or null if it was not for Kami. */
   heard(utterance: string): string | null {
     const words = utterance.split(WORDS).filter((word) => word !== "");
-    const at = words.findIndex((word) => isWakeWord(word));
-    if (at === -1) {
+    const spoken = words.findIndex(
+      (word, at) => isWakeWord(word) || isWakePair(word, words[at + 1]),
+    );
+    if (spoken === -1) {
       if (!this.#armed) return null;
       this.#armed = false;
       const said = words.join(" ");
       return said === "" ? null : said;
     }
-    const command = words.slice(at + 1).join(" ");
+    const after = isWakeWord(words[spoken] ?? "") ? spoken + 1 : spoken + 2;
+    const command = words.slice(after).join(" ");
     this.#armed = command === "";
     return command === "" ? null : command;
   }

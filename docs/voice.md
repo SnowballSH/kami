@@ -41,6 +41,13 @@ development. Plain HTTP on a LAN address cannot capture the microphone.
 - Anything that sounds like his name wakes him — Nova-3 spells him a dozen ways — and the rest of
   that breath is the utterance; his name said alone takes the next breath instead. He never signs
   his name aloud (`aloud()` drops the `kami:` he writes), so he cannot wake himself.
+- The name is matched by how it sounds, not by a list of spellings: `wakeWord.ts` flattens a word
+  (`c`, `q`, `ck` → `k`, silent `h`, `y` → `i`, doubles collapsed) and takes anything shaped like
+  _kah-mee_, including it split in two (`Cam me`). Plain English that sounds the same — "come",
+  "came", "comma" — leaves him asleep.
+- Speech carries what writing does not, so `spoken()` takes the hesitation ("uh", "erm"), the
+  run-up ("okay so", "can you") and the politeness ("please") off a transcript before it reaches
+  the funnel — both for a press and for a wake. Only filler goes; the command is untouched.
 - A press wins: holding the button takes the microphone from the standing stream, which resumes
   once the press is done.
 - The browser sends mono signed 16-bit little-endian PCM at whatever rate the `AudioContext` gave
