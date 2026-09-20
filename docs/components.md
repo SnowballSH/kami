@@ -154,6 +154,8 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 | Twins | `src/sim/twins.ts`, `src/sim/independentAlices.test.ts` | built | `clones` dial keeps N extra Alices, each with her own intent (`setWalkIntent(intent, who)`), portal memory and `fell`/`goal-reached`/`alice-devoured` (events carry `who`); sideways strays are recalled to Alice |
 | Party | `src/game/party.ts` | built | one pilot per Alice sharing a chart per step; the selected Alice takes the stick, the rest drive themselves; twins wander when there is no errand |
 | Sumikui | `src/sim/sumikui.ts` | built | summoned by law; wakes at the second drawing; hunts ink Alice used, the ground under her, and Alice; speed doubles every 20 s to a cap; sweeps nameless clutter once quick; lore recital |
+| Soul and drawn body | `src/sim/body/drawnBody.ts`, `types.ts` | built | `disembody`/`incarnate`/`graft`; strokes segmented into head / torso / arms / legs / wings by place against the heart; parts → abilities (walk, jump, climb, fly, see); `snip` removes crossed strokes and the ability with them |
+| Tear and snippers | `src/sim/boss/tear.ts`, `snipper.ts`, `weapons.ts`, `tuning.ts` | built | the boss: arriving → circling → winding (telegraphed cut) → lunging → recovering; mercy window; speed ramp; hurt by moving, heavy, spinning or hazard drawings; lesser waves; tear closes on defeat ([boss.md](boss.md)) |
 | Paper | `src/sim/paper.ts` | built | the page's turn (tilt/spin laws) and bites in board solids |
 | Empty board / test support | `src/sim/emptyBoard.ts`, `testSupport.ts` | built | fixtures |
 
@@ -227,7 +229,7 @@ repeals what it enacted.
 |---|---|---|---|
 | Renderer | `src/render/canvasRenderer.ts`, `canvas2d.ts`, `index.ts` | built | Canvas 2D; whiteboard look (black ink, blue Kami, green understood, red confused, one tint per nature) |
 | Camera | `src/render/camera.ts`, `turnedCamera.test.ts` | built | centre, zoom, angle; `toWorld`/`toClient`, `visibleWorld` |
-| Painters | `boardPainter.ts`, `inkPainter.ts`, `inkPath.ts`, `alicePainter.ts`, `alicePose.ts`, `notePainter.ts`, `sumikuiPainter.ts`, `eraserRing.ts`, `keyShape.ts`, `dotGrid.ts` | built | board, ink under pose (incl. size scale), Alice pose (twins with a tinted numbered ribbon, the selected one with a caret), notes, Sumikui blot + trail, eraser ring |
+| Painters | `boardPainter.ts`, `inkPainter.ts`, `inkPath.ts`, `alicePainter.ts`, `alicePose.ts`, `notePainter.ts`, `sumikuiPainter.ts`, `bossPainter.ts`, `eraserRing.ts`, `keyShape.ts`, `dotGrid.ts` | built | board, ink under pose (incl. size scale), Alice pose (twins with a tinted numbered ribbon, the selected one with a caret), notes, Sumikui blot + trail, soul, drawn body with graft glow, snipper + telegraph + cut marks, tear, ink health bar, headless dim veil, eraser ring |
 | Night | `src/render/nightPainter.ts`, `palette.ts` | built | `daylight` dial: veil, light pools for Alice and twins, legible handwriting |
 | Culling & art | `culling.ts`, `boardArt.ts`, `awakening.ts` | built | draw only what is visible; wake-up animation when a drawing is named |
 | Brand | `src/brand/logo.ts`, `build.ts`, `assets/*.svg`, `public/kami-mark.svg` | built | the logo is Kami's own handwriting: `wordmarkSvg` writes "kami" with the stroke font and `perfect-freehand` pen (seeded, so deterministic), `markSvg` is a 64-unit paper tile with a drawn baseline, a `k` and Alice beside it (reads at 32 px), `lockupSvg` puts both together. `bun run brand:build` regenerates the committed SVGs; a test fails if they drift from the generator. The HUD wordmark (`boardMenu.ts`) and the favicon use them |
@@ -240,10 +242,10 @@ player *is* at start, win/loss, which laws and natures are allowed.
 | Mode | Files | Status | Notes |
 |---|---|---|---|
 | Embodied (today's play) | `src/modes/modes.ts`, `embodiedDirector.ts` | built | Alice from the start; Wonderland or blank board |
-| Spirit | `src/modes/modes.ts` | contract | no body; draw Alice into being |
+| Spirit | `src/modes/modes.ts`, `spiritDirector.ts`, `bodyNames.ts`, `src/sim/body/*` | built | no body; the room opens with a soul, a drawing named as a body (`alice`, `me`, any body noun) becomes her; `?mode=spirit`. Not built: persisting the body, a wandering pen as camera subject ([modes.md](modes.md)) |
 | Sandbox | — | in progress (child session) | infinite shared world, others can join, Kami helps on request, no Sumikui; `?mode=sandbox` |
 | Puzzle | `src/modes/puzzle/{mode,rooms,puzzleDirector}.ts`, `src/modes/director.ts`, `src/board/boards/puzzles/*`, `src/game/forgetfulStore.ts`, `src/ui/roomCard.ts`, `src/sim/nightfall.ts` | built | seven staged rooms, one drawn or written idea each, Sumikui loose from the first frame, laws fold over the room's own world, room card + progress mark, goal → next room, nothing saved; `?mode=puzzle`; see [puzzles.md](puzzles.md) |
-| Boss | — | in progress (child session) | two players (drawer + controller); start as a soul/heart; a scissor-servant of the one under the page snips body parts → abilities lost, redraw to restore; `?mode=boss` |
+| Boss | `src/modes/modes.ts`, `src/sim/body/*`, `src/sim/boss/*` (`snipper.ts`, `tear.ts`, `weapons.ts`, `tuning.ts`), `src/render/bossPainter.ts`, `src/game/bossLines.ts` | built | two players (drawer + controller); start as a soul/heart; a servant of the one under the page snips body parts → abilities lost, redraw to restore; drawn weapons and hazards hurt it; lesser waves at 60 % / 30 %; win when the tear closes, heart swallowed restarts the board; `?mode=boss` ([boss.md](boss.md)) |
 | Independent clones | `src/game/party.ts`, `src/sim/twins.ts`, `src/sim/simulation.ts`, `src/sim/portals.ts`, `src/sim/sumikui.ts`, `src/autopilot/pilot.ts`, `src/autopilot/chart.ts`, `src/render/alicePainter.ts` | built | real second Alices with their own minds: own intent, pilot, route, portals and fate; tap one to steer her; any Alice wins the room and Kami names her; see [agency.md](agency.md) |
 
 ## 17. Persistence and the server

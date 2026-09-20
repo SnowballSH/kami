@@ -10,7 +10,7 @@ import type { NoteId } from "../../notes/types";
 import { createRuleCompiler, resolvePhysics } from "../../rules";
 import type { Rule, RuleId, WorldPhysics } from "../../rules/types";
 import { createSimulation } from "../../sim";
-import { drawingOf, feetOf } from "../../sim/testSupport";
+import { aliceOf, drawingOf, feetOf } from "../../sim/testSupport";
 import type { SimEvent, WorldSnapshot } from "../../sim/types";
 import { allowsLaw } from "../policy";
 import type { RoomStaging } from "../types";
@@ -170,7 +170,7 @@ export class PuzzleRun {
     const world = sim.snapshot();
     return {
       board: this.board,
-      alice: world.alice,
+      alice: aliceOf(sim),
       others: [],
       sumikui: world.sumikui,
       inks: this.sceneInks(world),

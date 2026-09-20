@@ -4,6 +4,7 @@ import { wonderland } from "../board/boards/wonderland";
 import type { BoardDefinition } from "../board/types";
 import { EARTH } from "../rules/types";
 import {
+  aliceOf,
   blob,
   drawingOf,
   enter,
@@ -34,7 +35,8 @@ describe("a freshly loaded board", () => {
   it("stands Alice on her spawn at normal size", () => {
     const sim = enter(wonderland);
     runSteps(sim, 30);
-    const { alice, drawings, keyTaken, doorOpen } = sim.snapshot();
+    const { drawings, keyTaken, doorOpen } = sim.snapshot();
+    const alice = aliceOf(sim);
     expect(feetOf(sim).x).toBeCloseTo(wonderland.spawn.x, 0);
     expect(feetOf(sim).y).toBeCloseTo(wonderland.spawn.y, 0);
     expect(alice).toMatchObject({ size: "normal", grounded: true, climbing: false, hasKey: false });
@@ -50,7 +52,7 @@ describe("a freshly loaded board", () => {
   it("stands her on the patch of a blank board, and lets her fall off its edge", () => {
     const sim = enter(blank);
     expect(runSteps(sim, 30)).toEqual([]);
-    expect(sim.snapshot().alice.grounded).toBe(true);
+    expect(aliceOf(sim).grounded).toBe(true);
     expect(feetOf(sim).x).toBeCloseTo(blank.spawn.x, 0);
     expect(feetOf(sim).y).toBeCloseTo(blank.spawn.y, 0);
 
@@ -64,7 +66,7 @@ describe("a freshly loaded board", () => {
     sim.setWalkIntent(LEFT);
     runSteps(sim, 300);
     expect(feetOf(sim).x).toBeLessThan(-400);
-    expect(sim.snapshot().alice.grounded).toBe(true);
+    expect(aliceOf(sim).grounded).toBe(true);
   });
 
   it("crawls in bullet-time", () => {
@@ -94,13 +96,13 @@ describe("jumping", () => {
     runSteps(sim, RESTING);
     sim.setWalkIntent(UP);
     sim.step();
-    expect(sim.snapshot().alice.grounded).toBe(false);
+    expect(aliceOf(sim).grounded).toBe(false);
 
     const apex = apexOf(sim, 60);
     expect(GROUND_TOP - apex).toBeGreaterThan(ALICE_BASE.height);
     expect(GROUND_TOP - apex).toBeLessThan(2 * ALICE_BASE.height);
     expect(feetOf(sim).y).toBeCloseTo(GROUND_TOP, 0);
-    expect(sim.snapshot().alice.grounded).toBe(true);
+    expect(aliceOf(sim).grounded).toBe(true);
   });
 
   it("hops once per press, however long up is held", () => {
@@ -123,7 +125,7 @@ describe("jumping", () => {
     sim.setWalkIntent({ x: 1, y: -1 });
     sim.step();
     const takeOffX = feetOf(sim).x;
-    runUntil(sim, (_, s) => s.snapshot().alice.grounded, 120);
+    runUntil(sim, (_, s) => aliceOf(s).grounded, 120);
     expect(feetOf(sim).x - takeOffX).toBeGreaterThan(ALICE_BASE.width * 2);
     expect(feetOf(sim).y).toBeCloseTo(GROUND_TOP, 0);
   });
@@ -138,7 +140,7 @@ describe("jumping", () => {
     runSteps(sim, RESTING);
     sim.setWalkIntent(UP);
     runSteps(sim, 40);
-    expect(sim.snapshot().alice.climbing).toBe(true);
+    expect(aliceOf(sim).climbing).toBe(true);
     expect(feetOf(sim).y).toBeLessThan(GROUND_TOP - 40);
   });
 });
@@ -223,7 +225,7 @@ describe("natures", () => {
     sim.setWalkIntent(RIGHT);
     const events = runSteps(sim, 300);
     expect(happeningsOf(events)).toEqual(["grow-blocked"]);
-    expect(sim.snapshot().alice.size).toBe("normal");
+    expect(aliceOf(sim).size).toBe("normal");
     expect(sim.snapshot().drawings).toHaveLength(1);
   });
 
@@ -237,13 +239,13 @@ describe("natures", () => {
     });
     sim.setPhysics({ ...EARTH, aliceSize: 2 });
     runSteps(sim, 60);
-    expect(sim.snapshot().alice.height).toBeCloseTo(120);
+    expect(aliceOf(sim).height).toBeCloseTo(120);
     sim.addDrawing(drawingOf("cake", blob(1830, PLATEAU_TOP - RESTING, 60, 24)));
     sim.applyRuling(idOf("cake"), rulingOf("grow"));
     sim.setWalkIntent(RIGHT);
     const events = runSteps(sim, 60);
     expect(happeningsOf(events)).toContain("grow-blocked");
-    expect(sim.snapshot().alice.size).toBe("normal");
+    expect(aliceOf(sim).size).toBe("normal");
     expect(sim.snapshot().drawings).toHaveLength(1);
   });
 
@@ -261,7 +263,7 @@ describe("natures", () => {
     sim.applyRuling(idOf("cake"), rulingOf("grow"));
     const events = runSteps(sim, 60);
     expect(happeningsOf(events)).toContain("grow-blocked");
-    expect(sim.snapshot().alice.size).toBe("normal");
+    expect(aliceOf(sim).size).toBe("normal");
   });
 });
 
@@ -278,7 +280,8 @@ describe("loadBoard", () => {
     sim.setWalkIntent(STAY);
     sim.loadBoard(onThePlateau);
     const events = runSteps(sim, 60);
-    const { alice, drawings, keyTaken, doorOpen } = sim.snapshot();
+    const { drawings, keyTaken, doorOpen } = sim.snapshot();
+    const alice = aliceOf(sim);
     expect(happeningsOf(events)).toEqual([]);
     expect({ drawings, keyTaken, doorOpen }).toEqual({
       drawings: [],

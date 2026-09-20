@@ -6,7 +6,13 @@ import { boundsOf, poseToWorld, rectsOverlap, type Vec } from "../core/geometry"
 import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
-import { EMBODIED_MODE, FIRST_PUZZLE_BOARD_ID, PUZZLE_MODE, PUZZLE_ROOMS } from "../modes";
+import {
+  BOSS_MODE,
+  EMBODIED_MODE,
+  FIRST_PUZZLE_BOARD_ID,
+  PUZZLE_MODE,
+  PUZZLE_ROOMS,
+} from "../modes";
 import type { GameMode } from "../modes/types";
 import { HttpBoardStore } from "../persistence/httpBoardStore";
 import type { BoardSnapshot, BoardStore, HandwritingReader } from "../persistence/types";
@@ -15,9 +21,18 @@ import type { Completion, Exemplar, LiveRecognizer, Sighting } from "../recognit
 import { createRuleCompiler, createSceneCompiler, resolvePhysics } from "../rules";
 import type { CompiledRule, Scene } from "../rules/types";
 import { createSimulation } from "../sim";
+import { figureAround, legsBelow, ringAround } from "../sim/boss/figure.testSupport";
 import { drawingOf } from "../sim/testSupport";
 import { type SketchCatalogue, SUMMONED_SIZE, Summoner } from "../summoning";
 import type { Tool } from "../ui/types";
+import {
+  HEART_SWALLOWED_LINE,
+  INCARNATED_LINE,
+  PART_RESTORED_LINE,
+  SERVANT_CAME_LINE,
+  SOUL_WAITS_LINE,
+  TEAR_OPENS_LINES,
+} from "./bossLines";
 import { Game } from "./game";
 import { HELD_INK_FADE_MS } from "./heldInk";
 import {
@@ -293,6 +308,7 @@ class Player {
   get alice() {
     const alice = this.renderer.lastFrame?.world.alice;
     if (alice === undefined) throw new Error("Nothing has been rendered yet");
+    if (alice === null) throw new Error("Nobody is on the board");
     return alice;
   }
 
@@ -1948,5 +1964,112 @@ describe("Game in puzzle mode", () => {
     await ledge.write("we are on the moon", { x: 200, y: 200 });
     expect(ledge.laws.laws.map((law) => law.text)).toEqual(["we are on the moon"]);
     expect(ledge.renderer.lastFrame?.world.sumikui).not.toBeNull();
+  });
+});
+
+describe("Game in Boss mode", () => {
+  const soulOf = (player: Player): Vec => {
+    const soul = player.renderer.lastFrame?.world.soul;
+    if (soul === undefined) throw new Error("Nothing has been rendered yet");
+    if (soul === null) throw new Error("Somebody is on the board");
+    return soul.at;
+  };
+
+  const drawnLook = (player: Player) => {
+    const { look } = player.alice;
+    if (look.kind !== "drawn") throw new Error("She wears Kami's own sketch");
+    return look;
+  };
+
+  const tearOf = (player: Player) => player.renderer.lastFrame?.world.tear ?? null;
+
+  let player: Player;
+
+  beforeEach(async () => {
+    player = new Player("wonderland", { mode: BOSS_MODE });
+    await player.arrive();
+  });
+
+  it("opens as a soul, tells both players their part, and will not walk her by herself", async () => {
+    expect(player.renderer.lastFrame?.world.alice).toBeNull();
+    expect(soulOf(player).x).toBeCloseTo(boardFor("wonderland").spawn.x, 0);
+    expect(player.written).toContain(SOUL_WAITS_LINE);
+    for (const role of BOSS_MODE.card.roles ?? []) expect(player.written).toContain(role);
+    player.game.onAutopilotToggled(true);
+    expect(player.hud.autopilot).toBe(false);
+    player.walk(1);
+    await player.wait(500);
+    expect(player.renderer.lastFrame?.world.alice).toBeNull();
+  });
+
+  it("makes the drawing her body when it is named, and tears the page open above her", async () => {
+    const heart = soulOf(player);
+    const body = drawingOf("body", ...figureAround(heart));
+    player.game.onCommit(body);
+    await player.wait(50);
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.drawing.id)).toEqual([body.id]);
+
+    await player.write("me", { x: heart.x, y: heart.y + 45 });
+    expect(player.renderer.lastFrame?.world.soul).toBeNull();
+    expect(drawnLook(player).body.strokes).toHaveLength(6);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.written).toContain(INCARNATED_LINE("me"));
+    expect(tearOf(player)?.phase).toBe("opening");
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
+
+    expect(await player.until(() => (tearOf(player)?.snippers.length ?? 0) > 0)).toBe(true);
+    expect(player.written).toContain(TEAR_OPENS_LINES[0]);
+    expect(player.written).toContain(SERVANT_CAME_LINE);
+  });
+
+  it("never sends her body to be tidied: not when named, nor when the slider comes to rest", async () => {
+    const eyes = new Eyes([], []);
+    const twoPlayers = new Player("wonderland", { eyes, mode: BOSS_MODE });
+    await twoPlayers.arrive();
+    const heart = soulOf(twoPlayers);
+    twoPlayers.game.onCommit(drawingOf("body", ...figureAround(heart)));
+    await twoPlayers.write("me", { x: heart.x, y: heart.y + 45 });
+    expect(drawnLook(twoPlayers).body.strokes).toHaveLength(6);
+    await twoPlayers.scrawl(legsBelow(heart).map((stroke) => [...stroke]));
+
+    twoPlayers.hud.handlers.onTidinessChanged(1);
+    await twoPlayers.wait(600);
+    expect(eyes.tidiedAs).toEqual([]);
+    expect(drawnLook(twoPlayers).body.strokes).toHaveLength(8);
+  });
+
+  it("grafts legs drawn onto a legless body, and says so", async () => {
+    const heart = soulOf(player);
+    player.game.onCommit(drawingOf("body", ...figureAround(heart).slice(0, 4)));
+    await player.write("alice", { x: heart.x, y: heart.y + 15 });
+    expect(drawnLook(player).abilities.walk).toBe(false);
+
+    const legs = legsBelow(heart);
+    await player.scrawl(legs.map((stroke) => [...stroke]));
+    expect(drawnLook(player).abilities.walk).toBe(true);
+    expect(drawnLook(player).body.strokes).toHaveLength(6);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.written).toContain(PART_RESTORED_LINE(["legs"]));
+  });
+
+  it("opens the room again once the heart is swallowed", async () => {
+    const heart = soulOf(player);
+    player.game.onCommit(drawingOf("body", ringAround(heart, 14)));
+    await player.write("her", { x: heart.x, y: heart.y + 15 });
+    expect(player.renderer.lastFrame?.world.alice).not.toBeNull();
+
+    expect(await player.until(() => player.written.includes(HEART_SWALLOWED_LINE))).toBe(true);
+    expect(player.renderer.lastFrame?.world.alice).toBeNull();
+    expect(tearOf(player)).toBeNull();
+
+    expect(
+      await player.until(
+        () =>
+          player.written.includes(SOUL_WAITS_LINE) &&
+          !player.written.includes(HEART_SWALLOWED_LINE),
+        20_000,
+      ),
+    ).toBe(true);
+    expect(soulOf(player).x).toBeCloseTo(heart.x, 0);
   });
 });

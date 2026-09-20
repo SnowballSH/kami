@@ -1,8 +1,11 @@
 import type { BoardDefinition } from "../board/types";
 import type { Nature, Ruling } from "../cat/types";
-import type { Pose, Rect, Vec } from "../core/geometry";
+import type { Pose, Rect, Stroke, Vec } from "../core/geometry";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { WorldPhysics } from "../rules/types";
+import type { Abilities, BodyPartKind, DrawnBody } from "./body/types";
+import type { TearSnapshot } from "./boss/tear";
+import type { SnipperRank } from "./boss/tuning";
 
 export type AliceSize = "small" | "normal" | "big";
 
@@ -44,6 +47,27 @@ export interface AliceSnapshot {
   readonly grounded: boolean;
   readonly climbing: boolean;
   readonly hasKey: boolean;
+  readonly look: AliceLook;
+}
+
+/**
+ * How she is to be painted: the Alice Kami sketches, or the body a player drew for her, whose
+ * strokes are in body space (`scale` and `facing` set them in the world) and each stroke's age
+ * says how recently it was drawn onto her.
+ */
+export type AliceLook =
+  | { readonly kind: "alice" }
+  | {
+      readonly kind: "drawn";
+      readonly body: DrawnBody;
+      readonly scale: number;
+      readonly abilities: Abilities;
+      readonly clockMs: number;
+    };
+
+/** The heart with no body around it yet, hovering where a body may be drawn. */
+export interface SoulSnapshot {
+  readonly at: Vec;
 }
 
 export type SumikuiPhase = "stirring" | "prowling" | "hunting" | "feeding" | "sated";
@@ -80,7 +104,11 @@ export interface BounceArc {
 }
 
 export interface WorldSnapshot {
-  readonly alice: AliceSnapshot;
+  /** Null while the player is a soul with no body drawn yet. */
+  readonly alice: AliceSnapshot | null;
+  readonly soul: SoulSnapshot | null;
+  /** The rip the servant came through, while the fight is on. */
+  readonly tear: TearSnapshot | null;
   /** Her copies, when a law has cloned her; each walks on her own intent. */
   readonly twins: readonly AliceSnapshot[];
   /** The ink eater, while the law that loosed it stands. */
@@ -120,7 +148,25 @@ export type SimEvent =
   /** Alice stepped into the only portal on the board; it leads nowhere yet. */
   | { readonly type: "portal-lonely"; readonly drawingId: DrawingId }
   /** She meant to walk, but in pitch dark with no lantern near she will not take a step (once per board load). */
-  | { readonly type: "in-the-dark" };
+  | { readonly type: "in-the-dark" }
+  /** The servant of the one under the page came through the tear. */
+  | { readonly type: "servant-came" }
+  | { readonly type: "servants-came"; readonly lessers: number }
+  /** A snip crossed her; `lost` are the parts she can no longer use. */
+  | {
+      readonly type: "snipped";
+      readonly part: BodyPartKind;
+      readonly lost: readonly BodyPartKind[];
+    }
+  | { readonly type: "snip-missed" }
+  /** A drawing stood in the cut's way and was snipped instead of her. */
+  | { readonly type: "shielded"; readonly drawingId: DrawingId }
+  | { readonly type: "servant-struck"; readonly rank: SnipperRank; readonly drawingId: DrawingId }
+  | { readonly type: "servant-perished"; readonly rank: SnipperRank }
+  | { readonly type: "tear-closed" }
+  /** The heart was cut with nothing around it; the body is gone and only the soul remains. */
+  | { readonly type: "heart-swallowed" }
+  | { readonly type: "part-restored"; readonly parts: readonly BodyPartKind[] };
 
 export interface Simulation {
   /** Discards the whole world and rebuilds it with Alice standing at `board.spawn`. */
@@ -131,6 +177,14 @@ export interface Simulation {
   addDrawing(drawing: Drawing): void;
   applyRuling(id: DrawingId, ruling: Ruling): void;
   removeDrawing(id: DrawingId): void;
+  /** Takes her body away, leaving the soul where her heart was (or at the spawn). */
+  disembody(): void;
+  /** The drawing becomes her body around the soul; false if there is no such drawing. */
+  incarnate(id: DrawingId, name: string): boolean;
+  /** Strokes drawn onto a drawn body join it; false if they missed her or she has no drawn body. */
+  graft(strokes: readonly Stroke[]): boolean;
+  /** Opens the tear above the heart; the servant comes through after a breath. */
+  openTear(): void;
   /** Steers one Alice; the others keep whatever they were last told. */
   setWalkIntent(intent: WalkIntent, who?: AliceIndex): void;
   /** 1 is real time; bullet-time passes BULLET_TIME_SCALE. */
@@ -138,8 +192,9 @@ export interface Simulation {
   /** Advances one fixed step (FIXED_STEP_MS) and reports what happened during it. */
   step(): readonly SimEvent[];
   snapshot(): WorldSnapshot;
-  /** All of her: Alice herself first, then her twins in order. */
+  /** All of her: Alice herself first, then her twins in order; nobody while the player is a soul. */
   alices(): readonly AliceSnapshot[];
+  /** Where she stands; the soul's small frame while there is no body. */
   aliceBounds(who?: AliceIndex): Rect;
   /** How far the paper is turned on screen, in degrees clockwise, under the tilt and spin laws. */
   paperAngle(): number;

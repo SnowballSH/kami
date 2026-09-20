@@ -1,7 +1,18 @@
 import Matter from "matter-js";
-import { clamp, type Rect, type Vec } from "../core/geometry";
+import { clamp, type Rect, type Stroke, type Vec } from "../core/geometry";
 import { inEffectDomain } from "../rules/effectDomains";
 import type { WorldPhysics } from "../rules/types";
+import {
+  abilitiesOf,
+  type BodySpace,
+  EVERY_ABILITY,
+  graft,
+  namesWings,
+  snip,
+  toBodySpace,
+  toWorldSpace,
+} from "./body/drawnBody";
+import type { Abilities, BodyFrame, Cut, DrawnBody, Grafted, Snipped } from "./body/types";
 import { bottomOf, exactBounds } from "./bodyBounds";
 import {
   ALICE_AIR_FRICTION,
@@ -31,6 +42,7 @@ import { jumpSpeedAt, walkSpeedAt } from "./flight";
 import {
   ALICE_BASE,
   ALICE_SCALE,
+  type AliceLook,
   type AliceSize,
   type AliceSnapshot,
   type Axis,
@@ -66,8 +78,13 @@ export class AliceController {
   readonly body: Matter.Body;
   hasKey = false;
 
+  /** How much bigger than Kami's Alice she was drawn; 1 for Alice herself. */
+  private readonly innate: number;
+  private form: DrawnBody | null = null;
+  private name = "";
+  private clock = 0;
   private currentSize: AliceSize = "normal";
-  private currentScale = ALICE_SCALE.normal;
+  private currentScale: number;
   private resize: ResizeTween | null = null;
   private facing: -1 | 1 = 1;
   private walking = false;
@@ -84,12 +101,15 @@ export class AliceController {
   constructor(
     feet: Vec,
     private physics: WorldPhysics,
+    frame: BodyFrame = ALICE_BASE,
   ) {
+    this.innate = frame.height / ALICE_BASE.height;
+    this.currentScale = this.innate;
     this.body = Matter.Bodies.rectangle(
       feet.x,
-      feet.y - ALICE_BASE.height / 2,
-      ALICE_BASE.width,
-      ALICE_BASE.height,
+      feet.y - frame.height / 2,
+      frame.width,
+      frame.height,
       {
         chamfer: { radius: ALICE_CHAMFER_RADIUS },
         friction: 0,
@@ -119,7 +139,54 @@ export class AliceController {
   }
 
   get flying(): boolean {
-    return this.physics.flight > 0;
+    return this.physics.flight > 0 || this.abilities.fly;
+  }
+
+  get abilities(): Abilities {
+    return this.form === null ? EVERY_ABILITY : abilitiesOf(this.form);
+  }
+
+  get drawnBody(): DrawnBody | null {
+    return this.form;
+  }
+
+  /** Where her heart is, in the world: the soul's seat in a drawn body, her middle otherwise. */
+  heart(): Vec {
+    const { x, y } = this.body.position;
+    return this.form === null ? { x, y } : toWorldSpace(this.form.heart, this.bodySpace());
+  }
+
+  bodySpace(): BodySpace {
+    const { x, y } = this.body.position;
+    return { centre: { x, y }, facing: this.facing, scale: this.currentScale / this.innate };
+  }
+
+  /** The strokes a player drew become her; she is `name` from now on. */
+  wear(body: DrawnBody, name: string): void {
+    this.form = body;
+    this.name = name;
+  }
+
+  /** The blades close along `cut` (in the world); null unless she wears a drawn body. */
+  snip(cut: Cut): Snipped | null {
+    if (this.form === null) return null;
+    const space = this.bodySpace();
+    const result = snip(this.form, {
+      from: toBodySpace(cut.from, space),
+      to: toBodySpace(cut.to, space),
+    });
+    this.form = result.body;
+    return result;
+  }
+
+  /** Strokes drawn in the world join her body where they touch it; null if they missed or she has none. */
+  graft(worldStrokes: readonly Stroke[]): Grafted | null {
+    if (this.form === null) return null;
+    const space = this.bodySpace();
+    const local = worldStrokes.map((stroke) => stroke.map((point) => toBodySpace(point, space)));
+    const result = graft(this.form, local, this.clock, namesWings(this.name));
+    if (result !== null) this.form = result.body;
+    return result;
   }
 
   get contacts(): readonly Contact[] {
@@ -135,7 +202,7 @@ export class AliceController {
 
   /** The scale the standing laws ask for; the sim grants growth only once there is headroom. */
   get lawfulScale(): number {
-    return ALICE_SCALE[this.currentSize] * this.physics.aliceSize;
+    return this.innate * ALICE_SCALE[this.currentSize] * this.physics.aliceSize;
   }
 
   get headingScale(): number {
@@ -167,10 +234,16 @@ export class AliceController {
     if (this.grounded) this.lastFootingY = bottomOf(this.bounds());
   }
 
-  control(intent: WalkIntent, surroundings: AliceSurroundings, timeScale: number): void {
+  control(wanted: WalkIntent, surroundings: AliceSurroundings, timeScale: number): void {
+    const can = this.abilities;
+    const intent: WalkIntent = {
+      x: can.walk ? wanted.x : 0,
+      y: can.jump || can.climb || this.flying ? wanted.y : 0,
+    };
     if (intent.x !== 0) this.facing = intent.x;
     this.walking = intent.x !== 0;
-    this.climbing = this.flying || (this.onClimbable && (!this.grounded || intent.y < 0));
+    this.climbing =
+      this.flying || (can.climb && this.onClimbable && (!this.grounded || intent.y < 0));
 
     const velocity = this.velocity;
     const stepped = this.updateBlocking(intent.x, surroundings, timeScale);
@@ -199,7 +272,7 @@ export class AliceController {
       this.jumpArmed = true;
       return false;
     }
-    if (!this.jumpArmed || !this.grounded || this.onClimbable) return false;
+    if (!this.jumpArmed || !this.grounded || this.onClimbable || !this.abilities.jump) return false;
     this.jumpArmed = false;
     this.footing = [];
     return true;
@@ -249,11 +322,11 @@ export class AliceController {
 
   beginResize(size: AliceSize): void {
     this.currentSize = size;
-    const to = ALICE_SCALE[size] * this.physics.aliceSize;
-    this.resize = { from: this.currentScale, to, elapsedMs: 0 };
+    this.resize = { from: this.currentScale, to: this.lawfulScale, elapsedMs: 0 };
   }
 
   advanceResize(elapsedMs: number): void {
+    this.clock += elapsedMs;
     const tween = this.resize;
     if (tween === null) return;
     tween.elapsedMs += elapsedMs;
@@ -277,6 +350,18 @@ export class AliceController {
       grounded: this.grounded,
       climbing: this.climbing,
       hasKey: this.hasKey,
+      look: this.look(),
+    };
+  }
+
+  private look(): AliceLook {
+    if (this.form === null) return { kind: "alice" };
+    return {
+      kind: "drawn",
+      body: this.form,
+      scale: this.currentScale / this.innate,
+      abilities: this.abilities,
+      clockMs: this.clock,
     };
   }
 

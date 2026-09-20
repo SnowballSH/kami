@@ -23,8 +23,8 @@ import type {
   PlacementRejection,
   PosedDrawing,
 } from "../ink/types";
-import { allowsLaw, createDirector, EMBODIED_MODE, EmbodiedDirector } from "../modes";
-import type { GameMode, ModeDirector } from "../modes/types";
+import { allowsLaw, createDirector, EMBODIED_MODE } from "../modes";
+import type { EmbodimentTransition, GameMode, ModeDirector } from "../modes/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore } from "../persistence/types";
 import type { PenReader } from "../reading/types";
@@ -57,6 +57,22 @@ import type {
   Tool,
 } from "../ui/types";
 import type { EarsHandlers, Voice } from "../voice/types";
+import {
+  HEART_SWALLOWED_LINE,
+  INCARNATED_LINE,
+  PART_RESTORED_LINE,
+  SERVANT_CAME_LINE,
+  SERVANT_PERISHED_LINE,
+  SERVANT_STRUCK_LINE,
+  SERVANTS_CAME_LINE,
+  SHIELDED_LINE,
+  SNIP_MISSED_LINE,
+  SNIPPED_LINE,
+  SOUL_WAITS_LINE,
+  TEAR_CLOSED_LINE,
+  TEAR_OPENS_LINES,
+  UNMADE_LINE,
+} from "./bossLines";
 import { CameraRig } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
 import { HeldInkBook } from "./heldInk";
@@ -113,9 +129,6 @@ const ERASER_TOLERANCE = 18;
 const NAMING_REACH = 190;
 const GUESS_OFFSET = { x: 30, y: -4, line: 42 } as const;
 
-const directorFor = (mode: GameMode): ModeDirector =>
-  createDirector(mode) ?? new EmbodiedDirector(EMBODIED_MODE);
-
 const guessCornerOf = (strokes: readonly Stroke[]): Vec => {
   const bounds = boundsOf(strokes.flat());
   return { x: bounds.x + bounds.width + GUESS_OFFSET.x, y: bounds.y + GUESS_OFFSET.y };
@@ -133,10 +146,13 @@ const ABOVE_ALICE = { x: -90, y: -120 } as const;
 const SPOKEN_AT = { x: -60, y: -190 } as const;
 const WORDMARK_OFFSET = { x: -70, y: -360 } as const;
 const TAGLINE_DROP = 46;
+const MODE_CARD_LINE = 34;
 const ALREADY_AWAKE_MS = 10_000;
 /** Kami dresses a scene one prop after another, not all at once. */
 const PROP_STAGGER_MS = 450;
 const HUD_WRITING_GAP = 12;
+/** Long enough to read that the heart was taken before the room opens over. */
+const RESTART_AFTER_MS = 2_800;
 
 interface Recital {
   readonly at: number;
@@ -178,7 +194,7 @@ export interface GameModules {
     tolerance: number,
   ) => DrawingId | null;
   readonly onBoardOpened?: (boardId: string) => void;
-  /** How the board is played; `EMBODIED_MODE` unless said otherwise. A mode nobody has built a director for yet plays as embodied. */
+  /** How the board is played; `EMBODIED_MODE` unless said otherwise. */
   readonly mode?: GameMode;
   /** Whether Alice starts out walking herself; the player can switch it from the HUD. */
   readonly selfDriving?: boolean;
@@ -237,13 +253,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly tidied = new Set<DrawingId>();
   private readonly tidyTurns = new Map<DrawingId, number>();
   private retidyDueAtMs: number | null = null;
+  private restartDueAtMs: number | null = null;
 
   constructor(
     private readonly modules: GameModules,
     initialBoardId: string,
   ) {
     this.board = modules.boardFor(initialBoardId);
-    this.director = directorFor(modules.mode ?? EMBODIED_MODE);
+    this.director = createDirector(modules.mode ?? EMBODIED_MODE);
     this.party = new Party(modules.autopilot);
     this.selfDriving = (modules.selfDriving ?? true) && this.walksHerself();
     this.tidiness = clamp(modules.tidiness ?? DEFAULT_TIDINESS, 0, 1);
@@ -289,13 +306,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     this.ink.update(nowMs, {
       noInkZones: this.board.noInkZones,
-      aliceBounds: sim.aliceBounds(this.party.selected),
+      aliceBounds: this.inkKeepsOff(),
     });
     if (!this.ink.isDrawing) this.forgetGlimpse();
     this.forget(this.notes.expire(nowMs));
     this.speakDueRecital();
     if (this.retidyDueAtMs !== null && nowMs >= this.retidyDueAtMs) this.retidyTheBoard();
-    if (this.stuck.isStuck(nowMs)) this.offerHelp();
+    if (this.restartDueAtMs !== null && nowMs >= this.restartDueAtMs) this.restart();
+    if (this.embodied && this.stuck.isStuck(nowMs)) this.offerHelp();
     if (this.nextRoom !== null && nowMs >= this.nextRoom.atMs)
       void this.open(this.nextRoom.boardId);
     const { selected } = this.party;
@@ -515,7 +533,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.nextRoom = null;
 
     sim.loadBoard(this.board);
-    this.director.open(this.board);
+    if (this.director.open(this.board).kind === "spirit") sim.disembody();
+    this.restartDueAtMs = null;
     this.voice?.hush();
     this.party.select(ALICE_HERSELF);
     this.party.reset();
@@ -542,6 +561,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (firstZone === undefined) cat.enterRoom(BLANK_BOARD_BRIEF);
     else this.introduce(firstZone);
     this.hud.showRoomCard(this.director.room?.card ?? null);
+    if (!this.embodied) this.remark(SOUL_WAITS_LINE, HINT_LIFETIME_MS);
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
@@ -650,6 +670,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private handle(event: SimEvent): void {
     if (this.director.won(event)) this.celebrate(event);
+    for (const transition of this.director.witness(event)) this.embody(transition);
     switch (event.type) {
       case "goal-reached":
         return;
@@ -717,10 +738,40 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       case "in-the-dark":
         this.remark(IN_THE_DARK_LINE, HINT_LIFETIME_MS);
         return;
+      case "servant-came":
+        this.remark(SERVANT_CAME_LINE, HINT_LIFETIME_MS);
+        return;
+      case "servants-came":
+        this.remark(SERVANTS_CAME_LINE(event.lessers), HINT_LIFETIME_MS);
+        return;
+      case "snipped":
+        this.remark(SNIPPED_LINE(event.part, event.lost));
+        return;
+      case "snip-missed":
+        this.remark(SNIP_MISSED_LINE);
+        return;
+      case "shielded":
+        this.discard(event.drawingId);
+        this.remark(SHIELDED_LINE);
+        return;
+      case "servant-struck":
+        this.remark(SERVANT_STRUCK_LINE(event.rank));
+        return;
+      case "servant-perished":
+        this.remark(SERVANT_PERISHED_LINE(event.rank), HINT_LIFETIME_MS);
+        return;
+      case "tear-closed":
+        return;
+      case "heart-swallowed":
+        return;
+      case "part-restored":
+        this.remark(PART_RESTORED_LINE(event.parts));
+        return;
     }
   }
 
   private goalLine(event: SimEvent): string {
+    if (event.type === "tear-closed") return TEAR_CLOSED_LINE;
     if (event.type !== "goal-reached" || this.modules.sim.alices().length === 1) return GOAL_LINE;
     return TWIN_GOAL_LINE(event.who);
   }
@@ -735,6 +786,65 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.remark(room.closing, HINT_LIFETIME_MS);
     if (room.next !== null)
       this.nextRoom = { boardId: room.next, atMs: this.nowMs + NEXT_ROOM_DELAY_MS };
+  }
+
+  /** Enacts what the director ruled about her body: a drawing becomes her, the tear opens, or she is unmade. */
+  private embody(transition: EmbodimentTransition): void {
+    const { sim } = this.modules;
+    switch (transition.kind) {
+      case "incarnated": {
+        if (transition.by === "spawn") return;
+        const { drawingId, name } = transition;
+        if (!sim.incarnate(drawingId, name)) return;
+        this.ledger.remove(drawingId);
+        this.modules.store.deleteDrawing(this.board.id, drawingId);
+        this.forget(this.notes.removeAnchoredTo({ type: "drawing", id: drawingId }));
+        this.party.resync(sim.alices().length);
+        this.camera.resumeFollowing();
+        this.stuck.reset(this.nowMs);
+        this.remark(INCARNATED_LINE(name), HINT_LIFETIME_MS);
+        return;
+      }
+      case "tear-opens":
+        sim.openTear();
+        this.recite(TEAR_OPENS_LINES);
+        return;
+      case "unmade":
+        this.lose(transition.cause);
+        return;
+    }
+  }
+
+  private lose(cause: "fell" | "devoured" | "swallowed"): void {
+    switch (this.director.mode.loss.kind) {
+      case "respawn":
+        return;
+      case "unmade":
+        this.modules.sim.disembody();
+        this.party.resync(this.modules.sim.alices().length);
+        this.remark(UNMADE_LINE, HINT_LIFETIME_MS);
+        return;
+      case "board-restarts":
+        this.remark(cause === "swallowed" ? HEART_SWALLOWED_LINE : UNMADE_LINE, HINT_LIFETIME_MS);
+        this.restartDueAtMs = this.nowMs + RESTART_AFTER_MS;
+        return;
+    }
+  }
+
+  private restart(): void {
+    this.restartDueAtMs = null;
+    void this.open(this.board.id, { remember: false });
+  }
+
+  private get embodied(): boolean {
+    return this.director.state.kind === "body";
+  }
+
+  /** Ink stays off Alice, except where she is made of it: a drawn body is drawn around, and mended by drawing on. */
+  private inkKeepsOff(): Rect | null {
+    return this.director.mode.opening.player === "spirit"
+      ? null
+      : this.modules.sim.aliceBounds(this.party.selected);
   }
 
   private enterZone(zoneId: string): void {
@@ -806,6 +916,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private land(drawing: Drawing): void {
+    if (this.embodied && this.modules.sim.graft(drawing.strokes)) return;
     this.modules.sim.addDrawing(drawing);
     this.party.invalidate();
     this.ledger.add(drawing);
@@ -1180,6 +1291,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
     }
     this.stuck.progress(this.nowMs);
+    for (const transition of this.director.named(id, ruling)) this.embody(transition);
+    if (this.ledger.get(id) === null) return;
     void this.tidy(id, ruling.name);
   }
 
@@ -1289,6 +1402,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     };
     this.kamiWrites(WORDMARK, at, { silent: true });
     this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP }, { silent: true });
+    this.writeModeCard({ x: at.x, y: at.y + TAGLINE_DROP * 2 });
+  }
+
+  /** Any mode but the everyday one says what it is, and who does what, under the wordmark. */
+  private writeModeCard(at: Vec): void {
+    const { mode } = this.director;
+    if (mode.id === EMBODIED_MODE.id) return;
+    const lines = [`${mode.card.title} — ${mode.card.tagline}`, ...(mode.card.roles ?? [])];
+    lines.forEach((line, index) => {
+      this.kamiWrites(line, { x: at.x, y: at.y + index * MODE_CARD_LINE }, { silent: true });
+    });
   }
 
   private playerWrites(text: string, position: Vec): Note {
