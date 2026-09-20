@@ -125,6 +125,12 @@ describe("ScriptedCat", () => {
       expect(await cat.name("a hero", SKETCH)).toMatchObject({ nature: "walker", name: "a hero" });
     });
 
+    it("hears a car as something to drive", async () => {
+      cat.enterRoom(hallOfDoors);
+      expect(await cat.name("a car", SKETCH)).toMatchObject({ nature: "vehicle", name: "a car" });
+      expect(await cat.name("a boat", SKETCH)).toMatchObject({ nature: "vehicle", name: "a boat" });
+    });
+
     it("maps the book's labels onto size", async () => {
       cat.enterRoom(hallOfDoors);
       expect(await cat.name("eat me", SKETCH)).toMatchObject({ nature: "grow", name: "eat me" });
@@ -374,6 +380,61 @@ describe("ScriptedCat", () => {
       expect((await cat.name("a bouncy okapi", ROUND)).nature).toBe("bouncy");
       expect((await cat.name("a sword", ROUND)).nature).toBe("ink");
       expect((await cat.name("a tapir", ROUND)).nature).toBe("ink");
+    });
+
+    it("accepts the offered nature and strength while typed descriptions keep their meaning", async () => {
+      const cat = watching(
+        sightingsOf([
+          { ...sighting("baseball bat", "ink"), strength: 0.6 },
+          { ...sighting("aircraft carrier", "heavy"), strength: 1.8 },
+        ]),
+      );
+      const look = await cat.look(ROUND);
+      expect(look.rulings.slice(0, 2)).toMatchObject([
+        { name: "a baseball bat", nature: "ink", strength: 0.6 },
+        { name: "an aircraft carrier", nature: "heavy", strength: 1.8 },
+      ]);
+      for (const offered of look.rulings) expect(cat.accept(offered)).toEqual(offered);
+      expect((await cat.name("a baseball bat", ROUND)).nature).toBe("flier");
+      expect((await cat.name("a bouncy aircraft carrier", ROUND)).nature).toBe("bouncy");
+      expect((await cat.name("a very heavy aircraft carrier", ROUND)).strength).toBe(1.5);
+    });
+
+    it("filters guesses by their offered nature rather than their spelling", async () => {
+      const cat = watching(
+        sightingsOf([
+          sighting("asparagus", "grow"),
+          sighting("aircraft carrier", "heavy"),
+          sighting("baseball bat", "ink"),
+        ]),
+        shelves,
+      );
+      const look = await cat.look(ROUND);
+      expect(look.guesses).toEqual(["an aircraft carrier", "a baseball bat", "a mushroom"]);
+      expect(look.rulings.map(({ nature }) => nature)).toEqual(["heavy", "ink", "bouncy"]);
+    });
+
+    it("rechecks room restrictions when accepting an earlier offer", async () => {
+      const cat = watching(sightingsOf([{ ...sighting("asparagus", "grow"), strength: 1.8 }]));
+      const [offered] = (await cat.look(ROUND)).rulings;
+      if (offered === undefined) throw new Error("No offered ruling");
+      cat.enterRoom(shelves);
+      expect(cat.accept(offered)).toMatchObject({
+        name: "an asparagus",
+        nature: "ink",
+        strength: 1,
+        line: REFUSALS.forbidden,
+      });
+    });
+
+    it("keeps an offer self-contained after other drawings displace the sighting cache", async () => {
+      const cat = watching(sightingsOf([{ ...sighting("baseball", "bouncy"), strength: 1.4 }]));
+      const [offered] = (await cat.look(ROUND)).rulings;
+      if (offered === undefined) throw new Error("No offered ruling");
+      for (let index = 0; index < 33; index++) {
+        await cat.look({ ...ROUND, id: `later-${index}` as DrawingId });
+      }
+      expect(cat.accept(offered)).toMatchObject({ nature: "bouncy", strength: 1.4 });
     });
 
     it("glimpses the best honoured sighting of unfinished ink, or nothing", async () => {

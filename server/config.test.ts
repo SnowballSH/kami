@@ -3,6 +3,27 @@ import { describe, expect, it } from "vitest";
 import { readConfig } from "./config";
 
 describe("readConfig", () => {
+  it("uses a dedicated transcription model without changing the compiler", () => {
+    const env = { KAMI_LLM_URL: "http://llm.test", KAMI_LLM_MODEL: "text-model" };
+    expect(readConfig(env).transcribe).toEqual(readConfig(env).llm);
+    expect(readConfig({ ...env, KAMI_TRANSCRIBE_MODEL: " " }).transcribe).toEqual(
+      readConfig(env).llm,
+    );
+    const config = readConfig({ ...env, KAMI_TRANSCRIBE_MODEL: " vision-model " });
+    expect(config.transcribe?.model).toBe("vision-model");
+    expect(config.llm?.model).toBe("text-model");
+    expect(readConfig({ KAMI_TRANSCRIBE_MODEL: "vision-model" }).transcribe).toBeNull();
+  });
+
+  it("can enable handwriting independently of model compilation", () => {
+    const config = readConfig({
+      KAMI_LLM_URL: "http://llm.test",
+      KAMI_TRANSCRIBE_MODEL: "vision-model",
+    });
+    expect(config.llm).toBeNull();
+    expect(config.transcribe).toEqual({ url: "http://llm.test", model: "vision-model" });
+  });
+
   it("has no sidecar unless KAMI_RECOGNIZER_URL names one", () => {
     expect(readConfig({}).recognizerUrl).toBeNull();
     expect(readConfig({ KAMI_RECOGNIZER_URL: "   " }).recognizerUrl).toBeNull();
