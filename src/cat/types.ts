@@ -20,6 +20,7 @@ export const NATURES = [
   "vehicle",
   "attractor",
   "lantern",
+  "portal",
   "solid",
   "goal",
   "hazard",
@@ -30,11 +31,17 @@ export const NATURES = [
  * What a drawing is. The first ten are spirits (spec §4). Then three creatures, which move by
  * themselves: `walker` paces, `hopper` leaps, `flier` roams the air; a `vehicle` rolls where Alice
  * steers it while she stands aboard. Then two fields: an
- * `attractor` pulls everything toward it, a `lantern` lights its patch at night. The last four are roles, for
- * sketching a new game: `solid` is ground that stays put wherever it was drawn, `goal` wins the board,
- * `hazard` sends Alice back to her checkpoint, `spawn` moves that checkpoint.
+ * `attractor` pulls everything toward it, a `lantern` lights its patch at night. A `portal` sends
+ * Alice out of the next portal drawn after it. The last four are roles, for sketching a new game:
+ * `solid` is ground that stays put wherever it was drawn, `goal` wins the board, `hazard` sends
+ * Alice back to her checkpoint, `spawn` moves that checkpoint.
  */
 export type Nature = (typeof NATURES)[number];
+
+export const TEMPERS = ["follows", "flees"] as const;
+
+/** How a creature feels about Alice: it keeps to her heels, or bolts when she comes near. */
+export type Temper = (typeof TEMPERS)[number];
 
 export type AllowedNatures = readonly Nature[] | "all";
 
@@ -52,6 +59,8 @@ export interface Ruling {
   readonly line: string;
   /** Physics the name itself asks for ("a spinning wheel", "a rocket-powered cart"), if any. */
   readonly motion?: MotionEdit;
+  /** A creature's feeling toward Alice ("a dog", "a shy mouse", "a cat that follows her"), if any. */
+  readonly temper?: Temper;
 }
 
 export type HintTier = 1 | 2 | 3;

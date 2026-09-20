@@ -62,6 +62,12 @@ export const SUMIKUI_ALICE_DEVOURED_LINES: readonly string[] = [
   "Gone in one swallow. It is gorged now, and slow. Run while it is.",
   "Keep her moving. It only catches what stands still.",
 ];
+export const WARPED_LINES: readonly string[] = [
+  "In one, out the other. The paper is smaller than it looks.",
+  "Through and through. She never did care for the long way round.",
+  "There she goes. Here she is.",
+];
+export const PORTAL_LONELY_LINE = "It leads nowhere yet. Draw it a twin.";
 export const SUMIKUI_SEALED_LINE = "Sealed. It waits under the page, with the one it came from.";
 export const SUMIKUI_LORE_LINE_DELAY_MS = 3_200;
 

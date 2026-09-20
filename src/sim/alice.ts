@@ -231,6 +231,14 @@ export class AliceController {
     this.lastFootingY = feet.y;
   }
 
+  /** Sets her down with her middle at `centre`, keeping the speed she arrived with. */
+  warpTo(centre: Vec): void {
+    const velocity = this.velocity;
+    const { height } = this.bounds();
+    this.placeAt({ x: centre.x, y: centre.y + height / 2 });
+    Matter.Body.setVelocity(this.body, velocity);
+  }
+
   beginResize(size: AliceSize): void {
     this.currentSize = size;
     const to = ALICE_SCALE[size] * this.physics.aliceSize;

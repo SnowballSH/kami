@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NATURES, type Ruling, STRENGTH_RANGE } from "../cat/types";
+import { NATURES, type Ruling, STRENGTH_RANGE, TEMPERS } from "../cat/types";
 import { strokesSchema, textSchema, vecSchema } from "../core/input";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
@@ -43,6 +43,7 @@ export const rulingSchema = z.looseObject({
   tags: z.array(text),
   line: text,
   motion: motionEditSchema.exactOptional(),
+  temper: z.enum(TEMPERS).exactOptional(),
 }) satisfies z.ZodType<Ruling>;
 
 export const storedDrawingSchema = z.looseObject({
