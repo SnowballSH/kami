@@ -2,6 +2,7 @@
 # On the GX10: (re)start MongoDB, Kami's Eye and the Kami server. Everything Kami computes happens on
 # this box: the game is served from here, memory is this MongoDB, rules are compiled by this Ollama, and
 # sketches are recognised by the Eye sidecar — or by the server's own k-NN when no trained model is here.
+# The same sidecar finishes drawings (/complete) when its model has an exemplar set (ml/exemplars.py).
 set -euo pipefail
 cd -P "$(dirname "$0")/.."
 PORT=${PORT:-8787}
@@ -67,6 +68,7 @@ if [ -z "$EYE_MODEL" ] || [ ! -s app/eye/sidecar.py ] || [ -z "$EYE_PYTHON" ]; t
   echo "  eye: no trained model (or its Python packages) on this box — the k-NN recognises sketches"
 elif start_eye "$EYE_MODEL" "$EYE_PYTHON"; then
   export KAMI_RECOGNIZER_URL=$EYE_URL
+  export KAMI_BEAUTIFY_URL=${KAMI_BEAUTIFY_URL:-$EYE_URL/complete}
 else
   echo "  ! eye: the sidecar did not come up — the k-NN recognises sketches. Its last words:"
   tail -5 logs/eye.log | sed 's/^/    /'
@@ -90,4 +92,4 @@ done
 
 sleep 1
 sed 's/^/  /' logs/server.log
-echo "✓ running on this box, port $PORT (model: $MODEL, eye: ${KAMI_RECOGNIZER_URL:-k-NN only})"
+echo "✓ running on this box, port $PORT (model: $MODEL, eye: ${KAMI_RECOGNIZER_URL:-k-NN only}, finishes drawings: ${KAMI_BEAUTIFY_URL:-no})"
