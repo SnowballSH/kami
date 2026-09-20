@@ -29,6 +29,7 @@ import {
 import { context2d } from "./canvas2d";
 import { paintDotGrid } from "./dotGrid";
 import { paintEraserRing } from "./eraserRing";
+import { paintFeeding } from "./feedingParticles";
 import { InkPainter } from "./inkPainter";
 import { lightsOf, NightPainter } from "./nightPainter";
 import { NotePainter } from "./notePainter";
@@ -158,7 +159,10 @@ export class CanvasRenderer implements Renderer {
       });
       ctx.restore();
     }
-    if (world.sumikui !== null) paintSumikui(ctx, world.sumikui, nowMs);
+    if (world.sumikui !== null) {
+      paintFeeding(ctx, world, frame.inks, nowMs);
+      paintSumikui(ctx, world.sumikui, nowMs);
+    }
     if (world.tear !== null) {
       for (const mark of world.tear.cuts) paintCutMark(ctx, mark);
       for (const snipper of world.tear.snippers) paintTelegraph(ctx, snipper);

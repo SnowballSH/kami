@@ -76,20 +76,23 @@ export const PITCH_DARK_BELOW = 0.05;
 /** How often Kami remarks on a portal with no twin while Alice keeps stepping into it. */
 export const PORTAL_LONELY_COOLDOWN_MS = 4000;
 
-/** The Sumikui stirs once the board holds this many drawings. */
-export const SUMIKUI_WAKES_AT_DRAWINGS = 2;
-/** Where it hovers relative to Alice while it has no prey: behind her, above her head. */
+/** Where the Sumikui hovers relative to Alice while it has no prey: behind her, above her head. */
 export const SUMIKUI_HOVER = { x: 110, y: -80 } as const;
-/** Pace in px per ms when it first wakes; it doubles every `SUMIKUI_DOUBLES_EVERY_MS` awake. */
-export const SUMIKUI_BASE_SPEED = 0.02;
+/**
+ * Pace in px per ms when it wakes, about half of Alice's walk; it doubles every
+ * `SUMIKUI_DOUBLES_EVERY_MS` awake, so she outruns it at first and not for long.
+ */
+export const SUMIKUI_BASE_SPEED = 0.065;
 export const SUMIKUI_DOUBLES_EVERY_MS = 20_000;
 export const SUMIKUI_MAX_SPEED = 0.6;
-/** Ink Alice touched longer ago than this is no longer hers to lose: it will not hunt it. */
-export const SUMIKUI_MEMORY_MS = 20_000;
 export const SUMIKUI_NEAR_PX = 600;
 export const SUMIKUI_REACH = 24;
-/** How long it sits on a drawing before the drawing is gone. */
-export const SUMIKUI_BITE_MS = 1500;
+/** A drawing takes this long to eat, plus `SUMIKUI_CHEW_MS_PER_PX` for every px of stroke, up to the cap. */
+export const SUMIKUI_BITE_MS = 900;
+export const SUMIKUI_CHEW_MS_PER_PX = 8;
+export const SUMIKUI_MEAL_MAX_MS = 8_000;
+/** How long it gnaws at the board's own paper before a mouthful comes away. */
+export const SUMIKUI_PAPER_BITE_MS = 1500;
 /** Within this of Alice it forgets every other meal and lunges at her. */
 export const SUMIKUI_LUNGE_PX = 90;
 /** Chasing her, it gives up once she has this much of a lead and snaps at what she left behind. */
@@ -106,6 +109,3 @@ export const SUMIKUI_BITE_DEPTH = 40;
 export const SUMIKUI_SCAR_HEALS_MS = 30_000;
 /** It never bites the paper this close to where Kami sets her down: the spawn and checkpoints. */
 export const SUMIKUI_HALLOWED_PX = 90;
-/** Awake this long, it stops ignoring clutter she never used and sweeps it up in one gulp. */
-export const SUMIKUI_SWEEPS_AFTER_MS = 45_000;
-export const SUMIKUI_GULP_MS = 250;

@@ -48,6 +48,7 @@ import type {
 import {
   ALICE_HERSELF,
   type DrawingPose,
+  type InkProvenance,
   type SimEvent,
   type Simulation,
   type WalkIntent,
@@ -1314,13 +1315,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   /** Ink of Kami's own: whole and solid at once, shown being drawn in from `fromMs`. */
-  private conjure(strokes: readonly Stroke[], fromMs: number): Drawing {
+  private conjure(
+    strokes: readonly Stroke[],
+    fromMs: number,
+    provenance: InkProvenance = "drawn",
+  ): Drawing {
     const drawing: Drawing = {
       id: this.ids.next<DrawingId>("drawing"),
       strokes,
       cost: strokesLength(strokes),
     };
-    this.modules.sim.addDrawing(drawing);
+    this.modules.sim.addDrawing(drawing, provenance);
     this.party.invalidate();
     this.ledger.conjure(drawing, fromMs);
     this.tidied.add(drawing.id);
@@ -1369,7 +1374,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         prop,
         this.modules.sim.aliceBounds(this.party.selected),
       );
-      const drawing = this.conjure(strokes, this.nowMs + drawnIn * PROP_STAGGER_MS);
+      const drawing = this.conjure(strokes, this.nowMs + drawnIn * PROP_STAGGER_MS, "scenery");
       drawnIn += 1;
       void this.label(drawing, exemplar.word);
     }

@@ -51,7 +51,7 @@ Alice opens at the bottom of a pit deeper than a spring's throw under Earth grav
 
 ## The Sumikui
 
-`PuzzleDirector` stages every room's world as `{ ...EARTH, inkEater: 1, ...room.world }`, so the ink eater is loose without a note to erase — a fact of the room, not a law on the page. The sim's own rules keep it from being cruel: the paper where Kami set her down is hallowed and it eats there neither ink nor Alice, it wakes slowly and takes time over a meal, and `rooms.test.ts` checks the one drawing a room needs is still there after 600 steps (ten seconds) with the Sumikui loose. Writing *"banish the ink eater"* seals it in any room; that law folds over the staged world like any other (`resolvePhysics(rules, base)`).
+`PuzzleDirector` stages every room's world as `{ ...EARTH, inkEater: 1, ...room.world }`, so the ink eater is loose without a note to erase — a fact of the room, not a law on the page. The sim's own rules keep it from being cruel: the paper where Kami set her down is hallowed and it eats there neither ink nor Alice, it starts at half her pace and takes time over a meal (longer the more ink there is), and `rooms.test.ts` checks the one drawing a room needs is still there after 600 steps (ten seconds) with the Sumikui loose. Writing *"banish the ink eater"* seals it in any room; that law folds over the staged world like any other (`resolvePhysics(rules, base)`).
 
 ## Deliberately not built (yet)
 

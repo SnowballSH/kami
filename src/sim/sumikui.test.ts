@@ -1,21 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { blankBoard } from "../board/boards/blank";
+import { strokesLength } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { EARTH } from "../rules/types";
 import {
   SUMIKUI_BASE_SPEED,
   SUMIKUI_DOUBLES_EVERY_MS,
   SUMIKUI_MAX_SPEED,
+  SUMIKUI_MEAL_MAX_MS,
   SUMIKUI_SCAR_HEALS_MS,
-  SUMIKUI_SWEEPS_AFTER_MS,
 } from "./constants";
-import { speedAfter } from "./sumikui";
+import { mealTimeFor, speedAfter } from "./sumikui";
 import {
   blob,
   drawingOf,
   enter,
   feetOf,
   idOf,
+  line,
   poseOf,
   RIGHT,
   rulingOf,
@@ -32,7 +34,6 @@ const GROUND = board.spawn.y;
 const LOOSE = { ...EARTH, inkEater: 1 };
 const A_MINUTE = 3600;
 const stepsFor = (ms: number): number => Math.ceil(ms / FIXED_STEP_MS);
-const BEFORE_SWEEPING = stepsFor(SUMIKUI_SWEEPS_AFTER_MS) - 60;
 
 const devouredIds = (events: readonly SimEvent[]): readonly string[] =>
   events.flatMap((event) => (event.type === "devoured" ? [event.drawingId] : []));
@@ -53,6 +54,12 @@ const summonOver = (drawings: readonly string[]): Simulation => {
   return sim;
 };
 
+const walkOut = (sim: Simulation, steps: number): void => {
+  sim.setWalkIntent(RIGHT);
+  runSteps(sim, steps);
+  sim.setWalkIntent(STAY);
+};
+
 describe("the Sumikui, the ink eater", () => {
   it("is sealed under default laws and loosed by the ink-eater law", () => {
     const sim = enter(board);
@@ -63,53 +70,45 @@ describe("the Sumikui, the ink eater", () => {
     expect(sim.snapshot().sumikui).toBeNull();
   });
 
-  it("only stirs once the board holds a second drawing", () => {
-    const sim = summonOver(["one"]);
-    expect(typesOf(runSteps(sim, 30))).not.toContain("sumikui-woke");
-    expect(sumikuiOf(sim).awakeMs).toBe(0);
-    pebble(sim, "two", 260);
-    expect(typesOf(runSteps(sim, 2))).toContain("sumikui-woke");
-    expect(sumikuiOf(sim).awakeMs).toBeGreaterThan(0);
+  it("wakes the moment it is summoned, over an empty board or not", () => {
+    const empty = summonOver([]);
+    expect(typesOf(runSteps(empty, 1))).toContain("sumikui-woke");
+    expect(sumikuiOf(empty).awakeMs).toBeGreaterThan(0);
+    expect(sumikuiOf(empty).phase).toBe("prowling");
+    const one = summonOver(["one"]);
+    expect(typesOf(runSteps(one, 1))).toContain("sumikui-woke");
+    expect(typesOf(runSteps(one, 30))).not.toContain("sumikui-woke");
   });
 
-  it("stays at Alice's shoulder and ignores scribbles she has never used", () => {
+  it("eats scribbles she never touched: clutter is ink too", () => {
     const sim = summonOver(["bait", "more bait"]);
-    const events = runSteps(sim, BEFORE_SWEEPING);
-    expect(typesOf(events)).not.toContain("devoured");
-    expect(poseOf(sim, "bait")).toBeDefined();
-    expect(poseOf(sim, "more bait")).toBeDefined();
-    const { centre, phase } = sumikuiOf(sim);
-    expect(phase).toBe("prowling");
-    expect(Math.abs(centre.x - board.spawn.x)).toBeLessThan(200);
-  });
-
-  it("once quick, sweeps the clutter she never used in one gulp rather than stalking it", () => {
-    const sim = summonOver(["bait", "more bait"]);
-    runSteps(sim, BEFORE_SWEEPING);
-    const events = runUntil(sim, saw("devoured"), A_MINUTE);
-    const gulp = events.find((event) => event.type === "devoured");
-    expect(gulp).toBeDefined();
-    expect(sumikuiOf(sim).awakeMs).toBeGreaterThanOrEqual(SUMIKUI_SWEEPS_AFTER_MS);
-    runUntil(sim, saw("devoured"), A_MINUTE);
+    const events = runUntil(sim, () => poseOf(sim, "more bait") === undefined, A_MINUTE);
+    expect(devouredIds(events)).toEqual(expect.arrayContaining([idOf("bait"), idOf("more bait")]));
     expect(poseOf(sim, "bait")).toBeUndefined();
-    expect(poseOf(sim, "more bait")).toBeUndefined();
   });
 
-  it("leaves named things alone when sweeping: only nameless ink is clutter", () => {
-    const sim = summonOver(["bait", "a cat"]);
+  it("eats named things as readily as nameless ones", () => {
+    const sim = summonOver(["a cat"]);
     sim.applyRuling(idOf("a cat"), rulingOf("walker"));
-    runSteps(sim, BEFORE_SWEEPING);
     const events = runUntil(sim, saw("devoured"), A_MINUTE);
-    expect(devouredIds(events)).toEqual([idOf("bait")]);
-    expect(poseOf(sim, "a cat")).toBeDefined();
+    expect(devouredIds(events)).toEqual([idOf("a cat")]);
+    expect(poseOf(sim, "a cat")).toBeUndefined();
+  });
+
+  it("prefers the drawing Alice leans on to the scribble farther off", () => {
+    const sim = summonOver(["bait"]);
+    pebble(sim, "her rock", 60);
+    walkOut(sim, 45);
+    const events = runUntil(sim, saw("devoured"), A_MINUTE);
+    expect(events).toContainEqual({ type: "devoured", drawingId: idOf("her rock"), nature: "ink" });
+    expect(poseOf(sim, "her rock")).toBeUndefined();
+    expect(poseOf(sim, "bait")).toBeDefined();
   });
 
   it("shows what it chews: the drawing between its teeth and how far through it is", () => {
     const sim = summonOver(["bait"]);
     pebble(sim, "her rock", 60);
-    sim.setWalkIntent(RIGHT);
-    runSteps(sim, 45);
-    sim.setWalkIntent(STAY);
+    walkOut(sim, 45);
     runUntil(sim, () => sumikuiOf(sim).phase === "feeding", A_MINUTE);
     const { chewing, bite, quarry } = sumikuiOf(sim);
     expect(quarry).toBe("ink");
@@ -118,27 +117,22 @@ describe("the Sumikui, the ink eater", () => {
     expect(bite).toBeLessThanOrEqual(1);
   });
 
-  it.each(["hunting", "feeding"] as const)("spares untouched clutter renamed while %s", (phase) => {
-    const sim = summonOver(["bait", "more bait"]);
-    runSteps(sim, BEFORE_SWEEPING);
-    runUntil(sim, () => sumikuiOf(sim).phase === phase, A_MINUTE);
-    expect(sumikuiOf(sim).phase).toBe(phase);
-    sim.applyRuling(idOf("bait"), rulingOf("bouncy"));
-    const events = runSteps(sim, 120);
-    expect(devouredIds(events)).not.toContain(idOf("bait"));
-    expect(poseOf(sim, "bait")).toBeDefined();
-  });
-
-  it("devours the drawing Alice leans on, and not the scribble beside it", () => {
+  it("chews steadily: the bite climbs from nothing to whole across the meal", () => {
     const sim = summonOver(["bait"]);
-    pebble(sim, "her rock", 60);
-    sim.setWalkIntent(RIGHT);
-    runSteps(sim, 45);
-    sim.setWalkIntent(STAY);
-    const events = runUntil(sim, saw("devoured"), A_MINUTE);
-    expect(events).toContainEqual({ type: "devoured", drawingId: idOf("her rock"), nature: "ink" });
-    expect(poseOf(sim, "her rock")).toBeUndefined();
-    expect(poseOf(sim, "bait")).toBeDefined();
+    runUntil(sim, () => sumikuiOf(sim).phase === "feeding", A_MINUTE);
+    const bites: number[] = [];
+    runUntil(
+      sim,
+      (events) => {
+        bites.push(sumikuiOf(sim).bite);
+        return events.some((event) => event.type === "devoured");
+      },
+      A_MINUTE,
+    );
+    const climbing = bites.slice(0, -1);
+    expect(climbing.length).toBeGreaterThan(10);
+    expect(climbing.every((bite, i) => i === 0 || bite >= (climbing[i - 1] ?? 0))).toBe(true);
+    expect(climbing.at(-1)).toBeGreaterThan(0.9);
   });
 
   it("counts ink under a clone as hers, so no platform is eaten from beneath a twin", () => {
@@ -161,17 +155,21 @@ describe("the Sumikui, the ink eater", () => {
   it("never eats roles: a goal is part of the board, not her ink", () => {
     const sim = summonOver(["bait"]);
     pebble(sim, "the door", 60);
-    sim.applyRuling(idOf("the door"), {
-      name: "goal",
-      nature: "goal",
-      strength: 1,
-      tags: [],
-      line: "",
-    });
-    sim.setWalkIntent(RIGHT);
-    runSteps(sim, 45);
-    sim.setWalkIntent(STAY);
+    sim.applyRuling(idOf("the door"), rulingOf("goal"));
+    walkOut(sim, 45);
     expect(devouredIds(runSteps(sim, A_MINUTE))).not.toContain(idOf("the door"));
+    expect(poseOf(sim, "the door")).toBeDefined();
+  });
+
+  it("spares the props Kami dresses a scene with, and eats the ink drawn beside them", () => {
+    const sim = enter(board);
+    sim.setPhysics(LOOSE);
+    sim.addDrawing(drawingOf("a prop", blob(200, GROUND - 5, 24, 24)), "scenery");
+    pebble(sim, "a doodle", 260);
+    const events = runUntil(sim, saw("devoured"), A_MINUTE);
+    expect(devouredIds(events)).toEqual([idOf("a doodle")]);
+    expect(devouredIds(runSteps(sim, A_MINUTE))).toEqual([]);
+    expect(poseOf(sim, "a prop")).toBeDefined();
   });
 
   it("forgets its hunger when sealed, and wakes fresh when loosed again", () => {
@@ -192,18 +190,10 @@ describe("the Sumikui, the ink eater", () => {
       for (const phase of ["hunting", "feeding"] as const) {
         const sim = summonOver(["bait"]);
         pebble(sim, "her rock", 60);
-        sim.setWalkIntent(RIGHT);
-        runSteps(sim, 45);
-        sim.setWalkIntent(STAY);
+        walkOut(sim, 45);
         runUntil(sim, () => sumikuiOf(sim).phase === phase, A_MINUTE);
         expect(sumikuiOf(sim).phase).toBe(phase);
-        sim.applyRuling(idOf("her rock"), {
-          name: nature,
-          nature,
-          strength: 1,
-          tags: [],
-          line: "",
-        });
+        sim.applyRuling(idOf("her rock"), rulingOf(nature));
         runSteps(sim, 1);
         expect(sumikuiOf(sim).chewing).toBeNull();
         expect(devouredIds(runSteps(sim, A_MINUTE))).not.toContain(idOf("her rock"));
@@ -214,22 +204,16 @@ describe("the Sumikui, the ink eater", () => {
 });
 
 describe("everything on the paper is ink to it", () => {
-  const walkOut = (sim: Simulation, steps: number): void => {
-    sim.setWalkIntent(RIGHT);
-    runSteps(sim, steps);
-    sim.setWalkIntent(STAY);
-  };
-
   it("never bites the ground, nor her, where Kami sets her down", () => {
-    const sim = summonOver(["one", "two"]);
-    const events = runSteps(sim, BEFORE_SWEEPING);
+    const sim = summonOver([]);
+    const events = runSteps(sim, A_MINUTE);
     expect(typesOf(events)).not.toContain("paper-bitten");
     expect(typesOf(events)).not.toContain("alice-devoured");
     expect(sim.snapshot().bites).toEqual([]);
   });
 
   it("bites the board's own ground out from under her, and she falls through the hole", () => {
-    const sim = summonOver(["one", "two"]);
+    const sim = summonOver([]);
     walkOut(sim, 60);
     const feet = feetOf(sim);
     const events = runUntil(sim, saw("fell"), A_MINUTE);
@@ -243,7 +227,7 @@ describe("everything on the paper is ink to it", () => {
   });
 
   it("charts the hole for the pilot and heals it in time", () => {
-    const sim = summonOver(["one", "two"]);
+    const sim = summonOver([]);
     walkOut(sim, 60);
     runUntil(sim, saw("paper-bitten"), A_MINUTE);
     expect(sim.snapshot().bites).toHaveLength(1);
@@ -253,7 +237,7 @@ describe("everything on the paper is ink to it", () => {
   });
 
   it("devours Alice herself when she stands where there is nothing else to eat", () => {
-    const sim = summonOver(["one", "two"]);
+    const sim = summonOver([]);
     sim.addDrawing(drawingOf("a ledge", blob(400, GROUND - 40, 200, 24)));
     sim.applyRuling(idOf("a ledge"), rulingOf("solid"));
     sim.setPhysics({ ...LOOSE, flight: 1 });
@@ -269,7 +253,7 @@ describe("everything on the paper is ink to it", () => {
   });
 
   it("devours only the twin it catches, and names her; Alice keeps her footing", () => {
-    const sim = summonOver(["one", "two"]);
+    const sim = summonOver([]);
     sim.setPhysics({ ...LOOSE, flight: 1, clones: 1 });
     sim.addDrawing(drawingOf("a ledge", blob(400, GROUND - 40, 200, 24)));
     sim.applyRuling(idOf("a ledge"), rulingOf("solid"));
@@ -285,6 +269,44 @@ describe("everything on the paper is ink to it", () => {
     expect(events).toContainEqual({ type: "fell", who: 1 });
     expect(events.filter((event) => event.type === "fell")).toHaveLength(1);
     expect(feetOf(sim).x).toBeCloseTo(herself, 0);
+  });
+});
+
+describe("its meals", () => {
+  const feedingSteps = (sim: Simulation): number => {
+    runUntil(sim, () => sumikuiOf(sim).phase === "feeding", A_MINUTE);
+    let steps = 0;
+    runUntil(
+      sim,
+      (events) => {
+        steps += 1;
+        return events.some((event) => event.type === "devoured");
+      },
+      A_MINUTE,
+    );
+    return steps;
+  };
+
+  it("take about a second and a half over a pebble, several over a long bridge, never past the cap", () => {
+    expect(mealTimeFor(strokesLength([blob(0, 0, 24, 24)]))).toBeGreaterThan(1200);
+    expect(mealTimeFor(strokesLength([blob(0, 0, 24, 24)]))).toBeLessThan(1800);
+    expect(mealTimeFor(500)).toBeGreaterThan(4000);
+    expect(mealTimeFor(500)).toBeLessThan(SUMIKUI_MEAL_MAX_MS);
+    expect(mealTimeFor(5000)).toBe(SUMIKUI_MEAL_MAX_MS);
+  });
+
+  it("grow with the drawing: a bridge keeps it busy far longer than a pebble", () => {
+    const overAPebble = summonOver(["a pebble"]);
+    const overABridge = summonOver([]);
+    overABridge.addDrawing(
+      drawingOf("a bridge", line({ x: 150, y: GROUND - 5 }, { x: 650, y: GROUND - 5 })),
+    );
+    const pebbleSteps = feedingSteps(overAPebble);
+    const bridgeSteps = feedingSteps(overABridge);
+    expect(pebbleSteps * FIXED_STEP_MS).toBeGreaterThan(1200);
+    expect(pebbleSteps * FIXED_STEP_MS).toBeLessThan(1800);
+    expect(bridgeSteps).toBeGreaterThan(pebbleSteps * 2.5);
+    expect(poseOf(overABridge, "a bridge")).toBeUndefined();
   });
 });
 

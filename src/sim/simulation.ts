@@ -45,6 +45,7 @@ import {
   type AliceSnapshot,
   aliceDimensions,
   type BounceArc,
+  type InkProvenance,
   type SimEvent,
   type Simulation,
   type WalkIntent,
@@ -82,7 +83,6 @@ interface BoardWorld {
   readonly footing: LastFooting;
   readonly activePairs: Matter.Pair[];
   readonly growthRefusedAt: Map<DrawingId, number>;
-  readonly touchedAt: Map<DrawingId, number>;
   readonly portals: Map<AliceController, Portals>;
   sumikui: Sumikui | null;
   readonly goalReachedBy: Set<AliceController>;
@@ -125,9 +125,8 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
     footing: new LastFooting(board.spawn),
     activePairs,
     growthRefusedAt: new Map(),
-    touchedAt: new Map(),
     portals: new Map(),
-    sumikui: physics.inkEater > 0 ? new Sumikui(alice, hallowedOf(board)) : null,
+    sumikui: physics.inkEater > 0 ? new Sumikui(alice, hallowedOf(board), board.killY) : null,
     goalReachedBy: new Set(),
     lost: new Set(),
     benighted: false,
@@ -165,12 +164,12 @@ export class MatterSimulation implements Simulation {
   private matchSumikui(inkEater: number): void {
     const { sumikui, alice, board } = this.world;
     if (inkEater > 0 && sumikui === null)
-      this.world.sumikui = new Sumikui(alice, hallowedOf(board));
+      this.world.sumikui = new Sumikui(alice, hallowedOf(board), board.killY);
     if (inkEater <= 0) this.world.sumikui = null;
   }
 
-  addDrawing(drawing: Drawing): void {
-    this.world.inks.add(drawing);
+  addDrawing(drawing: Drawing, provenance: InkProvenance = "drawn"): void {
+    this.world.inks.add(drawing, provenance);
   }
 
   applyRuling(id: DrawingId, ruling: Ruling): void {
@@ -481,7 +480,6 @@ export class MatterSimulation implements Simulation {
 
   private forgetInk(id: DrawingId): void {
     this.world.inks.remove(id);
-    this.world.touchedAt.delete(id);
     for (const portals of this.world.portals.values()) portals.forget(id);
   }
 
@@ -618,26 +616,19 @@ export class MatterSimulation implements Simulation {
       if (ink !== undefined && !touched.has(ink)) touched.set(ink, contact);
     }
     for (const [ink, contact] of touched) {
-      this.world.touchedAt.set(ink.id, this.world.engine.timing.timestamp);
       NATURES[ink.nature].onAliceTouch?.(ink, contact, natureWorld);
     }
     portals.settle(barred, new Set([...touched.keys()].map((ink) => ink.id)));
   }
 
   private feedSumikui(elapsedMs: number): void {
-    const { sumikui, inks, touchedAt, engine, props } = this.world;
+    const { sumikui, inks, engine, props } = this.world;
     const now = engine.timing.timestamp;
     if (props.heal(now) > 0) this.events.push({ type: "paper-healed" });
     if (sumikui === null || !this.embodied) return;
     const wasAwake = sumikui.isAwake;
     const alices = this.everyAlice();
-    const meal = sumikui.tick(elapsedMs, {
-      now,
-      alices,
-      inks: inks.all,
-      memory: touchedAt,
-      paper: props.paper,
-    });
+    const meal = sumikui.tick(elapsedMs, { alices, inks: inks.all, paper: props.paper });
     if (!wasAwake && sumikui.isAwake) this.events.push({ type: "sumikui-woke" });
     if (meal === null) return;
     switch (meal.kind) {
