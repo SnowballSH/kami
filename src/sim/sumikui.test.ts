@@ -10,6 +10,7 @@ import {
   SUMIKUI_MEAL_MAX_MS,
   SUMIKUI_SCAR_HEALS_MS,
 } from "./constants";
+import { createSimulation } from "./index";
 import { mealTimeFor, speedAfter } from "./sumikui";
 import {
   blob,
@@ -78,6 +79,20 @@ describe("the Sumikui, the ink eater", () => {
     const one = summonOver(["one"]);
     expect(typesOf(runSteps(one, 1))).toContain("sumikui-woke");
     expect(typesOf(runSteps(one, 30))).not.toContain("sumikui-woke");
+  });
+
+  it("bides in a room until the player commits edible ink", () => {
+    const sim = createSimulation();
+    sim.setPhysics(LOOSE);
+    sim.loadBoard(board);
+
+    expect(typesOf(runSteps(sim, stepsFor(10_000)))).not.toContain("sumikui-woke");
+    expect(sumikuiOf(sim).phase).toBe("stirring");
+    expect(sumikuiOf(sim).awakeMs).toBe(0);
+
+    pebble(sim, "first drawing", 200);
+    expect(typesOf(runSteps(sim, 1))).toContain("sumikui-woke");
+    expect(sumikuiOf(sim).phase).not.toBe("stirring");
   });
 
   it("eats scribbles she never touched: clutter is ink too", () => {

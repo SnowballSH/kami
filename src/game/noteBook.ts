@@ -69,6 +69,20 @@ export class NoteBook {
     this.entries.set(id, { ...entry, expiresAtMs });
   }
 
+  fleetingBy(author: Note["author"]): readonly Note[] {
+    return [...this.entries.values()]
+      .filter(({ note, anchor }) => note.author === author && note.fleeting && anchor === null)
+      .sort((a, b) => a.writtenAtMs - b.writtenAtMs)
+      .map(({ note }) => note);
+  }
+
+  hurry(id: NoteId, nowMs: number): void {
+    const entry = this.entries.get(id);
+    if (entry === undefined) return;
+    const expiresAtMs = Math.min(entry.expiresAtMs ?? Number.POSITIVE_INFINITY, nowMs + FADE_MS);
+    this.entries.set(id, { ...entry, expiresAtMs });
+  }
+
   get(id: NoteId): Note | null {
     return this.entries.get(id)?.note ?? null;
   }

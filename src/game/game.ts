@@ -147,6 +147,7 @@ const GUESS_LIFETIME_MS = 12_000;
 const GLIMPSE_LIFETIME_MS = 8_000;
 const REMARK_LIFETIME_MS = 6_000;
 const HINT_LIFETIME_MS = 10_000;
+export const MAX_REMARKS = 2;
 /** How long the player's words, and the labels Kami hangs on drawings, stay once answered. */
 const NOTE_LINGER_MS = 12_000;
 /** Long enough to read the closing line where she stands before the next room opens over it. */
@@ -607,7 +608,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     else this.introduce(firstZone);
     this.hud.showRoomCard(this.director.room?.card ?? null);
     if (!this.embodied) this.remark(SOUL_WAITS_LINE, HINT_LIFETIME_MS);
-    else if (this.introducesItself) this.remark(this.director.mode.card.opening, HINT_LIFETIME_MS);
+    else if (this.introducesItself && this.director.mode.id === EMBODIED_MODE_ID)
+      this.remark(this.director.mode.card.opening, HINT_LIFETIME_MS);
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
@@ -789,7 +791,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   /** Held keys drive the selected Alice; every other one drives herself, unless the player switched that off. */
   private chooseIntents(): void {
     const { sim } = this.modules;
-    for (const { who, kind } of this.party.drive(sim, this.page(), this.selfDriving)) {
+    for (const { who, kind } of this.party.drive(sim, this.page(), this.selfDriving, this.nowMs)) {
       switch (kind) {
         case "flees":
           this.remark(
@@ -1048,11 +1050,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.introduced.add(zone.id);
     this.modules.cat.enterRoom(zone);
     this.stuck.reset(this.nowMs);
-    this.kamiWrites(
-      zone.intro,
-      { x: zone.checkpoint.x + ABOVE_ALICE.x, y: zone.checkpoint.y + ABOVE_ALICE.y - 80 },
-      { lifetimeMs: HINT_LIFETIME_MS, minY: this.writingTop() },
-    );
+    this.remark(zone.intro, HINT_LIFETIME_MS, {
+      x: zone.checkpoint.x + ABOVE_ALICE.x,
+      y: zone.checkpoint.y + ABOVE_ALICE.y - 80,
+    });
   }
 
   private progress(line: string): void {
@@ -1633,6 +1634,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       x: this.board.spawn.x + WORDMARK_OFFSET.x,
       y: this.board.spawn.y + WORDMARK_OFFSET.y,
     };
+    if (this.director.mode.id !== EMBODIED_MODE_ID) {
+      this.writeModeCard({ x: at.x, y: at.y + TAGLINE_DROP * 2 });
+      return;
+    }
     this.kamiWrites(WORDMARK, at, { silent: true });
     this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP }, { silent: true });
     this.writeModeCard({ x: at.x, y: at.y + TAGLINE_DROP * 2 });
@@ -1642,7 +1647,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private writeModeCard(at: Vec): void {
     if (!this.introducesItself) return;
     const { mode } = this.director;
-    const lines = [`${mode.card.title} — ${mode.card.tagline}`, ...(mode.card.roles ?? [])];
+    const lines = mode.card.roles ?? [];
     lines.forEach((line, index) => {
       this.kamiWrites(line, { x: at.x, y: at.y + index * MODE_CARD_LINE }, { silent: true });
     });
@@ -1744,13 +1749,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       if (epoch === this.epoch) this.remark(line, HINT_LIFETIME_MS);
   }
 
-  private remark(line: string, lifetimeMs: number = REMARK_LIFETIME_MS): void {
+  private remark(line: string, lifetimeMs: number = REMARK_LIFETIME_MS, at?: Vec): void {
+    const fleeting = this.notes.fleetingBy("kami");
+    if (fleeting.some((note) => note.text === line)) return;
+    const toHurry = fleeting.length - MAX_REMARKS + 1;
+    for (const note of fleeting.slice(0, Math.max(0, toHurry)))
+      this.notes.hurry(note.id, this.nowMs);
     const alice = this.modules.sim.aliceBounds(this.party.selected);
-    this.kamiWrites(
-      line,
-      { x: alice.x + ABOVE_ALICE.x, y: alice.y + ABOVE_ALICE.y },
-      { lifetimeMs, minY: this.writingTop() },
-    );
+    this.kamiWrites(line, at ?? { x: alice.x + ABOVE_ALICE.x, y: alice.y + ABOVE_ALICE.y }, {
+      lifetimeMs,
+      minY: this.writingTop(),
+    });
   }
 
   private writingTop(): number {

@@ -100,6 +100,7 @@ export class Sumikui {
     alice: AliceController,
     private readonly hallowed: readonly Vec[],
     private readonly pageEndY: number,
+    private readonly options: { readonly bides: boolean },
   ) {
     this.centre = this.hoverSpotBehind(alice);
   }
@@ -115,6 +116,10 @@ export class Sumikui {
   /** Advances one tick; returns what it has finished devouring, if anything. */
   tick(elapsedMs: number, ground: HuntingGround): Quarry | null {
     const [alice] = ground.alices;
+    if (this.options.bides && !ground.inks.some(edible)) {
+      this.drift(this.hoverSpotBehind(alice), elapsedMs);
+      return null;
+    }
     this.woke = true;
     this.awakeMs += elapsedMs;
     if (this.satedMs > 0) {

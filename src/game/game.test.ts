@@ -41,7 +41,7 @@ import {
   SOUL_WAITS_LINE,
   TEAR_OPENS_LINES,
 } from "./bossLines";
-import { Game } from "./game";
+import { Game, MAX_REMARKS } from "./game";
 import { HELD_INK_FADE_MS } from "./heldInk";
 import {
   CANNOT_DRAW_LINE,
@@ -54,6 +54,7 @@ import {
   SUMIKUI_SEALED_LINE,
   SUMIKUI_SUMMONED_LINES,
 } from "./lines";
+import type { NoteBook } from "./noteBook";
 import { ARRIVAL_MS } from "./retrace";
 import {
   FakeHandwriting,
@@ -518,6 +519,34 @@ describe("Game on the Wonderland board", () => {
     expect(player.hud.boards.map((board) => board.id)).toContain("wonderland");
   });
 
+  it("deduplicates and caps fleeting Kami remarks", async () => {
+    player.game.onAutopilotToggled(false);
+    const remark = (text: string): void =>
+      (
+        player.game as unknown as {
+          remark: (line: string) => void;
+        }
+      ).remark(text);
+    remark("same remark");
+    remark("same remark");
+    remark("second remark");
+    remark("third remark");
+    await player.wait(FIXED_STEP_MS);
+
+    const same = () =>
+      (player.renderer.lastFrame?.notes ?? []).filter(
+        (note) => note.author === "kami" && note.script.text === "same remark",
+      );
+    expect(same()).toHaveLength(1);
+    await player.wait(800);
+    const opaque = (player.renderer.lastFrame?.notes ?? []).filter((note) => {
+      const notebook = (player.game as unknown as { notes: NoteBook }).notes;
+      return notebook.fleetingBy("kami").some(({ id }) => id === note.id) && note.opacity === 1;
+    });
+    expect(opaque.length).toBeLessThanOrEqual(2);
+    expect(same()).toHaveLength(0);
+  });
+
   it("offers three tappable guesses beside a fresh drawing, and a tap names it", async () => {
     await player.draw(blob({ x: 300, y: 530 }, 30, 20));
     await player.wait(100);
@@ -651,7 +680,9 @@ describe("Game on the Wonderland board", () => {
     await player.wait(SUMIKUI_LORE_LINE_DELAY_MS * 2 + 100);
     const notes = player.renderer.lastFrame?.notes ?? [];
     const lore = notes.filter((note) => SUMIKUI_SUMMONED_LINES.includes(note.script.text));
-    expect(lore).toHaveLength(SUMIKUI_SUMMONED_LINES.length);
+    expect(lore.length).toBeLessThanOrEqual(MAX_REMARKS);
+    expect(player.written).toContain(SUMIKUI_SUMMONED_LINES[1]);
+    expect(player.written).toContain(SUMIKUI_SUMMONED_LINES[2]);
     for (const note of lore) {
       expect(note.script.bounds.y).toBeGreaterThan(player.hud.toolbarBottomY);
       expect(
@@ -668,7 +699,8 @@ describe("Game on the Wonderland board", () => {
     expect(player.written).toContain("kami: the Sumikui, the ink eater, is loose");
     expect(player.written).toContain(SUMIKUI_SUMMONED_LINES[0]);
     await player.wait(SUMIKUI_LORE_LINE_DELAY_MS * 2 + 100);
-    for (const line of SUMIKUI_SUMMONED_LINES) expect(player.written).toContain(line);
+    expect(player.written).not.toContain(SUMIKUI_SUMMONED_LINES[0]);
+    for (const line of SUMIKUI_SUMMONED_LINES.slice(1)) expect(player.written).toContain(line);
 
     await player.erase({ x: 210, y: 215 });
     expect(player.renderer.lastFrame?.world.sumikui).toBeNull();
@@ -2006,8 +2038,8 @@ describe("Game in the Sandbox", () => {
   it("opens on an endless page with the mode's own opening line, and no rabbit hole to reach", async () => {
     const { player } = sandbox();
     await player.arrive();
-    expect(player.written).toContain(SANDBOX_MODE.card.opening);
-    expect(player.written).toContain(cardLineOf(SANDBOX_MODE));
+    expect(player.written).not.toContain(SANDBOX_MODE.card.opening);
+    expect(player.written).not.toContain(cardLineOf(SANDBOX_MODE));
     expect(player.renderer.board?.page).toBe("endless");
     expect(player.renderer.board?.goal).toBeUndefined();
   });
@@ -2267,7 +2299,6 @@ describe("Game in Boss mode", () => {
     expect(soulOf(player).x).toBeCloseTo(boardFor("wonderland").spawn.x, 0);
     expect(player.written).toContain(SOUL_WAITS_LINE);
     expect(player.written).not.toContain(BOSS_MODE.card.opening);
-    expect(player.written).toContain(cardLineOf(BOSS_MODE));
     for (const role of BOSS_MODE.card.roles ?? []) expect(player.written).toContain(role);
     expect(player.hud.cards).toEqual([BOSS_MODE.card]);
     player.game.onAutopilotToggled(true);

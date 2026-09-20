@@ -126,7 +126,10 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
     activePairs,
     growthRefusedAt: new Map(),
     portals: new Map(),
-    sumikui: physics.inkEater > 0 ? new Sumikui(alice, hallowedOf(board), board.killY) : null,
+    sumikui:
+      physics.inkEater > 0
+        ? new Sumikui(alice, hallowedOf(board), board.killY, { bides: true })
+        : null,
     goalReachedBy: new Set(),
     lost: new Set(),
     benighted: false,
@@ -158,13 +161,13 @@ export class MatterSimulation implements Simulation {
     twins.match(this.embodied ? physics.clones : 0, alice, physics);
     this.roster = null;
     inks.setPhysics(physics);
-    this.matchSumikui(physics.inkEater);
+    this.matchSumikui(physics.inkEater, { bides: false });
   }
 
-  private matchSumikui(inkEater: number): void {
+  private matchSumikui(inkEater: number, { bides }: { readonly bides: boolean }): void {
     const { sumikui, alice, board } = this.world;
     if (inkEater > 0 && sumikui === null)
-      this.world.sumikui = new Sumikui(alice, hallowedOf(board), board.killY);
+      this.world.sumikui = new Sumikui(alice, hallowedOf(board), board.killY, { bides });
     if (inkEater <= 0) this.world.sumikui = null;
   }
 
@@ -191,7 +194,7 @@ export class MatterSimulation implements Simulation {
     twins.match(0, soul, this.physics);
     this.roster = null;
     this.world.sumikui = null;
-    this.matchSumikui(this.physics.inkEater);
+    this.matchSumikui(this.physics.inkEater, { bides: true });
   }
 
   incarnate(id: DrawingId, name: string): boolean {
@@ -214,7 +217,7 @@ export class MatterSimulation implements Simulation {
     twins.match(this.physics.clones, embodied, this.physics);
     this.roster = null;
     this.world.sumikui = null;
-    this.matchSumikui(this.physics.inkEater);
+    this.matchSumikui(this.physics.inkEater, { bides: true });
     return true;
   }
 
