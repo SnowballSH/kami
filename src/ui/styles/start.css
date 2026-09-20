@@ -7,7 +7,7 @@
   align-items: center;
   justify-content: center;
   gap: 2rem;
-  background: #faf9f6;
+  background: var(--kami-board);
   color: #252525;
   font:
     1rem system-ui,
@@ -50,7 +50,7 @@
 
 .start-choices button:hover,
 .start-choices button:focus-visible {
-  background: #f1efe8;
+  background: var(--kami-hover);
 }
 
 .start-choices strong {
