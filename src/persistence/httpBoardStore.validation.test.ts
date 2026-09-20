@@ -52,6 +52,28 @@ it.each(["load", "list"] as const)(
 );
 
 describe("nested saved board validation", () => {
+  it("preserves drawing label associations alongside legacy notes", async () => {
+    const saved = {
+      ...snapshot,
+      notes: [note, { ...note, id: "label", drawingId: drawing.id }],
+    };
+    const store = new HttpBoardStore(async () => Response.json(saved));
+    expect(await store.load("demo")).toEqual(saved);
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it.each(["", "x".repeat(201), null, 1, {}])(
+    "rejects an invalid drawing label association: %j",
+    async (drawingId) => {
+      const saved = { ...snapshot, notes: [{ ...note, drawingId }] };
+      const store = new HttpBoardStore(async () => Response.json(saved));
+      await expect(store.load("demo")).rejects.toMatchObject({
+        name: "BoardResponseError",
+        problems: expect.arrayContaining([expect.stringContaining("notes.0.drawingId")]),
+      });
+    },
+  );
+
   it.each([
     ["top-level arrays", { ...snapshot, drawings: "lots" }],
     ["null drawing", { ...snapshot, drawings: [null] }],

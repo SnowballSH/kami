@@ -158,6 +158,18 @@ export const DAMPERS = list(`
   slightly, bit, little, tiny, weak, small, mini, barely, kinda, somewhat, gentle, mildly
 `);
 
+export const SPINNING_WORDS = list(`
+  spinning, spins, spin, rotating, rotates, revolving, revolves, whirling, whirls, twirling, twirls,
+  turning, wheel, wheels, gear, gears, cog, cogs, windmill, propeller, pinwheel, turbine, rotor
+`);
+
+export const WIDDERSHINS_WORDS = list("counterclockwise, anticlockwise, widdershins, backwards");
+
+export const PROPELLED_WORDS = list(`
+  accelerating, propelled, powered, motorised, motorized, thrusting, boosted, zooming, jetpack,
+  thruster, thrusters
+`);
+
 export const KEY_WORDS = list("key");
 
 export const WEAPON_WORDS = list(`

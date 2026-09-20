@@ -16,7 +16,8 @@ Physics = { gravity: Vec, wind: Vec,                       -- fields on the worl
             temperature (°C), daylight (0..1),             -- world ambience
             flight (0|1), walkSpeed, aliceSize,            -- Alice's own dials
             attraction (g), clones (count),                 -- Alice's reach into the world
-            inkEater (0|1) }                               -- whether the Sumikui is loose
+            inkEater (0|1),                                -- whether the Sumikui is loose
+            bodies: [BodyLaw] }                            -- laws about drawings, oldest first (§2.1)
 ```
 
 `EARTH : Physics` is the distinguished starting point: Earth gravity, still air, noon, 20 °C, one ordinary Alice.
@@ -27,10 +28,10 @@ Physics = { gravity: Vec, wind: Vec,                       -- fields on the worl
 |---|---|---|
 | `World` | the board as a whole | gravity, wind, timeScale, airDrag, friction, bounciness, temperature, daylight, inkEater |
 | `Alice` | the protagonist | flight, walkSpeed, aliceSize, attraction, clones |
-| `Drawing` | one committed drawing | its *nature* and *strength* (§6) |
-| `Kind` | every drawing sharing a nature (“all clouds”) | *reserved* — see §7 |
+| `Drawing` | one committed drawing | its *nature* and *strength* (§6); its **motion** dials spin, thrust, mass, bounce, grip (§2.1) |
+| `Kind` | every drawing sharing a nature (“all clouds”) | *reserved* — see §9 |
 
-`Physics` is the product of the `World` and `Alice` dials; `Drawing` state lives on the drawing itself. Nothing in the framework depends on the list being this list: adding a dial is adding a field to the product, a row to the ranges table, and (usually) a few words to the grammar.
+`Physics` is the product of the `World` and `Alice` dials, together with the list of laws about drawings; a drawing's nature lives on the drawing itself. Nothing in the framework depends on the list being this list: adding a dial is adding a field to the product, a row to the ranges table, and (usually) a few words to the grammar.
 
 ## 2. Morphisms: a sentence is an edit
 
@@ -55,6 +56,32 @@ Two morphisms are always available and cost nothing:
 
 Together with `Physics` as the single object this is a **monoid acting on `Physics`**: a one-object category whose arrows are edits. Associativity — `(h ∘ g) ∘ f = h ∘ (g ∘ f)` — is free because arrows are functions, and it is what lets the fold in §3 be written as a plain `reduce`.
 
+### 2.1 Laws about drawings: edits with a target
+
+A drawing has its own dial set, its **motion**:
+
+```
+Motion = { spin (turns/s, + clockwise), thrust: Vec (g, the push it gives itself),
+           mass (× its weight), bounce (0..1), grip (× its surface friction) }
+STILL : Motion = { 0, (0,0), 1, 0, 1 }
+```
+
+A sentence about a drawing — “the wheel spins”, “the rock is twice as heavy”, “everything is slippery” — is a **body effect** `{ governs: d, of: Target, value }`, where
+
+```
+Target = all | named(word)
+```
+
+`all` speaks of every drawing on the board; `named(w)` speaks of every drawing whose name shares a word with `w` (“the wheels” finds “a spinning wheel”). A body effect denotes a **partial edit** `MotionEdit = Partial<Motion>` aimed at a target; the fold (§3) keeps these as `bodies: [BodyLaw = { of, edit }]` in `createdAt` order rather than applying them, because *which* bodies a target names is only known at tick time (drawings are named after the law may have been written).
+
+The motion of one drawing with name `n` and own motion `own` (what its *name* asked for — “a spinning wheel” is `{ spin: 1 }`, given by the Cat) is then
+
+```
+motion(n, own, bodies) = fold((m, law) ⇒ m ⊕ law.edit, STILL ⊕ own, [law ∈ bodies | speaksOf(law.of, n)])
+```
+
+where `⊕` is record override. This is the same later-wins monoid as §2 restricted to the laws that speak of the drawing: the newest sentence about a dial wins, older ones return when it is erased, dials commute. `src/rules/motion.ts` is `speaksOf` and `motionOf`; `InkLayer` recomputes every drawing's motion whenever the fold changes or a drawing is (re)named.
+
 ### Why dial sets and not arbitrary functions
 
 A dial set is the smallest edit that is *inspectable*: given the morphism as data you can validate it (§5), gloss it, store it, and replay it on another device. An opaque `Physics → Physics` closure could do none of those. Two consequences fall out:
@@ -73,7 +100,7 @@ physics(R) = (edit_rₙ ∘ … ∘ edit_r₂ ∘ edit_r₁)(EARTH)
            = fold(enact, EARTH, sort(R))
 ```
 
-`src/rules/resolvePhysics.ts` is exactly this fold. Properties:
+`src/rules/resolvePhysics.ts` is exactly this fold; a body effect appends its `BodyLaw` to `bodies` instead of setting a field. Properties:
 
 - **Erasing is refolding.** There is no “inverse edit”. Erasing the note that holds `rᵢ` gives `physics(R \ {rᵢ})`, recomputed from `EARTH`. This is why repeal is free of bookkeeping and why an older sentence about the same dial comes back on its own.
 - **Loading is the same operation.** Persistence stores `R`; a board opens by running the same fold. Nothing about “the current world” is stored separately.
@@ -87,7 +114,9 @@ The game calls `sim.setPhysics(physics(R))` whenever `R` changes. The simulation
 compile : Text → Maybe (Edit × Gloss)
 ```
 
-The offline grammar (`src/rules/grammarCompiler.ts`) is a chain of **recognisers**, each of which claims a sentence or passes. The newest recogniser, `dials.ts`, is table-driven: one `Dial` row per scalar governs, listing the *vocabulary* that names it, the *readings* (words like “huge”, “freezing”, “night” with their numeric value) and an *implied* value when the dial is merely mentioned (“make Alice fly” → `flight = 1`). Adding a dial to the grammar is adding a row.
+The offline grammar (`src/rules/grammarCompiler.ts`) is a chain of **recognisers**, each of which claims a sentence or passes. `dials.ts` is table-driven: one `Dial` row per scalar governs, listing the *vocabulary* that names it, the *readings* (words like “huge”, “freezing”, “night” with their numeric value) and an *implied* value when the dial is merely mentioned (“make Alice fly” → `flight = 1`). Adding a dial to the grammar is adding a row.
+
+`recognisers/motion.ts` does the same for body effects, plus the target: `normalise` keeps the nouns that followed a determiner (“the *wheel*”, “every *rock*”), and the first of those that is neither a dial word nor a number is the `named` target; “everything” / “all drawings” is `all`; a sentence about Alice is passed on so her dials keep their own grammar. The world dial recognisers run first, so “everything is bouncy” stays the world's `bounciness` and only sentences the world has no dial for (spin, thrust, mass, grip) fall through to `all`.
 
 The model-backed compiler on the server is asked to emit the same shape. `server/schemas.ts` and `server/compile/effectRanges.ts` are the shared contract; the server typecheck fails if the two ends drift. A remote answer that does not validate is dropped, not repaired — the model may pick values, never a shape.
 
@@ -108,7 +137,7 @@ reject unsafe physics before modifying bodies. Ruling strength must stay in 0.5�
 
 ## 6. Drawings: natures as morphisms on one body
 
-A drawing's state is its **nature** and **strength**: `ruling : Drawing → Drawing` sets both (`sim.applyRuling`). Natures are presets — “mushroom” is `bouncy`, “black hole” is `attractor`, “lantern” is `lantern` — chosen by the Cat from the player's words and scaled by their adjectives. They compose like dial sets on one subject: the newest ruling wins, erasing the drawing removes it entirely.
+A drawing's state is its **nature**, **strength** and **own motion** (§2.1): `ruling : Drawing → Drawing` sets all three (`sim.applyRuling`). The Cat reads the motion out of the name's adjectives — “spinning”, “rotating”, “powered”, “boosted” — so a drawing can move by its name alone, before any law speaks of it. Natures are presets — “mushroom” is `bouncy`, “black hole” is `attractor`, “lantern” is `lantern` — chosen by the Cat from the player's words and scaled by their adjectives. They compose like dial sets on one subject: the newest ruling wins, erasing the drawing removes it entirely.
 
 The nature table (`src/sim/natures.ts`) is the second place the framework grows. A nature is a record of hooks — `beforeStep`, `onAliceTouch`, `onInkTouch` — over a small **`NatureWorld`** interface (feelers, emit, consume, freeze, `pullToward`, …). A new behaviour is a new record and, usually, one new capability on `NatureWorld`.
 
@@ -119,6 +148,7 @@ A **system** reads the folded state each tick and produces forces or state trans
 | System | Reads | Does |
 |---|---|---|
 | gravity / wind / drag | `gravity`, `wind`, `airDrag` | engine gravity, a push on every dynamic body, air friction |
+| motion | `bodies`; each drawing's name and own motion | `spin` sets a loose body's angular velocity (a held one turns in place; creatures and roles are exempt); `thrust` pushes the body by `mass × g` each tick; `mass`, `grip`, `bounce` scale the body's density and friction and raise its restitution — `materialMoved` over the world material |
 | Alice movement | `walkSpeed`, `flight`, `aliceSize` | her pace, whether air holds her like a ladder, her body scale |
 | attraction | `attraction`; `attractor` natures | `pullToward(center, g, bodies)` with `1/r²` falloff, capped up close |
 | weather | `temperature` | `slippery` melts above 30 °C, `floaty` burns off above 60 °C, after a dwell; emits `perished` |
@@ -141,6 +171,10 @@ The autopilot is a system too: `Scene.canFly` marks every cell of air climbable,
 | `give Alice gravitational attraction` | `set(attraction, 1)` | `W.attraction := 1` | attraction pulls loose drawings toward her |
 | `summon the ink eater` then `banish the Sumikui` | `set(inkEater, 1)`, `set(inkEater, 0)` | `0` while both stand; `1` again if the banishment is erased | the Sumikui exists exactly while the fold says `1`; sealing forgets its hunger |
 | `g = moon` then `no gravity` then erase the second note | `set(gravity,(0,.165))`, `set(gravity,(0,0))` | `(0,0)` while both stand; `(0,.165)` after refold | gravity |
+| `the wheel spins` | `set(spin, 1) of named(wheel)` | `W.bodies ++ [{ wheel, { spin: 1 } }]` | motion: every drawing named “…wheel…” turns once a second |
+| `the cart accelerates` | `set(thrust, (0.5, 0)) of named(cart)` | `W.bodies ++ [...]` | motion: the cart pushes itself rightward at half a g |
+| `everything spins` then `the rock stops spinning` | `set(spin, 1) of all`, `set(spin, 0) of named(rock)` | both kept; `motion("rock") = { spin: 0 }`, `motion("wheel") = { spin: 1 }` | motion |
+| `a spinning wheel` (as a name) | `null` (identity); the ruling carries `own = { spin: 1 }` | — | funnel names the drawing; motion turns it |
 | `a mushroom` | `null` (identity) | — | funnel falls through to naming |
 
 ## 9. Extension paths
@@ -150,8 +184,8 @@ What each of the remaining ideas is, in this vocabulary, and what it costs:
 - **Vehicles** (“a car”) — *built*: a `vehicle` nature whose `beforeStep` (`sim/vehicles.ts`) reads the new `NatureWorld.intent` capability and rolls the body toward `intent.x × VEHICLE_SPEED × strength` while Alice is aboard; `alice.drive` makes her movement yield to it, and jumping dismounts. One nature record, one capability, exactly as costed.
 - **Follow / flee** (“a dog”, “a mouse”): creature natures whose mind reads `world.alice` and turns toward or away. Two nature records over the existing `Feelers`.
 - **Portals**: a `portal` nature; the system pairs portal bodies and teleports whatever touches one to its partner. One nature, one hook.
-- **Per-drawing physics** (“the rock is twice as heavy”): a third subject with its own dials. `RuleEffect` gains `{ target: DrawingId, governs, value }`; `physics(R)` becomes a map `DrawingId → Overrides` alongside the world product. Same fold, same later-wins, same clamps.
-- **Kinds** (“all clouds are heavy”): the same as per-drawing with `target: Nature`; resolved to bodies at tick time.
+- **Kinds** (“all clouds are heavy”): a third `Target` variant, `kind(Nature)`, matched in `speaksOf` against the drawing's nature instead of its name. One variant, one line in `speaksOf`; the fold, the compiler chain and the motion system are untouched.
+- **More motion dials** (“the rock is dragless”, “the wheel is glued down”): a field on `Motion`, a default in `STILL`, a row in the body ranges and the server prompt, and a line in `materialMoved` or the motion system.
 - **Independent clones**: twins that own an autopilot each; the `Scene` would take an `alice` per pilot.
 - **Arbitrary characters**: the Cat's lexicon already maps any noun to a nature; the `/api/name` contract lets a model choose the nature for words the lexicon lacks — choosing among presets, never writing behaviour.
 
