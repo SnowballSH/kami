@@ -6,6 +6,7 @@ import { recogniseBounciness } from "./recognisers/bounciness";
 import { recogniseDials } from "./recognisers/dials";
 import { recogniseFriction } from "./recognisers/friction";
 import { recogniseGravity } from "./recognisers/gravity";
+import { recogniseHeed } from "./recognisers/heed";
 import { recogniseMotion } from "./recognisers/motion";
 import { recognisePaper } from "./recognisers/paper";
 import { recogniseReset } from "./recognisers/resets";
@@ -23,6 +24,7 @@ const RECOGNISERS: readonly Recogniser[] = [
   recogniseAir,
   recogniseWind,
   recogniseDials,
+  recogniseHeed,
   recogniseMotion,
 ];
 

@@ -9,7 +9,8 @@ export type RuleId = string & { readonly __brand: "RuleId" };
  * weight and surface friction, `bounce` is how much of a fall it gives back (0 to 1). Its powers:
  * `pace` multiplies how fast it moves of itself (a creature's walk, hop, flight or driving),
  * `wings` (0 or 1) lets it take to the air — a creature moves as a flier, anything else hovers —
- * and `size` scales it about its own centre (1 = as drawn).
+ * and `size` scales it about its own centre (1 = as drawn). `heed` is how a creature takes to
+ * Alice: 1 follows her, -1 flees her, 0 goes its own way.
  */
 export interface Motion {
   readonly spin: number;
@@ -20,6 +21,7 @@ export interface Motion {
   readonly pace: number;
   readonly wings: number;
   readonly size: number;
+  readonly heed: number;
 }
 
 export type MotionEdit = Partial<Motion>;
@@ -164,6 +166,7 @@ export const STILL: Motion = {
   pace: 1,
   wings: 0,
   size: 1,
+  heed: 0,
 };
 
 export const EARTH: WorldPhysics = {

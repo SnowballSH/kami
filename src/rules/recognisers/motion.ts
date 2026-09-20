@@ -1,11 +1,11 @@
-import { type Amount, isNumeral, readAmount } from "../amounts";
+import { type Amount, readAmount } from "../amounts";
 import { DIRECTION_WORDS, fieldAlong, readDirection } from "../directions";
 import { type BodyScalarGoverns, bodyRule, thrustRule } from "../effects";
-import type { Sentence } from "../normalise";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { ALICE } from "../subjects";
+import { besides, targetOf } from "../targets";
 import type { BodyGoverns, CompiledRule, Target } from "../types";
-import { INTENSIFIERS, mentions, UNIVERSAL, type Vocabulary, vocabulary } from "../vocabulary";
+import { INTENSIFIERS, mentions, type Vocabulary, vocabulary } from "../vocabulary";
 
 interface Reading {
   readonly words: Vocabulary;
@@ -237,13 +237,6 @@ const DIALS: readonly KnownDial[] = [
   }),
 ];
 
-/** The drawing the sentence points at with "the"/"every"; failing that, everything, if it says so. */
-const targetOf = ({ words, subjects }: Sentence, known: Vocabulary): Target | null => {
-  const name = subjects.find((subject) => !known.has(subject) && !isNumeral(subject));
-  if (name !== undefined) return { kind: "named", name };
-  return mentions(words, UNIVERSAL) ? { kind: "all" } : null;
-};
-
 const readDial = (dial: BodyDial, words: readonly string[]): number | null => {
   const amount = readAmount(words);
   if (amount !== null) return dial.fromAmount(amount);
@@ -278,7 +271,7 @@ export const recogniseMotion: Recogniser = (sentence) => {
     if (!mentions(words, dial.about)) continue;
     const of = targetOf(sentence, dial.known);
     if (of === null) return null;
-    const rest = of.kind === "named" ? words.filter((word) => word !== of.name) : words;
+    const rest = besides(words, of);
     if (!understands(rest, dial.known)) continue;
     const value = readDial(dial, rest);
     if (value !== null) return ruleFor(dial, of, value, rest);

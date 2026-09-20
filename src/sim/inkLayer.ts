@@ -1,4 +1,5 @@
 import Matter from "matter-js";
+import { heedOf } from "../cat/temper";
 import { type Ruling, STRENGTH_RANGE } from "../cat/types";
 import { type Rect, type Stroke, scaleAbout, type Vec } from "../core/geometry";
 import { bearingStrokes } from "../ink/bearing";
@@ -104,8 +105,7 @@ export class InkLayer {
     ink.nature = ruling.nature;
     ink.name = ruling.name;
     ink.strength = ruling.strength;
-    ink.own = ruling.motion ?? {};
-    ink.temper = ruling.temper ?? null;
+    ink.own = { ...ruling.motion, ...heedOf(ruling.temper) };
     ink.frozen = false;
     ink.mind = freshMind(ink.id);
     this.resolveMotion(ink);

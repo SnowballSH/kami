@@ -1,4 +1,5 @@
 import type Matter from "matter-js";
+import { temperOfHeed } from "../cat/temper";
 import type { Nature, Temper } from "../cat/types";
 import { type Pose, poseToWorld, type Stroke, type Vec } from "../core/geometry";
 import type { Drawing, DrawingId } from "../ink/types";
@@ -10,8 +11,6 @@ export class InkEntity {
   name = "";
   strength = 1;
   frozen = false;
-  /** How it takes to Alice, if it is a creature with feelings about her. */
-  temper: Temper | null = null;
   /** What its name asked for; `motion` is that under every standing law that speaks of it. */
   own: MotionEdit = {};
   motion: Motion = STILL;
@@ -29,6 +28,11 @@ export class InkEntity {
 
   get id(): DrawingId {
     return this.drawing.id;
+  }
+
+  /** How it takes to Alice, if it is a creature with feelings about her: its `heed` dial, read. */
+  get temper(): Temper | null {
+    return temperOfHeed(this.motion.heed);
   }
 
   get pose(): Pose {

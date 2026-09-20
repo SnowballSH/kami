@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { blankBoard } from "../board/boards/blank";
 import type { Nature, Temper } from "../cat/types";
+import { type BodyLaw, EARTH, type Target } from "../rules/types";
 import { FLEE_RADIUS_PX, HEEL_PX, PERCH_ABOVE_PX } from "./constants";
 import {
   blob,
@@ -18,7 +19,13 @@ const board = blankBoard("meadow");
 const RESTING = 5;
 const SETTLE_STEPS = 60;
 
-const tempered = (nature: Nature, temper: Temper) => ({ ...rulingOf(nature), temper });
+const tempered = (name: string, nature: Nature, temper: Temper | null) =>
+  temper === null ? { ...rulingOf(nature), name } : { ...rulingOf(nature), name, temper };
+const heeds = (name: string, heed: number): BodyLaw => ({
+  of: { kind: "named", name },
+  edit: { heed },
+});
+const EVERYTHING: Target = { kind: "all" };
 
 const raise = (
   name: string,
@@ -30,7 +37,7 @@ const raise = (
   sim.setWalkIntent(STAY);
   sim.addDrawing(drawingOf(name, blob(at.x, at.y, 50, 36)));
   runSteps(sim, SETTLE_STEPS);
-  sim.applyRuling(idOf(name), temper === null ? rulingOf(nature) : tempered(nature, temper));
+  sim.applyRuling(idOf(name), tempered(name, nature, temper));
   return sim;
 };
 
@@ -100,5 +107,55 @@ describe("a creature with no feelings about Alice", () => {
       return whereIs(sim, name).x;
     });
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(150);
+  });
+});
+
+describe("a law about how a creature takes to Alice", () => {
+  it("'the cat chases me' makes a plain cat follow her, and repeal lets it roam again", () => {
+    const name = "cat";
+    const sim = raise(name, "walker", null, { x: 260, y: -RESTING });
+    sim.setPhysics({ ...EARTH, bodies: [heeds(name, 1)] });
+    expect(Math.abs(gapAfter(sim, name, 600))).toBeLessThan(HEEL_PX + 10);
+    sim.setPhysics(EARTH);
+    const xs = Array.from({ length: 900 }, () => {
+      sim.step();
+      return whereIs(sim, name).x;
+    });
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(150);
+  });
+
+  it("overrules the temper a creature was named with, the latest law winning", () => {
+    const name = "dog";
+    const sim = raise(name, "walker", "follows", { x: 80, y: -RESTING });
+    sim.setPhysics({ ...EARTH, bodies: [heeds(name, -1)] });
+    expect(gapAfter(sim, name, 240)).toBeGreaterThan(80);
+    sim.setPhysics({ ...EARTH, bodies: [heeds(name, -1), heeds(name, 1)] });
+    expect(Math.abs(gapAfter(sim, name, 600))).toBeLessThan(HEEL_PX + 10);
+  });
+
+  it("speaks only of the creature it names", () => {
+    const sim = raise("cat", "walker", null, { x: 260, y: -RESTING });
+    sim.addDrawing(drawingOf("tortoise", blob(-260, -RESTING, 50, 36)));
+    runSteps(sim, SETTLE_STEPS);
+    sim.applyRuling(idOf("tortoise"), tempered("tortoise", "walker", null));
+    sim.setPhysics({ ...EARTH, bodies: [heeds("cat", 1)] });
+    runSteps(sim, 600);
+    expect(Math.abs(whereIs(sim, "cat").x - feetOf(sim).x)).toBeLessThan(HEEL_PX + 10);
+    const tortoiseXs = Array.from({ length: 600 }, () => {
+      sim.step();
+      return whereIs(sim, "tortoise").x;
+    });
+    expect(Math.max(...tortoiseXs) - Math.min(...tortoiseXs)).toBeGreaterThan(100);
+  });
+
+  it("'everything follows me' moves the creatures and leaves a rock where it lies", () => {
+    const sim = raise("cat", "walker", null, { x: 260, y: -RESTING });
+    sim.addDrawing(drawingOf("rock", blob(-200, -RESTING, 50, 36)));
+    runSteps(sim, SETTLE_STEPS);
+    sim.applyRuling(idOf("rock"), rulingOf("ink"));
+    const rockWas = whereIs(sim, "rock").x;
+    sim.setPhysics({ ...EARTH, bodies: [{ of: EVERYTHING, edit: { heed: 1 } }] });
+    expect(Math.abs(gapAfter(sim, "cat", 600))).toBeLessThan(HEEL_PX + 10);
+    expect(whereIs(sim, "rock").x).toBeCloseTo(rockWas, 0);
   });
 });

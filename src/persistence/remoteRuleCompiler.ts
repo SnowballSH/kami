@@ -39,6 +39,7 @@ const EFFECT_SHAPES: { readonly [Setting in Governs]: ShapeOf<Setting> } = {
   pace: "body-scalar",
   wings: "body-scalar",
   size: "body-scalar",
+  heed: "body-scalar",
 };
 
 const isGoverns = (setting: string): setting is Governs => Object.hasOwn(EFFECT_SHAPES, setting);

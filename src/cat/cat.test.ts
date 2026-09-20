@@ -417,6 +417,20 @@ describe("ScriptedCat", () => {
       expect((await cat.name("a tapir", ROUND)).nature).toBe("ink");
     });
 
+    it("gives a creature the Eye recognises the temper it is born with", async () => {
+      const cat = watching(
+        sightingsOf([sighting("dog", "walker", true), sighting("mouse", "walker")]),
+      );
+      const look = await cat.look(ROUND);
+      expect(look.certain).toMatchObject({ nature: "walker", temper: "follows" });
+      expect(await cat.name("a dog", ROUND)).toMatchObject({ temper: "follows" });
+      expect(await cat.name("a shy dog", ROUND)).toMatchObject({ temper: "flees" });
+      expect(await cat.name("a mouse", ROUND)).toMatchObject({ temper: "flees" });
+      expect(await cat.name("a loyal mouse", ROUND)).toMatchObject({ temper: "follows" });
+      const okapi = watching(sightingsOf([sighting("okapi", "walker", true)]));
+      expect((await okapi.look(ROUND)).certain).not.toHaveProperty("temper");
+    });
+
     it("accepts the offered nature and strength while typed descriptions keep their meaning", async () => {
       const cat = watching(
         sightingsOf([
