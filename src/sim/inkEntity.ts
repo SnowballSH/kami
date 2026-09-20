@@ -33,7 +33,12 @@ export class InkEntity {
 
   get pose(): Pose {
     const { position, angle } = this.body;
-    return { origin: this.origin, position: { x: position.x, y: position.y }, angle };
+    return {
+      origin: this.origin,
+      position: { x: position.x, y: position.y },
+      angle,
+      scale: this.motion.size,
+    };
   }
 
   get worldStrokes(): readonly Stroke[] {

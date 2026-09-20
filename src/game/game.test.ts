@@ -453,8 +453,8 @@ describe("Game on the Wonderland board", () => {
           ...drawing,
           pose:
             drawing.id === target.id
-              ? { origin: { x: 500, y: 300 }, position: { x: 1000, y: 1000 }, angle }
-              : { origin: { x: 0, y: 0 }, position: { x: 0, y: 0 }, angle: 0 },
+              ? { origin: { x: 500, y: 300 }, position: { x: 1000, y: 1000 }, angle, scale: 1 }
+              : { origin: { x: 0, y: 0 }, position: { x: 0, y: 0 }, angle: 0, scale: 1 },
         })),
       });
 

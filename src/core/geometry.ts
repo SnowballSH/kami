@@ -22,10 +22,12 @@ export type Stroke = readonly PenPoint[];
  * Where a rigid thing is now relative to where it was made.
  * A point drawn at `p` is currently at `position + rotate(p - origin, angle)`.
  */
+/** Where a drawing is now: drawn points are scaled about `origin`, turned by `angle`, and set at `position`. */
 export interface Pose {
   readonly origin: Vec;
   readonly position: Vec;
   readonly angle: number;
+  readonly scale: number;
 }
 
 export const clamp = (value: number, min: number, max: number): number =>
@@ -129,14 +131,33 @@ const rotate = (v: Vec, angle: number): Vec => ({
   y: v.x * Math.sin(angle) + v.y * Math.cos(angle),
 });
 
-export const IDENTITY_POSE: Pose = { origin: { x: 0, y: 0 }, position: { x: 0, y: 0 }, angle: 0 };
+export const IDENTITY_POSE: Pose = {
+  origin: { x: 0, y: 0 },
+  position: { x: 0, y: 0 },
+  angle: 0,
+  scale: 1,
+};
+
+export const scaleAbout = (point: Vec, centre: Vec, scale: number): Vec => ({
+  x: centre.x + (point.x - centre.x) * scale,
+  y: centre.y + (point.y - centre.y) * scale,
+});
 
 export const poseToWorld = (drawn: Vec, pose: Pose): Vec => {
-  const local = rotate({ x: drawn.x - pose.origin.x, y: drawn.y - pose.origin.y }, pose.angle);
+  const local = rotate(
+    {
+      x: (drawn.x - pose.origin.x) * pose.scale,
+      y: (drawn.y - pose.origin.y) * pose.scale,
+    },
+    pose.angle,
+  );
   return { x: pose.position.x + local.x, y: pose.position.y + local.y };
 };
 
 export const worldToPose = (world: Vec, pose: Pose): Vec => {
   const local = rotate({ x: world.x - pose.position.x, y: world.y - pose.position.y }, -pose.angle);
-  return { x: pose.origin.x + local.x, y: pose.origin.y + local.y };
+  return {
+    x: pose.origin.x + local.x / pose.scale,
+    y: pose.origin.y + local.y / pose.scale,
+  };
 };

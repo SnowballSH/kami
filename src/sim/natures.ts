@@ -164,5 +164,23 @@ export const NATURES: Readonly<Record<Nature, NatureStrategy>> = {
   spawn: { ...ROLE, solidToAlice: false },
 };
 
+const hover: InkHook = (ink, world) => cancelGravity(ink.body, world.gravity);
+
+/**
+ * What the ink does of itself each tick. Wings, by law, lift it off the ground: a walker or hopper
+ * flies, a vehicle hovers and its driver steers up and down too, anything else just hangs there.
+ */
+export const stepOf = (ink: InkEntity): InkHook | undefined => {
+  const strategy = NATURES[ink.nature];
+  if (ink.motion.wings <= 0 || ink.body.isStatic) return strategy.beforeStep;
+  if (ink.nature === "walker" || ink.nature === "hopper") return fly;
+  if (strategy.beforeStep === undefined) return hover;
+  const step = strategy.beforeStep;
+  return (target, world) => {
+    hover(target, world);
+    step(target, world);
+  };
+};
+
 export const holdsStill = (strategy: NatureStrategy, anchorClusters: number): boolean =>
   strategy.anchorsToHold !== null && anchorClusters >= strategy.anchorsToHold;

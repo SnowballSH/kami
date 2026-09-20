@@ -6,7 +6,10 @@ export type RuleId = string & { readonly __brand: "RuleId" };
 /**
  * A drawing's own physics, over and above its nature: `spin` in turns per second (positive is
  * clockwise on screen), `thrust` a steady push on itself in g, `mass` and `grip` multiply its own
- * weight and surface friction, `bounce` is how much of a fall it gives back (0 to 1).
+ * weight and surface friction, `bounce` is how much of a fall it gives back (0 to 1). Its powers:
+ * `pace` multiplies how fast it moves of itself (a creature's walk, hop, flight or driving),
+ * `wings` (0 or 1) lets it take to the air — a creature moves as a flier, anything else hovers —
+ * and `size` scales it about its own centre (1 = as drawn).
  */
 export interface Motion {
   readonly spin: number;
@@ -14,6 +17,9 @@ export interface Motion {
   readonly mass: number;
   readonly bounce: number;
   readonly grip: number;
+  readonly pace: number;
+  readonly wings: number;
+  readonly size: number;
 }
 
 export type MotionEdit = Partial<Motion>;
@@ -149,7 +155,16 @@ export interface WorldPhysics {
   readonly bodies: readonly BodyLaw[];
 }
 
-export const STILL: Motion = { spin: 0, thrust: { x: 0, y: 0 }, mass: 1, bounce: 0, grip: 1 };
+export const STILL: Motion = {
+  spin: 0,
+  thrust: { x: 0, y: 0 },
+  mass: 1,
+  bounce: 0,
+  grip: 1,
+  pace: 1,
+  wings: 0,
+  size: 1,
+};
 
 export const EARTH: WorldPhysics = {
   gravity: { x: 0, y: 1 },

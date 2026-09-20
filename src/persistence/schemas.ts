@@ -34,6 +34,9 @@ export const motionEditSchema = z.object({
   mass: z.number().exactOptional(),
   bounce: z.number().exactOptional(),
   grip: z.number().exactOptional(),
+  pace: z.number().exactOptional(),
+  wings: z.number().exactOptional(),
+  size: z.number().exactOptional(),
 }) satisfies z.ZodType<MotionEdit>;
 
 export const rulingSchema = z.looseObject({
@@ -101,8 +104,11 @@ const targetSchema = z.discriminatedUnion("kind", [
 const bodyVectorEffect = <Governs extends "thrust">(governs: Governs) =>
   z.object({ governs: z.literal(governs), of: targetSchema, x: z.number(), y: z.number() });
 
-const bodyScalarEffect = <Governs extends "spin" | "mass" | "bounce" | "grip">(governs: Governs) =>
-  z.object({ governs: z.literal(governs), of: targetSchema, value: z.number() });
+const bodyScalarEffect = <
+  Governs extends "spin" | "mass" | "bounce" | "grip" | "pace" | "wings" | "size",
+>(
+  governs: Governs,
+) => z.object({ governs: z.literal(governs), of: targetSchema, value: z.number() });
 
 export const rawRuleEffectSchema = z.discriminatedUnion("governs", [
   vectorEffect("gravity"),
@@ -126,6 +132,9 @@ export const rawRuleEffectSchema = z.discriminatedUnion("governs", [
   bodyScalarEffect("mass"),
   bodyScalarEffect("bounce"),
   bodyScalarEffect("grip"),
+  bodyScalarEffect("pace"),
+  bodyScalarEffect("wings"),
+  bodyScalarEffect("size"),
 ]) satisfies z.ZodType<RuleEffect>;
 
 export const ruleEffectSchema = rawRuleEffectSchema.refine(validEffect, {

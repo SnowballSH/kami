@@ -47,6 +47,20 @@ const GRIP = vocabulary(`
   grips, rough, tacky, gluey, friction, traction, smooth
 `);
 
+const PACE = vocabulary(`
+  fast, faster, fastest, quick, quicker, quickest, quickly, speedy, speedier, rapid, rapidly, swift,
+  swifter, swiftly, slow, slower, slowest, slowly, sluggish, speed, pace, hurries, hurry, runs,
+  sprints, dashes, zippy, nimble
+`);
+const WINGS = vocabulary(`
+  fly, flies, flying, flew, flight, wings, winged, soar, soars, soaring, hover, hovers, hovering,
+  airborne, levitate, levitates, levitating, glide, glides, gliding, float, floats, floating
+`);
+const STATURE = vocabulary(`
+  big, bigger, biggest, huge, giant, enormous, gigantic, colossal, large, larger, largest, tall,
+  taller, grow, grows, grown, small, smaller, smallest, tiny, little, mini, miniature, minuscule,
+  wee, shrink, shrinks, shrunk, size, sized
+`);
 const TURNS = vocabulary(
   "turn, turns, revolution, revolutions, rotations, per, second, seconds, rps",
 );
@@ -60,8 +74,11 @@ const BACKWARDS = vocabulary(`
   counterclockwise, anticlockwise, widdershins, backwards, backward, reverse, reversed
 `);
 const CLOCKWISE = vocabulary("clockwise, forwards, forward");
-const FAST = vocabulary("fast, faster, quick, quicker, quickly, rapid, rapidly, speedy");
-const SLOW = vocabulary("slow, slower, slowly, gently, lazily");
+const FAST = vocabulary(`
+  fast, faster, fastest, quick, quicker, quickest, quickly, rapid, rapidly, speedy, speedier, swift,
+  swifter, swiftly, zippy, nimble, hurries, hurry, sprints, dashes
+`);
+const SLOW = vocabulary("slow, slower, slowest, slowly, sluggish, gently, lazily");
 const HEAVY = vocabulary("heavy, heavier, heaviest, heavyweight, weighty, massive, dense, denser");
 const LIGHT = vocabulary("light, lighter, lightest, lightweight");
 const WEIGHTLESS = vocabulary("weightless");
@@ -69,6 +86,13 @@ const SLIPPERY = vocabulary(
   "slippery, slippy, slick, icy, frictionless, greasy, oily, soapy, buttery, smooth",
 );
 const GRIPPY = vocabulary("sticky, grippy, rough, tacky, gluey");
+const BIG = vocabulary(`
+  big, bigger, biggest, huge, giant, enormous, gigantic, colossal, large, larger, largest, tall,
+  taller, grow, grows, grown
+`);
+const SMALL = vocabulary(`
+  small, smaller, smallest, tiny, little, mini, miniature, minuscule, wee, shrink, shrinks, shrunk
+`);
 const MORE = vocabulary("more, higher, increase, increases, increased, doubled");
 const LESS = vocabulary("less, lower, decrease, decreases, decreased, halved");
 
@@ -87,6 +111,11 @@ const NO_GRIP = 0;
 const STICKY_GRIP = 3;
 const MORE_GRIP = 2.5;
 const LESS_GRIP = 0.3;
+const QUICK = 2;
+const SLUGGISH = 0.5;
+const CAN_FLY = 1;
+const HUGE = 2;
+const TINY = 0.5;
 
 const multiplier = (amount: Amount): number | null =>
   amount.unit === "plain" || amount.unit === "multiple" ? amount.value : null;
@@ -172,6 +201,40 @@ const DIALS: readonly KnownDial[] = [
     implied: null,
     fromAmount: multiplier,
   }),
+  knowing({
+    governs: "pace",
+    units: NO_UNITS,
+    about: PACE,
+    readings: [
+      { words: FAST, value: QUICK },
+      { words: SLOW, value: SLUGGISH },
+      { words: MORE, value: QUICK },
+      { words: LESS, value: SLUGGISH },
+    ],
+    implied: null,
+    fromAmount: multiplier,
+  }),
+  knowing({
+    governs: "wings",
+    units: NO_UNITS,
+    about: WINGS,
+    readings: [{ words: STOP, value: 0 }],
+    implied: CAN_FLY,
+    fromAmount: ({ value }) => (value === 0 ? 0 : CAN_FLY),
+  }),
+  knowing({
+    governs: "size",
+    units: NO_UNITS,
+    about: STATURE,
+    readings: [
+      { words: BIG, value: HUGE },
+      { words: SMALL, value: TINY },
+      { words: MORE, value: HUGE },
+      { words: LESS, value: TINY },
+    ],
+    implied: null,
+    fromAmount: multiplier,
+  }),
 ];
 
 /** The drawing the sentence points at with "the"/"every"; failing that, everything, if it says so. */
@@ -204,8 +267,9 @@ const ruleFor = (
 
 /**
  * Laws about the bodies on the board rather than the world: "the wheel spins", "every rock is
- * twice as heavy", "the cart accelerates to the left". Runs after the world's own recognisers, so
- * "everything is bouncy" stays a world law; here a sentence must point at something.
+ * twice as heavy", "the cart accelerates to the left", and the powers a named creature can gain —
+ * "the dog can fly", "the cat is twice as fast", "the rabbit is huge". Runs after the world's own
+ * recognisers, so "everything is bouncy" stays a world law; here a sentence must point at something.
  */
 export const recogniseMotion: Recogniser = (sentence) => {
   const { words } = sentence;

@@ -1,6 +1,6 @@
 import Matter from "matter-js";
 import { type Ruling, STRENGTH_RANGE } from "../cat/types";
-import type { Rect, Stroke } from "../core/geometry";
+import { type Rect, type Stroke, scaleAbout, type Vec } from "../core/geometry";
 import { bearingStrokes } from "../ink/bearing";
 import type { Drawing, DrawingId } from "../ink/types";
 import { motionOf } from "../rules/motion";
@@ -16,6 +16,11 @@ import type { DrawingPose } from "./types";
 import { type BodyMaterial, materialMoved, materialUnder, retune } from "./worldPhysics";
 
 type InkState = Pick<InkEntity, "nature" | "strength" | "frozen" | "motion">;
+
+const sized = (strokes: readonly Stroke[], centre: Vec, size: number): readonly Stroke[] =>
+  size === 1
+    ? strokes
+    : strokes.map((stroke) => stroke.map((point) => scaleAbout(point, centre, size)));
 
 const PLAIN_INK: InkState = { nature: "ink", strength: 1, frozen: false, motion: STILL };
 
@@ -58,8 +63,10 @@ export class InkLayer {
   setPhysics(physics: WorldPhysics): void {
     this.physics = physics;
     for (const ink of this.inks.values()) {
+      const wasSize = ink.motion.size;
       this.resolveMotion(ink);
-      retune(ink.body, this.materialOf(ink));
+      if (ink.motion.size !== wasSize) this.resize(ink);
+      else retune(ink.body, this.materialOf(ink));
     }
   }
 
@@ -111,11 +118,20 @@ export class InkLayer {
     this.rebuild(ink);
   }
 
+  /** Grows or shrinks it about its centre, keeping its feet where they were so it does not sink into the ground. */
+  private resize(ink: InkEntity): void {
+    const feet = ink.body.bounds.max.y;
+    this.rebuild(ink);
+    if (ink.body.isStatic) return;
+    Matter.Body.translate(ink.body, { x: 0, y: feet - ink.body.bounds.max.y });
+  }
+
   private rebuild(ink: InkEntity): void {
     const previous = ink.body;
     const { pinned, upright } = NATURES[ink.nature];
-    const worldStrokes = pinned ? ink.drawing.strokes : ink.worldStrokes;
-    const body = this.build(ink.drawing.strokes, worldStrokes, ink);
+    const drawnStrokes = sized(ink.drawing.strokes, ink.origin, ink.motion.size);
+    const worldStrokes = pinned ? drawnStrokes : ink.worldStrokes;
+    const body = this.build(drawnStrokes, worldStrokes, ink);
     if (body === null) return;
     if (!pinned) {
       Matter.Body.setPosition(body, previous.position);
