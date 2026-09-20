@@ -95,6 +95,80 @@ boards and drives off the ledge.
   footing, right at the ledge, so the car lands half over the edge; the "Off the edge" line was not on screen in
   `08-after` (may have faded with the note cap — check timing).
 
+## Sweep 1 — start, laws, summons, Sumikui, creatures, text, HUD (contact sheets)
+
+Scripted in Sandbox on fresh boards; each `sweep1-*-sheet.png` is a grid of the full-screen frames named in its captions.
+Caveat: during this sweep the local API server was a stale process (started before the day's merges, no `--watch`), so
+`/api/exemplar` answered "no picture of rabbit" and board saves timed out — everything below that needed the server is
+re-run in sweep 2 with the server restarted. The offline grammar, sim, render and HUD findings stand.
+
+### sweep1-start-sheet.png — start screen and the three openings
+- **Shows:** start screen with exactly Sandbox / Puzzle / Boss; each mode's first frame and its card.
+- **OK:** one tap starts; the card is the only text at entry in all three; Boss opens on the heart alone.
+
+### sweep1-laws-sheet.png — gravity, fly, size, speed, night, upside down, sideways, panel, repeal
+- **Shows:** each law answered under the sentence, the panel listing them, night rendering, the page turned.
+- **OK:** every offline law took on the first try; night keeps handwriting readable; the laws panel stays put while
+  the page rotates (HUD is not rotated with the paper — correct).
+- **Wrong:** Alice is off-screen in most frames — she walked off the end of the start plank and fell (see the ledge
+  sheet below), so the laws frames show the page without her. Re-shot in sweep 2 with her kept on the plank.
+
+### sweep1-sandbox-ledge-sheet.png — walking off the Sandbox plank
+- **Shows:** hold → for 2.5 s from spawn: frame 1 is blank page (she has fallen 900 px and the camera is with her);
+  frame 2 she is back on the plank's end; frames 3–4 flying after "alice can fly" (camera keeps her low in frame, fine).
+- **Polish:** the respawn point is her *last footing*, which is the very lip of the plank — a held stick walks her straight
+  off again. Respawn a step back from the edge (record footing only when her whole stance is supported, or step 40 px
+  toward the plank's centre). Also: nothing says where she went for the ~1.5 s of blank page except the new "Off the edge of
+  the page…" line, which was not visible in frame 1 — check the remark fires before the camera leaves.
+
+### sweep1-summon-sheet.png — "summon a rabbit", unknown noun, moon, home
+- **Wrong (env):** "I've never seen a rabbit. Draw one for me, and I'll learn its name." — the stale server; the fallback
+  line itself reads well. Re-run in sweep 2.
+- **OK:** "teleport us to the moon" → 0.17 g, drag off, dusk, and the panel lists the scene as one law.
+- **Wrong:** "take us home" writes Kami's long answer ("home: gravity = 1 g (Earth), wind off, time runs at 1x, …") straight
+  across Alice and the plank — Kami's free notes avoid other writing but not Alice or the ground. → free-note layout should
+  treat Alice's bounds and board solids as obstacles (the Boss tear/health strip already are).
+- **Polish:** after "take us home" the panel shows *both* "teleport us to the moon" and "take us home" as standing laws;
+  home should retire the scene it undoes.
+
+### sweep1-sumikui-sheet.png — Sumikui in Sandbox
+- **OK:** "summon the sumikui" → "Nothing hungry lives on this page." (Sandbox has no ink eater by design). Alice does not
+  flinch, nothing is eaten, the cup doodle survives 24 s.
+- **Wrong:** the guess chips for the cup ("And what is that suppo… / a plank? / a platform? / a trampoline?") are laid out to
+  the right of the drawing and run off the screen edge — the question is cut mid-word. Guess chips need the same viewport
+  clamp Kami's free notes got.
+- **Wrong:** "banish the sumikui" gets no answer at all when there is none — Kami should say so ("There is nothing here to
+  banish.").
+- **Polish:** "a plank? a platform? a trampoline?" for a cup shape — the k-NN Eye is guessing from the flat bottom; fine
+  offline, the GX10 Eye is the real recogniser (untested tonight).
+
+### sweep1-creatures-sheet.png — "a dog", "the dog can fly", "a shy mouse", "the mouse chases me"
+- **OK:** the dog and mouse take their names, "the dog can fly" and "the mouse chases me" → "follows Alice" land as targeted
+  laws in the panel, the mouse runs to her.
+- **Wrong:** ~4 s *after* "a dog" was written under the circle, Kami still asks "And what is that supposed to be? a mushroom?
+  a cake? a balloon?" — the guess chips arrive after the name (the name went through the slow server, so `look()` finished
+  first). `offerGuesses` checks the ledger ruling only once; if it finds none because naming is still in flight, the chips
+  should be dropped when the name lands (they are anchored to the drawing and `name()` removes anchored notes — so check
+  why they survived; likely written after `name()` ran). Re-checked in sweep 2 with the fast server.
+- **Wrong:** the chips for the second circle are laid out over the circle itself and over the older chips.
+
+### sweep1-text-sheet.png — nonsense sentences
+- **OK:** "purple monday", "marbles remember rain", "seven chairs are singing" → one "Hm. I can't make that true. Yet.
+  Write it beside a drawing, or tell me a law of physics."; "the moon forgot my name" → "Curious. But what should it do?
+  Write it…"; everything (player's words included) is gone by 20 s. Model fallback for these is GX10-only (untested).
+- **Wrong:** "Curious. But what should it do?" is written across Alice's feet and the plank (same obstacle gap as above).
+- **Polish:** replies land far from the sentence they answer when the space under it is taken; prefer right of the sentence
+  before jumping down the page.
+
+### sweep1-hud-sheet.png — every button
+- **OK:** draw / text / erase / hand switch and highlight; ear → "I have no microphone to listen with. Allow it, and try
+  again." (visible failure, was silent before); walk button moves her; − / + zoom; ⌖ recentres; share opens the QR card with
+  board id and "copy link"; tidiness slider drags.
+- **Wrong:** the ear line is written interleaved with the intro ("The page goes on forever. Draw, and she will / follow.") —
+  the second line of the intro and the first line of the mic note share a baseline. Note layout must reserve the full wrapped
+  height of a note, not its first line.
+- **Polish:** the share card covers the thumbstick's top-left; place it right of the share button or above the stick.
+
 ## Sweep plan — every mode × every feature × the edge cases
 
 Checked as I go; each item gets a screenshot (or a note why not). Edge cases looked for on every item:
