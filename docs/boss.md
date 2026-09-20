@@ -64,7 +64,7 @@ A lunge is judged once, when the lunge ends (`Simulation.suffer`): if a drawing 
 
 The rip opens `aboveHeart` (220 px) over the body the moment it is named. After `entryDelayMs` (3 s — long enough for Kami's two lines and a first breath) the servant comes through. It keeps the **mercy window**: after any snip lands, no blade moves for `mercyMs` (3.2 s) — the drawer's moment to redraw. It also sends the **waves**: when the servant's health drops below 0.6, one lesser comes; below 0.3, two more. Lessers (`SNIPPER_TUNING.lesser`) are half the size, faster, shorter in the wind-up, and die in three blows; they never count toward the health bar. When the servant perishes the tear closes over `closingMs`; `tear-closed` is the `defeat-foe` win.
 
-Loss: a cut through the heart is `heart-swallowed`. The spirit director answers `unmade`; the mode's `board-restarts` loss rule reopens a fresh page after a beat, with the heart alone again.
+Loss: a cut through the heart is `heart-swallowed`. The spirit director answers `unmade`; the mode's `board-restarts` loss rule reopens a fresh page after a beat, with the heart alone again under an “Again” card.
 
 ## Tuning (`src/sim/boss/tuning.ts`)
 

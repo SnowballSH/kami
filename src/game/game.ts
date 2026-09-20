@@ -1067,6 +1067,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private restart(): void {
     this.restartDueAtMs = null;
     void this.open(this.board.id, { remember: false });
+    const { again } = this.director.mode.card;
+    if (again !== undefined) this.hud.showTitleCard({ ...this.director.mode.card, ...again });
   }
 
   private get embodied(): boolean {

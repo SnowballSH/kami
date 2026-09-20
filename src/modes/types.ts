@@ -72,6 +72,11 @@ export interface ModeCard {
   readonly opening: string;
   /** One line per player when the mode is for more than one pair of hands. */
   readonly roles?: readonly string[];
+  /** The title card shown when a loss reopens the room. */
+  readonly again?: {
+    readonly title: string;
+    readonly tagline: string;
+  };
 }
 
 /**

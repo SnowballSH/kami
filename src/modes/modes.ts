@@ -65,6 +65,11 @@ export const BOSS_MODE: GameMode = {
     title: "Boss",
     tagline: "A soul with no body, and something coming to snip it.",
     opening: "Only a heart, so far. Draw it a body, and name it. Quickly — it is coming.",
+    again: {
+      title: "Again",
+      tagline:
+        "It took the heart. Draw her a body around it and write who she is — faster this time.",
+    },
     roles: [
       "Drawer: draw a body around the heart, name it, and redraw whatever gets snipped off.",
       "Player: steer with the keys, the thumbstick or the joystick; dodge the wind-up, swing what is drawn.",

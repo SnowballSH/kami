@@ -270,14 +270,16 @@ transitions, physics changed by presentation, stale state after respawn/room cha
 ![Sweep 2 Boss](gallery/sweep2-boss2.png)
 - **Scenario:** Draw a body around the soul, attempt the `Alice?` chip, incarnate with `alice`, steer, and redraw parts for 60 seconds.
 - **Expected:** The chip incarnates Alice, servant waves and snips remove parts, grafts restore them, and a terminal result appears.
-- **Observed:** Writing `alice` incarnates successfully, but tapping `Alice?` alone leaves “Is this her? Write who she is.” plus the chip.
-  The tear recital text crosses the body. Alice is lost by about 15 seconds; only the soul remains. Redraws over 20–60 seconds
-  do not re-incarnate her; no servant wave, graft, or terminal win/loss screen appears.
-- **Finding:** The second-incarnation/graft/win-loss flow was not reachable in this run; the chip should incarnate directly, and tear-note
-  layout remains open despite being partly addressed by the obstacle change.
-- **Status:** Open, highest-priority follow-up.
-- **Recommendation:** Make the `Alice?` chip invoke direct incarnation, then re-run graft and terminal combat. GX10/model/Deepgram-dependent
-  behavior is not testable locally.
+- **Observed:** The script tapped `(600,340)` while the `Alice?` chip was around `(678–736,348–383)`, so the chip was missed.
+  The chip path is covered by the regression at `src/game/game.test.ts:2450-2470`; writing `alice` also incarnates successfully.
+  The heart was swallowed within about 10 seconds while the body stood still, then the room restarted silently. The script never
+  wrote `alice` again, so a second incarnation was never attempted.
+- **Finding:** The chip report is withdrawn: not a bug, a scripted tap miss. Still open: an idle fresh body can be killed in under
+  10 seconds; the servant's mercy/first-circle timing needs checking for a first-time pair. Boss win (`tear-closed`) currently
+  presents only a Kami line, with no terminal card.
+- **Status:** Chip finding closed; first-time loss pacing and win presentation remain open.
+- **Recommendation:** Check `mercy`/first-circle timing in `docs/boss.md` for a first-time pair, then add a “Closed” card through
+  the same `again`-style hook. GX10/model/Deepgram-dependent behavior is not testable locally.
 
 ### rotation — world rotation and pointer mapping
 ![Sweep 2 rotation](gallery/sweep2-rotation.png)

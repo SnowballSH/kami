@@ -2547,5 +2547,10 @@ describe("Game in Boss mode", () => {
       ),
     ).toBe(true);
     expect(soulOf(player).x).toBeCloseTo(heart.x, 0);
+    expect(player.hud.cards.at(-1)).toMatchObject({
+      title: "Again",
+      tagline:
+        "It took the heart. Draw her a body around it and write who she is — faster this time.",
+    });
   });
 });
