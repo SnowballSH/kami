@@ -78,6 +78,7 @@ import {
   HEART_SWALLOWED_LINE,
   INCARNATED_LINE,
   INCARNATED_PARTS_LINE,
+  IS_THIS_HER_LINE,
   PART_RESTORED_LINE,
   SERVANT_CAME_LINE,
   SERVANT_PERISHED_LINE,
@@ -1177,6 +1178,35 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (epoch !== this.epoch || this.ledger.get(drawing.id)?.ruling !== null) return;
 
     const corner = guessCornerOf(drawing.strokes);
+    const soulDrawing = this.drawingNearestSoul();
+    const soulBody =
+      !this.embodied &&
+      this.director.bodyNames.length > 0 &&
+      soulDrawing?.drawing.id === drawing.id &&
+      (this.drawingGapFromSoul(soulDrawing) ?? Infinity) <= NAMING_REACH;
+    if (soulBody) {
+      const anchor: NoteAnchor = { type: "drawing", id: drawing.id };
+      this.hasAskedWhatItIs = true;
+      this.kamiWrites(
+        IS_THIS_HER_LINE,
+        { x: corner.x, y: corner.y - GUESS_OFFSET.line },
+        { lifetimeMs: GUESS_LIFETIME_MS, anchor, drift: "down" },
+      );
+      this.director.bodyNames.slice(0, 1).forEach((name, index) => {
+        const display = `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+        this.kamiWrites(
+          `${display}?`,
+          { x: corner.x, y: corner.y + index * GUESS_OFFSET.line },
+          {
+            lifetimeMs: GUESS_LIFETIME_MS,
+            anchor,
+            action: { type: "name-drawing", drawingId: drawing.id, name },
+            drift: "down",
+          },
+        );
+      });
+      return;
+    }
     if (certain !== null) {
       this.name(drawing.id, this.modules.cat.accept(certain), this.hangLabel(certain.name, corner));
       return;
@@ -1883,6 +1913,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       !namesABody(text, this.director.bodyNames)
     )
       return null;
+    return this.drawingNearestSoul();
+  }
+
+  private drawingNearestSoul(): InkRecord | null {
     const snapshot = this.modules.sim.snapshot();
     const soul = snapshot.soul;
     if (soul === null) return null;
@@ -1896,6 +1930,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
             : [];
         })
         .sort((a, b) => a.gap - b.gap)[0]?.record ?? null
+    );
+  }
+
+  private drawingGapFromSoul(record: InkRecord): number | null {
+    const snapshot = this.modules.sim.snapshot();
+    const soul = snapshot.soul;
+    const pose = snapshot.drawings.find(({ id }) => id === record.drawing.id);
+    if (soul === null || pose === undefined) return null;
+    return rectGap(
+      { x: soul.at.x - 0.5, y: soul.at.y - 0.5, width: 1, height: 1 },
+      currentBounds(record.drawing, pose),
     );
   }
 

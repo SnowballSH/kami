@@ -2,6 +2,7 @@ import type { BodyPartKind } from "../sim/body/types";
 import type { SnipperRank } from "../sim/boss/tuning";
 
 export const SOUL_WAITS_LINE = "Only a heart, so far. Draw it a body, and write who it is.";
+export const IS_THIS_HER_LINE = "Is this her? Write who she is.";
 export const INCARNATED_LINE = (name: string): string =>
   `There. The ink is ${name} now — walk it, and keep it whole.`;
 export const INCARNATED_PARTS_LINE = (alive: readonly BodyPartKind[]): string | null => {

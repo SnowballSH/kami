@@ -38,6 +38,7 @@ import {
   HEART_SWALLOWED_LINE,
   INCARNATED_LINE,
   INCARNATED_PARTS_LINE,
+  IS_THIS_HER_LINE,
   PART_RESTORED_LINE,
   SERVANT_CAME_LINE,
   SOUL_WAITS_LINE,
@@ -2361,6 +2362,44 @@ describe("Game in Boss mode", () => {
     await player.write("alice", { x: heart.x + 200, y: heart.y + 200 });
     expect(player.renderer.lastFrame?.world.soul).toBeNull();
     expect(drawnLook(player).body.strokes).toHaveLength(1);
+  });
+
+  it("offers Alice instead of scenery guesses for the body nearest the soul", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "ink"), seen("cake", "ink")]);
+    const player = new Player("wonderland", { eyes, mode: BOSS_MODE });
+    await player.arrive();
+    const heart = soulOf(player);
+    player.game.onCommit(drawingOf("body", ringAround(heart, 30)));
+    await player.wait(100);
+
+    const guesses = player.renderer.lastFrame?.notes.filter((note) => note.tappable) ?? [];
+    expect(guesses.map((note) => note.script.text)).toEqual(["Alice?"]);
+    expect(player.written).toContain(IS_THIS_HER_LINE);
+
+    const first = guesses[0];
+    if (first === undefined) throw new Error("no Alice guess to tap");
+    const { x, y, width, height } = first.script.bounds;
+    player.game.tap({ x: x + width / 2, y: y + height / 2 });
+    await player.wait(100);
+
+    expect(player.renderer.lastFrame?.world.soul).toBeNull();
+    expect(drawnLook(player).body.strokes).toHaveLength(1);
+  });
+
+  it("keeps normal scenery guesses for drawings far from the soul", async () => {
+    const eyes = new Eyes([], [seen("mushroom", "ink"), seen("cake", "ink")]);
+    const player = new Player("wonderland", { eyes, mode: BOSS_MODE });
+    await player.arrive();
+    const soul = soulOf(player);
+    player.game.onCommit(drawingOf("far", ringAround({ x: soul.x + 300, y: soul.y }, 20)));
+    await player.wait(100);
+
+    const guesses = player.renderer.lastFrame?.notes.filter((note) => note.tappable) ?? [];
+    expect(guesses.map((note) => note.script.text)).toEqual([
+      "a mushroom?",
+      "a cake?",
+      "a balloon?",
+    ]);
   });
 
   it("never sends her body to be tidied: not when named, nor when the slider comes to rest", async () => {
