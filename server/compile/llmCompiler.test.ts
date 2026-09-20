@@ -101,6 +101,14 @@ describe("createLlmCompiler", () => {
     expect(dusk).toEqual({ effect: { governs: "daylight", value: 0.3 }, explanation: "dusk" });
   });
 
+  it("rounds fractional model clone counts after clamping", async () => {
+    const compiler = createLlmCompiler(
+      CONFIG,
+      modelSaying('{"effect":{"governs":"clones","value":2.5}}'),
+    );
+    expect((await compiler.compile("copies"))?.effect).toEqual({ governs: "clones", value: 3 });
+  });
+
   it.each([
     ["not a rule", '{"effect":null}'],
     ["garbage", "I am a large language model"],

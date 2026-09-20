@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { CompiledRule, RuleCompiler } from "../../src/rules/types";
 import { ChatClient, type FetchLike, type LlmConfig, lastJsonObject } from "../llm/chatClient";
-import { ruleEffectSchema } from "../schemas";
+import { rawRuleEffectSchema } from "../schemas";
 import { clampEffect, describeEffect } from "./effectRanges";
 import { COMPILER_SYSTEM_PROMPT } from "./prompt";
 
@@ -13,7 +13,7 @@ const WARM_UP_LINE = "hello";
 const MAX_EXPLANATION_LENGTH = 80;
 
 const replySchema = z.object({
-  effect: ruleEffectSchema.nullable(),
+  effect: rawRuleEffectSchema.nullable(),
   explanation: z.string().optional(),
 });
 

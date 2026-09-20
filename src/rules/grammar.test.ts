@@ -209,4 +209,11 @@ describe("the offline rule grammar", () => {
       expect(numbers.some((value) => Object.is(value, -0))).toBe(false);
     },
   );
+
+  it("rounds a fractional clone request to a supported count", async () => {
+    expect((await compiler.compile("2.5 clones"))?.effect).toEqual({
+      governs: "clones",
+      value: 3,
+    });
+  });
 });

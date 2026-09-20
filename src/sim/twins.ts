@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import type { Vec } from "../core/geometry";
+import { inEffectDomain } from "../rules/effectDomains";
 import type { WorldPhysics } from "../rules/types";
 import { AliceController, type AliceSurroundings } from "./alice";
 import { bottomOf } from "./bodyBounds";
@@ -35,6 +36,7 @@ export class Twins {
 
   /** Brings the head count to `count`, spawning newcomers beside Alice and dismissing extras. */
   match(count: number, alice: AliceController, physics: WorldPhysics): void {
+    if (!inEffectDomain("clones", count)) throw new RangeError("Invalid clone count");
     while (this.twins.length > count) {
       const dismissed = this.twins.pop();
       if (dismissed !== undefined) Matter.Composite.remove(this.composite, dismissed.body);
