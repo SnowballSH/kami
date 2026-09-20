@@ -1,8 +1,8 @@
 # Game modes
 
-A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, and which laws and natures the page will take. Today there is one way to play — Alice stands at the spawn and you draw for her — and it is written down as `EMBODIED_MODE`. The second, `SPIRIT_MODE`, is a contract for a game nobody has built yet: you open the room as a spirit with no body, draw Alice, name her, and she is yours.
+A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, and which laws and natures the page will take. Today there are two ways to play. `EMBODIED_MODE` is the game as it always was — Alice stands at the spawn and you draw for her. `PUZZLE_MODE` (`?mode=puzzle`) plays seven rooms in a row, each staged so that one drawn or written idea is the way through, with the Sumikui loose from the first frame ([puzzles.md](puzzles.md)). The third, `SPIRIT_MODE`, is a contract for a game nobody has built yet: you open the room as a spirit with no body, draw Alice, name her, and she is yours.
 
-This document is the architecture. Only the embodied mode is playable; everything the spirit mode needs that does not exist yet is listed at the end.
+This document is the architecture. Embodied and puzzle are playable; everything the spirit mode needs that does not exist yet is listed at the end.
 
 ## The contract (`src/modes/types.ts`)
 
@@ -37,6 +37,7 @@ The mode's referee for one open room is a `ModeDirector`. The game calls it at t
 interface ModeDirector {
   mode: GameMode;
   state: PlayerState;                                    // body | spirit — what the player is *now*
+  room: RoomStaging | null;                              // how this board is staged, when the mode stages rooms
   open(board): PlayerState;                              // board loaded, nothing stepped yet
   witness(event: SimEvent): EmbodimentTransition[];      // every sim event
   named(drawingId, ruling): EmbodimentTransition | null; // every naming
@@ -48,9 +49,19 @@ type EmbodimentTransition =
   | { kind: "incarnated"; by: "spawn" }
   | { kind: "incarnated"; by: "drawing"; drawingId }
   | { kind: "unmade"; cause: "fell" | "devoured" };
+
+interface RoomStaging {
+  world: WorldPhysics;      // the room's own world; written laws fold over it instead of Earth
+  laws: LawPolicy;          // narrows the mode's policy for this room only
+  card: RoomCard;           // mode · title · Kami's line · "room n of m"
+  closing: string;          // Kami's line when the room is won
+  next: string | null;      // the board that opens after it, or the end of the run
+}
 ```
 
-The director holds the player's state; the game does not. `createDirector(mode)` returns `EmbodiedDirector` for any mode that opens with a body, and `null` for openings nobody has built — the game then plays the board as embodied rather than refusing to open.
+The director holds the player's state; the game does not. `createDirector(mode)` returns `PuzzleDirector` for the puzzle mode, `EmbodiedDirector` for any other mode that opens with a body, and `null` for openings nobody has built — the game then plays the board as embodied rather than refusing to open.
+
+A director that stages rooms fills `room` in `open(board)`; the embodied director leaves it `null` and the game plays the board plain. `PuzzleDirector` looks the board up in `PUZZLE_ROOMS` (`src/modes/puzzle/rooms.ts`, data in play order): the staged world is `{ ...EARTH, inkEater: 1, ...room.world }`, the law policy `only [...room.dials, "inkEater"]`, the card the board's title and first zone's intro.
 
 ## What the game does with it today
 
@@ -58,7 +69,8 @@ The director holds the player's state; the game does not. `createDirector(mode)`
 
 - calls `director.open(board)` after `sim.loadBoard`;
 - asks `director.won(event)` before handling any sim event, and writes the closing line when it says so (so an `endless` sandbox never declares victory at the rabbit hole);
-- runs every written law through `allowsLaw(mode.laws, effect.governs)` before enacting it — a forbidden law stays plain writing and Kami says *"Not in this game. The page won't take that law here."* beneath it;
+- shows `room.card` in the HUD (`ui/roomCard.ts`: a title card that fades, and a progress mark that stays), folds written laws over `room.world` rather than Earth, and on a win writes `room.closing` and opens `room.next` four seconds later;
+- runs every written law through `allowsLaw(room?.laws ?? mode.laws, effect.governs)` before enacting it — a forbidden law stays plain writing and Kami says *"Not in this game. The page won't take that law here."* beneath it;
 - suspends saved laws the current mode forbids: they do not affect physics or appear as active laws, but remain saved for modes that allow them; erasing their note still repeals them;
 - keeps Alice from walking herself when `autopilot` is `"forbidden"`, whatever the HUD switch says.
 
@@ -66,14 +78,18 @@ Nothing else changes. The embodied mode is exactly the game as it was.
 
 ## The modes
 
-| | `EMBODIED_MODE` | `SPIRIT_MODE` (contract only) |
-|---|---|---|
-| opening | `body` — she stands at the spawn | `spirit`, incarnation `drawn`, names `alice · her · me` |
-| win | `reach-goal` | `reach-goal` |
-| loss | `respawn` — the sim's own checkpoint path | `unmade` — the body is gone; you are a spirit again |
-| laws | `all` | `except clones` — one body at a time |
-| natures | `all` | `all` |
-| autopilot | `allowed` | `forbidden` — a body you drew is a body you steer |
+| | `EMBODIED_MODE` | `PUZZLE_MODE` | `SPIRIT_MODE` (contract only) |
+|---|---|---|---|
+| status | built | built — [puzzles.md](puzzles.md) | contract |
+| opening | `body` — she stands at the spawn | `body` | `spirit`, incarnation `drawn`, names `alice · her · me` |
+| win | `reach-goal` | `reach-goal` → the next room | `reach-goal` |
+| loss | `respawn` — the sim's own checkpoint path | `respawn` | `unmade` — the body is gone; you are a spirit again |
+| laws | `all` | `only inkEater`, widened per room to its dials | `except clones` — one body at a time |
+| natures | `all` | `all` — each room's zone narrows to one or none | `all` |
+| autopilot | `allowed` | `allowed`, on by default | `forbidden` — a body you drew is a body you steer |
+| world | Earth | Earth with `inkEater: 1`, plus the room's own (the Dark Hall: `daylight: 0`) | Earth |
+| persistence | saved | none — every room opens blank (`ForgetfulBoardStore`) | — |
+| selection | default | `?mode=puzzle` (`&board=<room id>` to start mid-run) | — |
 
 ## What the spirit mode still needs
 

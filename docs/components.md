@@ -161,8 +161,8 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 
 | Component | Files | Status | Notes |
 |---|---|---|---|
-| Chart | `src/autopilot/chart.ts` | built | grid of the world from board solids + load-bearing ink + creature positions (never a wall in Alice's own cell; other Alices widen the extent but are never solid) |
-| Pathfinder | `src/autopilot/pathfinder.ts` | built | moves: walk, jump, climb, fly (when `flight`), drive; key → door → goal ordering; `awayFrom(threat, safe)` for a way out from under the Sumikui |
+| Chart | `src/autopilot/chart.ts` | built | grid of the world from board solids + load-bearing ink + creature positions (never a wall in Alice's own cell; other Alices widen the extent but are never solid); `gateways` — paired portals with where each lets out |
+| Pathfinder | `src/autopilot/pathfinder.ts` | built | moves: walk, jump, climb, fly (when `flight`), drive, warp (through a paired portal, `WARP_COST`); key → door → goal ordering; `awayFrom(threat, safe)` for a way out from under the Sumikui |
 | Pilot | `src/autopilot/pilot.ts`, `index.ts`, `types.ts` | built | one per Alice (`PilotOptions`: seed, wanders, shared charter); replans every few ticks or on `warped`/new ink; waits ("no way yet") when stuck, or wanders deterministically if a twin; yields to manual input; errands `objective` / `eat` / `wait` / `flee` / `wander` / `idle` |
 | Sumikui awareness | `src/autopilot/dread.ts` | built | `Scene.sumikui`; when it hunts her or her footing within `DREAD_PX` she `flee`s to footing `SAFE_PX` away (or as far as she can, and is `stuck` = cornered); routes never count on the drawing it is chewing (`afterTheMeal`), but she races across one she already stands on; each Alice fears it for herself, and Kami names a twin who runs: "She sees it. She runs." / "Nowhere left to run." |
 
@@ -241,7 +241,7 @@ player *is* at start, win/loss, which laws and natures are allowed.
 | Embodied (today's play) | `src/modes/modes.ts`, `embodiedDirector.ts` | built | Alice from the start; Wonderland or blank board |
 | Spirit | `src/modes/modes.ts` | contract | no body; draw Alice into being |
 | Sandbox | — | in progress (child session) | infinite shared world, others can join, Kami helps on request, no Sumikui; `?mode=sandbox` |
-| Puzzle | — | in progress (child session) | immersive drawn-solution levels, Sumikui on by default; `?mode=puzzle` |
+| Puzzle | `src/modes/puzzle/{mode,rooms,puzzleDirector}.ts`, `src/modes/director.ts`, `src/board/boards/puzzles/*`, `src/game/forgetfulStore.ts`, `src/ui/roomCard.ts`, `src/sim/nightfall.ts` | built | seven staged rooms, one drawn or written idea each, Sumikui loose from the first frame, laws fold over the room's own world, room card + progress mark, goal → next room, nothing saved; `?mode=puzzle`; see [puzzles.md](puzzles.md) |
 | Boss | — | in progress (child session) | two players (drawer + controller); start as a soul/heart; a scissor-servant of the one under the page snips body parts → abilities lost, redraw to restore; `?mode=boss` |
 | Independent clones | `src/game/party.ts`, `src/sim/twins.ts`, `src/sim/simulation.ts`, `src/sim/portals.ts`, `src/sim/sumikui.ts`, `src/autopilot/pilot.ts`, `src/autopilot/chart.ts`, `src/render/alicePainter.ts` | built | real second Alices with their own minds: own intent, pilot, route, portals and fate; tap one to steer her; any Alice wins the room and Kami names her; see [agency.md](agency.md) |
 

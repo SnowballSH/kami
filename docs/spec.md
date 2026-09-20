@@ -153,6 +153,10 @@ One book, six pages, each a page deeper. The Rabbit runs the room first — his 
 
 **Must ship: Rooms 1–3.** They are a complete arc — learn to draw, learn to name, solve the book's own puzzle — and they are the demo. Then 4, 5, 6, Tea Party, in that order.
 
+### Puzzle mode (built)
+
+The rooms above are the book's plan; what is built and playable today is **Puzzle mode** (`?mode=puzzle`, [puzzles.md](puzzles.md)): seven small rooms in a row — the Wall, the Keyhole, the Moon Ledge, the Dark Hall, the Twin Doors, the Shaft, the Pit — each staged so that exactly one drawn or written idea is the way through (a spring, a shrinking bottle or *"alice is tiny"*, *"we are on the moon"*, lanterns, a pair of portals, *"alice can fly"*, a spring *and* the Moon). The room's zone grants one nature or none, and only the room's own dials may be written; anything else is plain ink or plain writing. The Sumikui is loose from the first frame, so ink left idle is ink lost — *"banish the ink eater"* still works, for the price of a sentence. Alice walks herself; a title card with Kami's one line opens each room, the stuck detector's hints come only after a long stall, a quiet closing line and the rabbit hole lead to the next room, and a small *room n of m* stays in the corner. Nothing is saved between visits.
+
 ## 8. Look, sound, feel
 
 - **A yellowed book page.** Room art in black ink, Tenniel-ish, drawn by whoever on the team draws best. The player's ink is blue fountain pen — always visibly *theirs* on top of the printed world.
