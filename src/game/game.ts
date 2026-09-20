@@ -129,7 +129,7 @@ import type { Drift } from "./noteLayout";
 import { type Hire, type Page, Party } from "./party";
 import { groupedByNote, RuleBook } from "./ruleBook";
 import { StuckDetector } from "./stuckDetector";
-import { DEAF_LINES } from "./voiceLines";
+import { deafLine } from "./voiceLines";
 
 const MAX_STEPS_PER_FRAME = 5;
 export const DEFAULT_TIDINESS = 0.5;
@@ -534,7 +534,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       onListeningChanged: (listening) => this.hud.setListening(listening),
       onWakingChanged: (waking) => this.hud.setWaking(waking),
       onDeaf: (reason) => {
-        if (this.voiceReady) this.remark(DEAF_LINES[reason]);
+        if (this.voiceReady) this.remark(deafLine(reason, window.location.hostname));
       },
     };
   }
