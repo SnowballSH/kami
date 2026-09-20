@@ -14,8 +14,10 @@ BUILD=.gx10/build
 CACHE=.gx10/cache
 LOG=.gx10/deploy.log
 AUTOSTART=${1:-}
+RELEASE="$(date -u +%Y%m%dT%H%M%S)-$(git rev-parse --short HEAD)-$$"
+STAGE=".gx10/releases/$RELEASE"
 
-for needed in dist/index.html "$BUILD/server.js" "$BUILD/snapshot.js" "$BUILD/quickdraw.ndjson.gz"; do
+for needed in dist/index.html "$BUILD/server.js" "$BUILD/snapshot.js" "$BUILD/quickdraw.ndjson.gz" "$BUILD/runtime.json"; do
   [ -s "$needed" ] || { echo "✗ $needed is missing — run 'bun run gx10:prepare' first (with internet)."; exit 1; }
 done
 if ! ssh -o BatchMode=yes "$HOST_ALIAS" true 2>/dev/null; then
@@ -28,28 +30,38 @@ exec > >(tee "$LOG") 2>&1
 date
 
 ship_missing() {
-  local source=$1 destination=$2 file name
+  local source=$1 destination=$2 file name checksum
   for file in "$source"/*; do
     [ -f "$file" ] || continue
     name=$(basename "$file")
-    if ssh "$HOST_ALIAS" "test -s ~/kami/$destination/$name"; then echo "  ✓ $name (already there)"
-    else echo "  ↑ $name"; scp -q "$file" "$HOST_ALIAS:kami/$destination/$name"; fi
+    checksum=$(python3 scripts/gx10/box/runtime.py hash "$file")
+    if ssh "$HOST_ALIAS" "cd ~/kami/$destination && echo '$checksum  $name' | sha256sum --check --status" 2>/dev/null; then
+      echo "  ✓ $name (verified)"
+    else
+      echo "  ↑ $name"
+      scp -q "$file" "$HOST_ALIAS:kami/$destination/$name.part"
+      ssh "$HOST_ALIAS" "cd ~/kami/$destination && echo '$checksum  $name.part' | sha256sum --check --status && mv '$name.part' '$name'"
+    fi
   done
 }
 
 echo "→ Shipping the game, the server and Kami's Eye"
-ssh "$HOST_ALIAS" 'mkdir -p ~/kami/cache/wheels ~/kami/app && rm -rf ~/kami/dist ~/kami/box ~/kami/app/eye'
-tar --no-xattrs -czf - dist | ssh "$HOST_ALIAS" 'tar -xzf - -C ~/kami'
-tar --no-xattrs -czf - -C "$BUILD" . | ssh "$HOST_ALIAS" 'tar -xzf - -C ~/kami/app'
-tar --no-xattrs -czf - -C scripts/gx10 box | ssh "$HOST_ALIAS" 'tar -xzf - -C ~/kami'
+mkdir -p "$STAGE/app"
+cp -R dist "$STAGE/dist"
+cp -R "$BUILD/." "$STAGE/app/"
+cp -R scripts/gx10/box "$STAGE/box"
+python3 "$STAGE/box/release.py" write "$STAGE"
+python3 "$STAGE/box/release.py" verify "$STAGE"
+ssh "$HOST_ALIAS" "mkdir -p ~/kami/cache/wheels ~/kami/releases && mkdir ~/kami/releases/$RELEASE"
+tar --no-xattrs -czf - -C "$STAGE" . | ssh "$HOST_ALIAS" "tar -xzf - -C ~/kami/releases/$RELEASE"
 
 echo "→ Shipping runtimes and Python wheels the box doesn't have yet"
 ship_missing "$CACHE" cache
 ship_missing "$CACHE/wheels" cache/wheels
 
 echo "→ Installing and starting on the box"
-ssh "$HOST_ALIAS" 'bash ~/kami/box/install.sh && bash ~/kami/box/start.sh'
-[ "$AUTOSTART" = "--autostart" ] && ssh "$HOST_ALIAS" 'bash ~/kami/box/autostart.sh enable'
+ssh "$HOST_ALIAS" "bash ~/kami/releases/$RELEASE/box/activate.sh ~/kami/releases/$RELEASE"
+[ "$AUTOSTART" = "--autostart" ] && ssh "$HOST_ALIAS" 'bash ~/kami/current/box/autostart.sh enable'
 
 echo "→ Checking it from this side of the Wi-Fi"
 if curl -fs -m 8 "http://$BOX_ADDRESS:$PORT/api/boards" >/dev/null; then

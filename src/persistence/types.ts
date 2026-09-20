@@ -26,6 +26,7 @@ export interface BoardSummary {
  * (unremembered) when the server or MongoDB is away.
  */
 export interface BoardStore {
+  /** Malformed saved data rejects instead of being presented as an empty board. */
   load(boardId: string): Promise<BoardSnapshot>;
   listBoards(): Promise<readonly BoardSummary[]>;
   saveDrawing(boardId: string, stored: StoredDrawing): void;
