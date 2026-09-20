@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import { clamp, type Rect, type Vec } from "../core/geometry";
+import { inEffectDomain } from "../rules/effectDomains";
 import type { WorldPhysics } from "../rules/types";
 import { bottomOf, exactBounds } from "./bodyBounds";
 import {
@@ -123,6 +124,7 @@ export class AliceController {
   }
 
   applyPhysics(physics: WorldPhysics): void {
+    if (!inEffectDomain("aliceSize", physics.aliceSize)) throw new RangeError("Invalid Alice size");
     this.physics = physics;
     this.body.frictionAir = airFrictionUnder(physics, ALICE_AIR_FRICTION);
     this.body.restitution = physics.bounciness;
