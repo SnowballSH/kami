@@ -11,6 +11,7 @@ const MODEL_ROUTES = new Map([
   ["/api/voice/speak", "POST"],
   ["/api/voice/listen", "GET"],
   ["/api/exemplar", "GET"],
+  ["/api/scene", "POST"],
 ]);
 const METHODS = "GET, PUT, POST, DELETE, OPTIONS";
 const HEADERS = new Set(["content-type", "authorization"]);

@@ -4,6 +4,7 @@ import { foldOverEarth } from "./resolvePhysics";
 import { AtlasSceneCompiler } from "./scenes/sceneCompiler";
 import type { Rule, RuleCompiler, SceneCompiler, WorldPhysics } from "./types";
 
+export { placeCalled } from "./scenes/atlas";
 export { destinationOf } from "./scenes/travel";
 export * from "./types";
 

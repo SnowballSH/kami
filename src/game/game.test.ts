@@ -23,6 +23,7 @@ import {
   CANNOT_DRAW_LINE,
   LAW_OUTSIDE_MODE_LINE,
   NOWHERE_LINE,
+  PONDERING_LINE,
   RULE_REPEALED_LINE,
   SUMIKUI_LORE_LINE_DELAY_MS,
   SUMIKUI_SEALED_LINE,
@@ -152,6 +153,7 @@ class ScriptedReader implements HandwritingReader {
 class Player {
   readonly sim = createSimulation();
   readonly renderer = new FakeRenderer();
+  private readonly handwriting = new FakeHandwriting();
   readonly store: BoardStore;
   readonly game: Game;
   private hudRef: FakeHud | null = null;
@@ -181,7 +183,7 @@ class Player {
         cat: createCat(eyes),
         ...(eyes === undefined ? {} : { finisher: eyes, summoner: eyes }),
         renderer: this.renderer,
-        handwriting: new FakeHandwriting(),
+        handwriting: this.handwriting,
         compiler: createRuleCompiler(),
         thinker: {
           compile: (text) => {
@@ -245,6 +247,10 @@ class Player {
   get laws(): FakeLawsPanel {
     if (this.lawsRef === null) throw new Error("Laws panel was never created");
     return this.lawsRef;
+  }
+
+  get everWritten(): readonly string[] {
+    return this.handwriting.everWritten;
   }
 
   get written(): readonly string[] {
@@ -1294,6 +1300,23 @@ describe("Game with a Kami who takes everyone places", () => {
     eyes.pictures.set("moon", { ...STAR, word: "moon" });
     return eyes;
   };
+
+  it("goes to a place the atlas knows without a moment's thought", async () => {
+    const player = new Player("wonderland", { eyes: traveller() });
+    await player.arrive();
+    await player.write("teleport us to the moon", { x: 300, y: 500 });
+    expect(player.travelled).toEqual([]);
+    expect(player.everWritten).not.toContain(PONDERING_LINE);
+  });
+
+  it("says he is thinking while the model invents a place the atlas does not know", async () => {
+    const player = new Player("wonderland", { eyes: traveller() });
+    await player.arrive();
+    await player.write("teleport us to the land of lost socks", { x: 300, y: 500 });
+    expect(player.travelled).toEqual(["teleport us to the land of lost socks"]);
+    expect(player.everWritten).toContain(PONDERING_LINE);
+    expect(player.written).not.toContain(PONDERING_LINE);
+  });
 
   it("makes the Moon: its laws at once, its props drawn in one after another, all under one note", async () => {
     const eyes = traveller();

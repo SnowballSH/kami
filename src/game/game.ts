@@ -30,7 +30,7 @@ import type { BoardSnapshot, BoardStore } from "../persistence/types";
 import type { PenReader } from "../reading/types";
 import type { LiveRecognizer, Sighting } from "../recognition/types";
 import type { Renderer } from "../render/types";
-import { destinationOf } from "../rules";
+import { destinationOf, placeCalled } from "../rules";
 import type {
   CompiledRule,
   Scene as Destination,
@@ -832,7 +832,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
     const where = destinationOf(text);
     if (where !== null) {
-      const scene = (await this.modules.scenes?.compile(text)) ?? null;
+      const scene = await this.sceneOf(text, where, note.id);
       if (!stillHere()) return;
       if (scene !== null) {
         await this.travel(scene, note, stillHere);
@@ -952,14 +952,31 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     return () => epoch === this.epoch && this.notes.get(noteId) !== null;
   }
 
-  private async ponder(text: string, noteId: NoteId): Promise<CompiledRule | null> {
+  private ponder(text: string, noteId: NoteId): Promise<CompiledRule | null> {
+    return this.whilePondering(noteId, () => this.modules.thinker.compile(text));
+  }
+
+  /** A place the atlas knows is there at once; for anywhere else the model is asked, and Kami says so. */
+  private async sceneOf(text: string, where: string, noteId: NoteId): Promise<Destination | null> {
+    const scenes = this.modules.scenes;
+    if (scenes === undefined) return null;
+    if (placeCalled(where) !== null) return scenes.compile(text);
+    return this.whilePondering(noteId, () => scenes.compile(text));
+  }
+
+  private async whilePondering<Thought>(
+    noteId: NoteId,
+    think: () => Promise<Thought>,
+  ): Promise<Thought> {
     const under = this.notes.below(noteId);
     const pondering: NoteAnchor = { type: "note", id: noteId };
     if (under !== null)
       this.kamiWrites(PONDERING_LINE, under, { anchor: pondering, drift: "down" });
-    const thought = await this.modules.thinker.compile(text);
-    this.notes.removeAnchoredTo(pondering);
-    return thought;
+    try {
+      return await think();
+    } finally {
+      this.notes.removeAnchoredTo(pondering);
+    }
   }
 
   private ruleFrom(compiled: CompiledRule, note: Note): Rule {
