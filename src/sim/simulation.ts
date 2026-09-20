@@ -1,4 +1,5 @@
 import Matter from "matter-js";
+import { arenaHeight } from "../board/boards/arena";
 import type { BoardDefinition } from "../board/types";
 import type { Ruling } from "../cat/types";
 import { distanceToRect, type Rect, type Stroke, type Vec } from "../core/geometry";
@@ -37,7 +38,6 @@ import { seesHerWay } from "./nightfall";
 import { isLooseInk, PaperTurn } from "./paper";
 import { centreOf, Portals } from "./portals";
 import { restingFeet } from "./restingFeet";
-import { arenaHeight } from "../board/boards/arena";
 import { Sumikui } from "./sumikui";
 import { Twins } from "./twins";
 import {
@@ -252,8 +252,7 @@ export class MatterSimulation implements Simulation {
 
   openTear(): void {
     const heart = this.world.soul ?? this.world.alice.heart();
-    const top =
-      this.world.board.page === "arena" ? -arenaHeight(this.world.board) : -Infinity;
+    const top = this.world.board.page === "arena" ? -arenaHeight(this.world.board) : -Infinity;
     this.world.tear = new Tear({
       x: heart.x,
       y: Math.max(heart.y - TEAR_TUNING.aboveHeart, top + 120),
