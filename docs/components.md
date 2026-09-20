@@ -73,7 +73,7 @@ main.ts → game/index.ts:startGame(canvas, options)
 | Component | Files | Status | Notes |
 |---|---|---|---|
 | Board definition | `src/board/types.ts`, `src/board/index.ts` | built | `BoardDefinition`: pre-sketched solids, zones with checkpoints, spawn, goal, `killY`, no-ink zones |
-| Wonderland | `src/board/boards/wonderland.ts` | built | the demo's puzzle board (key → door → rabbit hole) |
+| Wonderland | `src/board/boards/wonderland.ts` | built | the demo's puzzle board: seven zones in the spec's page order — Riverbank (ditch: a bridge), Shelves (plateau: bouncy/ladder), Hall of Doors (glass table, key, tiny door: grow → key → shrink), Pool of Tears (a glass bowl nothing anchors to: spring or grow out), Croquet Ground (red no-ink lawn, ink only in the margins: grow and hop the dais, or portals), Trial (low jury box only small Alice passes, then a gap in the cards: heavy object or a jump when big), Mad Tea Party (free play; the rabbit hole is here). Built from the existing contract only — `marker`/`glass` solids, `noInkZones`, one key/door/goal |
 | Blank | `src/board/boards/blank.ts` | built | an endless empty page; sandbox starting point |
 | Board props | `src/sim/boardProps.ts`, `src/sim/paper.ts` | built | the board's own solids as static bodies; `paper.ts` holds bites the Sumikui takes out of the ground and heals them |
 
