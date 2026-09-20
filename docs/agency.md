@@ -113,7 +113,7 @@ exactly as before, and Kami names her — *"Alice 2 found the rabbit hole. One o
 page comes back alone, and Kami's devoured line is prefixed with her name (`aboutAlice`).
 
 Twins are drawn like Alice, plus a tinted, numbered ribbon
-(`render/alicePainter.ts:AliceLook`, colour and number by index — presentation only; the same
+(`render/alicePainter.ts:AliceBadge`, colour and number by index — presentation only; the same
 strokes and body are what the physics uses) and the selected one a caret over her head
 (`RenderFrame.selectedAlice`). The Sumikui's closing shadow fades only its prey.
 

@@ -80,8 +80,8 @@ export const BOSS_MODE: GameMode = {
 export const GAME_MODES: readonly GameMode[] = [
   EMBODIED_MODE,
   SPIRIT_MODE,
-  PUZZLE_MODE,
   SANDBOX_MODE,
+  PUZZLE_MODE,
   BOSS_MODE,
 ];
 
