@@ -116,6 +116,7 @@ beforeAll(async () => {
     compile: async (text: string) => (text.includes("mars") ? MARS_RULE : null),
   };
   const transcriber = {
+    ready: true,
     transcribe: async (strokes: readonly Stroke[]) => (strokes.length > 1 ? "no gravity" : null),
     warmUp: async () => true,
   };
@@ -169,6 +170,51 @@ describe("board memory", () => {
     expect((await loadBoard("demo")).notes).toEqual([guess]);
   });
 
+  it("round-trips drawing label associations alongside legacy notes", async () => {
+    const stored = storedDrawing("drawing-1", MUSHROOM_RULING);
+    const label: Note = {
+      ...note("label", "a bouncy mushroom", 1),
+      drawingId: stored.drawing.id,
+    };
+    const legacy = note("legacy", "old writing", 2);
+    await call("PUT", "/api/boards/demo/drawings/drawing-1", stored);
+    expect((await call("PUT", "/api/boards/demo/notes/label", label)).status).toBe(200);
+    expect((await call("PUT", "/api/boards/demo/notes/legacy", legacy)).status).toBe(200);
+    expect(await loadBoard("demo")).toEqual({
+      drawings: [stored],
+      notes: [label, legacy],
+      rules: [],
+    });
+  });
+
+  it.each(["", "x".repeat(201), null, 1, {}])(
+    "rejects an invalid drawing label association: %j",
+    async (drawingId) => {
+      const response = await call("PUT", "/api/boards/demo/notes/label", {
+        ...note("label", "a rock", 1),
+        drawingId,
+      });
+      expect(response.status).toBe(400);
+      expect((await loadBoard("demo")).notes).toEqual([]);
+    },
+  );
+
+  it("validates an optional ruling on a guess action while keeping older actions readable", async () => {
+    const action = {
+      type: "name-drawing",
+      drawingId: "drawing-1",
+      name: MUSHROOM_RULING.name,
+      ruling: MUSHROOM_RULING,
+    };
+    const guess = { ...note("note-9", "a mushroom?", 9), action };
+    expect((await call("PUT", "/api/boards/demo/notes/note-9", guess)).status).toBe(200);
+    expect((await loadBoard("demo")).notes).toEqual([guess]);
+    const invalid = {
+      ...guess,
+      action: { ...action, ruling: { ...MUSHROOM_RULING, nature: "sparkly" } },
+    };
+    expect((await call("PUT", "/api/boards/demo/notes/note-9", invalid)).status).toBe(400);
+  });
   it("overwrites on a second save of the same id", async () => {
     await call("PUT", "/api/boards/demo/drawings/drawing-1", storedDrawing("drawing-1"));
     await call(
@@ -323,6 +369,29 @@ describe("transcribe", () => {
     ...lineSketch({ x: 0, y: 0 }, { x: 0, y: 40 }),
     ...lineSketch({ x: 0, y: 20 }, { x: 20, y: 20 }),
   ];
+
+  it("fails closed before the configured reader passes its image check", async () => {
+    let reads = 0;
+    const transcriber = {
+      ready: false,
+      warmUp: async () => false,
+      transcribe: async () => {
+        reads += 1;
+        return "hi";
+      },
+    };
+    const guarded = createApi({ ...apiParts(), beautifier, transcriber });
+    const request = () =>
+      new Request("http://kami.test/api/transcribe", {
+        method: "POST",
+        body: JSON.stringify({ strokes: words }),
+      });
+    expect((await guarded.handle(request())).status).toBe(501);
+    expect(reads).toBe(0);
+    transcriber.ready = true;
+    expect((await guarded.handle(request())).status).toBe(200);
+    expect(reads).toBe(1);
+  });
 
   it("answers with the words the reader saw, or null for a drawing", async () => {
     const read = await call("POST", "/api/transcribe", { strokes: words });

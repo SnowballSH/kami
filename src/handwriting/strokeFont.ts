@@ -1,10 +1,10 @@
 import type { Stroke, Vec } from "../core/geometry";
 import type { FlatStroke, StrokeFontData } from "./fontData";
-import emsFelixData from "./fonts/emsFelix.json";
+import emsReadabilityData from "./fonts/emsReadability.json";
 
 const FALLBACK_CHARACTER = "?";
 const SPACE = " ";
-const EMS_FELIX_TRACKING = 30;
+const EMS_READABILITY_TRACKING = 30;
 
 /** A glyph in font units, y-down, with the baseline at y = 0 and the pen starting at x = 0. */
 export interface Glyph {
@@ -53,4 +53,5 @@ export class StrokeFont {
   }
 }
 
-export const loadEmsFelix = (): StrokeFont => new StrokeFont(emsFelixData, EMS_FELIX_TRACKING);
+export const loadEmsReadability = (): StrokeFont =>
+  new StrokeFont(emsReadabilityData, EMS_READABILITY_TRACKING);

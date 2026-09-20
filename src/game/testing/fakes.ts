@@ -35,6 +35,11 @@ export class FakeHud implements Hud {
   }
 
   autopilot: boolean | null = null;
+  toolbarBottomY = 64;
+
+  toolbarBottom(): number {
+    return this.toolbarBottomY;
+  }
 
   setAutopilot(enabled: boolean): void {
     this.autopilot = enabled;

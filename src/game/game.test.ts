@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAutopilot } from "../autopilot";
 import { boardFor } from "../board";
 import { createCat } from "../cat";
-import { rectsOverlap, type Vec } from "../core/geometry";
+import { poseToWorld, rectsOverlap, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
 import { createInkSession, findDrawingAt } from "../ink";
 import { HttpBoardStore } from "../persistence/httpBoardStore";
@@ -15,6 +15,7 @@ import { createSimulation } from "../sim";
 import { drawingOf } from "../sim/testSupport";
 import type { Tool } from "../ui/types";
 import { Game } from "./game";
+import { HELD_INK_FADE_MS } from "./heldInk";
 import {
   RULE_REPEALED_LINE,
   SUMIKUI_LORE_LINE_DELAY_MS,
@@ -95,11 +96,11 @@ class Eyes implements LiveRecognizer {
 }
 
 /** Short vertical strokes side by side: what a scrawled word looks like to the ink session. */
-const scrawl = (at: Vec, letters: number): Vec[][] =>
+const scrawl = (at: Vec, letters: number, spacing = 14): Vec[][] =>
   Array.from({ length: letters }, (_, i) => [
-    { x: at.x + i * 14, y: at.y },
-    { x: at.x + i * 14 + 6, y: at.y + 12 },
-    { x: at.x + i * 14, y: at.y + 24 },
+    { x: at.x + i * spacing, y: at.y },
+    { x: at.x + i * spacing + 6, y: at.y + 12 },
+    { x: at.x + i * spacing, y: at.y + 24 },
   ]);
 
 /** Reads any scrawl of at least three strokes as the given words, after a delay in frames. */
@@ -108,7 +109,7 @@ class ScriptedReader implements HandwritingReader {
   readonly pending: (() => void)[] = [];
 
   constructor(
-    private readonly says: string,
+    private readonly says: string | null,
     private readonly slow = false,
   ) {}
 
@@ -446,6 +447,23 @@ describe("Game on the Wonderland board", () => {
     for (const line of unspoken) expect(player.written).not.toContain(line);
   });
 
+  it("places the lore below the toolbar without overlapping the intro or earlier notes", async () => {
+    player.hud.toolbarBottomY = 350;
+    await player.write("summon the ink eater", { x: 200, y: 200 });
+    await player.wait(SUMIKUI_LORE_LINE_DELAY_MS * 2 + 100);
+    const notes = player.renderer.lastFrame?.notes ?? [];
+    const lore = notes.filter((note) => SUMIKUI_SUMMONED_LINES.includes(note.script.text));
+    expect(lore).toHaveLength(SUMIKUI_SUMMONED_LINES.length);
+    for (const note of lore) {
+      expect(note.script.bounds.y).toBeGreaterThan(player.hud.toolbarBottomY);
+      expect(
+        notes.some(
+          (other) => other.id !== note.id && rectsOverlap(note.script.bounds, other.script.bounds),
+        ),
+      ).toBe(false);
+    }
+  });
+
   it("summons the Sumikui with its lore, keeps it while the law stands, and seals it when erased", async () => {
     await player.write("summon the ink eater", { x: 200, y: 200 });
     expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
@@ -494,6 +512,31 @@ describe("Game on the Wonderland board", () => {
     expect(returning.written.some((text) => text.startsWith("kami: gravity"))).toBe(true);
   });
 
+  it("restores legacy labels without inventing a drawing association", async () => {
+    player.game.onAutopilotToggled(false);
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("a rock", { x: 250, y: 450 });
+    const saved = await player.store.load("wonderland");
+    const label = saved.notes[0];
+    const drawing = saved.drawings[0]?.drawing;
+    if (label === undefined || drawing === undefined) throw new Error("no named drawing");
+    const { drawingId: _drawingId, ...legacy } = label;
+    player.store.saveNote("wonderland", legacy);
+    const returning = new Player("wonderland", { store: player.store });
+    returning.game.onAutopilotToggled(false);
+    await returning.arrive();
+    const pose = returning.renderer.lastFrame?.world.drawings[0];
+    const point = drawing.strokes[0]?.[0];
+    if (pose === undefined || point === undefined) throw new Error("no drawing to erase");
+    await returning.erase(poseToWorld(point, pose.pose));
+    expect(returning.written).toContain("a rock");
+    expect(await player.store.load("wonderland")).toEqual({
+      drawings: [],
+      notes: [legacy],
+      rules: [],
+    });
+  });
+
   it("is completable start to goal: bridge, bouncy mushroom, cake, key, bottle, door", async () => {
     await player.draw(line({ x: 370, y: 556 }, { x: 610, y: 556 }));
     await player.draw(blob({ x: 1430, y: 540 }, 30, 18));
@@ -525,6 +568,119 @@ describe("Game on the Wonderland board", () => {
       undefined,
       "a bouncy mushroom",
     ]);
+  });
+});
+
+describe.each(["live", "reloaded"])("drawing labels on a %s board", (state) => {
+  const resume = async (player: Player, boardId: string): Promise<Player> => {
+    if (state === "live") return player;
+    const returning = new Player(boardId, { store: player.store });
+    returning.game.onAutopilotToggled(false);
+    await returning.arrive();
+    return returning;
+  };
+
+  describe.each(["typed", "unknown", "certain", "certain ink", "guess"])("%s label", (source) => {
+    it.each(["rename", "erase"])("removes the old label on %s", async (action) => {
+      let player = new Player("wonderland", {
+        eyes: new Eyes(
+          [],
+          [seen("rock", source === "certain ink" ? "ink" : "heavy", source.startsWith("certain"))],
+        ),
+      });
+      player.game.onAutopilotToggled(false);
+      await player.arrive();
+      await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+      if (source === "guess") {
+        expect((await player.store.load("wonderland")).notes).toEqual([]);
+        const guess = player.renderer.lastFrame?.notes.find((note) => note.tappable);
+        if (guess === undefined) throw new Error("no guess to accept");
+        const { x, y } = guess.script.bounds;
+        player.game.tap({ x, y });
+        await player.wait(100);
+      } else if (!source.startsWith("certain")) {
+        await player.write(source === "unknown" ? "my friend gerald" : "a rock", {
+          x: 250,
+          y: 450,
+        });
+      }
+      const saved = await player.store.load("wonderland");
+      expect(saved.notes).toHaveLength(1);
+      const label = saved.notes[0];
+      const drawing = saved.drawings[0]?.drawing;
+      if (label === undefined || drawing === undefined) throw new Error("no named drawing");
+      expect(label.drawingId).toBe(drawing.id);
+      expect(label.fleeting).toBe(false);
+      expect(label.action).toBeUndefined();
+
+      player = await resume(player, "wonderland");
+      expect(player.written).toContain(label.text);
+      if (action === "rename") await player.write("a cloud", { x: 250, y: 400 });
+      else {
+        const pose = player.renderer.lastFrame?.world.drawings.find((d) => d.id === drawing.id);
+        const point = drawing.strokes[0]?.[0];
+        if (pose === undefined || point === undefined) throw new Error("no drawing to erase");
+        await player.erase(poseToWorld(point, pose.pose));
+      }
+      expect(player.written).not.toContain(label.text);
+      const remaining = await player.store.load("wonderland");
+      expect(remaining.notes.map((note) => note.text)).toEqual(
+        action === "rename" ? ["a cloud"] : [],
+      );
+      if (action === "rename") expect(remaining.notes[0]?.drawingId).toBe(drawing.id);
+      const returning = new Player("wonderland", { store: player.store });
+      await returning.arrive();
+      expect(returning.written).not.toContain(label.text);
+    });
+  });
+
+  it("removes a consumed cake's label from the board and memory", async () => {
+    let player = new Player("wonderland");
+    player.game.onAutopilotToggled(false);
+    await player.arrive();
+    await player.draw(blob({ x: 260, y: 540 }, 18, 14));
+    await player.write("a cake", { x: 230, y: 450 });
+    player = await resume(player, "wonderland");
+    expect(player.written).toContain("a cake");
+    player.walk(1);
+    expect(await player.until(() => player.alice.size === "big")).toBe(true);
+    expect(player.written).not.toContain("a cake");
+    expect(await player.store.load("wonderland")).toEqual({ drawings: [], notes: [], rules: [] });
+    const returning = new Player("wonderland", { store: player.store });
+    await returning.arrive();
+    expect(returning.written).not.toContain("a cake");
+  });
+
+  it("removes a devoured drawing's label while retaining the ink-eater law", async () => {
+    const boardId = "hungry-board";
+    let player = new Player(boardId);
+    player.game.onAutopilotToggled(false);
+    await player.arrive();
+    await player.draw(blob({ x: 60, y: -5 }, 24, 24));
+    await player.write("a rock", { x: 40, y: -100 });
+    const rock = (await player.store.load(boardId)).drawings[0]?.drawing;
+    if (rock === undefined) throw new Error("no rock");
+    await player.draw(blob({ x: 240, y: -5 }, 24, 24));
+    await player.write("summon the ink eater", { x: 800, y: -300 });
+    player = await resume(player, boardId);
+    expect(player.written).toContain("a rock");
+    player.walk(1);
+    await player.wait(750);
+    player.walk(0);
+    expect(
+      await player.until(
+        () => !player.renderer.lastFrame?.world.drawings.some((d) => d.id === rock.id),
+      ),
+    ).toBe(true);
+    expect(player.written).not.toContain("a rock");
+    const saved = await player.store.load(boardId);
+    expect(saved.drawings).toHaveLength(1);
+    expect(saved.notes.map((note) => note.text)).toEqual(["summon the ink eater"]);
+    expect(saved.rules).toHaveLength(1);
+    const returning = new Player(boardId, { store: player.store });
+    await returning.arrive();
+    expect(returning.written).not.toContain("a rock");
+    expect(returning.laws.laws.map((law) => law.text)).toEqual(["summon the ink eater"]);
   });
 });
 
@@ -754,6 +910,51 @@ describe("Game with Kami's eyes on the ink", () => {
       "a mushroom?",
     ]);
   });
+
+  it.each([
+    seen("baseball bat", "ink"),
+    seen("aircraft carrier", "heavy"),
+    seen("baseball", "bouncy"),
+    seen("asparagus", "grow"),
+  ])("carries $word's offered ruling through a tap, simulation and storage", async (sighting) => {
+    const offered = { ...sighting, strength: 1.7 };
+    const player = new Player("wonderland", { eyes: new Eyes([], [offered]) });
+    await player.arrive();
+    await player.draw(blob({ x: 300, y: 430 }, 30, 20));
+    await player.wait(100);
+    const guess = player.renderer.lastFrame?.notes.find(
+      (note) => note.tappable && note.script.text === `${offered.name}?`,
+    );
+    if (guess === undefined) throw new Error("No canonical guess to tap");
+    const { x, y, width, height } = guess.script.bounds;
+    player.game.tap({ x: x + width / 2, y: y + height / 2 });
+    await player.wait(100);
+
+    const expected = {
+      name: offered.name,
+      nature: offered.nature,
+      strength: offered.strength,
+      line: offered.line,
+      tags: [],
+    };
+    const board = await player.store.load("wonderland");
+    expect(board.drawings[0]?.ruling).toEqual(expected);
+    expect(player.renderer.lastFrame?.inks[0]?.nature).toBe(offered.nature);
+    expect(board.notes.some((note) => note.action !== undefined)).toBe(false);
+    expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(0);
+  });
+
+  it("never auto-accepts a certain partial sighting", async () => {
+    const player = new Player("wonderland", {
+      eyes: new Eyes([seen("aircraft carrier", "heavy", true)], []),
+    });
+    await player.arrive();
+    await sketch(player, blob({ x: 300, y: 430 }, 30, 20));
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
+    await player.wait(COMMIT_WAIT_MS);
+    expect((await player.store.load("wonderland")).drawings[0]?.ruling).toBeNull();
+    expect(player.renderer.lastFrame?.notes.filter((note) => note.tappable)).toHaveLength(3);
+  });
 });
 
 describe("Game with a Kami who tidies", () => {
@@ -872,22 +1073,45 @@ describe("Game with a pen that reads", () => {
     expect(board.rules.map((rule) => rule.sourceText)).toEqual(["no gravity"]);
   });
 
-  it("lifts a landed drawing into words when the reading comes in late", async () => {
+  it("holds a scrawl weightless while the reading is out, then fades it away as words", async () => {
     const reader = new ScriptedReader("slow motion", true);
     const player = new Player("wonderland", { reader });
     await player.arrive();
 
     await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
-    expect((await player.store.load("wonderland")).drawings).toHaveLength(1);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.heldInks.map((held) => held.opacity)).toEqual([1]);
     expect(player.written).not.toContain("slow motion");
 
     reader.answerAll();
     await player.wait(100);
     expect(player.written).toContain("slow motion");
     expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    const [fading] = player.renderer.lastFrame?.heldInks ?? [];
+    expect(fading?.opacity).toBeGreaterThan(0);
+    expect(fading?.opacity).toBeLessThan(1);
+    await player.wait(HELD_INK_FADE_MS);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(0);
     const board = await player.store.load("wonderland");
     expect(board.drawings).toHaveLength(0);
     expect(board.rules.map((rule) => rule.sourceText)).toEqual(["slow motion"]);
+  });
+
+  it("lets held ink down into the world once the reader has seen no words in it", async () => {
+    const reader = new ScriptedReader(null, true);
+    const player = new Player("wonderland", { reader });
+    await player.arrive();
+
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(1);
+
+    reader.answerAll();
+    await player.wait(100);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(1);
   });
 
   it("does not let Kami name ink he is sure about while the reader may still call it words", async () => {
@@ -897,7 +1121,7 @@ describe("Game with a pen that reads", () => {
     await player.arrive();
 
     await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
-    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(1);
     expect(player.written).not.toContain("a snake");
 
     reader.answerAll();

@@ -3,6 +3,7 @@
   top: var(--kami-safe-top);
   right: var(--kami-safe-right);
   z-index: 11;
+  pointer-events: none;
   width: min(300px, calc(100vw - 32px));
   flex-direction: column;
   font-family: var(--kami-ui);

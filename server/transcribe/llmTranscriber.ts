@@ -11,6 +11,7 @@ export interface TranscribeOptions {
 
 /** Reads handwriting from pen strokes. `null` means "a drawing, not writing" (or no answer). */
 export interface HandwritingTranscriber {
+  readonly ready: boolean;
   transcribe(strokes: readonly Stroke[], options?: TranscribeOptions): Promise<string | null>;
   warmUp(): Promise<boolean>;
 }
@@ -31,6 +32,18 @@ const WARM_UP_STROKES: readonly Stroke[] = [
   [
     { x: 20, y: 0 },
     { x: 20, y: 40 },
+  ],
+  [
+    { x: 32, y: 0 },
+    { x: 48, y: 0 },
+  ],
+  [
+    { x: 40, y: 0 },
+    { x: 40, y: 40 },
+  ],
+  [
+    { x: 32, y: 40 },
+    { x: 48, y: 40 },
   ],
 ];
 
@@ -54,14 +67,21 @@ export const parseTranscription = (content: string): string | null => {
 
 export class LlmTranscriber implements HandwritingTranscriber {
   readonly #chat: ChatClient;
+  #ready = false;
 
   constructor(config: LlmConfig, fetchFn: FetchLike = fetch) {
     this.#chat = new ChatClient(config, fetchFn);
   }
 
-  /** The first image through a vision model loads its image encoder: pay for that at start-up. */
+  get ready(): boolean {
+    return this.#ready;
+  }
+
   async warmUp(): Promise<boolean> {
-    return (await this.#ask(WARM_UP_STROKES)) !== null;
+    this.#ready = false;
+    const content = await this.#ask(WARM_UP_STROKES);
+    this.#ready = content !== null && parseTranscription(content)?.toLowerCase() === "hi";
+    return this.#ready;
   }
 
   async transcribe(
