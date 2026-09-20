@@ -3,6 +3,7 @@ import {
   boundsOf,
   poseToWorld,
   type Rect,
+  rectCenter,
   rectsOverlap,
   remainingColumns,
   type Vec,
@@ -42,6 +43,14 @@ export interface CellRange {
   readonly r1: number;
 }
 
+/** A portal with a twin: step into its cells and come out at `exit`, the centre of the portal drawn after it. */
+export interface Gateway {
+  readonly id: DrawingId;
+  readonly cells: CellRange;
+  readonly centre: Vec;
+  readonly exit: Vec;
+}
+
 /** Grid cells [c0, c1) × [r0, r1) touched by a world rect. */
 export const cellsOf = (rect: Rect): CellRange => ({
   c0: Math.floor(rect.x / CELL_PX),
@@ -63,6 +72,9 @@ const grow = (range: CellRange, by: number): CellRange => ({
   r0: range.r0 - by,
   r1: range.r1 + by,
 });
+
+const rangesOverlap = (a: CellRange, b: CellRange): boolean =>
+  a.c0 < b.c1 && b.c0 < a.c1 && a.r0 < b.r1 && b.r0 < a.r1;
 
 /** How each nature reads underfoot; mirrors what the simulation lets Alice stand on and pass through. Creatures are charted where they stand right now; the plan is redrawn as they move. */
 const flagsFor = (nature: Nature): number => {
@@ -107,6 +119,23 @@ const rectOf = (alice: AliceSnapshot): Rect => ({
  */
 const everyAliceRect = (scene: Scene): readonly Rect[] =>
   [scene.alice, ...scene.others].map(rectOf);
+
+/** Portals in the order drawn, each letting out into the next and the last into the first; a lone portal leads nowhere. */
+const gatewaysOf = (inks: readonly SceneInk[]): readonly Gateway[] => {
+  const portals = inks.filter((ink) => ink.nature === "portal");
+  if (portals.length < 2) return [];
+  const bounds = portals.map((ink) => boundsOf(worldPoints(ink)));
+  return portals.map((ink, at) => {
+    const rect = bounds[at] ?? { x: 0, y: 0, width: 0, height: 0 };
+    const twin = bounds[(at + 1) % portals.length] ?? rect;
+    return {
+      id: ink.drawing.id,
+      cells: cellsOf(rect),
+      centre: rectCenter(rect),
+      exit: rectCenter(twin),
+    };
+  });
+};
 
 const CREATURES: ReadonlySet<Nature> = new Set<Nature>(["walker", "hopper", "flier", "vehicle"]);
 const CRAMP_INSET = 2;
@@ -181,6 +210,7 @@ export class Chart {
   private constructor(
     readonly range: CellRange,
     airborne: boolean,
+    readonly gateways: readonly Gateway[],
   ) {
     this.stride = range.c1 - range.c0;
     const size = this.stride * (range.r1 - range.r0);
@@ -193,7 +223,7 @@ export class Chart {
     if (!boundedGeometry(scene)) return null;
     const range = extentOf(scene);
     if (!boundedRange(range)) return null;
-    const chart = new Chart(range, scene.canFly);
+    const chart = new Chart(range, scene.canFly, gatewaysOf(scene.inks));
     for (const solid of scene.board.solids) {
       for (const piece of remainingColumns(solid.rect, scene.bites)) {
         if (!chart.stampRect(piece, CellFlag.solid | CellFlag.fixture)) return null;
@@ -241,6 +271,10 @@ export class Chart {
       }
     }
     return best;
+  }
+
+  gatewayIn(range: CellRange): Gateway | null {
+    return this.gateways.find((gateway) => rangesOverlap(gateway.cells, range)) ?? null;
   }
 
   edibleIn(range: CellRange): DrawingId | null {
