@@ -32,6 +32,7 @@ import { type SketchCatalogue, SUMMONED_SIZE, Summoner } from "../summoning";
 import type { BoardLink } from "../sync/boardLink";
 import { SharedPage } from "../sync/testing/sharedPage";
 import type { PeerId } from "../sync/wire";
+import { titleCardShownMs } from "../ui/titleCard";
 import type { Tool } from "../ui/types";
 import {
   HEART_SWALLOWED_LINE,
@@ -2319,10 +2320,12 @@ describe("Game in Boss mode", () => {
   it("opens as a soul, tells both players their part, and will not walk her by herself", async () => {
     expect(player.renderer.lastFrame?.world.alice).toBeNull();
     expect(soulOf(player).x).toBeCloseTo(boardFor("wonderland").spawn.x, 0);
-    expect(player.written).toContain(SOUL_WAITS_LINE);
+    expect(player.written).not.toContain(SOUL_WAITS_LINE);
     expect(player.written).not.toContain(BOSS_MODE.card.opening);
     for (const role of BOSS_MODE.card.roles ?? []) expect(player.written).not.toContain(role);
     expect(player.hud.cards).toEqual([BOSS_MODE.card]);
+    await player.wait(titleCardShownMs(BOSS_MODE.card) + 600);
+    expect(player.written).toContain(SOUL_WAITS_LINE);
     player.game.onAutopilotToggled(true);
     expect(player.hud.autopilot).toBe(false);
     player.walk(1);

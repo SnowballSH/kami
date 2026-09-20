@@ -55,6 +55,7 @@ import {
 } from "../sim/types";
 import { placeProp, type Summoner, type Wish } from "../summoning";
 import type { BoardChange, BoardLink, Ghost, PeerId } from "../sync";
+import { titleCardShownMs } from "../ui/titleCard";
 import type {
   CanvasInputSink,
   Detach,
@@ -79,6 +80,7 @@ import {
   SNIPPED_LINE,
   SOUL_WAITS_LINE,
   TEAR_CLOSED_LINE,
+  TEAR_LINE_DELAY_MS,
   TEAR_OPENS_LINES,
   UNMADE_LINE,
 } from "./bossLines";
@@ -606,9 +608,20 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (firstZone === undefined) cat.enterRoom(BLANK_BOARD_BRIEF);
     else this.introduce(firstZone);
     this.hud.showRoomCard(this.director.room?.card ?? null);
-    if (!this.embodied) this.remark(SOUL_WAITS_LINE, HINT_LIFETIME_MS);
-    else if (this.introducesItself && this.director.mode.id === EMBODIED_MODE_ID)
-      this.remark(this.director.mode.card.opening, HINT_LIFETIME_MS);
+    const openingLine = this.embodied
+      ? this.introducesItself
+        ? this.director.mode.card.opening
+        : null
+      : SOUL_WAITS_LINE;
+    if (openingLine !== null) {
+      if (this.introducesItself)
+        this.recite(
+          [openingLine],
+          SUMIKUI_LORE_LINE_DELAY_MS,
+          titleCardShownMs(this.director.mode.card) + 600,
+        );
+      else this.remark(openingLine, HINT_LIFETIME_MS);
+    }
     onBoardOpened?.(boardId);
     void this.listBoards(epoch);
 
@@ -999,7 +1012,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       }
       case "tear-opens":
         sim.openTear();
-        this.recite(TEAR_OPENS_LINES);
+        this.recite(TEAR_OPENS_LINES, TEAR_LINE_DELAY_MS);
         return;
       case "unmade":
         this.lose(transition.cause);
@@ -1729,10 +1742,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     return sealed;
   }
 
-  private recite(lines: readonly string[]): void {
+  private recite(
+    lines: readonly string[],
+    delayMs: number = SUMIKUI_LORE_LINE_DELAY_MS,
+    startAfterMs = 0,
+  ): void {
     const epoch = this.epoch;
     this.recital = lines.map((line, index) => ({
-      at: this.nowMs + index * SUMIKUI_LORE_LINE_DELAY_MS,
+      at: this.nowMs + startAfterMs + index * delayMs,
       line,
       epoch,
     }));

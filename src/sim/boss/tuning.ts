@@ -24,6 +24,7 @@ export interface SnipperTuning {
   readonly orbitRadius: number;
   readonly orbitSpeed: number;
   readonly approachSpeed: number;
+  readonly firstCircleMs: number;
   readonly circleMs: number;
   readonly windUpMs: number;
   readonly lungeMs: number;
@@ -40,6 +41,7 @@ export const SNIPPER_TUNING: Readonly<Record<SnipperRank, SnipperTuning>> = {
     orbitRadius: 150,
     orbitSpeed: 1.1,
     approachSpeed: 0.24,
+    firstCircleMs: 4_800,
     circleMs: 2_600,
     windUpMs: 1_100,
     lungeMs: 260,
@@ -54,6 +56,7 @@ export const SNIPPER_TUNING: Readonly<Record<SnipperRank, SnipperTuning>> = {
     orbitRadius: 105,
     orbitSpeed: 1.8,
     approachSpeed: 0.34,
+    firstCircleMs: 3_200,
     circleMs: 1_900,
     windUpMs: 800,
     lungeMs: 200,
@@ -67,7 +70,7 @@ export const SNIPPER_TUNING: Readonly<Record<SnipperRank, SnipperTuning>> = {
 export const TEAR_TUNING = {
   aboveHeart: 220,
   entryDelayMs: 3_000,
-  mercyMs: 1_600,
+  mercyMs: 2_600,
   waves: [
     { belowHealth: 0.6, lessers: 1 },
     { belowHealth: 0.3, lessers: 2 },

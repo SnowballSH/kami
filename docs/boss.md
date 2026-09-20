@@ -60,7 +60,7 @@ A lunge is judged once, when the lunge ends (`Simulation.suffer`): if a drawing 
 
 ## The tear (`src/sim/boss/tear.ts`)
 
-The rip opens `aboveHeart` (220 px) over the body the moment it is named. After `entryDelayMs` (3 s — long enough for Kami's two lines and a first breath) the servant comes through. It keeps the **mercy window**: after any snip lands, no blade moves for `mercyMs` (1.6 s) — the drawer's moment to redraw. It also sends the **waves**: when the servant's health drops below 0.6, one lesser comes; below 0.3, two more. Lessers (`SNIPPER_TUNING.lesser`) are half the size, faster, shorter in the wind-up, and die in three blows; they never count toward the health bar. When the servant perishes the tear closes over `closingMs`; `tear-closed` is the `defeat-foe` win.
+The rip opens `aboveHeart` (220 px) over the body the moment it is named. After `entryDelayMs` (3 s — long enough for Kami's two lines and a first breath) the servant comes through. It keeps the **mercy window**: after any snip lands, no blade moves for `mercyMs` (2.6 s) — the drawer's moment to redraw. It also sends the **waves**: when the servant's health drops below 0.6, one lesser comes; below 0.3, two more. Lessers (`SNIPPER_TUNING.lesser`) are half the size, faster, shorter in the wind-up, and die in three blows; they never count toward the health bar. When the servant perishes the tear closes over `closingMs`; `tear-closed` is the `defeat-foe` win.
 
 Loss: a cut through the heart is `heart-swallowed`. The spirit director answers `unmade`; the mode's `board-restarts` loss rule reopens the room after a beat, with its ink where it was and the heart alone again.
 
@@ -72,7 +72,7 @@ Every number the fight is tuned by lives in that one file. The reasoning:
 |---|---|---|
 | `windUpMs` | 1100 / 800 | A person reading a dashed line and pressing a direction needs about a second. The lesser's 0.8 s is tense but readable; below 0.7 s the snip feels unfair on a thumbstick. |
 | `lungeMs` | 260 / 200 | Fast enough to feel like a snip, long enough for the blades to visibly close. |
-| `mercyMs` | 1600 | One stroke takes 0.5–1 s to draw and commit. The mercy covers one confident stroke and half of a second. |
+| `mercyMs` | 2600 | One stroke takes 0.5–1 s to draw and commit. The mercy covers one confident stroke and more room to redraw. |
 | `circleMs` | 2600 / 1900 | The breath between snips; with `recoverMs` it gives ~4.5 s per servant snip at the start, ~2.8 s at full ramp. |
 | `speedRampPerSnip`, `maxSpeedRamp` | 0.06, 1.6 | Ten landed snips to reach the cap; the ramp rewards a drawer who keeps up, never a runaway. |
 | `orbitRadius` | 150 / 105 | Far enough that the telegraph starts well outside the body; near enough to be watched. |

@@ -3,6 +3,8 @@ import { el } from "./dom";
 import { activateOnTap } from "./tap";
 
 export const TITLE_CARD_SHOWN_MS = 4500;
+export const titleCardShownMs = (card: ModeCard, shownMs = TITLE_CARD_SHOWN_MS): number =>
+  shownMs + ((card.roles?.length ?? 0) > 0 ? 2_000 : 0);
 const FADING_CLASS = "is-fading";
 const FADE_MS = 600;
 
@@ -40,8 +42,7 @@ export class TitleCard {
     this.roles.hidden = (card.roles?.length ?? 0) === 0;
     this.element.classList.remove(FADING_CLASS);
     this.element.hidden = false;
-    const shownMs = this.shownMs + ((card.roles?.length ?? 0) > 0 ? 2_000 : 0);
-    this.hideAt = setTimeout(() => this.fade(), shownMs);
+    this.hideAt = setTimeout(() => this.fade(), titleCardShownMs(card, this.shownMs));
   }
 
   private fade(): void {

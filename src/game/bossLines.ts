@@ -10,6 +10,7 @@ export const TEAR_OPENS_LINES: readonly string[] = [
   "Something is cutting through from under the page. Not the Sumikui. Another of its kind.",
   "It comes to snip. Watch its arms draw back — that is your moment to move.",
 ];
+export const TEAR_LINE_DELAY_MS = 1_800;
 export const SERVANT_CAME_LINE =
   "It is through. Keep her out from under it; draw her what it takes.";
 export const SERVANTS_CAME_LINE = (lessers: number): string =>

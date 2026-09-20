@@ -82,6 +82,19 @@ describe("the snipper's round", () => {
     expect(snipper.ramp).toBeCloseTo(1 + SNIPPER_TUNING.servant.speedRampPerSnip);
   });
 
+  it("gives the servant a longer first circle before winding up", () => {
+    const snipper = new Snipper("servant", FAR);
+    const prey = preyOf();
+    untilPhase(snipper, prey, "circling");
+    for (
+      let elapsed = 0;
+      elapsed < SNIPPER_TUNING.servant.firstCircleMs - TICK * 2;
+      elapsed += TICK
+    )
+      snipper.tick(TICK, prey, false);
+    expect(snipper.currentPhase.kind).toBe("circling");
+  });
+
   it("keeps the cut where it was shown even when the body moves away", () => {
     const snipper = new Snipper("servant", FAR);
     const prey = preyOf();
