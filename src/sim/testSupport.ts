@@ -4,7 +4,7 @@ import { type Pose, type Stroke, strokesLength, type Vec } from "../core/geometr
 import type { Drawing, DrawingId } from "../ink/types";
 import { resample } from "./anchoring";
 import { createSimulation } from "./index";
-import type { SimEvent, Simulation, WalkIntent } from "./types";
+import type { AliceSnapshot, SimEvent, Simulation, WalkIntent } from "./types";
 
 const POINT_SPACING = 8;
 const BLOB_POINTS = 28;
@@ -23,6 +23,12 @@ export const enter = (board: BoardDefinition): Simulation => {
 
 export const poseOf = (sim: Simulation, name: string): Pose | undefined =>
   sim.snapshot().drawings.find((drawing) => drawing.id === name)?.pose;
+
+export const aliceOf = (sim: Simulation): AliceSnapshot => {
+  const alice = sim.snapshot().alice;
+  if (alice === null) throw new Error("Nobody is on the board");
+  return alice;
+};
 
 export const feetOf = (sim: Simulation): Vec => {
   const { x, y, width, height } = sim.aliceBounds();
@@ -83,7 +89,7 @@ export const standsOn =
   (top: number, fromX: number): StopCondition =>
   (_events, sim) => {
     const feet = feetOf(sim);
-    return sim.snapshot().alice.grounded && feet.x >= fromX && Math.abs(feet.y - top) < 2;
+    return aliceOf(sim).grounded && feet.x >= fromX && Math.abs(feet.y - top) < 2;
   };
 
 export const typesOf = (events: readonly SimEvent[]): readonly SimEvent["type"][] =>

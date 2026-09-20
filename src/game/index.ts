@@ -3,6 +3,7 @@ import { boardFor, DEMO_BOARD_ID } from "../board";
 import { createCat } from "../cat";
 import { createHandwriting } from "../handwriting";
 import { createInkSession, findDrawingAt } from "../ink";
+import { EMBODIED_MODE, type GameMode, modeFor } from "../modes";
 import {
   createBoardStore,
   createHandwritingReader,
@@ -22,6 +23,7 @@ import { createVoice } from "../voice";
 import { DEFAULT_TIDINESS, Game } from "./game";
 
 const BOARD_PARAM = "board";
+const MODE_PARAM = "mode";
 const AUTOPILOT_PARAM = "autopilot";
 const AUTOPILOT_MEMORY = "kami.autopilot";
 const ON = "on";
@@ -67,6 +69,10 @@ const rememberTidiness = (tidiness: number): void => {
 const boardInUrl = (): string =>
   new URLSearchParams(window.location.search).get(BOARD_PARAM) ?? DEMO_BOARD_ID;
 
+/** `?mode=boss` and friends; anything unknown plays as it always has. */
+const modeInUrl = (): GameMode =>
+  modeFor(new URLSearchParams(window.location.search).get(MODE_PARAM) ?? EMBODIED_MODE.id);
+
 const rememberBoardInUrl = (boardId: string): void => {
   const url = new URL(window.location.href);
   url.searchParams.set(BOARD_PARAM, boardId);
@@ -103,6 +109,7 @@ export function startGame(root: HTMLElement): void {
       createLawsPanel: (handlers) => createLawsPanel(root, handlers),
       findDrawingAt,
       onBoardOpened: rememberBoardInUrl,
+      mode: modeInUrl(),
       selfDriving: startsSelfDriving(),
       onSelfDrivingChanged: rememberSelfDriving,
       tidiness: rememberedTidiness(),

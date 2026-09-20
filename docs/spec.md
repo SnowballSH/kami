@@ -153,6 +153,10 @@ One book, six pages, each a page deeper. The Rabbit runs the room first — his 
 
 **Must ship: Rooms 1–3.** They are a complete arc — learn to draw, learn to name, solve the book's own puzzle — and they are the demo. Then 4, 5, 6, Tea Party, in that order.
 
+### Ways to play a page
+
+A **mode** is how the player *is* on a page ([modes.md](modes.md)): embodied (Alice is there; you draw for her), as a spirit (nobody is there until you draw her and name her), and **Boss** — the spirit opening for two people at one board ([boss.md](boss.md)). One draws, the other steers (keys, the on-screen stick, or the cabinet's joystick). The page opens with only a heart at the spawn; a body drawn around it and named — *alice*, *me*, *a knight*, any body noun — becomes hers, and its parts are her abilities: legs walk and jump, arms climb, wings fly, a head sees. Then the page tears and a servant of the one under the page — another shard of the thing the Sumikui broke off — comes through to *snip* the body apart one part at a time, telegraphing every cut. The drawer redraws what is snipped and it glows back into her; the player dodges and swings whatever is drawn into their hand. Hurt it and the tear closes; let it reach the heart and the page starts over. It keeps the pillars — drawing is still the verb, the body is what you say it is, the fight is telegraphed thought, not twitch — and it is the one place Kami is afraid.
+
 ## 8. Look, sound, feel
 
 - **A yellowed book page.** Room art in black ink, Tenniel-ish, drawn by whoever on the team draws best. The player's ink is blue fountain pen — always visibly *theirs* on top of the printed world.

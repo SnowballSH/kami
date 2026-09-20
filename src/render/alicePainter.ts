@@ -26,13 +26,13 @@ const RIBBON_NUMBER = { y: -33, font: "bold 7px sans-serif" } as const;
 const SELECTION_CARET = { y: -38, half: 4, height: 5 } as const;
 
 /** How a twin is told apart from Alice herself and from each other: a coloured, numbered ribbon. */
-export interface AliceLook {
+export interface AliceBadge {
   /** Her number among the twins (1 up); Alice herself wears no ribbon. */
   readonly ribbon: number | null;
   readonly selected: boolean;
 }
 
-export const HERSELF: AliceLook = { ribbon: null, selected: false };
+export const HERSELF: AliceBadge = { ribbon: null, selected: false };
 
 export const ribbonColour = (ribbon: number): string =>
   `hsl(${(ribbon * RIBBON_HUE_STEP) % 360} 65% 45%)`;
@@ -78,7 +78,7 @@ const paintDress = (ctx: CanvasRenderingContext2D): void => {
   ctx.stroke();
 };
 
-const paintHead = (ctx: CanvasRenderingContext2D, look: AliceLook): void => {
+const paintHead = (ctx: CanvasRenderingContext2D, badge: AliceBadge): void => {
   ctx.beginPath();
   ctx.arc(HEAD.x, HEAD.y, HEAD.radius, 0, TAU);
   ctx.fillStyle = BOARD_COLORS.board;
@@ -93,25 +93,29 @@ const paintHead = (ctx: CanvasRenderingContext2D, look: AliceLook): void => {
   ctx.beginPath();
   ctx.arc(HEAD.x, HEAD.y, HEAD.radius, HAIR_BAND.from, HAIR_BAND.to);
   ctx.lineWidth = HAIR_BAND.width;
-  if (look.ribbon !== null) ctx.strokeStyle = ribbonColour(look.ribbon);
+  if (badge.ribbon !== null) ctx.strokeStyle = ribbonColour(badge.ribbon);
   ctx.stroke();
   ctx.strokeStyle = BOARD_COLORS.marker;
   ctx.lineWidth = LINE_WIDTH;
 };
 
 /** Her number and the caret over whoever the player steers, drawn upright whichever way she faces. */
-const paintLook = (ctx: CanvasRenderingContext2D, facing: number, look: AliceLook): void => {
-  if (look.ribbon === null && !look.selected) return;
+export const paintBadge = (
+  ctx: CanvasRenderingContext2D,
+  facing: number,
+  badge: AliceBadge,
+): void => {
+  if (badge.ribbon === null && !badge.selected) return;
   ctx.save();
   ctx.scale(facing, 1);
-  if (look.ribbon !== null) {
-    ctx.fillStyle = ribbonColour(look.ribbon);
+  if (badge.ribbon !== null) {
+    ctx.fillStyle = ribbonColour(badge.ribbon);
     ctx.font = RIBBON_NUMBER.font;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(String(look.ribbon + 1), HEAD.x, RIBBON_NUMBER.y);
+    ctx.fillText(String(badge.ribbon + 1), HEAD.x, RIBBON_NUMBER.y);
   }
-  if (look.selected) {
+  if (badge.selected) {
     const { y, half, height } = SELECTION_CARET;
     ctx.beginPath();
     ctx.moveTo(HEAD.x - half, y - height);
@@ -128,7 +132,7 @@ export const paintAlice = (
   ctx: CanvasRenderingContext2D,
   alice: AliceSnapshot,
   nowMs: number,
-  look: AliceLook = HERSELF,
+  badge: AliceBadge = HERSELF,
 ): void => {
   const pose = ALICE_POSES[alicePoseName(alice, nowMs)];
   const frontHand = alice.hasKey ? KEY_HOLD : pose.frontHand;
@@ -141,9 +145,9 @@ export const paintAlice = (
   ctx.strokeStyle = BOARD_COLORS.marker;
   paintBehindDress(ctx, pose);
   paintDress(ctx);
-  paintHead(ctx, look);
+  paintHead(ctx, badge);
   paintFrontArm(ctx, frontHand);
   if (alice.hasKey) paintKey(ctx, frontHand, CARRIED_KEY.length, CARRIED_KEY.angle);
-  paintLook(ctx, alice.facing, look);
+  paintBadge(ctx, alice.facing, badge);
   ctx.restore();
 };

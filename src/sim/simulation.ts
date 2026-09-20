@@ -1,7 +1,7 @@
 import Matter from "matter-js";
 import type { BoardDefinition } from "../board/types";
 import type { Ruling } from "../cat/types";
-import { distanceToRect, type Rect, type Vec } from "../core/geometry";
+import { distanceToRect, type Rect, type Stroke, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS, LOST_DISTANCE } from "../core/world";
 import type { Drawing, DrawingId } from "../ink/types";
 import { validPhysics } from "../rules/effectDomains";
@@ -9,7 +9,13 @@ import { EARTH, type WorldPhysics } from "../rules/types";
 import { AliceController, type AliceSurroundings } from "./alice";
 import { pullToward } from "./attraction";
 import { BoardProps } from "./boardProps";
+import { cutCrosses, incarnate } from "./body/drawnBody";
+import type { BodyPartKind, Cut } from "./body/types";
 import { exactBounds } from "./bodyBounds";
+import type { Prey } from "./boss/snipper";
+import { Tear, type TearDeed } from "./boss/tear";
+import { TEAR_TUNING } from "./boss/tuning";
+import { blowFrom } from "./boss/weapons";
 import { Checkpoints } from "./checkpoints";
 import {
   GRAVITY_SCALE,
@@ -65,7 +71,10 @@ interface BoardWorld {
   readonly engine: Matter.Engine;
   readonly props: BoardProps;
   readonly inks: InkLayer;
-  readonly alice: AliceController;
+  alice: AliceController;
+  /** Where the heart hovers while she has no body; null once she is embodied. */
+  soul: Vec | null;
+  tear: Tear | null;
   readonly twins: Twins;
   readonly checkpoints: Checkpoints;
   readonly activePairs: Matter.Pair[];
@@ -105,6 +114,8 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
     props,
     inks: new InkLayer(engine.world, props, physics),
     alice,
+    soul: null,
+    tear: null,
     twins,
     checkpoints: new Checkpoints(board),
     activePairs,
@@ -139,7 +150,7 @@ export class MatterSimulation implements Simulation {
     this.physics = physics;
     this.paper.obey(physics);
     alice.applyPhysics(physics);
-    twins.match(physics.clones, alice, physics);
+    twins.match(this.embodied ? physics.clones : 0, alice, physics);
     this.roster = null;
     inks.setPhysics(physics);
     this.matchSumikui(physics.inkEater);
@@ -164,6 +175,58 @@ export class MatterSimulation implements Simulation {
     this.forgetInk(id);
   }
 
+  disembody(): void {
+    const { alice, engine, board, twins } = this.world;
+    const seat = this.world.soul ?? alice.heart();
+    Matter.Composite.remove(engine.world, alice.body);
+    const soul = new AliceController(board.spawn, this.physics);
+    soul.placeAt({ x: seat.x, y: seat.y + soul.bounds().height / 2 });
+    this.world.alice = soul;
+    this.world.soul = seat;
+    twins.match(0, soul, this.physics);
+    this.roster = null;
+    this.world.sumikui = null;
+    this.matchSumikui(this.physics.inkEater);
+  }
+
+  incarnate(id: DrawingId, name: string): boolean {
+    const { inks, engine, alice, twins } = this.world;
+    const ink = inks.all.find((each) => each.id === id);
+    if (ink === undefined) return false;
+    const seat = this.world.soul ?? alice.heart();
+    const born = incarnate(ink.worldStrokes, seat, name, engine.timing.timestamp);
+    this.forgetInk(id);
+    Matter.Composite.remove(engine.world, alice.body);
+    const embodied = new AliceController(
+      { x: born.centre.x, y: born.centre.y + born.body.frame.height / 2 },
+      this.physics,
+      born.body.frame,
+    );
+    embodied.wear(born.body, name);
+    Matter.Composite.add(engine.world, embodied.body);
+    this.world.alice = embodied;
+    this.world.soul = null;
+    twins.match(this.physics.clones, embodied, this.physics);
+    this.roster = null;
+    this.world.sumikui = null;
+    this.matchSumikui(this.physics.inkEater);
+    return true;
+  }
+
+  graft(strokes: readonly Stroke[]): boolean {
+    if (this.world.soul !== null) return false;
+    const grafted = this.world.alice.graft(strokes);
+    if (grafted === null) return false;
+    if (grafted.restored.length > 0)
+      this.events.push({ type: "part-restored", parts: grafted.restored });
+    return true;
+  }
+
+  openTear(): void {
+    const heart = this.world.soul ?? this.world.alice.heart();
+    this.world.tear = new Tear({ x: heart.x, y: heart.y - TEAR_TUNING.aboveHeart });
+  }
+
   setWalkIntent(intent: WalkIntent, who: AliceIndex = ALICE_HERSELF): void {
     this.intents[who] = intent;
   }
@@ -173,17 +236,20 @@ export class MatterSimulation implements Simulation {
   }
 
   step(): readonly SimEvent[] {
-    this.events = [];
     const timeScale = Math.max(this.bulletTime * this.physics.timeScale, MIN_TIME_SCALE);
     const ticks = Math.ceil(timeScale);
     for (let tick = 0; tick < ticks; tick++) this.tick(timeScale / ticks);
-    return this.events;
+    const events = this.events;
+    this.events = [];
+    return events;
   }
 
   snapshot(): WorldSnapshot {
-    const { alice, twins, inks, props, sumikui } = this.world;
+    const { alice, soul, tear, twins, inks, props, sumikui } = this.world;
     return {
-      alice: alice.snapshot(),
+      alice: soul === null ? alice.snapshot() : null,
+      soul: soul === null ? null : { at: soul },
+      tear: tear?.snapshot() ?? null,
       twins: twins.snapshots(),
       sumikui: sumikui?.snapshot(this.everyAlice()) ?? null,
       drawings: inks.poses,
@@ -194,7 +260,7 @@ export class MatterSimulation implements Simulation {
   }
 
   alices(): readonly AliceSnapshot[] {
-    return this.everyAlice().map((alice) => alice.snapshot());
+    return this.bodied().map((alice) => alice.snapshot());
   }
 
   aliceBounds(who: AliceIndex = ALICE_HERSELF): Rect {
@@ -227,6 +293,11 @@ export class MatterSimulation implements Simulation {
     return this.roster;
   }
 
+  /** Every Alice who has a body to move: nobody while the player is a soul. */
+  private bodied(): readonly AliceController[] {
+    return this.embodied ? this.everyAlice() : [];
+  }
+
   private aliceAt(who: AliceIndex): AliceController {
     const alice = this.everyAlice()[who];
     if (alice === undefined) throw new RangeError(`No Alice numbered ${who}`);
@@ -237,9 +308,13 @@ export class MatterSimulation implements Simulation {
     return this.intents[this.everyAlice().indexOf(alice)] ?? IDLE;
   }
 
+  private get embodied(): boolean {
+    return this.world.soul === null;
+  }
+
   private tick(timeScale: number): void {
     const { engine, inks, activePairs } = this.world;
-    const alices = this.everyAlice();
+    const alices = this.bodied();
     const elapsedMs = FIXED_STEP_MS * timeScale;
     activePairs.length = 0;
     engine.gravity.x = this.physics.gravity.x;
@@ -269,7 +344,91 @@ export class MatterSimulation implements Simulation {
     this.resolveInkTouches(this.natureWorld(this.world.alice));
     this.feedSumikui(elapsedMs);
     for (const alice of alices) this.resolveProps(alice);
+    this.fight(elapsedMs);
     this.resolveWhereabouts();
+  }
+
+  private prey(): Prey | null {
+    const { alice, soul } = this.world;
+    const body = alice.drawnBody;
+    if (soul !== null || body === null) return null;
+    const space = alice.bodySpace();
+    return {
+      heart: alice.heart(),
+      body,
+      centre: space.centre,
+      facing: space.facing,
+      scale: space.scale,
+    };
+  }
+
+  private fight(elapsedMs: number): void {
+    const { tear } = this.world;
+    if (tear === null) return;
+    for (const deed of tear.tick(elapsedMs, this.prey())) this.answer(tear, deed);
+    this.strike(tear);
+  }
+
+  private answer(tear: Tear, deed: TearDeed): void {
+    switch (deed.kind) {
+      case "servant-came":
+        this.events.push({ type: "servant-came" });
+        return;
+      case "wave":
+        this.events.push({ type: "servants-came", lessers: deed.lessers });
+        return;
+      case "servant-perished":
+        this.events.push({ type: "servant-perished", rank: deed.rank });
+        return;
+      case "closed":
+        this.world.tear = null;
+        this.events.push({ type: "tear-closed" });
+        return;
+      case "cut":
+        this.suffer(tear, deed.cut, deed.part);
+        return;
+    }
+  }
+
+  /** A drawing across the cut takes it instead of her; otherwise the blades reach her body. */
+  private suffer(tear: Tear, cut: Cut, part: BodyPartKind): void {
+    const shield = this.world.inks.all.find((ink) =>
+      ink.worldStrokes.some((stroke) => cutCrosses(cut, stroke)),
+    );
+    if (shield !== undefined) {
+      this.forgetInk(shield.id);
+      this.events.push({ type: "shielded", drawingId: shield.id });
+      return;
+    }
+    const snipped = this.embodied ? this.world.alice.snip(cut) : null;
+    if (snipped === null) {
+      this.events.push({ type: "snip-missed" });
+      return;
+    }
+    if (snipped.heartCut) {
+      tear.landed(cut);
+      this.disembody();
+      this.world.tear = null;
+      this.events.push({ type: "heart-swallowed" });
+      return;
+    }
+    if (snipped.removed.length === 0) {
+      this.events.push({ type: "snip-missed" });
+      return;
+    }
+    tear.landed(cut);
+    this.events.push({ type: "snipped", part, lost: snipped.lost });
+  }
+
+  private strike(tear: Tear): void {
+    for (const snipper of tear.alive) {
+      for (const ink of this.world.inks.all) {
+        const blow = blowFrom(ink, snipper.where, snipper.radius);
+        if (blow === null || !tear.hurt(snipper, blow.damage, blow.from)) continue;
+        this.events.push({ type: "servant-struck", rank: snipper.rank, drawingId: ink.id });
+        break;
+      }
+    }
   }
 
   private nearestAliceTo(ink: InkEntity): AliceController {
@@ -290,10 +449,7 @@ export class MatterSimulation implements Simulation {
     const { x, y } = this.physics.wind;
     if (x === 0 && y === 0) return;
     const wind = accelerationOf(this.physics.wind);
-    const bodies = [
-      ...this.everyAlice().map((alice) => alice.body),
-      ...this.world.inks.dynamicBodies,
-    ];
+    const bodies = [...this.bodied().map((alice) => alice.body), ...this.world.inks.dynamicBodies];
     for (const body of bodies) push(body, wind);
   }
 
@@ -408,7 +564,7 @@ export class MatterSimulation implements Simulation {
   private bodiesAround(ink: InkEntity): readonly Matter.Body[] {
     const { inks, props } = this.world;
     return [
-      ...this.everyAlice().map((alice) => alice.body),
+      ...this.bodied().map((alice) => alice.body),
       ...props.solidBodies,
       ...inks.all.filter((other) => other !== ink).map((other) => other.body),
     ];
@@ -449,7 +605,7 @@ export class MatterSimulation implements Simulation {
     const { sumikui, inks, touchedAt, engine, props } = this.world;
     const now = engine.timing.timestamp;
     if (props.heal(now) > 0) this.events.push({ type: "paper-healed" });
-    if (sumikui === null) return;
+    if (sumikui === null || !this.embodied) return;
     const wasAwake = sumikui.isAwake;
     const alices = this.everyAlice();
     const meal = sumikui.tick(elapsedMs, {
@@ -509,7 +665,8 @@ export class MatterSimulation implements Simulation {
 
   private resolveWhereabouts(): void {
     const { alice, twins, checkpoints, lost } = this.world;
-    const alices = this.everyAlice();
+    const alices = this.bodied();
+    if (alices.length === 0) return;
     for (const [who, each] of alices.entries()) {
       if (lost.has(each) || this.isOffTheBoard(each)) {
         lost.delete(each);

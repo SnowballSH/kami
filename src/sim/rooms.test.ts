@@ -3,6 +3,7 @@ import { wonderland } from "../board/boards/wonderland";
 import type { BoardDefinition } from "../board/types";
 import type { Drawing } from "../ink/types";
 import {
+  aliceOf,
   blob,
   drawingOf,
   enter,
@@ -105,7 +106,7 @@ describe("the ledge", () => {
     expect(feetOf(sim).y).toBeCloseTo(GROUND_TOP, 0);
     sim.setWalkIntent(UP);
     runSteps(sim, 100);
-    expect(sim.snapshot().alice.climbing).toBe(true);
+    expect(aliceOf(sim).climbing).toBe(true);
     expect(sim.snapshot().drawings[0]?.pose.position).toEqual(drawnAt);
     runSteps(sim, 50);
 
@@ -124,19 +125,19 @@ describe("the glass table and the tiny door", () => {
     sim.setWalkIntent(RIGHT);
     const eaten = runUntil(sim, saw("consumed"));
     expect(happeningsOf(eaten)).toEqual(["consumed"]);
-    expect(sim.snapshot().alice.size).toBe("big");
+    expect(aliceOf(sim).size).toBe("big");
     expect(sim.snapshot().drawings).toHaveLength(0);
 
     expect(happeningsOf(runUntil(sim, saw("key-taken")))).toEqual(["key-taken"]);
-    expect(sim.snapshot().alice.hasKey).toBe(true);
-    expect(sim.snapshot().alice.height).toBeCloseTo(120, 0);
+    expect(aliceOf(sim).hasKey).toBe(true);
+    expect(aliceOf(sim).height).toBeCloseTo(120, 0);
     expect(feetOf(sim).y).toBeCloseTo(PLATEAU_TOP, 0);
 
     sim.addDrawing(bottle(shift));
     sim.applyRuling(idOf("bottle"), rulingOf("shrink"));
     const events = runUntil(sim, saw("goal-reached"));
     expect(typesOf(events)).toEqual(["consumed", "door-opened", "goal-reached"]);
-    expect(sim.snapshot().alice.size).toBe("small");
+    expect(aliceOf(sim).size).toBe("small");
     expect(sim.snapshot().doorOpen).toBe(true);
   });
 
