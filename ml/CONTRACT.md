@@ -18,8 +18,8 @@ by serving, so they cannot drift:
 4. Downsample to 64×64 with `cv2.INTER_AREA`. Return uint8; the model input is that / 255.
 
 A **prefix** (a drawing still under the pen) is rendered exactly the same way — fitted to *its own*
-bounding box. Training makes half of all samples random prefixes (30–100 % of the points, in drawing
-order), which is what lets one stateless model guess while the pen is still moving.
+bounding box. Training shows the model prefixes (30–100 % of the points, in drawing order) as well as
+finished drawings, which is what lets one stateless model guess while the pen is still moving.
 
 ## The files a trained model ships as (`ml/artifacts/<name>/`)
 
@@ -27,7 +27,7 @@ order), which is what lets one stateless model guess while the pen is still movi
 |---|---|
 | `model.onnx` | input `image` as above; outputs `logits` float32 `[N, K]` and `embedding` float32 `[N, 512]` (the pooled features, not normalised). Opset 17, dynamic batch. |
 | `labels.json` | array of K Quick, Draw! category names; index = logit index |
-| `preprocess.json` | `{ "size": 64, "canvas": 256, "margin": 12, "thickness": 6, "temperature": T, "renderSha256": "<sha of render.py>", "trainedOn": "...", "top1": x, "top3": y }` — `temperature` from temperature scaling on held-out data, so probabilities mean what they say |
+| `preprocess.json` | `{ "size": 64, "canvas": 256, "margin": 12, "thickness": 6, "temperature": T, "renderSha256": "<sha of render.py>", "trainedOn": "...", "top1": x, "top3": y }` — `temperature` from temperature scaling on held-out data, so probabilities mean what they say. Additive, optional — see Regimes: `"temperaturePartial": Tp`, `"certainAbove": { "finished": 0.80 \| null, "partial": 0.93 \| null }`; informative only: `temperaturePooled`, `arch`, `selection`, `recipe`, `training` |
 | `golden.json` | ~50 `{ "strokes": [...], "imageSha256": "...", "top3": [...] }` cases for parity tests |
 | `release.json` | version 1, `sha256` map of the four files above; its SHA-256 is the served `artifactId` |
 
@@ -46,7 +46,7 @@ Listens on `127.0.0.1:8790` (`KAMI_EYE_PORT`), loads `KAMI_EYE_MODEL` (an artifa
 | Route | Request | Response |
 |---|---|---|
 | `GET /health` | | `{ "ok": true, "classes": K, "model": "<name>", "exemplars": N }` — `N` is 0 when the model has no exemplar set |
-| `POST /recognize` | `{ "strokes": [[{"x":1,"y":2},...],...], "partial": false, "top": 5 }` | `{ "labels": [...], "probs": [...] }` — best first, temperature-scaled softmax, `top` entries (default 5) |
+| `POST /recognize` | `{ "strokes": [[{"x":1,"y":2},...],...], "partial": false, "top": 5 }` | `{ "labels": [...], "probs": [...] }` — best first, temperature-scaled softmax, `top` entries (default 5); plus `"certainAbove": 0.80 \| null` when the model states its floors — see Regimes |
 | `POST /embed` | `{ "strokes": ... }` | `{ "embedding": [512 floats, L2-normalised] }` |
 | `POST /complete` | `{ "strokes": ..., "name": "a mushroom" }` (`name` optional) | `{ "tidied": [[{"x":..,"y":..},...],...], "added": [...], "category": "mushroom", "confidence": 0.93, "similarity": 0.81, "boldness": 0.9, "exemplar": "5152802093400064" }`, or `404 {"error"}` — see Completion |
 
@@ -62,6 +62,33 @@ Text notes allow 4000 UTF-16 code units and use a 131,072-byte envelope; control
 with feedback and its pending ink refunded; split detailed sketches into smaller drawings.
 Completion results must fit the same combined drawing budget before the client applies them.
 Already stored drawings over budget cannot create physics bodies; they are not silently rewritten.
+
+## Regimes — a finished drawing and one still under the pen (additive, version-free)
+
+One temperature cannot serve both looks: label smoothing asks for T < 1 on finished drawings, while
+the diffuse posteriors of half-drawn ones need a softer T (the first model: ECE 1.0 % finished,
+6.5 % partial). The regime is observable — `/recognize` already carries `partial` — so a model may
+ship two temperatures and the confidence from which it can be trusted in each:
+
+- `temperature` is the temperature of **finished** drawings; `temperaturePartial` that of drawings
+  still under the pen (`partial: true`). A model without `temperaturePartial` uses `temperature` for
+  both, exactly as before. `/embed`, `/complete`, the exemplar builder and `golden.json` always read
+  with `temperature`.
+- `certainAbove.finished` / `.partial`: the smallest calibrated confidence of the leading guess,
+  **after the game's aliases are folded by summing** (`ml/categories/folds.json`, which a test keeps
+  equal to the aliases of `server/natures/quickdrawNatures.json`), at which held-out drawings of that
+  regime are named right 95 % of the time; rounded up to 4 decimals; `null` when no worthwhile share
+  (0.5 %) of them reaches that precision. Fitted on the validation split with the regime's temperature;
+  the partial regime pools the 30–50, 50–70 and 70–100 % views.
+- When the model states `certainAbove`, `/recognize` answers with the floor of the request's regime
+  as `"certainAbove"` (a number, or `null` for never), which the Bun server already prefers to its
+  built-in 0.80 / 0.90. A model without it answers without the field, and the server keeps its own.
+- Malformed values (`temperaturePartial` not positive and finite, a floor outside (0, 1], a
+  `certainAbove` that is not an object) fail start-up like any other incompatible bundle.
+
+Training stays on the 345 fine labels, so completion still retrieves birthday cakes for birthday
+cakes; folding happens only where confidence is judged. The tensor, the renderer, the output names
+and every older model are untouched: no version field changes.
 
 ## Completion — "Kami finishes your drawing"
 

@@ -1,6 +1,9 @@
-"""Temperature scaling: the one scalar T that makes softmax(logits / T) honest on held-out data."""
+"""Temperature scaling: the scalar T that makes softmax(logits / T) honest on held-out data,
+fitted once per regime (finished drawings, drawings still under the pen)."""
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -39,3 +42,27 @@ def fit_temperature(logits: NDArray[np.float32], labels: NDArray[np.int64]) -> f
 
     optimizer.step(closure)
     return float(log_temperature.detach().exp().clamp(MIN_TEMPERATURE, MAX_TEMPERATURE))
+
+
+@dataclass(frozen=True, slots=True)
+class RegimeTemperatures:
+    """One temperature cannot serve both looks: label smoothing asks for T < 1 on finished drawings,
+    while the diffuse posteriors of half-drawn ones need a softer T. `pooled` is the single
+    temperature of the first recipe, kept for comparison."""
+
+    finished: float
+    partial: float
+    pooled: float
+
+    def of(self, partial: NDArray[np.bool_]) -> NDArray[np.float64]:
+        return np.where(partial, self.partial, self.finished).astype(np.float64)
+
+
+def fit_regime_temperatures(
+    logits: NDArray[np.float32], labels: NDArray[np.int64], partial: NDArray[np.bool_]
+) -> RegimeTemperatures:
+    """A regime without held-out rows takes the pooled temperature."""
+    pooled = fit_temperature(logits, labels)
+    finished = fit_temperature(logits[~partial], labels[~partial]) if (~partial).any() else pooled
+    half_drawn = fit_temperature(logits[partial], labels[partial]) if partial.any() else pooled
+    return RegimeTemperatures(finished, half_drawn, pooled)

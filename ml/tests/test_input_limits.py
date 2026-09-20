@@ -18,10 +18,13 @@ from sidecar import (
     parse_strokes,
 )
 
+GAME_LIMITS = Path(__file__).parents[2] / "src" / "core" / "inputLimits.ts"
+
 
 class InputLimitTests(unittest.TestCase):
+    @unittest.skipUnless(GAME_LIMITS.exists(), "src/core is not beside this copy of ml/")
     def test_contract_matches_the_game(self) -> None:
-        source = (Path(__file__).parents[2] / "src/core/inputLimits.ts").read_text()
+        source = GAME_LIMITS.read_text()
         limits = {
             "strokes": MAX_STROKES,
             "pointsPerStroke": MAX_POINTS_PER_STROKE,

@@ -32,12 +32,61 @@ def read_object(path: Path) -> dict[str, object]:
 
 
 @dataclass(frozen=True)
+class CertaintyFloors:
+    """The calibrated, alias-folded confidence from which a guess is right 95 % of the time on
+    held-out drawings, per regime; None when no confidence is that trustworthy."""
+
+    finished: float | None
+    partial: float | None
+
+    def of(self, partial: bool) -> float | None:
+        return self.partial if partial else self.finished
+
+    def to_json(self) -> dict[str, float | None]:
+        return {"finished": self.finished, "partial": self.partial}
+
+
+@dataclass(frozen=True)
 class Metadata:
     labels: tuple[str, ...]
     temperature: float
+    temperature_partial: float
+    certain_above: CertaintyFloors | None
+
+
+def _finite_number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        return None
+    return float(value)
+
+
+def _temperature(metadata: dict[str, object], key: str) -> float:
+    temperature = _finite_number(metadata.get(key))
+    if temperature is None or temperature <= 0:
+        raise ValueError(f"{key} must be positive and finite")
+    return temperature
+
+
+def _floor(floors: dict[str, object], regime: str) -> float | None:
+    if floors.get(regime) is None:
+        return None
+    floor = _finite_number(floors[regime])
+    if floor is None or not 0 < floor <= 1:
+        raise ValueError(f"certainAbove.{regime} must be null or in (0, 1]")
+    return floor
+
+
+def _certainty_floors(metadata: dict[str, object]) -> CertaintyFloors | None:
+    floors = metadata.get("certainAbove")
+    if floors is None:
+        return None
+    if not isinstance(floors, dict):
+        raise ValueError("certainAbove must be an object")
+    return CertaintyFloors(_floor(floors, "finished"), _floor(floors, "partial"))
 
 
 def load_metadata(directory: Path, renderer: dict[str, int | str]) -> Metadata:
+    """Models from before the regimes have one temperature for both and state no floors."""
     labels: object = json.loads((directory / LABELS_FILE).read_text())
     if not isinstance(labels, list) or not labels:
         raise ValueError("labels must be a nonempty array")
@@ -50,15 +99,13 @@ def load_metadata(directory: Path, renderer: dict[str, int | str]) -> Metadata:
     for key, expected in renderer.items():
         if type(metadata.get(key)) is not type(expected) or metadata[key] != expected:
             raise ValueError(f"incompatible renderer: {key}")
-    temperature = metadata.get("temperature")
-    if (
-        isinstance(temperature, bool)
-        or not isinstance(temperature, int | float)
-        or not math.isfinite(temperature)
-        or temperature <= 0
-    ):
-        raise ValueError("temperature must be positive and finite")
-    return Metadata(tuple(names), float(temperature))
+    temperature = _temperature(metadata, "temperature")
+    partial = (
+        _temperature(metadata, "temperaturePartial")
+        if "temperaturePartial" in metadata
+        else temperature
+    )
+    return Metadata(tuple(names), temperature, partial, _certainty_floors(metadata))
 
 
 @dataclass(frozen=True)

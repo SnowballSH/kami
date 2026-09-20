@@ -150,9 +150,12 @@ def make_handler(
                 return HTTPStatus.OK, {"embedding": recognizer.embed(strokes)}
             if self.path == "/complete":
                 return self._complete(strokes, parse_name(payload))
-            parse_partial(payload)
-            recognition = recognizer.recognize(strokes, parse_top(payload))
-            return HTTPStatus.OK, {"labels": recognition.labels, "probs": recognition.probs}
+            partial = parse_partial(payload)
+            recognition = recognizer.recognize(strokes, parse_top(payload), partial=partial)
+            answer: dict[str, object] = {"labels": recognition.labels, "probs": recognition.probs}
+            if recognizer.certain_above is not None:
+                answer["certainAbove"] = recognizer.certain_above.of(partial)
+            return HTTPStatus.OK, answer
 
         def _complete(self, strokes: list[list[Point]], name: str | None) -> Answer:
             if completer is None:

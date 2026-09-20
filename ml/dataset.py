@@ -1,4 +1,8 @@
-"""Pre-rendered Quick, Draw! images as a uint8 memmap: half are prefixes, split by key_id hash."""
+"""Pre-rendered Quick, Draw! images as a uint8 memmap [N, V, 64, 64], split by key_id hash.
+
+One view per drawing (V = 1) is the first recipe: half the drawings are one random prefix. Four
+views (V = 4) keep every drawing finished plus one prefix in each band of `views.py`.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +19,16 @@ from numpy.typing import NDArray
 from tqdm import tqdm
 
 from quickdraw_bin import category_path, read_drawings
-from render import SIZE, THICKNESS, from_xy_arrays, render, render_prefix, render_source_sha256
+from render import (
+    SIZE,
+    THICKNESS,
+    PointArray,
+    from_xy_arrays,
+    render,
+    render_prefix,
+    render_source_sha256,
+)
+from views import PREFIX_VIEW_BOUNDS, SINGLE_VIEW_COUNT, SUPPORTED_VIEW_COUNTS
 
 IMAGES_FILE = "images.u8"
 LABELS_FILE = "labels.npy"
@@ -59,13 +72,24 @@ class DatasetSpec:
     min_prefix_fraction: float = 0.3
     thickness_jitter: int = 0
     seed: int = 0
+    views: int = SINGLE_VIEW_COUNT
+
+    def __post_init__(self) -> None:
+        if self.views not in SUPPORTED_VIEW_COUNTS:
+            raise ValueError(f"views must be one of {SUPPORTED_VIEW_COUNTS}")
 
     def fingerprint(self) -> dict[str, object]:
-        return {
+        """What a build depends on; a single-view spec keeps the fingerprint it always had."""
+        fingerprint: dict[str, object] = {
             **asdict(self),
             "categories": list(self.categories),
             "renderSha256": render_source_sha256(),
         }
+        if self.views == SINGLE_VIEW_COUNT:
+            del fingerprint["views"]
+        else:
+            fingerprint["viewBounds"] = [list(bounds) for bounds in PREFIX_VIEW_BOUNDS]
+        return fingerprint
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +100,10 @@ class SketchDataset:
     fractions: NDArray[np.float32]
     splits: NDArray[np.uint8]
     key_ids: NDArray[np.uint64]
+
+    @property
+    def view_count(self) -> int:
+        return int(self.images.shape[1])
 
     def indices(self, split: Split) -> NDArray[np.int64]:
         return np.flatnonzero(self.splits == split).astype(np.int64)
@@ -96,38 +124,56 @@ class _CategoryRender:
     key_ids: NDArray[np.uint64]
 
 
+def _single_view_fractions(spec: DatasetSpec, rng: np.random.Generator) -> list[float]:
+    is_prefix = rng.random() < spec.prefix_share
+    prefix_fraction = float(rng.uniform(spec.min_prefix_fraction, FULL_FRACTION))
+    return [prefix_fraction if is_prefix else FULL_FRACTION]
+
+
+def _stratified_fractions(rng: np.random.Generator) -> list[float]:
+    return [FULL_FRACTION, *(float(rng.uniform(low, high)) for low, high in PREFIX_VIEW_BOUNDS)]
+
+
+def _render_view(strokes: list[PointArray], fraction: float, thickness: int) -> NDArray[np.uint8]:
+    if fraction >= FULL_FRACTION:
+        return render(strokes, thickness=thickness)
+    return render_prefix(strokes, fraction, thickness=thickness)
+
+
 def _render_category(task: _CategoryTask) -> _CategoryRender:
     spec = task.spec
     rng = np.random.default_rng([spec.seed, task.label])
     recognised = (drawing for drawing in read_drawings(task.bin_path) if drawing.recognized)
-    images: list[NDArray[np.uint8]] = []
-    fractions: list[float] = []
+    images = np.zeros((spec.samples_per_class, spec.views, SIZE, SIZE), dtype=np.uint8)
+    fractions: list[list[float]] = []
     splits: list[int] = []
     key_ids: list[int] = []
-    for drawing in islice(recognised, spec.samples_per_class):
-        is_prefix = rng.random() < spec.prefix_share
-        prefix_fraction = float(rng.uniform(spec.min_prefix_fraction, FULL_FRACTION))
+    for row, drawing in enumerate(islice(recognised, spec.samples_per_class)):
+        view_fractions = (
+            _single_view_fractions(spec, rng)
+            if spec.views == SINGLE_VIEW_COUNT
+            else _stratified_fractions(rng)
+        )
         jitter = int(rng.integers(-spec.thickness_jitter, spec.thickness_jitter + 1))
         split = split_of(drawing.key_id)
         thickness = THICKNESS + jitter if split is Split.TRAIN else THICKNESS
         strokes = from_xy_arrays(drawing.strokes)
-        images.append(
-            render_prefix(strokes, prefix_fraction, thickness=thickness)
-            if is_prefix
-            else render(strokes, thickness=thickness)
-        )
-        fractions.append(prefix_fraction if is_prefix else FULL_FRACTION)
+        for view, fraction in enumerate(view_fractions):
+            images[row, view] = _render_view(strokes, fraction, thickness)
+        fractions.append(view_fractions)
         splits.append(split)
         key_ids.append(drawing.key_id)
     return _CategoryRender(
-        np.stack(images) if images else np.zeros((0, SIZE, SIZE), dtype=np.uint8),
-        np.asarray(fractions, dtype=np.float32),
+        images[: len(key_ids)],
+        np.asarray(fractions, dtype=np.float32).reshape(len(key_ids), spec.views),
         np.asarray(splits, dtype=np.uint8),
         np.asarray(key_ids, dtype=np.uint64),
     )
 
 
-def build_dataset(spec: DatasetSpec, bin_dir: Path, out_dir: Path) -> SketchDataset:
+def build_dataset(
+    spec: DatasetSpec, bin_dir: Path, out_dir: Path, workers: int | None = None
+) -> SketchDataset:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / META_FILE).unlink(missing_ok=True)
     tasks = [
@@ -136,14 +182,14 @@ def build_dataset(spec: DatasetSpec, bin_dir: Path, out_dir: Path) -> SketchData
     ]
     capacity = len(tasks) * spec.samples_per_class
     images = np.memmap(
-        out_dir / IMAGES_FILE, dtype=np.uint8, mode="w+", shape=(capacity, SIZE, SIZE)
+        out_dir / IMAGES_FILE, dtype=np.uint8, mode="w+", shape=(capacity, spec.views, SIZE, SIZE)
     )
     labels: list[NDArray[np.int64]] = []
     fractions: list[NDArray[np.float32]] = []
     splits: list[NDArray[np.uint8]] = []
     key_ids: list[NDArray[np.uint64]] = []
     written = 0
-    with multiprocessing.Pool() as pool:
+    with multiprocessing.Pool(workers) as pool:
         results = tqdm(
             pool.imap(_render_category, tasks), total=len(tasks), desc="render", unit="class"
         )
@@ -161,10 +207,12 @@ def build_dataset(spec: DatasetSpec, bin_dir: Path, out_dir: Path) -> SketchData
             written += count
     images.flush()
     del images
-    os.truncate(out_dir / IMAGES_FILE, written * SIZE * SIZE)
+    os.truncate(out_dir / IMAGES_FILE, written * spec.views * SIZE * SIZE)
 
     np.save(out_dir / LABELS_FILE, np.concatenate(labels))
-    np.save(out_dir / FRACTIONS_FILE, np.concatenate(fractions))
+    all_fractions = np.concatenate(fractions)
+    single_view = spec.views == SINGLE_VIEW_COUNT
+    np.save(out_dir / FRACTIONS_FILE, all_fractions[:, 0] if single_view else all_fractions)
     np.save(out_dir / SPLITS_FILE, np.concatenate(splits))
     np.save(out_dir / KEY_IDS_FILE, np.concatenate(key_ids))
     (out_dir / META_FILE).write_text(json.dumps({**spec.fingerprint(), "count": written}, indent=2))
@@ -174,23 +222,30 @@ def build_dataset(spec: DatasetSpec, bin_dir: Path, out_dir: Path) -> SketchData
 def load_dataset(out_dir: Path) -> SketchDataset:
     meta = json.loads((out_dir / META_FILE).read_text())
     count = int(meta["count"])
+    views = int(meta.get("views", SINGLE_VIEW_COUNT))
     return SketchDataset(
         categories=tuple(meta["categories"]),
         images=np.memmap(
-            out_dir / IMAGES_FILE, dtype=np.uint8, mode="r", shape=(count, SIZE, SIZE)
+            out_dir / IMAGES_FILE, dtype=np.uint8, mode="r", shape=(count, views, SIZE, SIZE)
         ),
         labels=np.load(out_dir / LABELS_FILE),
-        fractions=np.load(out_dir / FRACTIONS_FILE),
+        fractions=np.load(out_dir / FRACTIONS_FILE).reshape(count, views),
         splits=np.load(out_dir / SPLITS_FILE),
         key_ids=np.load(out_dir / KEY_IDS_FILE),
     )
 
 
-def ensure_dataset(spec: DatasetSpec, bin_dir: Path, out_dir: Path) -> SketchDataset:
+def matches_spec(meta: dict[str, object], spec: DatasetSpec) -> bool:
+    fingerprint = spec.fingerprint()
+    same_views = meta.get("views", SINGLE_VIEW_COUNT) == spec.views
+    return same_views and {key: meta.get(key) for key in fingerprint} == fingerprint
+
+
+def ensure_dataset(
+    spec: DatasetSpec, bin_dir: Path, out_dir: Path, workers: int | None = None
+) -> SketchDataset:
     """Reuse the dataset in `out_dir` when it was built from this exact spec and renderer."""
     meta_path = out_dir / META_FILE
-    if meta_path.exists():
-        meta = json.loads(meta_path.read_text())
-        if {key: meta.get(key) for key in spec.fingerprint()} == spec.fingerprint():
-            return load_dataset(out_dir)
-    return build_dataset(spec, bin_dir, out_dir)
+    if meta_path.exists() and matches_spec(json.loads(meta_path.read_text()), spec):
+        return load_dataset(out_dir)
+    return build_dataset(spec, bin_dir, out_dir, workers)

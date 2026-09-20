@@ -48,6 +48,56 @@ Other switches: `--batch-size 512` (1024 is fine on a big card), `--learning-rat
 `--megabytes-per-class N` (default is 250 B per requested drawing; a category that comes up short is
 reported and trained with what it has), `--device cuda|mps|cpu`, `--download-only`.
 
+### The next recipe — flags that all default to the first one
+
+`docs/reports/kami-eye-next.md` argues for each of these; without them `train.py` is the recipe
+above, step for step (same batches, same loss, same optimiser calls for the same seed).
+
+| Flag | |
+|---|---|
+| `--views 4` | every drawing rendered finished **and** as one prefix in each of 30–50, 50–70, 70–100 % (`images.u8` becomes `[N, 4, 64, 64]`, ×4 on disk: 17 GB at 3 k/class, 124 GB at 22 k). Validation then reads every view of every held-out drawing, so each bucket has the full n |
+| `--view-weights .40,.28,.22,.10` `--view-policy fixed\|resample` | sampling weights per view, finished first (default: the first recipe's mixture .50/.14/.14/.21); `fixed` keeps one view per drawing for the whole run, `resample` draws a fresh one every epoch |
+| `--dataset-name NAME` `--dataset-seed S` | share one rendered dataset between runs that differ in `--seed` (default: `--name`, `--seed`); `--dataset-only --render-workers 8` renders and stops |
+| `--arch resnet18d` | full-resolution 3×3 (1→32) before the stride, average pool before each 1×1 shortcut: +20 M MACs (+3.5 %). `resnet34` exists as a teacher only |
+| `--teacher-logits FILE --kd-alpha 0.7 --kd-temperature 2 --label-smoothing 0` | 0.3 CE + 0.7 τ² KL to a teacher's logits on the **finished** render of the same drawing, whatever view the student sees. `distill_teacher.py` writes the file (float16 `[N, K]`, tied to the dataset by the sha256 of its key_ids) |
+| `--embed-align 0.5` | paired batches (each drawing finished + one prefix view) and 0.5 · (1 − cos(z_prefix, stop-grad z_finished)); an epoch stays one epoch of *image passes*, so it covers half the drawings |
+| `--compile --amp-dtype bfloat16 --fused-optimizer` | `torch.compile` (one rehearsed step; eager if it fails, weights untouched), bf16 autocast without a GradScaler, fused AdamW. **On the GX10 today `--compile` falls back**: Triton 3.8 builds a small C shim at first use and the box has no `Python.h` (`sudo apt install python3.12-dev` would give it one) |
+| `--readers 4` | threads reading the memmap (a 124 GB dataset does not fit the page cache) |
+| `--fold-map categories/folds.json` | the aliases folded when floors and the selection metric are computed (default: the game's nine) |
+
+Every run now also fits one temperature per regime and the 95 %-precision floors (`CONTRACT.md` →
+Regimes) and writes the selection metric S of `selection.py` on validation into `preprocess.json`.
+
+### The overnight queue — `experiments.py`
+
+```sh
+ssh gx10
+cd ~/kami-ml && mkdir -p logs
+setsid nohup .venv/bin/python experiments.py eye-next > logs/experiments.log 2>&1 < /dev/null &
+tail -f logs/experiments.log            # one line per step and decision
+cat artifacts/experiments.md            # the table, rendered after every step from experiments.jsonl
+```
+
+It first waits until no other `train.py` runs (it never stops a process it did not start), then
+follows `experiment_plan.py`: the baseline and the live model scored on the arms' validation views;
+two throughput probes that decide `--compile`; control arms B (seeds 0, 1), then V, V+D, V+K (taught
+by B's own logits), V+K+D, the best + alignment, and the winner at seed 1 — each 3 000 drawings per
+class × 4 epochs on one shared dataset, each followed by a CPU latency check of its ONNX against
+`artifacts/kami-eye` (interleaved in one process; 1, 4 and default threads; then `/recognize` over
+a loopback sidecar). Meanwhile the 22 k dataset renders at `nice 19`. The recipe that clears the bar
+(+0.5 replicated or +1.0 on S, no guard-rail broken, latency ≤ 1.25×) becomes the long run
+`kami-eye-next`, taught by `kami-eye-xl` when distillation was accepted, with
+E = ⌊0.93 · 12 600 s · img/s ÷ training drawings⌋ epochs; it is then scored against `kami-eye-xl`
+on the test split of the same views. If nothing clears the bar the hours go to a ResNet-34 teacher
+(`eye-teacher-r34`). A failed step is a `failed` row and the queue goes on; a restarted queue reuses
+every finished row. Logs: `logs/experiments/<step>.log`. Nothing is deployed and no exemplars are
+built. `experiments.py queue FILE.json` runs a plain list of `{"name", "flags"}` instead;
+`experiments.py eye-next --smoke --no-wait` is the whole plan on 8 categories in about a minute of GPU
+(12 minutes of wall clock, most of it the latency checks); it writes `artifacts/experiments-smoke.md`.
+
+Single tools, all on the box: `evaluate.py` (S and the bucket table of any model with a `model.pt`
+on any rendered dataset), `distill_teacher.py`, `latency.py`, `probe.py`.
+
 ### What a run leaves behind
 
 The directory `artifacts/<name>/` (gitignored; it stays on the box, where the sidecar reads it):
@@ -231,6 +281,10 @@ points → mushroom 0.51, circle 0.26; half a ladder → ladder 0.99. The smoke 
 | `exemplars.py`, `exemplar_set.py` | the CLI that picks each category's prototypical drawings with a trained model; the file set they are kept in (ragged uint8 strokes + float16 embeddings) |
 | `completion.py` | sketch + optional name → category → most similar exemplar → the morph |
 | `morph.py` | the player's own strokes tidied toward the fitted exemplar (bounded, point for point), plus the parts that are missing |
+| `views.py`, `teacher.py`, `losses.py` | which view of a drawing a step sees; a teacher's stored logits; distillation and prefix→finished alignment |
+| `folding.py`, `selective.py`, `retrieval.py`, `selection.py`, `evaluation.py` | alias folding, ECE and coverage at 95 % precision, own-drawing recall@10, the selection metric S, a split read view by view |
+| `checkpoint.py`, `evaluate.py`, `distill_teacher.py`, `latency.py`, `probe.py` | a trained directory back as a PyTorch model, and the four tools built on it |
+| `experiment_plan.py`, `experiments.py` | the staged plan with its decision rules (pure), and the queue that runs it |
 | `train.py` | the CLI that runs all of the above |
 
 - **Stem: 3×3 stride 2, no max-pool** (not stride 1): ink is ~1.5 px wide after the 256 → 64
@@ -243,6 +297,9 @@ points → mushroom 0.51, circle 0.26; half a ladder → ladder 0.99. The smoke 
   fitted to their own bounds. They are rendered at dataset-build time: each drawing is a prefix with
   probability 0.5, fraction uniform in [0.3, 1.0), from a generator seeded by `(seed, label)`, so a
   rebuild is identical.
+  With `--views 4` every drawing keeps its finished render plus one prefix per band, fractions
+  uniform within 30–50, 50–70 and 70–100 %, from the same generator; which view a step sees is
+  drawn by `views.py` from its own stream, so the shuffle is the same with or without views.
 - **Split** by splitmix64 of `key_id`, modulo 100: < 90 train, < 95 validation, else test. A drawing
   never changes side between runs or dataset sizes.
 - **`golden.json`** cases are test-split drawings spread evenly over the categories, every other one
@@ -269,9 +326,11 @@ Golden parity, ONNX validation and inference remain GX10-only.
 ## Checks
 
 ```sh
-uv run --group train pytest     # 133 tests: render, .bin round trip, dataset, sidecar routes on a
-                                # tiny real ONNX model, model/export/calibration, golden parity,
-                                # exemplar files and selection, completion and placement, /complete
+uv run --group train pytest     # 212 tests: render, .bin round trip, dataset and its views, sidecar
+                                # routes on a tiny real ONNX model, model/export/calibration, golden
+                                # parity, exemplar files and selection, completion, /complete, the
+                                # regimes, losses, batches, the fit loop on synthetic drawings, the
+                                # selection metric, and the queue against a fake process runner
 uv run ruff check . && uv run ruff format --check . && uv run mypy .
 ```
 

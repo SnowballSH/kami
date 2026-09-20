@@ -74,6 +74,8 @@ class SketchRecognizer:
         )
         self.labels = list(metadata.labels)
         self.temperature = metadata.temperature
+        self.temperature_partial = metadata.temperature_partial
+        self.certain_above = metadata.certain_above
         self.render_matches = True
         options = ort.SessionOptions()
         if threads is not None:
@@ -93,9 +95,12 @@ class SketchRecognizer:
         )
         return np.asarray(logits[0], dtype=np.float32), np.asarray(embedding[0], dtype=np.float32)
 
-    def recognize(self, strokes: Strokes, top: int = DEFAULT_TOP) -> Recognition:
+    def recognize(
+        self, strokes: Strokes, top: int = DEFAULT_TOP, *, partial: bool = False
+    ) -> Recognition:
+        """`partial` says the pen is still moving: such looks have their own temperature."""
         logits, _ = self._run(strokes)
-        probabilities = softmax(logits, self.temperature)
+        probabilities = softmax(logits, self.temperature_partial if partial else self.temperature)
         best = np.argsort(-probabilities)[: min(top, len(self.labels))]
         return Recognition(
             [self.labels[index] for index in best], [float(probabilities[index]) for index in best]

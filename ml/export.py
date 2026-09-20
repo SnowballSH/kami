@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 import json
+import math
 import warnings
 from collections import Counter
-from dataclasses import asdict, dataclass
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, field
 from itertools import islice
 from pathlib import Path
 
 import torch
 
-from artifacts import LABELS_FILE, MODEL_FILE, PREPROCESS_FILE, publish_bundle, seal_bundle
+from artifacts import (
+    LABELS_FILE,
+    MODEL_FILE,
+    PREPROCESS_FILE,
+    CertaintyFloors,
+    publish_bundle,
+    seal_bundle,
+)
+from calibrate import RegimeTemperatures
 from dataset import Split, split_of
 from metrics import Accuracy
 from model import SketchNet
@@ -40,14 +50,45 @@ GOLDEN_TOP = 3
 GOLDEN_PREFIX_FRACTIONS = (0.35, 0.5, 0.65, 0.8)
 ONNX_OPSET = 17
 BATCH_AXIS = {0: "batch"}
+CHECKPOINT_FILE = "model.pt"
+FLOOR_DECIMALS = 4
 
 
 @dataclass(frozen=True, slots=True)
 class TrainingSummary:
+    """`selection`, `recipe` and `training` are free-form records kept beside the contract's fields:
+    the selection metric on validation, the flags of the run, and how the fit went."""
+
     trained_on: str
-    temperature: float
+    temperatures: RegimeTemperatures
+    certain_above: CertaintyFloors
     validation: dict[str, Accuracy]
     test: dict[str, Accuracy]
+    selection: Mapping[str, object] = field(default_factory=dict)
+    recipe: Mapping[str, object] = field(default_factory=dict)
+    training: Mapping[str, object] = field(default_factory=dict)
+
+
+def conservative_floors(finished: float | None, partial: float | None) -> CertaintyFloors:
+    """Floors rounded up, so the shipped number never promises more than was measured."""
+
+    def round_up(floor: float | None) -> float | None:
+        if floor is None:
+            return None
+        return float(min(1.0, math.ceil(floor * 10**FLOOR_DECIMALS) / 10**FLOOR_DECIMALS))
+
+    return CertaintyFloors(round_up(finished), round_up(partial))
+
+
+def json_safe(value: object) -> object:
+    """NaN is not JSON: an empty bucket's accuracy is written as null."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, Mapping):
+        return {key: json_safe(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [json_safe(item) for item in value]
+    return value
 
 
 def export_onnx(model: SketchNet, path: Path) -> None:
@@ -66,20 +107,27 @@ def export_onnx(model: SketchNet, path: Path) -> None:
         )
 
 
-def _preprocess(summary: TrainingSummary) -> dict[str, object]:
+def _preprocess(model: SketchNet, summary: TrainingSummary) -> dict[str, object]:
     overall = summary.test["overall"]
     return {
         "size": SIZE,
         "canvas": CANVAS,
         "margin": MARGIN,
         "thickness": THICKNESS,
-        "temperature": summary.temperature,
+        "temperature": summary.temperatures.finished,
+        "temperaturePartial": summary.temperatures.partial,
+        "temperaturePooled": summary.temperatures.pooled,
+        "certainAbove": summary.certain_above.to_json(),
         "renderSha256": render_source_sha256(),
+        "arch": model.arch.value,
         "trainedOn": summary.trained_on,
         "top1": overall.top1,
         "top3": overall.top3,
         "validation": {name: asdict(result) for name, result in summary.validation.items()},
         "test": {name: asdict(result) for name, result in summary.test.items()},
+        "selection": summary.selection,
+        "recipe": summary.recipe,
+        "training": summary.training,
     }
 
 
@@ -130,10 +178,11 @@ def write_artifacts(
     artifacts_dir: Path,
 ) -> None:
     def build(staging: Path) -> None:
-        torch.save(model.state_dict(), staging / "model.pt")
+        torch.save(model.state_dict(), staging / CHECKPOINT_FILE)
         export_onnx(model, staging / MODEL_FILE)
         (staging / LABELS_FILE).write_text(json.dumps(list(categories), indent=2))
-        (staging / PREPROCESS_FILE).write_text(json.dumps(_preprocess(summary), indent=2))
+        preprocess = json_safe(_preprocess(model, summary))
+        (staging / PREPROCESS_FILE).write_text(json.dumps(preprocess, indent=2, allow_nan=False))
         golden = _golden_cases(SketchRecognizer(staging), categories, bin_dir)
         (staging / GOLDEN_FILE).write_text(json.dumps(golden))
         seal_bundle(staging)

@@ -1,36 +1,66 @@
-"""On the GX10: run Kami's Eye over the validation and test splits on the GPU and keep every prediction."""
-import json
+"""On the GX10: Kami's Eye over the validation and test splits, every prediction kept in eval.npz
+for plot_results.py. One row per view of a held-out drawing, validation rows first, each
+calibrated with the temperature the sidecar would use for it (finished or partial).
+
+    cd ~/kami-ml && PYTHONPATH=. .venv/bin/python evaluate_dump.py    # once copied there
+"""
+
+from __future__ import annotations
+
 from pathlib import Path
 
 import numpy as np
 import torch
 
+from artifacts import load_metadata
+from checkpoint import load_trained
 from dataset import Split, load_dataset
-from model import SketchNet
+from evaluation import evaluate_split
 
 MODEL = Path("artifacts/kami-eye")
-data = load_dataset(Path("data/datasets/kami-eye"))
-temperature = json.loads((MODEL / "preprocess.json").read_text())["temperature"]
-net = SketchNet(len(data.categories))
-net.load_state_dict(torch.load(MODEL / "model.pt", map_location="cpu"))
-net = net.cuda().eval().to(memory_format=torch.channels_last)
+DATASET = Path("data/datasets/kami-eye")
+DUMP_FILE = "eval.npz"
+HELD_OUT = (Split.VAL, Split.TEST)
+TOP = 5
+BATCH_SIZE = 4096
 
-held = np.sort(np.flatnonzero(data.splits != Split.TRAIN))
-top_classes, top_probs = [], []
-with torch.no_grad(), torch.autocast("cuda", dtype=torch.float16):
-    for start in range(0, len(held), 4096):
-        batch = held[start : start + 4096]
-        images = torch.from_numpy(np.ascontiguousarray(data.images[batch])).cuda().float().div_(255).unsqueeze(1)
-        logits, _ = net(images.contiguous(memory_format=torch.channels_last))
-        probs = torch.softmax(logits.float() / temperature, dim=1)
-        p, c = probs.topk(5, dim=1)
-        top_probs.append(p.cpu().numpy()); top_classes.append(c.cpu().numpy())
 
-np.savez_compressed(
-    MODEL / "eval.npz",
-    split=data.splits[held], label=data.labels[held], fraction=data.fractions[held],
-    top_classes=np.concatenate(top_classes).astype(np.int16), top_probs=np.concatenate(top_probs).astype(np.float32),
-    categories=np.array(data.categories),
-)
-label, classes = data.labels[held], np.concatenate(top_classes)
-print("rows", len(held), "top-1", float((classes[:, 0] == label).mean()), "top-3", float((classes[:, :3] == label[:, None]).any(axis=1).mean()))
+def dump(
+    model_dir: Path, dataset_dir: Path, out: Path, device: torch.device, batch_size: int
+) -> None:
+    dataset = load_dataset(dataset_dir)
+    model, labels = load_trained(model_dir, device)
+    if labels != dataset.categories:
+        raise SystemExit(f"{model_dir} names other categories than {dataset_dir}")
+    metadata = load_metadata(model_dir, {})
+
+    reads = [evaluate_split(model, dataset, split, batch_size, device) for split in HELD_OUT]
+    logits = torch.from_numpy(np.concatenate([read.logits for read in reads]))
+    temperatures = np.where(
+        np.concatenate([read.partial for read in reads]),
+        metadata.temperature_partial,
+        metadata.temperature,
+    ).astype(np.float32)
+    calibrated = torch.softmax(logits / torch.from_numpy(temperatures)[:, None], dim=1)
+    top_probs, top_classes = calibrated.topk(min(TOP, len(labels)), dim=1)
+    np.savez_compressed(
+        out,
+        split=np.concatenate(
+            [
+                np.full(len(read.labels), split, dtype=np.uint8)
+                for split, read in zip(HELD_OUT, reads, strict=True)
+            ]
+        ),
+        label=np.concatenate([read.labels for read in reads]),
+        fraction=np.concatenate([read.fractions for read in reads]),
+        top_classes=top_classes.numpy().astype(np.int16),
+        top_probs=top_probs.numpy().astype(np.float32),
+        categories=np.array(labels),
+    )
+
+
+if __name__ == "__main__":
+    dump(MODEL, DATASET, MODEL / DUMP_FILE, torch.device("cuda"), BATCH_SIZE)
+    kept = np.load(MODEL / DUMP_FILE)
+    hits = kept["top_classes"][:, :3] == kept["label"][:, None]
+    print(f"rows {len(hits)}  top-1 {hits[:, 0].mean():.4f}  top-3 {hits.any(axis=1).mean():.4f}")
