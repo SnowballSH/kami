@@ -6,7 +6,7 @@ export const TITLE_CARD_SHOWN_MS = 4500;
 export const titleCardShownMs = (card: ModeCard, shownMs = TITLE_CARD_SHOWN_MS): number =>
   shownMs + ((card.roles?.length ?? 0) > 0 ? 2_000 : 0);
 const FADING_CLASS = "is-fading";
-const FADE_MS = 600;
+export const TITLE_CARD_FADE_MS = 150;
 
 /**
  * The mode's name and its one line, over the page for a moment when it opens, then gone: a tap
@@ -23,11 +23,24 @@ export class TitleCard {
   constructor(private readonly shownMs: number = TITLE_CARD_SHOWN_MS) {
     this.element = el(
       "div",
-      { className: "kami-title-card", attrs: { role: "status", "aria-live": "polite" } },
+      {
+        className: "kami-title-card",
+        attrs: { role: "dialog", "aria-modal": "false", tabindex: "0" },
+      },
       [this.title, this.tagline, this.roles],
     );
+    this.title.id = "kami-title-card-title";
+    this.tagline.id = "kami-title-card-tagline";
+    this.element.setAttribute("aria-labelledby", this.title.id);
+    this.element.setAttribute("aria-describedby", this.tagline.id);
+    this.tagline.setAttribute("aria-live", "polite");
     this.element.hidden = true;
     activateOnTap(this.element, () => this.fade());
+    this.element.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      this.fade();
+    });
   }
 
   get showing(): boolean {
@@ -53,7 +66,7 @@ export class TitleCard {
       this.element.hidden = true;
       this.element.classList.remove(FADING_CLASS);
       this.goneAt = null;
-    }, FADE_MS);
+    }, TITLE_CARD_FADE_MS);
   }
 
   private clearTimers(): void {

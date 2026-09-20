@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RoomCard } from "../modes/types";
-import { RoomCardView } from "./roomCard";
+import { ROOM_CARD_FADE_MS, RoomCardView } from "./roomCard";
 
 const CARD: RoomCard = {
   mode: "Puzzle",
@@ -27,9 +27,22 @@ describe("the room card", () => {
 
     vi.advanceTimersByTime(5_000);
     expect(view.card.classList.contains("is-fading")).toBe(true);
-    vi.advanceTimersByTime(900);
+    vi.advanceTimersByTime(ROOM_CARD_FADE_MS);
     expect(view.card.hidden).toBe(true);
     expect(view.mark.hidden).toBe(false);
+  });
+
+  it("dismisses on tap and keyboard activation", () => {
+    vi.useFakeTimers();
+    const view = new RoomCardView();
+    view.show(CARD);
+    view.card.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    vi.advanceTimersByTime(ROOM_CARD_FADE_MS);
+    expect(view.card.hidden).toBe(true);
+    view.show(CARD);
+    view.card.dispatchEvent(new KeyboardEvent("keydown", { key: " " }));
+    vi.advanceTimersByTime(ROOM_CARD_FADE_MS);
+    expect(view.card.hidden).toBe(true);
   });
 
   it("starts afresh for the next room, and clears for a board with no card", () => {

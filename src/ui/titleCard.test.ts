@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SANDBOX_MODE } from "../modes/sandboxMode";
-import { TITLE_CARD_SHOWN_MS, TitleCard } from "./titleCard";
+import { TITLE_CARD_FADE_MS, TITLE_CARD_SHOWN_MS, TitleCard } from "./titleCard";
 
 const pointer = (type: string): PointerEvent =>
   new PointerEvent(type, {
@@ -63,6 +63,18 @@ describe("TitleCard", () => {
     expect(card.element.classList.contains("is-fading")).toBe(true);
     vi.advanceTimersByTime(1_000);
     expect(card.showing).toBe(false);
+  });
+
+  it("exposes the tagline and dismisses on keyboard activation", () => {
+    const card = new TitleCard(100);
+    card.show(SANDBOX_MODE.card);
+    expect(card.element.getAttribute("role")).toBe("dialog");
+    expect(card.element.querySelector(".kami-title-card-tagline")?.getAttribute("aria-live")).toBe(
+      "polite",
+    );
+    card.element.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    vi.advanceTimersByTime(TITLE_CARD_FADE_MS);
+    expect(card.element.hidden).toBe(true);
   });
 
   it("starts over, unfaded, when shown again", () => {
