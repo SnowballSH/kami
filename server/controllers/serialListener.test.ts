@@ -47,6 +47,25 @@ afterEach(async () => {
 });
 
 describe("the serial listener", () => {
+  it("reads cabinet firmware frames through the same hub as named controllers", async () => {
+    const device = join(directory, "ttyACM0");
+    await writeFile(device, "S,5,1,1,0,4095\r\n");
+    listen(AUTO_SERIAL_DEVICE);
+    await vi.waitFor(() =>
+      expect(hub.list()).toEqual([
+        {
+          id: "arcade",
+          x: -1,
+          y: 1,
+          held: ["left", "up"],
+          buttons: ["b", "x"],
+          transport: "serial",
+          idleMs: 0,
+        },
+      ]),
+    );
+  });
+
   it("reads the lines a device prints, whatever else is on the wire", async () => {
     const device = join(directory, "stick");
     await writeFile(device, "booting...\r\nkami arcade 0 100\r\nkami arcade -100 0 B\r\nkami arc");
