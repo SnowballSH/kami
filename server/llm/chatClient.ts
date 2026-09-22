@@ -20,6 +20,7 @@ export interface ChatMessage {
 export interface AskOptions {
   readonly maxTokens: number;
   readonly timeoutMs: number;
+  readonly jsonSchema?: Readonly<Record<string, unknown>>;
   /** The caller gave up (the player drew on): stop the model too. */
   readonly signal?: AbortSignal;
 }
@@ -27,6 +28,10 @@ export interface AskOptions {
 const CHAT_COMPLETIONS_PATH = "/chat/completions";
 const API_VERSION_PATH = "/v1";
 const NO_REASONING = { reasoning_effort: "none" } as const;
+const responseFormat = (jsonSchema: AskOptions["jsonSchema"]): Readonly<Record<string, unknown>> =>
+  jsonSchema === undefined
+    ? { type: "json_object" }
+    : { type: "json_schema", json_schema: { name: "reply", strict: true, schema: jsonSchema } };
 const REJECTED_REQUEST = 400;
 const REASONING_BLOCK = /<think>[\s\S]*?(<\/think>|$)/gi;
 
@@ -89,6 +94,7 @@ export class ChatClient {
   readonly #config: LlmConfig;
   readonly #fetch: FetchLike;
   #skipsReasoning = true;
+  #usesJsonMode = true;
 
   constructor(config: LlmConfig, fetchFn: FetchLike = fetch) {
     this.#config = config;
@@ -102,6 +108,10 @@ export class ChatClient {
         this.#skipsReasoning = false;
         response = await this.#post(messages, options);
       }
+      if (response.status === REJECTED_REQUEST && this.#usesJsonMode) {
+        this.#usesJsonMode = false;
+        response = await this.#post(messages, options);
+      }
       if (!response.ok) return null;
       const chat = chatResponseSchema.safeParse(await response.json());
       return chat.success ? (chat.data.choices[0]?.message.content ?? null) : null;
@@ -112,7 +122,7 @@ export class ChatClient {
 
   #post(
     messages: readonly ChatMessage[],
-    { maxTokens, timeoutMs, signal }: AskOptions,
+    { maxTokens, timeoutMs, jsonSchema, signal }: AskOptions,
   ): Promise<Response> {
     return this.#fetch(chatCompletionsUrl(this.#config.url), {
       method: "POST",
@@ -122,6 +132,7 @@ export class ChatClient {
         temperature: 0,
         max_tokens: maxTokens,
         ...(this.#skipsReasoning ? NO_REASONING : {}),
+        ...(this.#usesJsonMode ? { response_format: responseFormat(jsonSchema) } : {}),
         messages,
       }),
       signal: withTimeout(timeoutMs, signal),

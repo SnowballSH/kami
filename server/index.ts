@@ -129,7 +129,7 @@ void compiler
   .warmUp()
   .then((awake) => {
     if (config.llm !== null)
-      console.log(`  model ${awake ? "is awake" : "did not answer (is the GX10 tunnel up?)"}`);
+      console.log(`  model ${awake ? "is awake" : "did not answer (check KAMI_LLM_URL)"}`);
   })
   .then(async () => {
     if (transcriber === null) return;

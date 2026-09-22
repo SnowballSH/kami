@@ -11,6 +11,7 @@ interface SeenRequest {
     model: string;
     max_tokens: number;
     reasoning_effort?: string;
+    response_format?: { type: string; json_schema?: { schema: unknown } };
     messages: { role: string; content: string }[];
   };
 }
@@ -42,6 +43,8 @@ describe("createLlmCompiler", () => {
     expect(seen[0]?.url).toBe("http://gx10.local:8000/v1/chat/completions");
     expect(seen[0]?.headers.get("authorization")).toBe("Bearer secret");
     expect(seen[0]?.body.model).toBe("kami-rules");
+    expect(seen[0]?.body.response_format?.type).toBe("json_schema");
+    expect(seen[0]?.body.response_format?.json_schema?.schema).toMatchObject({ type: "object" });
     expect(seen[0]?.body.messages.at(-1)).toEqual({
       role: "user",
       content: "make it feel like the red planet",
@@ -244,5 +247,19 @@ describe("reasoning", () => {
       governs: "gravity",
     });
     expect(bodies.map((body) => "reasoning_effort" in body)).toEqual([true, false, false]);
+  });
+
+  it("falls back when a server rejects JSON mode", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const strict: FetchLike = async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      bodies.push(body);
+      return "response_format" in body
+        ? new Response("unknown field", { status: 400 })
+        : Response.json({ choices: [{ message: { role: "assistant", content: MARS_JSON } }] });
+    };
+    const compiler = createLlmCompiler(CONFIG, strict);
+    expect((await compiler.compile("red planet"))?.effect).toMatchObject({ governs: "gravity" });
+    expect(bodies.map((body) => "response_format" in body)).toEqual([true, true, false]);
   });
 });

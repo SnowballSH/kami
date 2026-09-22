@@ -8,6 +8,7 @@ import { COMPILER_SYSTEM_PROMPT } from "./prompt";
 export { chatCompletionsUrl, type FetchLike, type LlmConfig } from "../llm/chatClient";
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const WARM_UP_TIMEOUT_MS = 120_000;
 const MAX_REPLY_TOKENS = 1500;
 const WARM_UP_LINE = "hello";
 const MAX_EXPLANATION_LENGTH = 80;
@@ -16,6 +17,7 @@ const replySchema = z.object({
   effect: rawRuleEffectSchema.nullable(),
   explanation: z.string().optional(),
 });
+const replyJsonSchema = z.toJSONSchema(replySchema);
 
 const parseModelReply = (content: string): CompiledRule | null => {
   const reply = replySchema.safeParse(lastJsonObject(content));
@@ -32,9 +34,8 @@ export class LlmRuleCompiler implements RuleCompiler {
     this.#chat = new ChatClient(config, fetchFn);
   }
 
-  /** Loading tens of GB into memory is slow; pay for it at start-up, not on the first player's note. */
   async warmUp(): Promise<boolean> {
-    return (await this.#ask(WARM_UP_LINE)) !== null;
+    return (await this.#ask(WARM_UP_LINE, WARM_UP_TIMEOUT_MS)) !== null;
   }
 
   async compile(text: string): Promise<CompiledRule | null> {
@@ -42,13 +43,13 @@ export class LlmRuleCompiler implements RuleCompiler {
     return content === null ? null : parseModelReply(content);
   }
 
-  #ask(text: string): Promise<string | null> {
+  #ask(text: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<string | null> {
     return this.#chat.ask(
       [
         { role: "system", content: COMPILER_SYSTEM_PROMPT },
         { role: "user", content: text },
       ],
-      { maxTokens: MAX_REPLY_TOKENS, timeoutMs: REQUEST_TIMEOUT_MS },
+      { maxTokens: MAX_REPLY_TOKENS, timeoutMs, jsonSchema: replyJsonSchema },
     );
   }
 }

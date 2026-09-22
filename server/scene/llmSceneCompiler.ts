@@ -33,6 +33,7 @@ const replySchema = z.object({
     .optional(),
   line: z.string().optional(),
 });
+const replyJsonSchema = z.toJSONSchema(replySchema);
 
 type Reply = z.infer<typeof replySchema>;
 
@@ -97,7 +98,11 @@ export class LlmSceneCompiler implements SceneCompiler {
         { role: "system", content: SCENE_SYSTEM_PROMPT },
         { role: "user", content: text },
       ],
-      { maxTokens: MAX_REPLY_TOKENS, timeoutMs: REQUEST_TIMEOUT_MS },
+      {
+        maxTokens: MAX_REPLY_TOKENS,
+        timeoutMs: REQUEST_TIMEOUT_MS,
+        jsonSchema: replyJsonSchema,
+      },
     );
     return content === null ? null : parseSceneReply(content, this.drawable);
   }

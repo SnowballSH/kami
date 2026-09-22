@@ -4,7 +4,7 @@ import { readBoundedText } from "../core/readBody";
 import { browserFetch, type FetchLike, JSON_HEADERS, transcribePath } from "./api";
 import type { HandwritingReader, ReadOptions } from "./types";
 
-const READ_TIMEOUT_MS = 25_000;
+const READ_TIMEOUT_MS = 40_000;
 
 const isTranscription = (body: unknown): body is { readonly text: string | null } =>
   typeof body === "object" &&

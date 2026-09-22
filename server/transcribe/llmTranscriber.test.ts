@@ -22,6 +22,7 @@ interface SeenRequest {
     model: string;
     max_tokens: number;
     reasoning_effort?: string;
+    response_format?: { type: string; json_schema?: { schema: unknown } };
     messages: { role: string; content: string | ChatPart[] }[];
   };
   readonly signal: AbortSignal | null | undefined;
@@ -100,6 +101,8 @@ describe("createLlmTranscriber", () => {
     const [request] = seen;
     expect(request?.body.model).toBe("qwen3.8:latest");
     expect(request?.body.reasoning_effort).toBe("none");
+    expect(request?.body.response_format?.type).toBe("json_schema");
+    expect(request?.body.response_format?.json_schema?.schema).toMatchObject({ type: "object" });
     expect(request?.body.max_tokens).toBeLessThan(200);
     const user = request?.body.messages.at(-1);
     expect(user?.role).toBe("user");

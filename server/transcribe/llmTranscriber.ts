@@ -16,7 +16,8 @@ export interface HandwritingTranscriber {
   warmUp(): Promise<boolean>;
 }
 
-const REQUEST_TIMEOUT_MS = 20_000;
+const REQUEST_TIMEOUT_MS = 35_000;
+const WARM_UP_TIMEOUT_MS = 120_000;
 const MAX_REPLY_TOKENS = 80;
 const MAX_TEXT_LENGTH = 80;
 const MIN_DISTINCT_LETTERS = 2;
@@ -48,6 +49,7 @@ const WARM_UP_STROKES: readonly Stroke[] = [
 ];
 
 const replySchema = z.object({ text: z.string().nullable() });
+const replyJsonSchema = z.toJSONSchema(replySchema);
 
 /**
  * A fence reads as "IIIIII" and a box as "O" to a keen model: words have at least two different
@@ -79,7 +81,7 @@ export class LlmTranscriber implements HandwritingTranscriber {
 
   async warmUp(): Promise<boolean> {
     this.#ready = false;
-    const content = await this.#ask(WARM_UP_STROKES);
+    const content = await this.#ask(WARM_UP_STROKES, undefined, WARM_UP_TIMEOUT_MS);
     this.#ready = content !== null && parseTranscription(content)?.toLowerCase() === "hi";
     return this.#ready;
   }
@@ -93,7 +95,11 @@ export class LlmTranscriber implements HandwritingTranscriber {
     return content === null ? null : parseTranscription(content);
   }
 
-  #ask(strokes: readonly Stroke[], signal?: AbortSignal): Promise<string | null> {
+  #ask(
+    strokes: readonly Stroke[],
+    signal?: AbortSignal,
+    timeoutMs = REQUEST_TIMEOUT_MS,
+  ): Promise<string | null> {
     return this.#chat.ask(
       [
         { role: "system", content: TRANSCRIBER_SYSTEM_PROMPT },
@@ -105,7 +111,12 @@ export class LlmTranscriber implements HandwritingTranscriber {
           ],
         },
       ],
-      { maxTokens: MAX_REPLY_TOKENS, timeoutMs: REQUEST_TIMEOUT_MS, ...(signal ? { signal } : {}) },
+      {
+        maxTokens: MAX_REPLY_TOKENS,
+        timeoutMs,
+        jsonSchema: replyJsonSchema,
+        ...(signal ? { signal } : {}),
+      },
     );
   }
 }

@@ -28,6 +28,47 @@ With no configuration the server starts a real `mongod` (via `mongodb-memory-ser
 in `node_modules/.cache`) on `127.0.0.1:27117` with its data in `.kami-data/` (gitignored), so
 boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod` down cleanly.
 
+### Local models without the hackathon hardware
+
+The GX10 is no longer required. Ollama can serve local models through the existing API without
+application code changes. The recipes in `scripts/local/` use Qwen3 4B Instruct for structured
+rules and Qwen3.5 2B Q4 for handwriting, with four CPU threads, a 4096-token context and
+deterministic sampling. On NixOS, use a recent Ollama package from Nixpkgs that supports these models.
+
+Start Ollama with the following limits on a 16 GB laptop:
+
+```sh
+OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=2 OLLAMA_KEEP_ALIVE=30m ollama serve
+```
+
+In another terminal, from the repository root:
+
+```sh
+ollama pull qwen3:4b-instruct
+ollama pull qwen3.5:2b-q4_K_M
+ollama create kami-rules -f scripts/local/Modelfile.rules
+ollama create kami-handwriting -f scripts/local/Modelfile.handwriting
+```
+
+Put the following in the repository's gitignored `.env.local` and restart `bun run dev`:
+
+```dotenv
+KAMI_LLM_URL=http://127.0.0.1:11434
+KAMI_LLM_MODEL=kami-rules
+KAMI_TRANSCRIBE_MODEL=kami-handwriting
+```
+
+NixOS's embedded MongoDB launcher also needs `MONGOMS_DISTRO=ubuntu-24.04` and a working
+`nix-ld` environment for the downloaded binary, or `MONGOMS_SYSTEM_BINARY` pointing at a
+Nix-packaged `mongod`. Run `bun run quickdraw:ingest` once for local sketch recognition,
+then restart the API to load the samples. Handwriting is enabled only after the model passes
+the startup image check. Each model gets up to two minutes for startup warmup on a CPU;
+wait for `model is awake` and `handwriting reader is ready` in the server log. Interactive
+rule and handwriting requests retain their 30-second and 35-second server deadlines; the browser
+allows 40 seconds for handwriting so it receives the server's answer on a CPU-only machine.
+The original trained Eye and tidying artifacts are separate from
+the language model; voice still uses the configured Deepgram service.
+
 | Env | |
 |---|---|
 | `PORT` | HTTP port, default `8787` (what `vite.config.ts` proxies `/api` to) |
