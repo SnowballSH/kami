@@ -11,15 +11,18 @@ It runs:
 - Ruff lint and format for all ML Python and CI tests; basic `E4/E7/E9/F` lint for
   deployment helpers (which live outside the ML lint configuration).
 - Strict mypy on the dependency-free artifact/prefetch and deployment helpers and
-  their unit tests. Full ML typechecking needs the GX10's torch environment.
+  their unit tests. Full ML typechecking needs an environment with the training dependencies.
 - Python syntax checks and Bash syntax checks for all tracked/new source scripts.
 - Pure artifact/prefetch tests, mocked deployment/runtime tests and CI guard tests.
 
 It does not discover `ml/tests`: its fixtures construct and execute real ONNX models.
-Even their tiny models belong on GX10. The input-boundary tests in that directory
-also remain outside the hosted test selection.
+Those tests may run locally with suitable dependencies and resources; the input-boundary tests
+in that directory also remain outside the hosted test selection.
 
-## Model checks: explicit GX10 run
+## Historical model checks: explicit GX10 run
+
+The GX10 was hackathon hardware and is no longer available. The following documents its
+verification workflow; it is not a requirement for local inference or ML tests.
 
 After the GX10 owner approves a run, provision a **separate clean checkout** of the
 revision at `~/kami-checkouts/<full-commit-sha>` on GX10. The existing CUDA environment

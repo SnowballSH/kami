@@ -18,11 +18,14 @@
 
 ## Where computation happens
 
-**All training, all model inference and all heavy computation run on the ASUS GX10 — never on a laptop,
-not even a smoke test.** The box is reached as `ssh gx10` (NVIDIA GB10, 121 GB, CUDA 13). The game lives in
-`~/kami` there (`box/start.sh`, `box/status.sh`); Python/ML work goes in `~/kami-ml` with `uv`. The laptop
-is for editing, unit tests and builds. To try ML code: copy `ml/` to the box and run it there. Ollama on
-the box holds ~37 GB for `qwen3.8`; leave it running.
+The ASUS GX10 was available only at the hackathon; it is no longer a required or available service.
+Local model inference, ML tests and data preparation are allowed. Choose models and concurrency that
+fit the current computer's memory and compute capacity, and verify latency through the game's API.
+Keep model downloads, generated datasets and machine-specific configuration out of version control.
+Large training runs remain a separate task: do not start one just to set up or run the game.
+
+GX10 deployment scripts and historical measurements remain useful reference material, but their
+hostnames, paths and compute restrictions are not requirements for local development.
 
 ## Who owns what
 

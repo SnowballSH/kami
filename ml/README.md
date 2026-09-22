@@ -5,9 +5,10 @@ One ResNet-18 that reads a 64×64 rendering of a sketch, finished or half-drawn,
 directory is the Python that honours it. Nothing here touches the game: the Bun server reaches the
 model through the sidecar and falls back to its k-NN when the sidecar is not there.
 
-All training, inference, full ML tests (including tiny test models) and heavy work run on GX10,
-as required by [AGENTS.md](../AGENTS.md). Model artifacts are not established by a passing
-TypeScript build. See the [current integration and verification guide](../docs/architecture.md#product-scope-and-verification);
+Local inference and ML tests are allowed under [AGENTS.md](../AGENTS.md); choose models and
+concurrency that fit the machine. The GX10 was hackathon hardware and is no longer available.
+The commands and measurements below document that deployment. Model artifacts are not established
+by a passing TypeScript build. See the [current integration and verification guide](../docs/architecture.md#product-scope-and-verification);
 historical measurements below are not verification of the current source/artifact pair.
 
 ## The real run — on the GX10
