@@ -50,6 +50,10 @@ export class QuickdrawSampleRepository {
     await this.#samples.createIndex({ category: 1, keyId: 1 }, { unique: true });
   }
 
+  async isEmpty(): Promise<boolean> {
+    return (await this.#samples.estimatedDocumentCount()) === 0;
+  }
+
   async upsertCategory(category: string, samples: readonly QuickdrawSample[]): Promise<void> {
     if (samples.length === 0) return;
     await this.#samples.bulkWrite(

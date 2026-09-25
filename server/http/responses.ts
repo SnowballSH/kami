@@ -15,6 +15,12 @@ export const notFound = (): Response => json({ error: "not found" }, 404);
 
 export const notImplemented = (error: string): Response => json({ error }, 501);
 
+export const busy = (error: string, retryAfterSeconds = 1): Response =>
+  new Response(JSON.stringify({ error }), {
+    status: 503,
+    headers: { "content-type": "application/json", "retry-after": String(retryAfterSeconds) },
+  });
+
 export const serverError = (): Response => json({ error: "internal error" }, 500);
 
 const describeIssues = (error: z.ZodError): readonly string[] =>

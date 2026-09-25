@@ -1,4 +1,5 @@
 /** Builds what /api/recognize asks: the sidecar over the k-NN when a sidecar is configured, else the k-NN alone. */
+import type { AuthenticatedEndpoint } from "../http/endpoint";
 import { FallbackRecognizer } from "./fallbackRecognizer";
 import { checkEyeHealth, describeEye } from "./health";
 import { asSketchRanker } from "./inProcessRanker";
@@ -20,18 +21,18 @@ const EYE_WENT_QUIET = "eye: stopped answering, using k-NN";
 const EYE_CAME_BACK = "eye: answering again";
 
 export const createRecognizerChain = (
-  sidecarBaseUrl: string | null,
+  sidecar: AuthenticatedEndpoint | null,
   knn: InProcessSketchRanker,
   { log = console.log, fetchFn = fetch }: Partial<ChainSettings> = {},
 ): RecognizerChain => {
   const floor = asSketchRanker(knn);
-  if (sidecarBaseUrl === null) {
+  if (sidecar === null) {
     return { recognizer: floor, describe: async () => EYE_NOT_CONFIGURED };
   }
   return {
-    recognizer: new FallbackRecognizer(new RemoteSketchRecognizer(sidecarBaseUrl, fetchFn), floor, {
+    recognizer: new FallbackRecognizer(new RemoteSketchRecognizer(sidecar, fetchFn), floor, {
       onPrimaryAvailabilityChange: (available) => log(available ? EYE_CAME_BACK : EYE_WENT_QUIET),
     }),
-    describe: async () => describeEye(await checkEyeHealth(sidecarBaseUrl, fetchFn)),
+    describe: async () => describeEye(await checkEyeHealth(sidecar, fetchFn)),
   };
 };

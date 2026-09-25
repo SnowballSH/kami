@@ -238,7 +238,9 @@ describe("reasoning", () => {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       bodies.push(body);
       return "reasoning_effort" in body
-        ? new Response("unknown field", { status: 400 })
+        ? new Response("Unrecognized request argument supplied: reasoning_effort", {
+            status: 400,
+          })
         : Response.json({ choices: [{ message: { role: "assistant", content: MARS_JSON } }] });
     };
     const compiler = createLlmCompiler(CONFIG, strict);
@@ -247,6 +249,7 @@ describe("reasoning", () => {
       governs: "gravity",
     });
     expect(bodies.map((body) => "reasoning_effort" in body)).toEqual([true, false, false]);
+    expect(bodies.every((body) => "response_format" in body)).toBe(true);
   });
 
   it("falls back when a server rejects JSON mode", async () => {

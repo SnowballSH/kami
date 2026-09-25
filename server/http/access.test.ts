@@ -204,6 +204,18 @@ describe("shared API access", () => {
     expect(controllers.list()).toEqual([]);
   });
 
+  it("answers the health probe without a session, and nothing else about itself", async () => {
+    const response = await api.handle(request("health"));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.has("access-control-allow-origin")).toBe(false);
+    expect((await api.handle(request("health", { method: "POST" }))).status).toBe(401);
+    expect(
+      (await api.handle(request("health", { headers: { origin: "https://evil.test" } }))).status,
+    ).toBe(403);
+  });
+
   it("filters board and controller listings and blocks reads and mutations outside a grant", async () => {
     controllers.report("arcade", { x: 0, y: 0, buttons: [] }, "http");
     controllers.report("other", { x: 1, y: 0, buttons: [] }, "http");

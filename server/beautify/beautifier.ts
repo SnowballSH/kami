@@ -1,4 +1,5 @@
 import type { Stroke } from "../../src/core/geometry";
+import { type AuthenticatedEndpoint, endpointHeaders } from "../http/endpoint";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -24,19 +25,19 @@ const BEAUTIFY_TIMEOUT_MS = 20_000;
 const PASSED_THROUGH = ["content-type", "content-length"] as const;
 
 class RemoteBeautifier implements Beautifier {
-  readonly #url: string;
+  readonly #endpoint: AuthenticatedEndpoint;
   readonly #fetch: FetchLike;
 
-  constructor(url: string, fetchFn: FetchLike) {
-    this.#url = url;
+  constructor(endpoint: AuthenticatedEndpoint, fetchFn: FetchLike) {
+    this.#endpoint = endpoint;
     this.#fetch = fetchFn;
   }
 
   async beautify(request: BeautifyRequest): Promise<Response | null> {
     try {
-      const answer = await this.#fetch(this.#url, {
+      const answer = await this.#fetch(this.#endpoint.url, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: endpointHeaders(this.#endpoint, { "content-type": "application/json" }),
         body: JSON.stringify(request),
         signal: AbortSignal.timeout(BEAUTIFY_TIMEOUT_MS),
       });
@@ -55,5 +56,7 @@ class RemoteBeautifier implements Beautifier {
 
 const NO_BEAUTIFIER: Beautifier = { beautify: async () => null };
 
-export const createBeautifier = (url: string | null, fetchFn: FetchLike = fetch): Beautifier =>
-  url === null ? NO_BEAUTIFIER : new RemoteBeautifier(url, fetchFn);
+export const createBeautifier = (
+  endpoint: AuthenticatedEndpoint | null,
+  fetchFn: FetchLike = fetch,
+): Beautifier => (endpoint === null ? NO_BEAUTIFIER : new RemoteBeautifier(endpoint, fetchFn));

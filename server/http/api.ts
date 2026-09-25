@@ -16,6 +16,7 @@ import { type BoardRepository, type EntityKind, isEntityKind } from "../db/board
 import type { ExemplarSource } from "../exemplar/exemplars";
 import { type NatureTable, quickdrawNatureTable } from "../natures/natureTable";
 import { isCertain } from "../recognition/certainty";
+import { RecognizerBusyError } from "../recognition/ranking/workerPool";
 import type { Reading } from "../recognition/types";
 import {
   beautifyRequestSchema,
@@ -31,9 +32,10 @@ import {
 import { boardEventStream, sinceOf } from "../sync/boardEventStream";
 import { BoardFeed } from "../sync/boardFeed";
 import type { HandwritingTranscriber } from "../transcribe/llmTranscriber";
-import { ApiAccess } from "./access";
+import { ApiAccess, HEALTH_PATH } from "./access";
 import {
   badRequest,
+  busy,
   json,
   notFound,
   notImplemented,
@@ -153,6 +155,7 @@ export const createApi = ({
   access = new ApiAccess(),
 }: ApiDependencies): Router =>
   new Router(access)
+    .on("GET", HEALTH_PATH, () => ok())
     .on("GET", "/api/boards", async ({ request }) => {
       const summaries = await boards.summaries();
       return json({ boards: access.visible(request, "boards", summaries) });
@@ -210,7 +213,12 @@ export const createApi = ({
       const body = await parseJsonBody(request, recognizeRequestSchema);
       if (!body.ok) return body.response;
       const { strokes, partial = false } = body.value;
-      return json(recognitionOf(await recognizer.read(strokes, { partial }), natures));
+      try {
+        return json(recognitionOf(await recognizer.read(strokes, { partial }), natures));
+      } catch (error) {
+        if (error instanceof RecognizerBusyError) return busy(error.message);
+        throw error;
+      }
     })
     .on("POST", "/api/beautify", async ({ request }) => {
       const body = await parseJsonBody(request, beautifyRequestSchema);
