@@ -62,7 +62,7 @@ export class Toolbar {
       [
         icon("clear"),
         el("span", {
-          className: "kami-clear-hint",
+          className: "kami-armed-hint",
           text: "tap again to clear",
           attrs: { "aria-hidden": "true" },
         }),

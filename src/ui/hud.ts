@@ -18,7 +18,16 @@ import { Toolbar } from "./toolbar";
 import { ToolHotkeys } from "./toolHotkeys";
 import { ToolSelection } from "./toolSelection";
 import { installTouchGuards } from "./touchGuards";
-import type { BoardListing, Detach, Hud, HudHandlers, HudOptions, ShareInfo, Tool } from "./types";
+import type {
+  BoardListing,
+  Detach,
+  Hud,
+  HudHandlers,
+  HudOptions,
+  MenuKind,
+  ShareInfo,
+  Tool,
+} from "./types";
 import { WalkIntentMerger } from "./walkIntent";
 import { ZoomControls } from "./zoomControls";
 
@@ -37,6 +46,8 @@ export class DomHud implements Hud {
   private readonly page: PageActions;
   private readonly card = new TitleCard();
   private readonly detachers: readonly Detach[];
+  private menu: MenuKind = "boards";
+  private shared = false;
 
   constructor(root: HTMLElement, handlers: HudHandlers, options: HudOptions = {}) {
     this.zoom = new ZoomControls(handlers);
@@ -55,6 +66,7 @@ export class DomHud implements Hud {
     this.boards = new BoardMenu(handlers);
     this.page = new PageActions({
       goHome: () => host.location.assign(homeUrl(host.location)),
+      restartRun: () => handlers.onRestartRun(),
       signedOut: () => host.location.reload(),
       ...(options.signOut === undefined ? {} : { signOut: options.signOut }),
     });
@@ -134,7 +146,18 @@ export class DomHud implements Hud {
   /** A shared page has one menu, the share affordance; the board menu stands aside for it. */
   setShare(share: ShareInfo | null): void {
     this.share.show(share);
-    this.boards.element.hidden = share !== null;
+    this.shared = share !== null;
+    this.showMenu();
+  }
+
+  setMenu(menu: MenuKind): void {
+    this.menu = menu;
+    this.showMenu();
+  }
+
+  private showMenu(): void {
+    this.boards.element.hidden = this.shared || this.menu === "run";
+    this.page.showRestart(this.menu === "run");
   }
 
   showTitleCard(card: ModeCard): void {

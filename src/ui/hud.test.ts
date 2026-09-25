@@ -23,6 +23,7 @@ const createHandlers = () =>
     onNewBoard: vi.fn(),
     onClearBoard: vi.fn(),
     onRetryPersistence: vi.fn(),
+    onRestartRun: vi.fn(),
   }) satisfies HudHandlers;
 
 const find = <T extends Element>(root: Element, selector: string): T => {
@@ -625,6 +626,23 @@ describe("DomHud", () => {
       hud.setShare(null);
       expect(share.hidden).toBe(true);
       expect(boards.hidden).toBe(false);
+    });
+
+    it("offers a staged run only home and a restart, not the board menu", () => {
+      const { root, hud, handlers } = setup();
+      const restart = find<HTMLButtonElement>(root, ".kami-page-restart");
+      expect(restart.hidden).toBe(true);
+
+      hud.setMenu("run");
+      expect(find<HTMLElement>(root, ".kami-board-menu").hidden).toBe(true);
+      expect(restart.hidden).toBe(false);
+      tap(restart);
+      tap(restart);
+      expect(handlers.onRestartRun).toHaveBeenCalledOnce();
+
+      hud.setMenu("boards");
+      expect(find<HTMLElement>(root, ".kami-board-menu").hidden).toBe(false);
+      expect(restart.hidden).toBe(true);
     });
 
     it("shows the mode's card over the page", () => {

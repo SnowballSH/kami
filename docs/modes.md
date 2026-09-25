@@ -19,6 +19,7 @@ interface GameMode {
   page: PageKind;                           // room | endless — what the board id names
   help: HelpPolicy;                         // offered (the hint ladder) | on-request (only when asked)
   sharing: SharingPolicy;                   // alone | live — other devices' ink, notes, laws and Alices
+  menu: MenuPolicy;                         // boards (board menu, or Share) | run(firstBoardId) — only home and restart
   refusals?: Partial<Record<Governs, string>>; // Kami's line instead of the stock refusal, per forbidden dial
 }
 
@@ -119,6 +120,7 @@ The embodied mode is exactly the game as it was.
 | page | `room` | `room` | `endless` | `room` | `room` |
 | help | `offered` | `offered` | `on-request` | `offered` — quiet while nobody is on the board | `offered` — quiet while nobody is on the board |
 | sharing | `alone` | `alone` | `live` | `alone` | `alone` |
+| menu | `boards` | `run` from the first room — home and *start the run over* (two taps), no board menu | `boards` (Share while the page is live) | `boards` | `boards` |
 | world | Earth | Earth with `inkEater: 1`, plus the room's own | Earth | Earth | Earth |
 | persistence | saved | none — every room opens blank (`ForgetfulBoardStore`) | saved, and shared live | saved, but for the body (below) | saved, but for the body (below) |
 | card | title, tagline, opening | the staged room's own card | title card, tagline and opening line | title, tagline; the soul's line | + two `roles` lines, one per player |

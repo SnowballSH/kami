@@ -26,6 +26,7 @@ export const EMBODIED_MODE: GameMode = {
   page: "room",
   help: "offered",
   sharing: "alone",
+  menu: { kind: "boards" },
 };
 
 /**
@@ -52,6 +53,7 @@ export const SPIRIT_MODE: GameMode = {
   page: "room",
   help: "offered",
   sharing: "alone",
+  menu: { kind: "boards" },
 };
 
 /**
@@ -92,6 +94,7 @@ export const BOSS_MODE: GameMode = {
   page: "arena",
   help: "offered",
   sharing: "alone",
+  menu: { kind: "boards" },
 };
 
 export const GAME_MODES: readonly GameMode[] = [

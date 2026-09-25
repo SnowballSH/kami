@@ -1,4 +1,5 @@
 import type { GameMode, GameModeId } from "../types";
+import { FIRST_PUZZLE_BOARD_ID } from "./rooms";
 
 export const PUZZLE_MODE_ID = "puzzle" as GameModeId;
 
@@ -31,4 +32,5 @@ export const PUZZLE_MODE: GameMode = {
   page: "room",
   help: "offered",
   sharing: "alone",
+  menu: { kind: "run", firstBoardId: FIRST_PUZZLE_BOARD_ID },
 };

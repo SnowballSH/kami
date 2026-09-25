@@ -20,6 +20,7 @@ import type {
   LawListing,
   LawsPanel,
   LawsPanelHandlers,
+  MenuKind,
   ShareInfo,
   Tool,
 } from "../../ui/types";
@@ -47,6 +48,12 @@ export class FakeHud implements Hud {
 
   setAutopilot(enabled: boolean): void {
     this.autopilot = enabled;
+  }
+
+  menu: MenuKind | null = null;
+
+  setMenu(menu: MenuKind): void {
+    this.menu = menu;
   }
 
   autopilotOffered: boolean | null = null;

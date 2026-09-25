@@ -64,6 +64,14 @@ export type HelpPolicy = "offered" | "on-request";
  */
 export type SharingPolicy = "alone" | "live";
 
+/**
+ * What the top-left cluster offers besides home. `boards`: the board menu (or Share on a shared
+ * page). `run`: a staged run of rooms, which offers only a way to start the run over.
+ */
+export type MenuPolicy =
+  | { readonly kind: "boards" }
+  | { readonly kind: "run"; readonly firstBoardId: string };
+
 /** What the title card and Kami say about the mode. */
 export interface ModeCard {
   readonly title: string;
@@ -101,6 +109,7 @@ export interface GameMode {
   readonly page: PageKind;
   readonly help: HelpPolicy;
   readonly sharing: SharingPolicy;
+  readonly menu: MenuPolicy;
   /** What Kami says instead of the stock refusal when a law turns a dial this mode forbids. */
   readonly refusals?: Readonly<Partial<Record<Governs, string>>>;
 }

@@ -320,6 +320,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.lastFrameMs = nowMs;
     this.hud.setTool(this.tool);
     this.hud.offerAutopilot(this.walksHerself());
+    this.hud.setMenu(this.director.mode.menu.kind);
     this.hud.setAutopilot(this.selfDriving);
     this.hud.setTidiness(this.tidiness);
     const opened = this.open(this.board.id);
@@ -543,6 +544,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   onClearBoard(): void {
     this.modules.store.clear(this.board.id);
     void this.open(this.board.id, { remember: false });
+  }
+
+  onRestartRun(): void {
+    const { menu } = this.director.mode;
+    if (menu.kind === "run") void this.open(menu.firstBoardId);
   }
 
   async onRetryPersistence(): Promise<void> {

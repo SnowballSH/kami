@@ -122,11 +122,16 @@
   border-left: 1px solid var(--kami-rule);
 }
 
-.kami-clear-page.is-confirming {
+.kami-clear-page.is-confirming,
+.kami-page-restart.is-confirming {
   background: var(--kami-danger);
 }
 
-.kami-clear-hint {
+.kami-page-restart {
+  position: relative;
+}
+
+.kami-armed-hint {
   position: absolute;
   top: calc(100% + 8px);
   right: -4px;
@@ -136,9 +141,15 @@
   font-size: 12px;
   white-space: nowrap;
   pointer-events: none;
+  z-index: 2;
 }
 
-.kami-clear-page:not(.is-confirming) .kami-clear-hint {
+.kami-page-restart .kami-armed-hint {
+  right: auto;
+  left: -4px;
+}
+
+.kami-control:not(.is-confirming) .kami-armed-hint {
   display: none;
 }
 

@@ -6,6 +6,8 @@ import type { WalkIntent } from "../sim/types";
 
 export type Tool = "draw" | "write" | "erase" | "pan";
 
+export type MenuKind = "boards" | "run";
+
 export interface BoardListing {
   readonly id: string;
   readonly title: string;
@@ -35,6 +37,8 @@ export interface HudHandlers {
   /** Wipe everything the player drew, wrote and ruled on this board. */
   onClearBoard(): void;
   onRetryPersistence(): void;
+  /** Back to the first room of a staged run, everything drawn since forgotten. */
+  onRestartRun(): void;
 }
 
 /** What the page offers beside the game's own handlers. */
@@ -47,6 +51,8 @@ export interface Hud {
   toolbarBottom(): number;
   setTool(tool: Tool): void;
   setAutopilot(enabled: boolean): void;
+  /** The board menu (or Share), or, for a staged run of rooms, only a way to start it over. */
+  setMenu(menu: MenuKind): void;
   /** Whether the mode lets Alice walk herself at all; a mode that forbids it shows no switch. */
   offerAutopilot(offered: boolean): void;
   setTidiness(tidiness: number): void;

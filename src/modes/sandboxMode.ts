@@ -24,5 +24,6 @@ export const SANDBOX_MODE: GameMode = {
   page: "endless",
   help: "on-request",
   sharing: "live",
+  menu: { kind: "boards" },
   refusals: { inkEater: NOTHING_HUNGRY_LINE },
 };

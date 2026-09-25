@@ -2026,6 +2026,28 @@ describe("Game in puzzle mode", () => {
     expect(player.renderer.lastFrame?.world.sumikui).not.toBeNull();
   });
 
+  it("offers the run's restart instead of the board menu, and it opens the first room", async () => {
+    const [, secondRoom] = PUZZLE_ROOMS;
+    if (secondRoom === undefined) throw new Error("no second room");
+    const player = new Player(secondRoom.boardId, { mode: PUZZLE_MODE });
+    await player.arrive();
+    expect(player.hud.menu).toBe("run");
+    expect(player.hud.roomCard?.mark).toBe(`room 2 of ${PUZZLE_ROOMS.length}`);
+
+    player.game.onRestartRun();
+    expect(await player.until(() => player.hud.roomCard?.title === "The Wall")).toBe(true);
+    expect(player.hud.roomCard?.mark).toBe(`room 1 of ${PUZZLE_ROOMS.length}`);
+  });
+
+  it("keeps the board menu, and ignores a run restart, outside a staged run", async () => {
+    const player = new Player("wonderland");
+    await player.arrive();
+    expect(player.hud.menu).toBe("boards");
+    player.game.onRestartRun();
+    await player.wait(200);
+    expect(player.hud.roomCard).toBeNull();
+  });
+
   it("stages the ledge on Earth until the moon is written", async () => {
     const ledge = new Player("puzzle-moon-ledge", { mode: PUZZLE_MODE });
     await ledge.arrive();

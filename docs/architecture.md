@@ -218,7 +218,9 @@ under the top-left cluster, so it stays in view while Sandbox's share button sta
 menu; a store with `keepsBoards: false` (Puzzle's rooms, or play without a server) is reported as
 `setPersistence(null)` and reads *Not saved*, never *Saved*. The access gate hands the game a
 `Connection`: offline, the game gets a forgetful store, no board link and no share link, so Share
-stays hidden; on a shared server its `signOut` becomes a button beside home.
+stays hidden; on a shared server its `signOut` becomes a button beside home. A mode whose `menu` is
+`run` (Puzzle) shows no board menu: beside home sits *start the run over*, which, like clear-page,
+acts on the second tap and opens the run's first room (`Game.onRestartRun`).
 The standing laws panel is DOM; board notes are canvas handwriting.
 
 Layout: the top-left cluster (home, board menu or share), the toolbar top-centre, the laws panel
