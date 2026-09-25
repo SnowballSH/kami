@@ -11,7 +11,7 @@
 whiteboard. Alice can hop, not fly — but you can draw. Whatever you sketch becomes solid ink, and
 whatever you call it, it becomes: *a bouncy mushroom*, *a ladder*, *a car*. Write a law of physics on the
 page and the world obeys it. Kami, the cat who lives in the paper, watches you draw, guesses what it is
-before you finish, tidies your lines, talks back, and helps when you are stuck.
+before you finish, tidies your lines, writes back, and helps when you are stuck.
 
 <p align="center">
   <img src="docs/images/sandbox-big-screen.png" alt="A sandbox page: a drawn tower, a tree and cars floating because a law on the page says gravity is 0" width="860">
@@ -25,8 +25,7 @@ before you finish, tidies your lines, talks back, and helps when you are stuck.
   flies, lights the dark, or gets eaten. If Kami is sure what you drew, he names it for you.
 - **Write a law** — *set g to the moon's*, *no friction*, *wind blows right*, *slow motion* — and physics
   changes for everything on the page. Erase the note and the law is repealed.
-- **Ask Kami.** Write *help*, or hold the cat button and say it. He answers in his own handwriting, and
-  out loud.
+- **Ask Kami.** Write *help*. He answers in his own handwriting.
 - **Slide the tidy slider** from *exactly what I drew* to *the cleanest version of it*.
 
 <p align="center">
@@ -67,7 +66,7 @@ arrow keys walk, `D` `T` `E` `H` pick draw, write, erase and pan. With nothing c
 plays: drawings are recognised by a nearest-neighbour fallback and laws by an offline grammar. The rest is
 optional and set by environment variables ([server/README.md](server/README.md)): a recognition sidecar
 (`KAMI_RECOGNIZER_URL`), any OpenAI-compatible model for the laws the grammar cannot read (`KAMI_LLM_URL`),
-Deepgram for voice (`DEEPGRAM_API_KEY`, and https for the microphone), and `MONGODB_URI`.
+and `MONGODB_URI`.
 
 `bun run check` is the gate: typecheck, lint and about 2,400 tests, including headless playthroughs of
 whole boards.
@@ -87,8 +86,7 @@ whole boards.
   rest into the same typed effect, once per law, never in the frame loop.
 - **Everything runs on one box.** Training, inference, the language model, the database and the game
   server all ran on an ASUS Ascent GX10 at the venue ([scripts/gx10](scripts/gx10)); the iPads only draw.
-- **Voice, a joystick, a big screen.** Deepgram in and out ([voice](docs/voice.md)), an Arduino arcade
-  stick over UDP or serial ([controllers](docs/controllers.md)), and a monitor that mirrors the device in
+- **A joystick and a big screen.** An Arduino arcade stick over UDP or serial ([controllers](docs/controllers.md)), and a monitor that mirrors the device in
   play by replaying its render data rather than streaming video ([screen](docs/screen.md)).
 
 <p align="center">

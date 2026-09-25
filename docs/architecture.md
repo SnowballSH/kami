@@ -12,7 +12,7 @@ Drawings, persistent notes and laws are saved through MongoDB; transient guesses
 unacknowledged edits are not durable.
 
 **Compile once, run forever:** text becomes a deterministic rule; no model is called from the
-simulation step. Typed, handwritten and spoken text share the same
+simulation step. Typed and handwritten text share the same
 [ordered funnel](#game). Known laws take priority over position; a known nearby name takes priority
 over model fallback. Kami writes the gloss of what was understood.
 
@@ -27,7 +27,7 @@ over model fallback. Kami writes the gloss of what was understood.
 | Sketch input budgets and browser model answers | [inputLimits.ts](../src/core/inputLimits.ts), [recognition/types.ts](../src/recognition/types.ts) |
 | Training/serving tensor, artifact and completion contract | [ml/CONTRACT.md](../ml/CONTRACT.md) |
 | Board response validation and ordering | [validation](persistence-validation.md), [ordering](persistence-ordering.md) |
-| Physical controller protocol and speech | [controllers](controllers.md), [voice](voice.md) |
+| Physical controller protocol | [controllers](controllers.md) |
 | The big screen: a monitor mirroring the device in play | [screen](screen.md), [stage/wire.ts](../src/stage/wire.ts) |
 
 Follow [AGENTS.md](../AGENTS.md): the client owns gameplay under `src/`; the server owns
@@ -46,7 +46,7 @@ A clean whiteboard, not a book page. White board, black marker, no pictures, no 
 ```
  pointer → InkSession → PenReader → words? → text funnel
                          └ no words → sim + ledger + store → Cat.look → naming
- typing / voice transcript ───────────────→ text funnel
+ typing ──────────────────────────────────→ text funnel
  text funnel: offline compile → scene → summons → nearby non-ink naming → remote compile
                └ law              └ laws + props   └ Kami inks an exemplar   └ ruling     └ law / plain-ink name / shrug
  keyboard / stick / controller SSE → WalkIntentMerger → sim
@@ -78,10 +78,9 @@ browser-safe contracts from `src/`; the browser does not import server implement
 | `persistence/` | Client for the board store, the remote rule compiler and the handwriting reader | `createBoardStore`, `createRemoteRuleCompiler`, `createHandwritingReader` |
 | `reading/` | Pen strokes → words while the player is still writing: a read per pen-lift, newest strokes win | `createPenReader`, `couldBeWriting` |
 | `render/` | Canvas 2D: camera, board, ink, notes, Alice, props | `createRenderer` |
-| `ui/` | Toolbar, zoom, board menu, text prompt, hold-to-talk, the share panel and the mode's title card; pointers → pen/tap/pan/zoom | `createHud`, `attachCanvasInput` |
-| `voice/` | Hold-to-talk or wake-word mic → the server's Deepgram proxy → words for the funnel; Kami's lines spoken back (`docs/voice.md`) | `createVoice` |
+| `ui/` | Toolbar, zoom, board menu, text prompt, the share panel and the mode's title card; pointers → pen/tap/pan/zoom | `createHud`, `attachCanvasInput` |
 | `game/` | The frame loop, the funnel, the camera, all wiring | `startGame` |
-| `server/` | Bun API, MongoDB, Eye → k-NN recognition, completion proxy, model compile/transcription, controller hub and Deepgram proxy | `bun run server` |
+| `server/` | Bun API, MongoDB, Eye → k-NN recognition, completion proxy, model compile/transcription and controller hub | `bun run server` |
 
 ## Conventions
 
@@ -209,10 +208,9 @@ Canvas 2D at device pixel ratio (cap 2). `toWorld(client, camera)` and `viewport
 ## ui/
 
 The canvas uses `touch-action: none`. The floating toolbar picks draw/write/erase/pan
-(`aria-pressed`, keys `D`/`T`/`E`/`H`). Space holds the on-screen CAT speech input; it is no longer a
-temporary pan shortcut. A thumbstick, arrow keys and the remote controller feed independent
+(`aria-pressed`, keys `D`/`T`/`E`/`H`). A thumbstick, arrow keys and the remote controller feed independent
 sources into `WalkIntentMerger`; manual input overrides enabled autopilot. The HUD also owns zoom,
-recentre/self-driving controls, the board menu, save/retry status, the text prompt and voice controls.
+recentre/self-driving controls, the board menu, save/retry status and the text prompt.
 The standing laws panel is DOM; board notes are canvas handwriting.
 
 Every control activates on `pointerup` (`activateOnTap`), so Apple Pencil, finger and mouse taps all work; the click a browser then synthesises is swallowed, while clicks with no pointer behind them (Enter, Space, `.click()`) still activate. A press that is cancelled or lifts off the control does nothing.
@@ -237,7 +235,6 @@ Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_U
 | `POST /api/transcribe` `{ strokes }` | `{ text: string \| null }` |
 | `GET /api/controllers`, `POST /api/controllers/:id/state`, `GET /api/controllers/:id/events` | Controller discovery, whole-state reports and SSE |
 | `GET /api/boards/:board/events?peer=<id>`, `POST /api/boards/:board/presence` | A board's changes and who is on it, as SSE (`server/sync/`); where Alice is on this device |
-| `WS /api/voice/listen`, `POST /api/voice/speak` | Deepgram transcription stream and speech audio |
 
 These are summaries; request limits and full wire shapes live in the
 [API contract](../server/README.md#api-contract-what-the-client-may-rely-on).
@@ -330,7 +327,7 @@ The current morph bounds displacement by the drawing diagonal, not a pen width; 
 does not independently enforce that displacement cap. This is an implementation limit requiring
 gameplay/model validation, not a change to the drawing-preservation requirement.
 
-## Controllers and voice
+## Controllers
 
 ```
 UDP :8788 / USB serial / HTTP state report
@@ -348,16 +345,10 @@ independent sources. See [controllers.md](controllers.md).
 The cabinet firmware's `S,dir,ink,cat,px,py` frames are read by `server/controllers/cabinet.ts`;
 the firmware's debounce and framing are tested natively and its compilation is pinned
 (`scripts/checkCabinet.sh`). The supported integration is movement relay. Knob drawing, INK
-gestures, physical CAT-to-speech binding, game-driven LED feedback and a visible reconnect UI are
+gestures, a binding for the physical CAT button, game-driven LED feedback and a visible reconnect UI are
 deferred. The browser Web Serial example and full-panel
 behavior in [hardware.md](hardware.md) are historical design, not the current browser path; #41
 replaces them. Do not treat its reported firmware compilation as physical acceptance.
-
-The on-screen CAT button/Space and wake-word mode use browser microphone capture →
-`/api/voice/listen` WebSocket → Deepgram → the text funnel. Replies use `/api/voice/speak`.
-The Deepgram key stays on the server. Missing credentials/upstream failure leaves written play
-available. LAN microphone capture needs a secure context; plain HTTP LAN play does not verify
-voice. See [voice.md](voice.md).
 
 ## The big screen
 
@@ -388,12 +379,10 @@ The server runs in one of two access modes ([access.md](access.md)):
 | `KAMI_ACCESS_MODE=demo` (default) | Trusted reachable LAN peers; explicit browser-origin checks, no participant authentication. API/Vite remain LAN-accessible unless explicitly bound to loopback. |
 | `KAMI_ACCESS_MODE=shared` | Loopback API default behind a same-origin HTTPS proxy; exact allowed HTTPS origins; credentials grant exact boards/controllers and model permission. Browser token exchange uses an HttpOnly/Secure/SameSite cookie; non-browser clients use bearer credentials. Unauthenticated UDP is disabled; local serial is trusted host input. |
 
-Voice is inside the same limits: sketch/text model routes, `voice/speak` and
-voice-listening upgrades share a per-process request/concurrency budget in both modes. A listening
-socket holds a concurrency slot until closed, including continuous wake-word listening.
-Its upgrade path checks origin, credentials and model permission through the same access object;
-the WebSocket transport does not pass through the ordinary HTTP router. These are process-local
-limits; cold-start pen traffic plus an active microphone still needs GX10 capacity testing.
+Sketch/text model routes share a per-process request/concurrency budget in both modes. The
+stage socket's upgrade path checks origin and credentials through the same access object; the
+WebSocket transport does not pass through the ordinary HTTP router. These are process-local
+limits; cold-start pen traffic still needs capacity testing on the machine that serves the demo.
 
 Before shared use an operator must still verify the actual bind addresses and firewall, private
 database and model ports, HTTPS certificates, origin handling and SSE/WebSocket proxying on the
@@ -410,11 +399,11 @@ mandate to reconstruct the old design.
 
 | Verification layer | What it establishes; what remains |
 |---|---|
-| Local `bun run check`, `bun run build`, documentation links | TypeScript/Biome, unit/headless regressions and a production bundle. Does not establish a working microphone, deployed service, real tablet or cabinet. |
+| Local `bun run check`, `bun run build`, documentation links | TypeScript/Biome, unit/headless regressions and a production bundle. Does not establish a deployed service, real tablet or cabinet. |
 | Hosted CI (`.github/workflows/check.yml`) | A frozen Bun install, `bun run check`, the production build, and the Python and shell checks that need no model (`bun run check:lightweight`). [scripts/ci/README.md](../scripts/ci/README.md) says what it cannot certify. |
 | Model checks | Local inference and ML tests are allowed with models and concurrency suited to the machine. The GX10 was hackathon-only hardware; `bun run check:gx10 <full-commit-sha> <artifact-name>` remains a historical deployment tool. A local or hosted green gate does not replace golden parity, model quality or live latency checks. |
 | Cabinet and booth acceptance | Native and TypeScript regressions and UNO R4 WiFi compilation are checked. Wiring/power, firmware upload, held/released controls, unplug/replug, feedback and the real host/browser/proxy still require physical verification. |
-| Exercised live on the GX10 (HackMIT, 20 September 2026) | The deployed service end to end: recognition and tidying by Kami's Eye, laws and scenes compiled by the local model, summoning, voice in and out, the joystick relay over the venue Wi-Fi, and the big screen mirroring an iPad. Not measured: recognition accuracy on real Apple Pencil ink, and the cabinet's full panel. |
+| Exercised live on the GX10 (HackMIT, 20 September 2026) | The deployed service end to end: recognition and tidying by Kami's Eye, laws and scenes compiled by the local model, summoning, the joystick relay over the venue Wi-Fi, and the big screen mirroring an iPad. Not measured: recognition accuracy on real Apple Pencil ink, and the cabinet's full panel. |
 
 ## Known limits of the demo
 
@@ -425,4 +414,4 @@ mandate to reconstruct the old design.
 - **Model quality is separate from transport correctness.** Mock/fake OpenAI-compatible tests validate parsing and fallback, not real compilation, handwriting or completion quality.
 - **Recognition depends on configured artifacts/data.** Eye falls back to k-NN; published k-NN measurements in `server/README.md` do not measure a current trained release. Restart the server after ingest.
 - **No eraser cursor**, since the renderer is never told where the pointer is.
-- **Real-device interaction remains a verification gap.** Synthetic pointer tests do not establish Apple Pencil/palm rejection, microphone permission or booth browser behavior.
+- **Real-device interaction remains a verification gap.** Synthetic pointer tests do not establish Apple Pencil/palm rejection or booth browser behavior.

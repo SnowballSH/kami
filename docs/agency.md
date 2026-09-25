@@ -67,7 +67,7 @@ Before each simulation step `Party.drive(sim, page, selfDriving)` sets every int
 Plans, stuck detectors, route memory and the sulk after a route stalls are per pilot: one Alice
 finding no way on does not stall another, and each fears the Sumikui for herself (`dread.ts`
 measures from `scene.alice`). `drive` returns `News` — who has just got `stuck`, `flees` or is
-`cornered` — and `Game` has Kami speak: the stuck line only for the selected Alice, the Sumikui
+`cornered` — and `Game` has Kami write: the stuck line only for the selected Alice, the Sumikui
 lines for any, prefixed with a twin's name. What *is* shared is the chart: no pilot stamps an Alice
 as solid, so within one step every pilot reads the same page, and `Party` builds the `Chart` once
 per set of inks and hands it to each through `charter`. `others` only widen the chart's extent and
