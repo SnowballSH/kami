@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { plainMatrix } from "../testing/matrices";
 import { circleSketch, lineSketch, toSimplified } from "../testing/sketches";
 import { buildCorpusIndex, type CorpusIndex } from "./corpusIndex";
 import { readIndexFile, writeIndexFile } from "./indexFile";
@@ -33,11 +34,8 @@ describe("corpus index file", () => {
     await writeIndexFile(file, "key-1", INDEX);
     const read = await readIndexFile(file, "key-1");
     if (read === null) throw new Error("index not read back");
-    expect(read.matrix.categories).toEqual(INDEX.matrix.categories);
-    expect(read.matrix.completeRows).toBe(INDEX.matrix.completeRows);
-    expect(Array.from(read.matrix.rowCategories)).toEqual(Array.from(INDEX.matrix.rowCategories));
-    expect(Array.from(read.matrix.features)).toEqual(Array.from(INDEX.matrix.features));
-    expect(read.matrix.features.buffer).toBeInstanceOf(SharedArrayBuffer);
+    expect(plainMatrix(read.matrix)).toEqual(plainMatrix(INDEX.matrix));
+    expect(read.matrix.values.buffer).toBeInstanceOf(SharedArrayBuffer);
     expect(read.summons).toEqual(INDEX.summons);
   });
 

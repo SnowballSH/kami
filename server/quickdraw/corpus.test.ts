@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { plainMatrix } from "../testing/matrices";
 import { circleSketch, lineSketch, toSimplified } from "../testing/sketches";
 import { indexPathsFor, loadQuickdrawCorpus, QuickdrawCorpus } from "./corpus";
 import { buildCorpusIndex } from "./corpusIndex";
@@ -57,8 +58,8 @@ describe("loadQuickdrawCorpus", () => {
     const second = await loadQuickdrawCorpus(snapshot, paths);
     expect(second.description).toContain(`features read from ${paths[0]}`);
     expect(second.corpus.size).toBe(8);
-    expect(Array.from(second.corpus.matrix.features)).toEqual(
-      Array.from(buildCorpusIndex(SKETCHES).matrix.features),
+    expect(plainMatrix(second.corpus.matrix)).toEqual(
+      plainMatrix(buildCorpusIndex(SKETCHES).matrix),
     );
     expect(
       new QuickdrawRecognizer(second.corpus.matrix).recognize(circleSketch({ x: 0, y: 0 }, 9))[0],

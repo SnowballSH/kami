@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { plainMatrix } from "../testing/matrices";
 import { circleSketch, lineSketch, toSimplified } from "../testing/sketches";
 import { buildCorpusIndex, corpusIndexKey } from "./corpusIndex";
 import { toStrokes } from "./dataset";
@@ -37,12 +38,9 @@ describe("buildCorpusIndex", () => {
       ),
     );
     const { matrix } = buildCorpusIndex(SKETCHES);
-    expect(matrix.categories).toEqual(expected.categories);
+    expect(plainMatrix(matrix)).toEqual(plainMatrix(expected));
     expect(matrix.completeRows).toBe(SKETCHES.length);
-    expect(matrix.completeRows).toBe(expected.completeRows);
-    expect(Array.from(matrix.rowCategories)).toEqual(Array.from(expected.rowCategories));
-    expect(Array.from(matrix.features)).toEqual(Array.from(expected.features));
-    expect(matrix.features.buffer).toBeInstanceOf(SharedArrayBuffer);
+    expect(matrix.values.buffer).toBeInstanceOf(SharedArrayBuffer);
   });
 
   it("keeps a few well-formed drawings per category to summon, the most typical first", () => {
@@ -58,7 +56,7 @@ describe("buildCorpusIndex", () => {
   it("is empty for an empty corpus", () => {
     const { matrix, summons } = buildCorpusIndex([]);
     expect(matrix.completeRows).toBe(0);
-    expect(matrix.features).toHaveLength(0);
+    expect(matrix.values).toHaveLength(0);
     expect(summons.size).toBe(0);
   });
 });
