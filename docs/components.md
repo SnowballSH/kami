@@ -28,14 +28,14 @@ Principles the components enforce:
   grammar takes the obvious sentence and the model takes the rest, into the same typed shape.
 - **Magic first.** "Stupid" ideas must work: a flying teapot, a loyal mouse, an upside-down world,
   a car that takes off. If the law is expressible as a dial, the sentence should reach it.
-- **Heavy compute lives on the GX10**, never in the browser and never on a dev laptop.
+- **Heavy compute lives on the server** (the language model and Kami's Eye), never in the browser.
 
 ## 2. Ownership and the seam
 
 | Side | Owns | Docs |
 |---|---|---|
 | Client (Devin) | `src/` — game loop, sim, render, autopilot, ink, board, Cat, UI, rules | this page, [architecture.md](architecture.md), [laws.md](laws.md), [modes.md](modes.md) |
-| Server (Claude) | `server/`, `ml/`, scripts, persistence and recognition HTTP clients (`src/persistence`, `src/recognition`), deployment on the GX10 | [server/README.md](../server/README.md), [access.md](access.md), [controllers.md](controllers.md) |
+| Server (Claude) | `server/`, `ml/`, scripts, persistence and recognition HTTP clients (`src/persistence`, `src/recognition`), hosting ([hosting.md](hosting.md)) | [server/README.md](../server/README.md), [access.md](access.md), [controllers.md](controllers.md) |
 
 The seam is the HTTP API ([server/README.md § API contract](../server/README.md#api-contract-what-the-client-may-rely-on))
 plus `src/rules/types.ts`. Whenever `RuleEffect` changes, five places move together:
@@ -45,8 +45,9 @@ plus `src/rules/types.ts`. Whenever `RuleEffect` changes, five places move toget
 told it may emit), plus `src/persistence/remoteRuleCompiler.ts` (how the model's JSON is decoded).
 `tsc` catches type drift; the schema tests catch shape drift.
 
-**GX10 boundary.** The ASUS GX10 outpost (`gx10`) runs training, the Eye sidecar and the deployed
-server on `:8787`. All of that is Claude's; do not restart, retrain or redeploy from a client PR.
+**Server boundary.** Training, the Eye sidecar and the hosted server (the container image,
+[hosting.md](hosting.md)) are the server side's; a client PR does not retrain or change how Kami is
+hosted.
 
 ## 3. Startup and the frame
 
@@ -191,7 +192,7 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 3. **scene** ("teleport us to the moon") → offline atlas or model → many laws under one note + props
 4. **summons** ("summon a rabbit") → `GET /api/exemplar` → Kami inks it stroke by stroke and names it
 5. **naming** the nearby unnamed drawing (Cat; Eye sightings when the lexicon only says "ink")
-6. **remote compile** (GX10 model) → law, or a plain-ink name, or a shrug
+6. **remote compile** (the server's language model) → law, or a plain-ink name, or a shrug
 
 Every stage writes the player's words as a note; Kami writes a gloss under it. Erasing the note
 repeals what it enacted.
@@ -211,7 +212,7 @@ repeals what it enacted.
 | Recognizer client | `src/recognition/httpRecognizer.ts`, `sightings.ts`, `types.ts` | external | `sight(strokes, { partial })` → `Sighting[]` (word, confidence, name, nature, strength, line, `certain`) |
 | Live guessing | `game.ts` + `cat/sight.ts` | built | partial sight after each stroke (empty = keep last guess); certain → auto-name with born temper; else three guesses |
 | Completion (tidy) | `src/recognition/completion.ts`, `game/retrace.ts` | built | `complete(strokes, name)` → `{ tidied, added }` → morph |
-| Eye (server) | `server/quickdraw/*`, `server/recognition/*`, `server/natures/*`, `ml/` | external | k-NN + trained model on the GX10; 345 categories ruled server-side |
+| Eye (server) | `server/quickdraw/*`, `server/recognition/*`, `server/natures/*`, `ml/` | external | k-NN + the trained Eye sidecar; 345 categories ruled server-side |
 | Beautify art layer | `src/art/types.ts` | contract | model image over the player's ink, physics stays the strokes — planned |
 
 ## 14. Kami's hand on the page

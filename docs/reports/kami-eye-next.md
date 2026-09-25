@@ -1,5 +1,7 @@
 # Kami's Eye, next — design note (2026-09-19)
 
+> Written at HackMIT 2026 for the event's training machine, an ASUS Ascent GX10; its timings refer to it.
+
 A proposal; nothing in it has been run. It reads `kami-eye-results.md` and the code in `ml/`, and says what
 to train next on the GX10 while it is idle. The control is `kami-eye-xl` (today's recipe at 22,000
 drawings per class, 10 epochs), which finishes at about 23:05 EDT. Serving stays as it is: one 64×64

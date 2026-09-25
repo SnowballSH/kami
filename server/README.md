@@ -2,7 +2,7 @@
 
 Kami's memory and his eyes: a small Bun HTTP API over MongoDB. It remembers every board
 (drawings, notes, rules), recognises sketches against Google's Quick, Draw! dataset, and can ask a
-model on the GX10 to compile physics notes the offline grammar did not understand.
+language model to compile physics notes the offline grammar did not understand.
 
 Nothing in `src/` imports this directory. The browser reaches it through the thin clients in
 `src/persistence` and `src/recognition`, on the same origin (`/api`, proxied by Vite in dev). If the
@@ -14,7 +14,7 @@ the tab's outbox until explicitly retried; closing the tab can lose them.
 
 Start with the [current integration guide](../docs/architecture.md) for ownership, gameplay flow,
 controller wiring and verification limits, and [the trust model](../docs/access.md) for the two access
-modes: `demo` (the default: an unauthenticated trusted LAN, what the GX10 runs) and `shared`.
+modes: `demo` (the default: an unauthenticated trusted LAN) and `shared`.
 
 ## Run
 
@@ -70,10 +70,9 @@ other services needs:
 - **Static files.** The built game is served from memory with `br`/`gzip` compression negotiated per
   request and cached, immutable caching for hashed `assets/`, and `ETag` / `304` for `index.html`.
 
-### Local models without the hackathon hardware
+### Local models
 
-The GX10 is no longer required. Ollama can serve local models through the existing API without
-application code changes. The recipes in `scripts/local/` use Qwen3 4B Instruct for structured
+Ollama can serve local models through the existing API without application code changes. The recipes in `scripts/local/` use Qwen3 4B Instruct for structured
 rules and Qwen3.5 2B Q4 for handwriting, with four CPU threads, a 4096-token context and
 deterministic sampling. On NixOS, use a recent Ollama package from Nixpkgs that supports these models.
 
@@ -138,7 +137,7 @@ the language model.
 | `KAMI_RECOGNIZER_THREADS` | Worker threads ranking sketches for the built-in k-NN, default `1`; `0` ranks on the event loop. See "Self-hosting" above for the queue. |
 | `KAMI_BEAUTIFY_URL` | Where `/api/beautify` forwards to. Unset with `KAMI_RECOGNIZER_URL` set, it is the sidecar's `<KAMI_RECOGNIZER_URL>/complete` (the Eye serves both) with the recogniser's key; `off` keeps the player's own ink (**501**). |
 | `KAMI_BEAUTIFY_API_KEY` | Sent as `Authorization: Bearer` to the beautifier; may be given as `KAMI_BEAUTIFY_API_KEY_FILE`. Defaults to `KAMI_RECOGNIZER_API_KEY` only when the URL is derived from the recogniser's. |
-| `KAMI_SKETCHES` | The Eye's exemplar set directory (`ml/CONTRACT.md`; on the box `~/kami-ml/artifacts/kami-eye/exemplars`), whose clean drawings `/api/exemplar` summons by name across all 345 categories. Unset, summons come from the ingested Quick, Draw! samples, then from Quick, Draw! itself, for the curated categories only. |
+| `KAMI_SKETCHES` | The Eye's exemplar set directory (`ml/CONTRACT.md`; `<artifacts>/kami-eye/exemplars` beside the trained model), whose clean drawings `/api/exemplar` summons by name across all 345 categories. Unset, summons come from the ingested Quick, Draw! samples, then from Quick, Draw! itself, for the curated categories only. |
 | `KAMI_CONTROLLER_UDP_PORT` | UDP port physical controllers send to, default `8788`; `off` disables. See `docs/controllers.md`. |
 | `KAMI_CONTROLLER_SERIAL` | `auto` (default: every `/dev/ttyACM*`, rescanned every 3 s), a device path, or `off`. The user needs the `dialout` group. |
 
@@ -317,7 +316,7 @@ clamped (`compile/effectRanges.ts`): gravity ±30 g per axis, wind ±3 g, timeSc
 (30 s server request, 35 s browser request), HTTP errors, garbage and unknown settings all become
 `null`, which the client treats as "not a rule". Persistence uses the refined effect-domain schema;
 raw model values are clamped before they reach it. Injected-fetch and fake-server tests establish
-transport/parsing behavior, not real model quality. Current-release GX10 validation is separate.
+transport/parsing behavior, not real model quality. Model quality is measured separately, against the live model.
 
 ### One client, many servers
 
@@ -346,7 +345,7 @@ writing fitted to 64 px tall, no image library) and shown to `KAMI_TRANSCRIBE_MO
 to `KAMI_LLM_MODEL`) as a vision model through `llm/chatClient.ts`, the OpenAI-compatible client
 `/api/compile` also uses, with
 `reasoning_effort: "none"` (`KAMI_TRANSCRIBE_REASONING_EFFORT`, falling back to the LLM's) so it
-answers in one breath (~2 s warm on the GX10; a `400` from a server that does not know the field
+answers in one breath (about 2 s warm on a local GPU; a `400` from a server that does not know the field
 retries without it — "One client, many servers" above). The prompt (`transcribe/prompt.ts`) asks for
 `{"text": "…"}` for words and `{"text": null}` for a drawing; the answer is parsed like the
 compiler's, then must read as writing (≤ 80 characters, at least two different letters — a fence
@@ -405,7 +404,7 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 | Route | Request | Response |
 |---|---|---|
 | `POST /api/recognize` | `{ strokes: {x,y}[][], partial?: boolean }` — world px, any scale or position | `{ guesses: string[], confidence: number[], names: string[], natures: Nature[], strengths: number[], lines: string[], certain: boolean }` — parallel arrays, best first, at most three, all empty when unsure. `guesses` are bare Quick, Draw! words, each with a 0–1 `confidence`; the other four say what each guess is for the game (below). `certain: true` means `guesses[0]` may be named without offering the player a choice (see "Naming without asking"); a client that ignores it keeps asking, as before |
-| `POST /api/beautify` | `{ strokes: {x,y}[][], name?: string, strength?: number }` (`strength` 0–1, the HUD slider: 0 is the player's drawing untouched, 0.5 — the default — Kami's own light hand, 1 the dataset's drawing in its place) | whatever the attached model answers, content-type preserved. With Kami's Eye attached (the box's default): **`application/json` `{ tidied, added, category, confidence, similarity, exemplar }`** — `tidied` is the player's own strokes, point for point, each moved toward a clean drawing of the same thing (a bounded nudge up to `strength` 0.5, all the way onto it at 1); `added` is what theirs was missing (`ml/CONTRACT.md`, "Completion"). Another model may answer an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
+| `POST /api/beautify` | `{ strokes: {x,y}[][], name?: string, strength?: number }` (`strength` 0–1, the HUD slider: 0 is the player's drawing untouched, 0.5 — the default — Kami's own light hand, 1 the dataset's drawing in its place) | whatever the attached model answers, content-type preserved. With Kami's Eye attached: **`application/json` `{ tidied, added, category, confidence, similarity, exemplar }`** — `tidied` is the player's own strokes, point for point, each moved toward a clean drawing of the same thing (a bounded nudge up to `strength` 0.5, all the way onto it at 1); `added` is what theirs was missing (`ml/CONTRACT.md`, "Completion"). Another model may answer an image (`image/png`, `image/webp`). **`501`** `{ error }` when no model is attached (`KAMI_BEAUTIFY_URL`) or it failed — keep the player's own ink. |
 | `GET /api/exemplar?word=rabbit` | `word`: what to draw, as the player said it ("a rabbit", "rabbits", "the hot air balloon") | `{ word: string, strokes: {x,y}[][] }` — one clean drawing of it, a different one each time, in the Quick, Draw! frame: 0–256 px, y down, every stroke at least two points; `word` is the Quick, Draw! category it is a drawing of, which the game names it by. **`404`** `{ error }` when no category matches or there is no drawing of it (`KAMI_SKETCHES` covers all 345; without it, what was ingested or Quick, Draw! itself); **`400`** without a word. The client is `LiveRecognizer.exemplar(word)` (`src/recognition`); the game fits and places the strokes itself ("Summons" below). |
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
 | `GET /api/exemplars` | — | `{ categories: string[] }` — every Quick, Draw! category `/api/exemplar` has a drawing of; the client builds its summoning lexicon from it |
@@ -503,72 +502,18 @@ Guess notes stay transient. The contract test in `server/natures/recognitionCont
 all 345 categories, including aliases, through the HTTP adapter and acceptance path. Its only
 exclusion allowlist is the eight bare shapes, which remain unnamed.
 
-## Running everything on the ASUS Ascent GX10
-
-All computation happens on the box; the Mac edits, tests and ships.
+## Running everything in one place
 
 ```
-iPad ──venue Wi-Fi──►  GX10 (`ssh gx10`):  game + API (:8787) ─► MongoDB (:27017, local)
-                                                              ├► Ollama  (:11434, local)  qwen3.8 compiles rules
-                                                              └► Kami's Eye (:8790, local) ONNX sidecar, else the k-NN
-                       ~/kami-ml: the training kit (`ml/`), its CUDA venv, the data and the trained models
+iPad ──LAN──►  Kami (:8787, or :8080 in the image):  game + API ─► MongoDB (embedded, or MONGODB_URI)
+                                                                 ├► a language model (KAMI_LLM_URL), optional
+                                                                 └► Kami's Eye (KAMI_RECOGNIZER_URL), optional, else the k-NN
 ```
 
-The box (an ASUS Ascent GX10: GB10, 121 GB, Ubuntu 24.04, CUDA 13) is reached by key login over the local
-network. Everything Kami needs lives under `~/kami`, nothing system-wide, and nothing needs sudo.
+The server serves the built game itself (`KAMI_WEB_DIR`, `server/http/staticSite.ts`), so one process
+is the product; [docs/hosting.md](../docs/hosting.md) packages it as a container image with the
+Quick, Draw! corpus and its feature index baked in. The game asks the language model **last** — the
+offline grammar and known names are instant — and the server warms it at start.
 
-```bash
-bun run gx10:bootstrap <address>   # once per box or address: SSH key + the `gx10` host alias
-bun run gx10:prepare               # build, bundle the server to one file, export the Quick, Draw! snapshot,
-                                   #   fetch Bun + MongoDB for Linux arm64 and the sidecar's wheels (.gx10/cache)
-bun run gx10:deploy                # ship, install, (re)start, health-check → .gx10/deploy.log
-                                   #   add --autostart to bring Kami back whenever the box boots
-```
-
-Then on the iPad: `http://<box address>:8787`. On the box, `~/kami/current/box/status.sh` shows what is running
-(and the Eye's health) and `stop.sh` / `start.sh` do what they say.
-
-Preparation writes `app/runtime.json` with exact Bun/MongoDB versions, archive names, Python target,
-locked requirements digest, and SHA-256 hashes for every archive and wheel. Installation verifies those
-files, probes the extracted binaries' versions, and publishes Bun, MongoDB and Python dependencies
-together through an atomic `runtime/current` symlink. Older runtime bundles remain available; multiple
-cached archive versions cannot change which one is selected. Legacy unpacked runtime directories fail
-with a migration message: deploy into a fresh staged release rather than deleting a running runtime.
-
-Eye preparation requires `uv export --locked`; export and download failures abort preparation, without
-an unpinned fallback. Downloads and installation use pip's `--require-hashes`. An offline wheel cache
-is reused only when its requirements digest, Python target and every wheel hash match. To deliberately
-prepare without Eye, set `KAMI_EYE_ENABLED=0`. Transfer repairs mismatched cache files through verified
-temporary files. Archive hashes protect cache/transfer integrity; initial archives still rely on the
-official HTTPS download sources. Validate actual Linux arm64 binaries on GX10 before rollout.
-
-Deployments upload a complete checksummed release into `~/kami/releases/<id>` and install its
-dependencies before touching running services. Only then does activation switch `~/kami/current`.
-Application readiness requires the exact client HTML and a valid board-list API response; failure
-restarts the previous release. `~/kami/previous` retains the last working release for manual rollback:
-`bash ~/kami/current/box/activate.sh "$(readlink -f ~/kami/previous)"`.
-The first deployment preserves the old flat layout for rollback; use `current/box` commands afterward.
-An existing Kami boot entry is migrated to `current/box/start.sh` after successful activation.
-Deploying without `--autostart` leaves autostart disabled when no Kami boot entry exists.
-If `previous` points to the legacy `~/kami` layout, use its original `~/kami/box/start.sh` for
-manual recovery; it predates the release manifest needed by `activate.sh`.
-MongoDB data, logs, PID files and the download cache stay outside releases under `~/kami`.
-Rollback restores code and dependencies, not database mutations; no database downgrade/migration is
-performed. Interrupted uploads leave the active release untouched. A power loss during activation
-requires starting `current/box/start.sh` (or selecting `previous`) after inspecting logs.
-
-How it fits: the server serves the built game itself (`KAMI_WEB_DIR`, `server/http/staticSite.ts`), so one
-process is the product. `bun build` bundles it to a single `server.js`, so the box needs no
-`node_modules`. `prepare.sh` ships the Mac's Quick, Draw! corpus (`.kami-data/quickdraw.ndjson.gz`)
-and `start.sh` points the server at it; the server computes the feature index beside it on the first
-start of a release. The game asks the language model **last** — the offline grammar and known names
-are instant — and the server warms it at start.
-
-**Kami's Eye on the box.** Training runs there (`ml/README.md`), and `start.sh` serves the model it finds at
-`~/kami-ml/artifacts/<name>`, where `<name>` is the one line in `~/kami-ml/artifacts/LIVE` (`kami-eye` without that file; `KAMI_EYE_MODEL_NAME` overrides it for one start; a model shipped from `ml/artifacts` is
-the fallback) with the sidecar code the deploy shipped to `~/kami/app/eye`. A retrained model needs only
-`~/kami/current/box/start.sh`. No model, no Python packages, or a sidecar that does not come up: the k-NN answers,
-and the start-up log says which.
-
-For development on the Mac, `bun run gx10:tunnel` forwards the box's Ollama to `localhost:11434` (what
-`.env.local` points at).
+Kami's Eye is a separate sidecar serving a trained model (`ml/README.md`, `ml/CONTRACT.md`). With no
+model, or a sidecar that does not come up, the k-NN answers, and the start-up log says which.

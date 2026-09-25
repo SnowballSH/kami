@@ -98,8 +98,8 @@ before anything faces the internet.
   [the contract](ml/CONTRACT.md)
 - **Laws.** An offline grammar reads the common ones instantly; a local language model compiles the
   rest into the same typed effect, once per law, never in the frame loop.
-- **Everything runs on one box.** Training, inference, the language model, the database and the game
-  server all ran on an ASUS Ascent GX10 at the venue ([scripts/gx10](scripts/gx10)); the iPads only draw.
+- **Everything runs on one server.** Inference, the language model, the database and the game server
+  live on the machine that hosts Kami ([hosting](docs/hosting.md)); the iPads only draw.
 - **A joystick and a big screen.** An Arduino arcade stick over UDP or serial ([controllers](docs/controllers.md)), and a monitor that mirrors the device in
   play by replaying its render data rather than streaming video ([screen](docs/screen.md)).
 
@@ -115,7 +115,7 @@ before anything faces the internet.
 | [docs/spec.md](docs/spec.md) | What Kami is: pillars, mechanics, the cat, the rooms |
 | [docs/architecture.md](docs/architecture.md) | How the code fits together, the contracts between its parts, and what has and has not been verified |
 | [docs/modes.md](docs/modes.md) · [puzzles](docs/puzzles.md) · [boss](docs/boss.md) · [laws](docs/laws.md) | The ways to play and the rules of each |
-| [server/README.md](server/README.md) | The API, configuration and the GX10 deployment |
+| [server/README.md](server/README.md) | The API and its configuration |
 | [docs/hosting.md](docs/hosting.md) | Hosting Kami anywhere with podman or docker: images, compose, settings, reverse proxy |
 | [ml/README.md](ml/README.md) | Training and serving Kami's Eye |
 | [docs/hardware.md](docs/hardware.md) | The arcade cabinet: what is built and what is not |

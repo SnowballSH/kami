@@ -193,7 +193,7 @@ export interface GameModules {
   readonly handwriting: Handwriting;
   /** The offline grammar: instant. */
   readonly compiler: RuleCompiler;
-  /** A model behind the server (the GX10): may take seconds, so it is asked last and only if needed. */
+  /** A model behind the server: may take seconds, so it is asked last and only if needed. */
   readonly thinker: RuleCompiler;
   readonly store: BoardStore;
   /** Reads pen strokes as words (a vision model behind the server); without one, ink is only ink. */

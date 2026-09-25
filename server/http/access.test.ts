@@ -114,7 +114,7 @@ describe("deployment configuration", () => {
     expect(
       readConfig({
         ...ENV,
-        KAMI_LLM_URL: "http://gx10.test:8000",
+        KAMI_LLM_URL: "http://llm.example:8000",
         KAMI_LLM_MODEL: "compiler",
         KAMI_TRANSCRIBE_MODEL: "handwriting",
       }),

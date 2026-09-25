@@ -47,7 +47,7 @@ jobs:
         run: |
           {
             echo '### Equipment checks not run by hosted CI'
-            echo '- Model inference, training tests and golden parity: GX10 only. See scripts/ci/README.md.'
+            echo '- Model inference, training tests and golden parity: need a machine with the model artifacts and training dependencies. See scripts/ci/README.md.'
             echo '- Optional cabinet: firmware compilation, serial input and physical controls require separate verification.'
             echo '- Passing these jobs does not certify models or the cabinet.'
           } >> "$GITHUB_STEP_SUMMARY"

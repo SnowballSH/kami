@@ -2,11 +2,11 @@
 
 An Arduino Uno R4 reads a joystick (two axes, **x and y**) and buttons, and walks Alice. The iPad's browser
 cannot talk to an Arduino (Safari has no WebSerial, WebHID or Web Bluetooth), so the Arduino talks to the
-**Kami server on the GX10**, and the server relays to every open game:
+**Kami server**, wherever it runs, and the server relays to every open game:
 
 ```
 joystick x,y ─► Uno R4 ──UDP :8788 (Wi-Fi)──────┐
-                     └──USB serial (cable to box)─┼─► controller hub (server) ──SSE──► game in the browser
+                     └──USB serial (cable to server)─┼─► controller hub (server) ──SSE──► game in the browser
               anything else ──HTTP POST───────────┘                                    └► one more walk source
 ```
 
@@ -73,16 +73,16 @@ value is passed along (`x`, `y` in the event below) but not used for pace yet.
 
 | Transport | For | How |
 |---|---|---|
-| **UDP** `:8788` on the box | Uno R4 **WiFi** — the default: three lines of Arduino, no connection to keep alive, ~2 ms | one datagram = one message line (several lines in one datagram are all read) |
-| **USB serial**, 115200 baud | Uno R4 **Minima**, or when the venue Wi-Fi misbehaves: plug the Arduino into a USB port **of the GX10** | print the same line to `Serial`; the server reads every `/dev/ttyACM*` (on a Mac also `/dev/cu.usbmodem*`), looking again every 3 s, so the stick can be plugged in late or pulled and put back (`KAMI_CONTROLLER_SERIAL` names one device instead, `off` disables). The user running the server must be in the **`dialout`** group — the log says so once if not: `sudo usermod -aG dialout $USER`, then log in again |
+| **UDP** `:8788` on the server | Uno R4 **WiFi** — the default: three lines of Arduino, no connection to keep alive, ~2 ms | one datagram = one message line (several lines in one datagram are all read) |
+| **USB serial**, 115200 baud | Uno R4 **Minima**, or when the Wi-Fi misbehaves: plug the Arduino into a USB port **of the machine running the server** | print the same line to `Serial`; the server reads every `/dev/ttyACM*` (on a Mac also `/dev/cu.usbmodem*`), looking again every 3 s, so the stick can be plugged in late or pulled and put back (`KAMI_CONTROLLER_SERIAL` names one device instead, `off` disables). The user running the server must be in the **`dialout`** group — the log says so once if not: `sudo usermod -aG dialout $USER`, then log in again |
 | **HTTP** `POST /api/controllers/:id/state` | scripts, tests, an ESP without UDP | body `<x> <y> [buttons]` as plain text (e.g. `100 0 A`; the content type is not looked at, so `curl -d` works); answers `204`, or `400` `{ error }` to a body or a controller name that makes no sense |
 
 Test any of them without hardware:
 
 ```bash
-echo "kami arcade 100 0" | nc -u -w0 <box> 8788                          # UDP
-curl -X POST http://<box>:8787/api/controllers/arcade/state -d "100 0"   # HTTP
-curl http://<box>:8787/api/controllers                                   # who is connected, what they hold
+echo "kami arcade 100 0" | nc -u -w0 <host> 8788                          # UDP
+curl -X POST http://<host>:8787/api/controllers/arcade/state -d "100 0"   # HTTP
+curl http://<host>:8787/api/controllers                                  # who is connected, what they hold
 ```
 
 ## What the game listens to
@@ -99,14 +99,14 @@ Every open game hears the same stick — fine for one table, one stick.
 Not protected: anyone on the network can send `kami arcade 100 0`. Acceptable for the demo; a shared token is
 the obvious next step.
 
-## The analog joystick on the box (`hardware/joystick`)
+## The analog joystick (`hardware/joystick`)
 
-A thumb joystick module (x, y, push) on an Uno R4, plugged into a USB port of the GX10. This is the stick
-in use: flashed and heard by the server on the box on 20 September 2026.
+A thumb joystick module (x, y, push) on an Uno R4, plugged into a USB port of the machine running the
+server. This is the stick Kami ships with, verified end to end on 20 September 2026.
 
 | Module pin | Uno R4 pin | |
 |---|---|---|
-| `VRx` | `A0` | up–down on the box, where the module sits a quarter turn round; pushing up reads lower (`Y_SIGN = -1`) |
+| `VRx` | `A0` | up–down, with the module mounted a quarter turn round; pushing up reads lower (`Y_SIGN = -1`) |
 | `VRy` | `A1` | left–right; pushing right reads lower (`X_SIGN = -1`) |
 | `SW` | `D2` | `INPUT_PULLUP`, pressed = `LOW`, debounced 20 ms; sent as button **`A`** = jump |
 | `+5V`, `GND` | `5V`, `GND` | |
@@ -117,22 +117,26 @@ side of it scales to its own end of travel, so an off-centre stick still reaches
 reading further than a quarter of the range from the middle means the stick was held: the middle is used
 instead. Lines go out by the rule under "The one message". `PIN_X` / `PIN_Y` and `X_SIGN` / `Y_SIGN` at
 the top of the sketch say which way round the module is mounted: a module mounted upright reads x from
-`A0` and y from `A1` with both signs `1`. Checked on the box by pushing right, then up, then clicking, and
+`A0` and y from `A1` with both signs `1`. Checked on the real stick by pushing right, then up, then clicking, and
 reading `GET /api/controllers`: `right`, `up`, and `a` (which puts `up` into `held`).
 
 ```bash
-bun run gx10:flash              # from the Mac: compile on the box, upload to the Arduino plugged into it
-bun run gx10:flash cabinet      # the cabinet sketch instead
 scripts/checkHardware.sh        # native tests (+ pinned compile of both sketches where arduino-cli is installed)
-curl http://<box>:8787/api/controllers    # arcade, transport "serial", x/y moving with the stick
+arduino-cli compile --profile uno-r4-wifi --upload -p /dev/ttyACM0 hardware/joystick   # or hardware/cabinet
+curl http://<host>:8787/api/controllers    # arcade, transport "serial", x/y moving with the stick
 ```
 
-`scripts/gx10/flash.sh` copies `hardware/` to `~/kami-hardware/sketches` on the box, installs the pinned,
-checksum-verified Arduino CLI under `~/kami-hardware` on its first run (no sudo; the toolchain is a
-~200 MB download), compiles with the sketch's build profile and uploads to the first `/dev/ttyACM*`
-(`KAMI_FLASH_PORT` names another). The Kami server reads that port too, and a second reader would eat the
-bootloader's answers, so when the server holds the port the script stops it for the upload and runs
-`box/start.sh` after. The box's user must be in `dialout` (needed by both the server and the upload).
+Upload from the machine the Arduino is plugged into, with [Arduino CLI](https://docs.arduino.cc/arduino-cli/installation/)
+(the first compile downloads a ~200 MB toolchain; the sketch's `sketch.yaml` pins board and libraries).
+The Kami server reads that port too, and a second reader would eat the bootloader's answers, so stop
+the server for the upload and start it again after. The user must be in `dialout` (needed by both the
+server and the upload).
+
+**In a container** the controller transports are off by default (`KAMI_CONTROLLER_UDP_PORT` and
+`KAMI_CONTROLLER_SERIAL` are `off`, [hosting.md](hosting.md)). To use a stick, publish the UDP port
+(`-p 8788:8788/udp`, `KAMI_CONTROLLER_UDP_PORT=8788`), or pass the serial device through
+(`--device /dev/ttyACM0`, `KAMI_CONTROLLER_SERIAL=/dev/ttyACM0`) with a group that may read it; the HTTP
+route works either way.
 
 ## Illustrative Wi-Fi variant (UDP, not checked in)
 
@@ -224,4 +228,4 @@ void loop() {
 | `src/controller/` | the browser side: `EventSource` → the merger's `PressedListener` |
 | `server/config.ts` | `KAMI_CONTROLLER_UDP_PORT` (8788, `off` disables), `KAMI_CONTROLLER_SERIAL` (`auto`, a device path, or `off`) |
 | `hardware/` | `joystick/` (the analog stick: `joystick.ino`, `stick.h`), `cabinet/` (the microswitch cabinet), `libraries/KamiControls` (`DebouncedButton`, shared through each `sketch.yaml`), `*.test.cpp` (native tests) |
-| `scripts/` | `checkHardware.sh` (native tests + pinned compiles), `gx10/flash.sh` (compile on the box and upload) |
+| `scripts/` | `checkHardware.sh` (native tests + pinned compiles) |

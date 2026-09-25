@@ -2,11 +2,11 @@
 
 ## Choose the trust model
 
-`KAMI_ACCESS_MODE=demo` is the default for the iPad/GX10 demo. The HTTP server and Vite listen on
+`KAMI_ACCESS_MODE=demo` is the default, for an iPad on a trusted LAN. The HTTP server and Vite listen on
 all IPv4 interfaces, so **every reachable peer can read, overwrite and delete every board, report
 controller state, and spend model capacity**. Use an isolated, trusted LAN with no public port
 forwarding. The iPad opens the existing Vite network URL in development or the built game on
-GX10 port 8787. The server's built-in TLS listener serves the same game at `https://<box>:8443`;
+the server's port 8787. The server's built-in TLS listener serves the same game at `https://<host>:8443`;
 accept its self-signed certificate once. Ordinary same-origin requests need no token. A browser origin other than the
 request's own origin must appear in `KAMI_ALLOWED_ORIGINS`; there is no wildcard CORS response.
 Origin checks protect browser requests but do not authenticate non-browser peers.
@@ -103,7 +103,7 @@ modes. Those defaults are sized for a LAN demo with a local model. Tune
 traffic: one iPad posts a few live guesses a second while drawing plus a compile or handwriting read
 per pen lift, so a shared 2-vCPU box serving a handful of players behind a paid model gateway does
 well with about `600` requests a minute and `4` concurrent — enough for play, small enough that a
-scripted client cannot run up the gateway bill or starve the box's other services. The budget counts
+scripted client cannot run up the gateway bill or starve the host's other services. The budget counts
 `recognize` too, which the built-in k-NN answers from a worker thread with a bounded queue of its own
 (`server/README.md`, "Self-hosting"). A slot stays occupied while the model response is read; response bodies have an
 8 MiB ceiling and 30-second read deadline. Upstream inference/request deadlines remain those of
@@ -127,9 +127,9 @@ database and mocked models, cookie expiry/logout, controller SSE, bounded model 
 requests. `src/ui/accessGate.test.ts` covers startup, token clearing and scope defaults without
 driving a browser or running inference.
 
-## GX10 network verification before shared use
+## Network verification before shared use
 
-These are deployment requirements, **not claims about any live box**: they have not been validated
+These are deployment requirements, **not claims about any live host**: they have not been validated
 against a deployment. An authorized operator must verify the real network before enabling shared use:
 
 1. Inspect listening addresses with `ss -lntup` and the active firewall with `sudo ufw status
@@ -140,14 +140,14 @@ against a deployment. An authorized operator must verify the real network before
    controller updates and SSE. Configure the proxy to preserve the public Host/Origin and permit
    SSE without buffering and WebSocket upgrades. Verify the TLS certificate is trusted on the iPad.
 3. From another peer, check unauthenticated denial and a credential scoped to a different board.
-   Confirm direct internal ports are unreachable. Test model requests only on the GX10 under
+   Confirm direct internal ports are unreachable. Test model requests only against the real deployment under
    operator authorization and check that excess requests receive `429`.
 4. For demo mode, verify the intended iPad and controller network is isolated, that both dev/API
    ports are restricted to trusted peers, and that there is no router port-forwarding exposure.
    Cold-start the iPad, draw repeatedly at the expected pen-lift rate, and verify live guesses and
    controller SSE. Tune the finite model budgets from that
-   GX10 run; mocked tests do not establish suitable limits for a live demo.
+   run; mocked tests do not establish suitable limits for a live demo.
 
-The repository's GX10 start script exports its own variables. Ensure the actual service process
-receives the access settings from protected deployment configuration; a developer shell export
-on another machine does not configure the GX10.
+Ensure the actual service process (the container, [hosting.md](hosting.md)) receives the access
+settings from protected deployment configuration; a developer shell export on another machine does
+not configure it.

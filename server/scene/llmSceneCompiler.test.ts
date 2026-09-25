@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { FetchLike } from "../llm/chatClient";
 import { createLlmSceneCompiler, PROP_REACH, PROP_SIZE, parseSceneReply } from "./llmSceneCompiler";
 
-const CONFIG = { url: "http://gx10.local:8000", model: "kami-scenes", apiKey: "secret" } as const;
+const CONFIG = { url: "http://llm.example:8000", model: "kami-scenes", apiKey: "secret" } as const;
 
 const DRAWABLE = new Set(["star", "moon", "cactus"]);
 const drawable = (word: string): boolean => DRAWABLE.has(word);

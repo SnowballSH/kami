@@ -14,14 +14,14 @@ iPad: Game → mirroredRenderer → StageSource ──WS──▶ server/stage S
 
 | Where | Address |
 |---|---|
-| The monitor | `http://<box>:8787/?screen` — add `&join=http://<box>:8787` to show that address and its QR code while nobody plays |
+| The monitor | `http://<host>:8787/?screen` — add `&join=http://<host>:8787` to show that address and its QR code while nobody plays |
 | A player | any game address; `?stage=<name>` to play on another stage than `main` |
 | Another stage's monitor | `?screen=<name>` (`[a-z0-9-]{1,32}`) |
 
-On the GX10 the monitor plugged into the box is driven by `box/screen.sh` (`start [url]`, `reload`,
-`stop`, `status`, `install`, `uninstall`): Firefox in kiosk mode with its own profile on the box's desktop
-session, held awake by an idle inhibitor for as long as it runs. `box/start.sh` starts it after the
-game when the box has a desktop session and leaves a headless box alone.
+The monitor can hang off any machine that reaches the server, including the server itself: open
+that address in a browser in kiosk or full-screen mode (for example `firefox --kiosk <url>`) and keep
+the machine's screen from sleeping. `<host>:8787` is the server's own address; behind a container or
+a reverse proxy, use the address players use (`:8080` for the image, `docs/hosting.md`).
 
 The screen shows the board, every drawing as it is drawn, Alice and her copies, the ink eater, the
 boss, Kami's notes and the standing laws. It shows no HUD: no toolbar, no cards, no joystick.

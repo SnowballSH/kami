@@ -1,11 +1,11 @@
 // Kami analog joystick — Arduino UNO R4, USB serial to the Kami server
 // Wiring + protocol: docs/controllers.md
-// Build profile: sketch.yaml; native checks: scripts/checkHardware.sh; flash through the GX10: scripts/gx10/flash.sh
+// Build profile: sketch.yaml; native checks: scripts/checkHardware.sh; upload: docs/controllers.md
 
 #include <DebouncedButton.h>
 #include "stick.h"
 
-// The module sits a quarter turn round on the box: its VRy (A1) runs left–right, its VRx (A0) up–down.
+// The module is mounted a quarter turn round: its VRy (A1) runs left–right, its VRx (A0) up–down.
 const uint8_t PIN_X = A1, PIN_Y = A0, PIN_PUSH = 2;  // push: LOW = pressed
 const int X_SIGN = -1;                               // -1 when pushing right reads lower
 const int Y_SIGN = -1;                               // -1 when pushing up reads lower

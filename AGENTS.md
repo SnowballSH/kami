@@ -18,14 +18,10 @@
 
 ## Where computation happens
 
-The ASUS GX10 was available only at the hackathon; it is no longer a required or available service.
 Local model inference, ML tests and data preparation are allowed. Choose models and concurrency that
 fit the current computer's memory and compute capacity, and verify latency through the game's API.
 Keep model downloads, generated datasets and machine-specific configuration out of version control.
-Large training runs remain a separate task: do not start one just to set up or run the game.
-
-GX10 deployment scripts and historical measurements remain useful reference material, but their
-hostnames, paths and compute restrictions are not requirements for local development.
+Large training runs are a separate task: do not start one just to set up or run the game.
 
 ## The client–server seam
 

@@ -2,7 +2,7 @@
 .github
 .claude
 .serena
-.gx10
+.cache
 .kami-data
 node_modules
 dist
@@ -10,7 +10,6 @@ coverage
 docs
 hardware
 ml
-scripts/gx10
 scripts/local
 *.local
 .env*

@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { chatCompletionsUrl, createLlmCompiler, type FetchLike } from "./llmCompiler";
 
-const CONFIG = { url: "http://gx10.local:8000", model: "kami-rules", apiKey: "secret" } as const;
+const CONFIG = { url: "http://llm.example:8000", model: "kami-rules", apiKey: "secret" } as const;
 
 interface SeenRequest {
   readonly url: string;
@@ -40,7 +40,7 @@ describe("createLlmCompiler", () => {
       explanation: "gravity = 0.38 g (Mars)",
     });
     expect(seen).toHaveLength(1);
-    expect(seen[0]?.url).toBe("http://gx10.local:8000/v1/chat/completions");
+    expect(seen[0]?.url).toBe("http://llm.example:8000/v1/chat/completions");
     expect(seen[0]?.headers.get("authorization")).toBe("Bearer secret");
     expect(seen[0]?.body.model).toBe("kami-rules");
     expect(seen[0]?.body.response_format?.type).toBe("json_schema");
@@ -170,9 +170,9 @@ describe("createLlmCompiler", () => {
 
 describe("chatCompletionsUrl", () => {
   it("accepts a server root, a /v1 base or the full endpoint", () => {
-    const endpoint = "http://gx10.local:8000/v1/chat/completions";
-    expect(chatCompletionsUrl("http://gx10.local:8000")).toBe(endpoint);
-    expect(chatCompletionsUrl("http://gx10.local:8000/v1/")).toBe(endpoint);
+    const endpoint = "http://llm.example:8000/v1/chat/completions";
+    expect(chatCompletionsUrl("http://llm.example:8000")).toBe(endpoint);
+    expect(chatCompletionsUrl("http://llm.example:8000/v1/")).toBe(endpoint);
     expect(chatCompletionsUrl(endpoint)).toBe(endpoint);
   });
 });

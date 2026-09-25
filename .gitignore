@@ -6,7 +6,7 @@ dist/
 !.env.example
 coverage/
 .kami-data/
-.gx10/
+.cache/
 __pycache__/
 .deepgram.env
 .serena/

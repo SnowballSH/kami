@@ -15,7 +15,7 @@ export function createBoardStore(): BoardStore {
   return new HttpBoardStore();
 }
 
-/** `POST /api/compile`: the server's model-backed compiler (the GX10). Null when it has none. */
+/** `POST /api/compile`: the server's model-backed compiler. Null when it has none. */
 export function createRemoteRuleCompiler(): RuleCompiler {
   return new RemoteRuleCompiler();
 }

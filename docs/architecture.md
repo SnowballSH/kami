@@ -237,7 +237,7 @@ Every control activates on `pointerup` (`activateOnTap`), so Apple Pencil, finge
 
 ## server/
 
-Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_URI` (Atlas at the hackathon); without it, `mongodb-memory-server` runs a real `mongod` with its data in `.kami-data/` so memory survives restarts with zero setup. Database `kami`; it holds boards only. The Quick, Draw! corpus the k-NN learns from is a read-only file beside it (`.kami-data/quickdraw.ndjson.gz`, `KAMI_QUICKDRAW_SNAPSHOT`), its features cached in `quickdraw.features.bin` ([server/README.md](../server/README.md#quick-draw)).
+Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_URI` (any MongoDB, e.g. Atlas); without it, `mongodb-memory-server` runs a real `mongod` with its data in `.kami-data/` so memory survives restarts with zero setup. Database `kami`; it holds boards only. The Quick, Draw! corpus the k-NN learns from is a read-only file beside it (`.kami-data/quickdraw.ndjson.gz`, `KAMI_QUICKDRAW_SNAPSHOT`), its features cached in `quickdraw.features.bin` ([server/README.md](../server/README.md#quick-draw)).
 
 | Route | |
 |---|---|
@@ -255,14 +255,14 @@ Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_U
 These are summaries; request limits and full wire shapes live in the
 [API contract](../server/README.md#api-contract-what-the-client-may-rely-on).
 
-**Recognition.** `KAMI_RECOGNIZER_URL` selects Kami's Eye on GX10, with a short-timeout/circuit-breaker
+**Recognition.** `KAMI_RECOGNIZER_URL` selects the Kami's Eye sidecar, with a short-timeout/circuit-breaker
 fallback to the built-in Quick, Draw! k-NN. Without a sidecar, k-NN answers alone; without a
 corpus file it returns no guesses and the Cat uses geometry. `quickdraw:ingest` writes 300 samples
 for each of 42 curated categories to that file by default; restart the API to load a changed corpus. The reviewed nature
 table covers all 345 categories, independently of which recognizer supplied them. Aliases are
 merged before selecting the best three and calculating certainty.
 
-**Model-backed compile.** If `KAMI_LLM_URL` (any OpenAI-compatible `/v1/chat/completions`, e.g. vLLM or Ollama on the GX10) and `KAMI_LLM_MODEL` are set, `/api/compile` asks the model for a `RuleEffect` as JSON, validates it with zod, clamps it, and returns it; otherwise `{ rule: null }`. Compile once: the result is stored as a `Rule` and never asks the model again.
+**Model-backed compile.** If `KAMI_LLM_URL` (any OpenAI-compatible `/v1/chat/completions`, e.g. vLLM or Ollama) and `KAMI_LLM_MODEL` are set, `/api/compile` asks the model for a `RuleEffect` as JSON, validates it with zod, clamps it, and returns it; otherwise `{ rule: null }`. Compile once: the result is stored as a `Rule` and never asks the model again.
 
 **Handwriting reading.** `KAMI_TRANSCRIBE_MODEL` selects the vision reader, falling back to
 `KAMI_LLM_MODEL`; URL/key are shared with compilation. Startup must correctly read a known image
@@ -417,9 +417,9 @@ mandate to reconstruct the old design.
 |---|---|
 | Local `bun run check`, `bun run build`, documentation links | TypeScript/Biome, unit/headless regressions and a production bundle. Does not establish a deployed service, real tablet or cabinet. |
 | Hosted CI (`.github/workflows/check.yml`) | A frozen Bun install, `bun run check`, the production build, and the Python and shell checks that need no model (`bun run check:lightweight`). [scripts/ci/README.md](../scripts/ci/README.md) says what it cannot certify. |
-| Model checks | Local inference and ML tests are allowed with models and concurrency suited to the machine. The GX10 was hackathon-only hardware; `bun run check:gx10 <full-commit-sha> <artifact-name>` remains a historical deployment tool. A local or hosted green gate does not replace golden parity, model quality or live latency checks. |
+| Model checks | Inference, full ML typechecking, pytest and golden parity run on any machine with the training dependencies and a trained artifact ([scripts/ci/README.md](../scripts/ci/README.md#model-checks)). A local or hosted green gate does not replace golden parity, model quality or live latency checks. |
 | Cabinet and booth acceptance | Native and TypeScript regressions and UNO R4 WiFi compilation are checked. Wiring/power, firmware upload, held/released controls, unplug/replug, feedback and the real host/browser/proxy still require physical verification. |
-| Exercised live on the GX10 (HackMIT, 20 September 2026) | The deployed service end to end: recognition and tidying by Kami's Eye, laws and scenes compiled by the local model, summoning, the joystick relay over the venue Wi-Fi, and the big screen mirroring an iPad. Not measured: recognition accuracy on real Apple Pencil ink, and the cabinet's full panel. |
+| Exercised live (20 September 2026, one server hosting everything) | The deployed service end to end: recognition and tidying by Kami's Eye, laws and scenes compiled by a local model, summoning, the joystick relay over Wi-Fi, and the big screen mirroring an iPad. Not measured: recognition accuracy on real Apple Pencil ink, and the cabinet's full panel. |
 
 ## Known limits of the demo
 
