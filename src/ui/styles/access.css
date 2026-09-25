@@ -7,11 +7,18 @@
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  background: #faf9f6;
+  padding: 1rem max(1rem, env(safe-area-inset-right)) 1rem max(1rem, env(safe-area-inset-left));
+  background: var(--kami-board);
   color: #252525;
   font:
     1rem system-ui,
     sans-serif;
+  text-align: center;
+}
+
+.access-gate p {
+  max-width: 32rem;
+  margin: 0;
 }
 
 .access-gate label:not([hidden]) {
@@ -21,15 +28,39 @@
 }
 
 .access-gate input,
-.access-gate button {
+.access-gate button,
+.access-sign-out {
+  min-height: 44px;
   font: inherit;
-  padding: 0.75rem;
+  padding: 0.5rem 1rem;
+  border: 1.5px solid #252525;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: inherit;
+  touch-action: manipulation;
+}
+
+.access-gate button,
+.access-sign-out {
+  cursor: pointer;
+}
+
+.access-gate button:focus-visible,
+.access-sign-out:focus-visible {
+  outline: 3px solid var(--kami-ink);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .access-gate button:hover,
+  .access-sign-out:hover {
+    background: var(--kami-hover);
+  }
 }
 
 .access-sign-out {
   position: fixed;
-  right: 1rem;
-  top: 1rem;
+  right: max(1rem, env(safe-area-inset-right));
+  top: max(12px, env(safe-area-inset-top));
   z-index: 100;
-  padding: 0.5rem;
 }

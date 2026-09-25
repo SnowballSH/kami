@@ -208,10 +208,19 @@ Canvas 2D at device pixel ratio (cap 2). `toWorld(client, camera)` and `viewport
 ## ui/
 
 The canvas uses `touch-action: none`. The floating toolbar picks draw/write/erase/pan
-(`aria-pressed`, keys `D`/`T`/`E`/`H`). A thumbstick, arrow keys and the remote controller feed independent
-sources into `WalkIntentMerger`; manual input overrides enabled autopilot. The HUD also owns zoom,
-recentre/self-driving controls, the board menu, save/retry status and the text prompt.
+(`aria-pressed`, keys `D`/`T`/`E`/`H`; holding Space pans until it is let go, unless a control has
+focus) and ends in the clear-page button, which clears only on a second tap within three seconds
+(`ArmedTap`, shared with the board menu's clear). A thumbstick, arrow keys and the remote controller feed independent
+sources into `WalkIntentMerger`; manual input overrides enabled autopilot. The HUD also owns the view
+island bottom-right (self-driving switch — hidden in modes whose `autopilot` is `forbidden` — zoom and
+recentre), the board menu, save/retry status and the text prompt.
 The standing laws panel is DOM; board notes are canvas handwriting.
+
+Layout: the top-left cluster (home, board menu or share), the toolbar top-centre, the laws panel
+top-right under the toolbar's row and the room mark under the toolbar; the thumbstick bottom-left, the
+tidy slider bottom-centre, the view island bottom-right. At phone width (≤ 640 px) the toolbar moves to a
+second row on the left, the room mark beside it, the laws panel to a third row and the tidy slider above
+the view island, so no two islands overlap at 375 px.
 
 Every control activates on `pointerup` (`activateOnTap`), so Apple Pencil, finger and mouse taps all work; the click a browser then synthesises is swallowed, while clicks with no pointer behind them (Enter, Space, `.click()`) still activate. A press that is cancelled or lifts off the control does nothing.
 
