@@ -1,5 +1,6 @@
 /** One look at the sidecar's GET /health, so the start-up log can say whose eyes Kami is using. */
 import { z } from "zod";
+import { type AuthenticatedEndpoint, endpointHeaders } from "../http/endpoint";
 import { sidecarUrl } from "./sidecarUrl";
 import type { FetchLike } from "./types";
 
@@ -17,11 +18,12 @@ const healthSchema = z.object({
 });
 
 export const checkEyeHealth = async (
-  baseUrl: string,
+  sidecar: AuthenticatedEndpoint,
   fetchFn: FetchLike = fetch,
 ): Promise<EyeHealth | null> => {
   try {
-    const answer = await fetchFn(sidecarUrl(baseUrl, "health"), {
+    const answer = await fetchFn(sidecarUrl(sidecar.url, "health"), {
+      headers: endpointHeaders(sidecar),
       signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
     });
     if (!answer.ok) return null;

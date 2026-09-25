@@ -1,6 +1,7 @@
 /** Asks the Kami's Eye sidecar (ml/sidecar.py) what a sketch is; any failure is a null, never a throw. */
 import { z } from "zod";
 import type { Stroke } from "../../src/core/geometry";
+import { type AuthenticatedEndpoint, endpointHeaders } from "../http/endpoint";
 import { floorFor } from "./certainty";
 import { sidecarUrl } from "./sidecarUrl";
 import type {
@@ -30,15 +31,17 @@ const recognitionSchema = z
 
 export class RemoteSketchRecognizer implements UnreliableSketchRanker {
   readonly #url: string;
+  readonly #headers: Record<string, string>;
   readonly #fetch: FetchLike;
   readonly #floors: CertaintyFloors;
 
   constructor(
-    baseUrl: string,
+    sidecar: AuthenticatedEndpoint,
     fetchFn: FetchLike = fetch,
     floors: CertaintyFloors = DEFAULT_CERTAINTY_FLOORS,
   ) {
-    this.#url = sidecarUrl(baseUrl, "recognize");
+    this.#url = sidecarUrl(sidecar.url, "recognize");
+    this.#headers = endpointHeaders(sidecar, { "content-type": "application/json" });
     this.#fetch = fetchFn;
     this.#floors = floors;
   }
@@ -48,7 +51,7 @@ export class RemoteSketchRecognizer implements UnreliableSketchRanker {
     try {
       const answer = await this.#fetch(this.#url, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: this.#headers,
         body: JSON.stringify({ strokes, partial, top: REQUESTED_GUESSES }),
         signal: AbortSignal.timeout(partial ? PARTIAL_TIMEOUT_MS : FINISHED_TIMEOUT_MS),
       });

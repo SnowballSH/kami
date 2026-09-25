@@ -2,13 +2,25 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { LlmConfig } from "./compile/llmCompiler";
 import { AUTO_SERIAL_DEVICE, type ControllerTransportConfig } from "./controllers/types";
-import type { DatabaseOptions } from "./db/connect";
+import { type DatabaseOptions, DEFAULT_EMBEDDED_CACHE_GB } from "./db/connect";
+import {
+  type Env,
+  isOff,
+  nonEmpty,
+  nonNegativeIntegerFrom,
+  portFrom,
+  positiveNumberFrom,
+} from "./env/env";
+import { type FileReader, resolveSecretFiles } from "./env/secrets";
 import { type AccessConfig, readAccessConfig } from "./http/accessConfig";
+import type { AuthenticatedEndpoint } from "./http/endpoint";
+import { parseReasoningEffort } from "./llm/chatClient";
+import { sidecarUrl } from "./recognition/sidecarUrl";
 import type { VoiceConfig } from "./voice/types";
 
 const DEFAULT_PORT = 8787;
 const DEFAULT_CONTROLLER_UDP_PORT = 8788;
-const OFF = "off";
+const DEFAULT_RECOGNIZER_THREADS = 1;
 const EMBEDDED_DATA_DIRECTORY = fileURLToPath(new URL("../.kami-data", import.meta.url));
 const BUILT_WEB_DIRECTORY = fileURLToPath(new URL("../dist", import.meta.url));
 
@@ -20,12 +32,18 @@ export interface ServerConfig {
   readonly database: DatabaseOptions;
   readonly llm: LlmConfig | null;
   readonly transcribe: LlmConfig | null;
+  /** Ask the rules model one warm-up question at start-up; off spares a paid gateway the request. */
+  readonly warmUp: boolean;
   /** The built game to serve alongside the API; null in development, where Vite serves it. */
   readonly webDirectory: string | null;
   /** Where the sketch-beautifier model listens (`POST {strokes, name}`); null until one is attached. */
-  readonly beautifyUrl: string | null;
+  readonly beautifier: AuthenticatedEndpoint | null;
   /** Where the Kami's Eye sidecar listens (ml/CONTRACT.md); null means the built-in k-NN recognises alone. */
-  readonly recognizerUrl: string | null;
+  readonly recognizer: AuthenticatedEndpoint | null;
+  /** Worker threads ranking sketches for the built-in k-NN; 0 ranks on the event loop. */
+  readonly recognizerThreads: number;
+  /** A gzipped NDJSON Quick, Draw! snapshot to import when the collection is empty at start-up. */
+  readonly quickdrawSnapshot: string | null;
   /** The Eye's exemplar set (ml/CONTRACT.md), whose drawings are summoned by name; null summons from Quick, Draw! itself. */
   readonly sketchesDirectory: string | null;
   /** How physical controllers reach the hub (docs/controllers.md); a `null` transport is switched off. */
@@ -39,18 +57,6 @@ export interface TlsConfig {
   readonly keyFile: string;
   readonly port: number;
 }
-
-type Env = Readonly<Record<string, string | undefined>>;
-
-const nonEmpty = (value: string | undefined): string | undefined =>
-  value === undefined || value.trim() === "" ? undefined : value.trim();
-
-const portFrom = (value: string | undefined, fallback: number): number => {
-  const port = Number(nonEmpty(value));
-  return Number.isInteger(port) && port > 0 ? port : fallback;
-};
-
-const isOff = (value: string | undefined): boolean => nonEmpty(value)?.toLowerCase() === OFF;
 
 const tlsFrom = (env: Env): TlsConfig | null => {
   const certFile = nonEmpty(env.KAMI_TLS_CERT);
@@ -73,12 +79,52 @@ const controllersFrom = (env: Env, access: AccessConfig): ControllerTransportCon
     : (nonEmpty(env.KAMI_CONTROLLER_SERIAL) ?? AUTO_SERIAL_DEVICE),
 });
 
-const llmFrom = (env: Env): LlmConfig | null => {
-  const url = nonEmpty(env.KAMI_LLM_URL);
-  const model = nonEmpty(env.KAMI_LLM_MODEL);
-  const apiKey = nonEmpty(env.KAMI_LLM_API_KEY);
+interface ModelVariables {
+  readonly url: string;
+  readonly model: string;
+  readonly apiKey: string;
+  readonly reasoningEffort: string;
+}
+
+const LLM_VARIABLES: ModelVariables = {
+  url: "KAMI_LLM_URL",
+  model: "KAMI_LLM_MODEL",
+  apiKey: "KAMI_LLM_API_KEY",
+  reasoningEffort: "KAMI_LLM_REASONING_EFFORT",
+};
+
+const TRANSCRIBE_VARIABLES: ModelVariables = {
+  url: "KAMI_TRANSCRIBE_URL",
+  model: "KAMI_TRANSCRIBE_MODEL",
+  apiKey: "KAMI_TRANSCRIBE_API_KEY",
+  reasoningEffort: "KAMI_TRANSCRIBE_REASONING_EFFORT",
+};
+
+/** Reads one model's variables, each falling back to the rules model's when `fallback` is given. */
+const modelFrom = (
+  env: Env,
+  variables: ModelVariables,
+  fallback: ModelVariables | null = null,
+): LlmConfig | null => {
+  const read = (key: keyof ModelVariables): string | undefined =>
+    nonEmpty(env[variables[key]]) ?? (fallback === null ? undefined : nonEmpty(env[fallback[key]]));
+  const url = read("url");
+  const model = read("model");
   if (url === undefined || model === undefined) return null;
-  return apiKey === undefined ? { url, model } : { url, model, apiKey };
+  const apiKey = read("apiKey");
+  const effortVariable =
+    nonEmpty(env[variables.reasoningEffort]) === undefined && fallback !== null
+      ? fallback.reasoningEffort
+      : variables.reasoningEffort;
+  const effort = nonEmpty(env[effortVariable]);
+  return {
+    url,
+    model,
+    ...(apiKey === undefined ? {} : { apiKey }),
+    ...(effort === undefined
+      ? {}
+      : { reasoningEffort: parseReasoningEffort(effort, effortVariable) }),
+  };
 };
 
 const DEFAULT_LISTEN_MODEL = "nova-3";
@@ -99,22 +145,60 @@ const webDirectoryFrom = (env: Env): string | null => {
   return existsSync(directory) ? directory : null;
 };
 
-export const readConfig = (env: Env = process.env): ServerConfig => {
+const endpointOf = (url: string, apiKey: string | undefined): AuthenticatedEndpoint =>
+  apiKey === undefined ? { url } : { url, apiKey };
+
+const recognizerFrom = (env: Env): AuthenticatedEndpoint | null => {
+  const url = nonEmpty(env.KAMI_RECOGNIZER_URL);
+  return url === undefined || isOff(url)
+    ? null
+    : endpointOf(url, nonEmpty(env.KAMI_RECOGNIZER_API_KEY));
+};
+
+/**
+ * The Eye sidecar serves `/complete` next to `/recognize` (ml/CONTRACT.md), so an unset beautifier
+ * follows the recogniser, key included; `off` keeps the player's own ink.
+ */
+const beautifierFrom = (
+  env: Env,
+  recognizer: AuthenticatedEndpoint | null,
+): AuthenticatedEndpoint | null => {
+  const configured = nonEmpty(env.KAMI_BEAUTIFY_URL);
+  if (isOff(configured)) return null;
+  const apiKey = nonEmpty(env.KAMI_BEAUTIFY_API_KEY);
+  if (configured !== undefined) return endpointOf(configured, apiKey);
+  if (recognizer === null) return null;
+  return endpointOf(sidecarUrl(recognizer.url, "complete"), apiKey ?? recognizer.apiKey);
+};
+
+export const readConfig = (
+  rawEnv: Env = process.env,
+  readSecretFile?: FileReader,
+): ServerConfig => {
+  const env = resolveSecretFiles(rawEnv, readSecretFile);
   const access = readAccessConfig(env);
+  const recognizer = recognizerFrom(env);
   return {
     hostname: nonEmpty(env.KAMI_BIND_HOST) ?? (access.mode === "shared" ? "127.0.0.1" : "0.0.0.0"),
     access,
     port: portFrom(env.PORT, DEFAULT_PORT),
     tls: tlsFrom(env),
-    database: { uri: nonEmpty(env.MONGODB_URI), embeddedDataDirectory: EMBEDDED_DATA_DIRECTORY },
-    llm: llmFrom(env),
-    transcribe: llmFrom({
-      ...env,
-      KAMI_LLM_MODEL: nonEmpty(env.KAMI_TRANSCRIBE_MODEL) ?? env.KAMI_LLM_MODEL,
-    }),
+    database: {
+      uri: nonEmpty(env.MONGODB_URI),
+      embeddedDataDirectory: nonEmpty(env.KAMI_DATA_DIR) ?? EMBEDDED_DATA_DIRECTORY,
+      embeddedCacheGb: positiveNumberFrom(env.KAMI_MONGO_CACHE_GB, DEFAULT_EMBEDDED_CACHE_GB),
+    },
+    llm: modelFrom(env, LLM_VARIABLES),
+    transcribe: modelFrom(env, TRANSCRIBE_VARIABLES, LLM_VARIABLES),
+    warmUp: !isOff(env.KAMI_LLM_WARM_UP),
     webDirectory: webDirectoryFrom(env),
-    beautifyUrl: nonEmpty(env.KAMI_BEAUTIFY_URL) ?? null,
-    recognizerUrl: nonEmpty(env.KAMI_RECOGNIZER_URL) ?? null,
+    beautifier: beautifierFrom(env, recognizer),
+    recognizer,
+    recognizerThreads: nonNegativeIntegerFrom(
+      env.KAMI_RECOGNIZER_THREADS,
+      DEFAULT_RECOGNIZER_THREADS,
+    ),
+    quickdrawSnapshot: nonEmpty(env.KAMI_QUICKDRAW_SNAPSHOT) ?? null,
     sketchesDirectory: nonEmpty(env.KAMI_SKETCHES) ?? null,
     controllers: controllersFrom(env, access),
     voice: voiceFrom(env),

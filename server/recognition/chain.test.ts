@@ -30,7 +30,7 @@ describe("createRecognizerChain", () => {
   it("gives the sidecar's reading, certainty floor included, when it answers", async () => {
     const answering: FetchLike = async () =>
       Response.json({ labels: ["cake"], probs: [0.93], certainAbove: 0.85 });
-    const chain = createRecognizerChain(SIDECAR, new RecordingKnn(), {
+    const chain = createRecognizerChain({ url: SIDECAR }, new RecordingKnn(), {
       fetchFn: answering,
       log: () => {},
     });
@@ -41,7 +41,7 @@ describe("createRecognizerChain", () => {
   });
 
   it("falls back to the k-NN when the configured sidecar is down", async () => {
-    const chain = createRecognizerChain(SIDECAR, new RecordingKnn(), {
+    const chain = createRecognizerChain({ url: SIDECAR }, new RecordingKnn(), {
       fetchFn: down,
       log: () => {},
     });
@@ -51,10 +51,10 @@ describe("createRecognizerChain", () => {
 
   it.each([
     ["no sidecar is configured", null],
-    ["the configured sidecar is down", SIDECAR],
-  ])("tells the k-NN the sketch is still under the pen when %s", async (_case, sidecarUrl) => {
+    ["the configured sidecar is down", { url: SIDECAR }],
+  ])("tells the k-NN the sketch is still under the pen when %s", async (_case, sidecar) => {
     const knn = new RecordingKnn();
-    const chain = createRecognizerChain(sidecarUrl, knn, { fetchFn: down, log: () => {} });
+    const chain = createRecognizerChain(sidecar, knn, { fetchFn: down, log: () => {} });
     await chain.recognizer.read(SKETCH, { partial: true });
     expect(knn.asked).toEqual([{ partial: true }]);
   });

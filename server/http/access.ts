@@ -14,6 +14,8 @@ const MODEL_ROUTES = new Map([
   ["/api/exemplars", "GET"],
   ["/api/scene", "POST"],
 ]);
+/** Answered before any session check in either mode: a container's liveness probe carries no cookie. */
+export const HEALTH_PATH = "/api/health";
 const METHODS = "GET, PUT, POST, DELETE, OPTIONS";
 const HEADERS = new Set(["content-type", "authorization"]);
 const MODEL_BODY_TIMEOUT_MS = 30_000;
@@ -157,6 +159,7 @@ export class ApiAccess {
     const [api, resource, id] = segments;
     const path = `/${segments.join("/")}`;
     if (api !== "api") return notFound();
+    if (path === HEALTH_PATH && request.method === "GET") return respond(request);
     if (resource === "session" && segments.length === 2) return this.#session(request);
     const scope = this.scope(request);
     if (this.config.mode === "shared") {

@@ -37,7 +37,7 @@ describe("RemoteSketchRecognizer", () => {
   it("posts the raw strokes to /recognize and pairs labels with probabilities", async () => {
     const seen: SeenRequest[] = [];
     const eye = new RemoteSketchRecognizer(
-      SIDECAR,
+      { url: SIDECAR },
       sidecarSaying(() => Response.json({ labels: ["cake", "drums"], probs: [0.81, 0.07] }), seen),
     );
     expect(await eye.read(SKETCH)).toEqual({
@@ -60,7 +60,7 @@ describe("RemoteSketchRecognizer", () => {
     const timeout = vi.spyOn(AbortSignal, "timeout");
     const seen: SeenRequest[] = [];
     const eye = new RemoteSketchRecognizer(
-      SIDECAR,
+      { url: SIDECAR },
       sidecarSaying(() => Response.json({ labels: [], probs: [] }), seen),
     );
     await eye.read(SKETCH, { partial: true });
@@ -74,7 +74,7 @@ describe("RemoteSketchRecognizer", () => {
     const CAKE = { labels: ["cake"], probs: [0.97] };
     const eyeSaying = (body: object, floors = DEFAULT_CERTAINTY_FLOORS): RemoteSketchRecognizer =>
       new RemoteSketchRecognizer(
-        SIDECAR,
+        { url: SIDECAR },
         sidecarSaying(() => Response.json(body)),
         floors,
       );
@@ -122,7 +122,7 @@ describe("RemoteSketchRecognizer", () => {
 
   it("is null when the sidecar does not answer in time", async () => {
     const asked = performance.now();
-    const eye = new RemoteSketchRecognizer(SIDECAR, sidecarThatNeverAnswers);
+    const eye = new RemoteSketchRecognizer({ url: SIDECAR }, sidecarThatNeverAnswers);
     expect(await eye.read(SKETCH, { partial: true })).toBeNull();
     expect(performance.now() - asked).toBeLessThan(FINISHED_TIMEOUT_MS);
   });
@@ -132,8 +132,8 @@ describe("RemoteSketchRecognizer", () => {
       throw new TypeError("connection refused");
     };
     const failing = sidecarSaying(() => Response.json({ error: "boom" }, { status: 500 }));
-    expect(await new RemoteSketchRecognizer(SIDECAR, refusing).read(SKETCH)).toBeNull();
-    expect(await new RemoteSketchRecognizer(SIDECAR, failing).read(SKETCH)).toBeNull();
+    expect(await new RemoteSketchRecognizer({ url: SIDECAR }, refusing).read(SKETCH)).toBeNull();
+    expect(await new RemoteSketchRecognizer({ url: SIDECAR }, failing).read(SKETCH)).toBeNull();
   });
 
   it("is null when the body is not what the contract promises", async () => {
@@ -146,8 +146,21 @@ describe("RemoteSketchRecognizer", () => {
     ];
     for (const answer of malformed) {
       expect(
-        await new RemoteSketchRecognizer(SIDECAR, sidecarSaying(answer)).read(SKETCH),
+        await new RemoteSketchRecognizer({ url: SIDECAR }, sidecarSaying(answer)).read(SKETCH),
       ).toBeNull();
     }
+  });
+
+  it("carries the sidecar's bearer token when it sits behind an authenticating proxy", async () => {
+    const seen: Headers[] = [];
+    const guarded: FetchLike = async (_url, init) => {
+      seen.push(new Headers(init?.headers));
+      return Response.json({ labels: ["cake"], probs: [0.9] });
+    };
+    await new RemoteSketchRecognizer({ url: SIDECAR, apiKey: "eye-key" }, guarded).read(SKETCH);
+    await new RemoteSketchRecognizer({ url: SIDECAR }, guarded).read(SKETCH);
+    expect(seen[0]?.get("authorization")).toBe("Bearer eye-key");
+    expect(seen[0]?.get("content-type")).toBe("application/json");
+    expect(seen[1]?.has("authorization")).toBe(false);
   });
 });

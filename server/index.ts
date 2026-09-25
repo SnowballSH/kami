@@ -11,9 +11,11 @@ import { createApi } from "./http/api";
 import { type SocketData, socketsOf } from "./http/sockets";
 import { createStaticSite } from "./http/staticSite";
 import { quickdrawNatureTable } from "./natures/natureTable";
-import { QuickdrawRecognizer } from "./quickdraw/recognizer";
+import { buildFeatureMatrix } from "./quickdraw/featureMatrix";
 import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
+import { describeSeed, seedQuickdraw } from "./quickdraw/seed";
 import { createRecognizerChain } from "./recognition/chain";
+import { createKnnRanker } from "./recognition/ranking/ranker";
 import { createLlmSceneCompiler } from "./scene/llmSceneCompiler";
 import { createSketchLibrary } from "./sketch";
 import { isStageSocket, stageSockets } from "./stage/socket";
@@ -23,6 +25,8 @@ import { createSpeaker } from "./voice/speaker";
 
 const API_PREFIX = "/api";
 
+const log = (line: string): void => console.log(`  ${line}`);
+
 const config = readConfig();
 const connection = await connectDatabase(config.database);
 
@@ -30,18 +34,15 @@ const boards = new BoardRepository(connection.db);
 await boards.ensureIndexes();
 
 const samples = new QuickdrawSampleRepository(connection.db);
-const knn = new QuickdrawRecognizer(await samples.loadFeatures());
-const sketches = await createSketchLibrary(config.sketchesDirectory, {
-  stored: samples,
-  log: (line) => console.log(`  ${line}`),
+const seeded = await seedQuickdraw(samples, config.quickdrawSnapshot);
+const knn = createKnnRanker(buildFeatureMatrix(await samples.loadFeatures()), {
+  threads: config.recognizerThreads,
+  log,
 });
-const eye = createRecognizerChain(config.recognizerUrl, knn, {
-  log: (line) => console.log(`  ${line}`),
-});
+const sketches = await createSketchLibrary(config.sketchesDirectory, { stored: samples, log });
+const eye = createRecognizerChain(config.recognizer, knn.ranker, { log });
 
-const controllers = await startControllers(config.controllers, {
-  log: (line) => console.log(`  ${line}`),
-});
+const controllers = await startControllers(config.controllers, { log });
 
 const compiler = createLlmCompiler(config.llm);
 const transcriber = createLlmTranscriber(config.transcribe);
@@ -53,7 +54,7 @@ const api = createApi({
   boards,
   recognizer: eye.recognizer,
   compiler,
-  beautifier: createBeautifier(config.beautifyUrl),
+  beautifier: createBeautifier(config.beautifier),
   controllers: controllers.hub,
   transcriber,
   exemplars: createExemplarSource(sketches, quickdrawNatureTable),
@@ -106,36 +107,46 @@ console.log(
     ? "  https: off (set KAMI_TLS_CERT/KAMI_TLS_KEY)"
     : `Kami server on https://${config.hostname}:${config.tls.port} (microphone-capable)`,
 );
-console.log(`  memory: ${connection.description}`);
-console.log(`  game: ${config.webDirectory ?? "not built (Vite serves it in development)"}`);
-console.log(
+log(`memory: ${connection.description}`);
+log(`game: ${config.webDirectory ?? "not built (Vite serves it in development)"}`);
+log(describeSeed(seeded, config.quickdrawSnapshot));
+log(
   knn.size > 0
-    ? `  recognition: ${knn.size} Quick, Draw! sketches`
-    : "  recognition: empty (run `bun run quickdraw:ingest`)",
+    ? `recognition: ${knn.size} Quick, Draw! sketches; ${knn.describe()}`
+    : "recognition: empty (run `bun run quickdraw:ingest` or set KAMI_QUICKDRAW_SNAPSHOT)",
 );
-void eye.describe().then((line) => console.log(`  ${line}`));
-console.log(`  beautifier: ${config.beautifyUrl ?? "none attached"}`);
-console.log(`  ${sketches.describe()}`);
-console.log(`  controllers: ${controllers.description}`);
-console.log("  big screen: open /?screen on the monitor; it shows whichever device is drawing");
+void eye.describe().then(log);
+log(`beautifier: ${config.beautifier?.url ?? "none attached"}`);
+log(sketches.describe());
+log(`controllers: ${controllers.description}`);
+log("big screen: open /?screen on the monitor; it shows whichever device is drawing");
 console.log(
   `  voice: ${config.voice === null ? "off (set DEEPGRAM_API_KEY)" : `${config.voice.listenModel} in, ${config.voice.speakModel} out`}`,
 );
-console.log(`  model compile: ${config.llm === null ? "off" : config.llm.model}`);
-console.log(
-  `  handwriting: ${config.transcribe === null ? "off" : `${config.transcribe.model} (checking vision)`}`,
+log(`model compile: ${config.llm === null ? "off" : config.llm.model}`);
+log(
+  `handwriting: ${config.transcribe === null ? "off" : `${config.transcribe.model} (checking vision)`}`,
 );
-void compiler
-  .warmUp()
-  .then((awake) => {
-    if (config.llm !== null)
-      console.log(`  model ${awake ? "is awake" : "did not answer (check KAMI_LLM_URL)"}`);
-  })
-  .then(async () => {
-    if (transcriber === null) return;
-    const reads = await transcriber.warmUp();
-    console.log(`  handwriting reader ${reads ? "is ready" : "disabled: image check failed"}`);
-  });
+
+/**
+ * One request each, in sequence: the rules model is asked "hello" so a cold local model loads before
+ * the first player needs it (skipped with KAMI_LLM_WARM_UP=off, where every request is paid for); the
+ * handwriting reader's image check is what enables /api/transcribe, so it always runs, once.
+ */
+const warmUp = async (): Promise<void> => {
+  if (config.llm !== null) {
+    if (config.warmUp) {
+      const awake = await compiler.warmUp();
+      log(`model ${awake ? "is awake" : "did not answer (check KAMI_LLM_URL)"}`);
+    } else {
+      log("model warm-up skipped (KAMI_LLM_WARM_UP=off)");
+    }
+  }
+  if (transcriber === null) return;
+  const reads = await transcriber.warmUp();
+  log(`handwriting reader ${reads ? "is ready" : "disabled: image check failed"}`);
+};
+void warmUp();
 
 const once = (task: () => Promise<void>): (() => Promise<void>) => {
   let started: Promise<void> | undefined;
@@ -157,6 +168,7 @@ const shutDown = once(async () => {
   await controllers.close();
   await tlsServer?.stop(true);
   await server.stop(true);
+  knn.close();
   await connection.close();
   process.exit(0);
 });

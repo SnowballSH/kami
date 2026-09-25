@@ -3,6 +3,10 @@ import { type Db, MongoClient } from "./mongo";
 
 export const DATABASE_NAME = "kami";
 
+/** WiredTiger's smallest allowed cache; mongod's own default would be half of the host's memory. */
+export const MIN_EMBEDDED_CACHE_GB = 0.25;
+export const DEFAULT_EMBEDDED_CACHE_GB = MIN_EMBEDDED_CACHE_GB;
+
 const EMBEDDED_PORT = 27117;
 const EMBEDDED_URI = `mongodb://127.0.0.1:${EMBEDDED_PORT}/?directConnection=true`;
 const ADOPTION_TIMEOUT_MS = 500;
@@ -17,7 +21,22 @@ export interface DatabaseConnection {
 export interface DatabaseOptions {
   readonly uri: string | undefined;
   readonly embeddedDataDirectory: string;
+  /** WiredTiger cache for the embedded mongod, in GB; a shared host wants it small. */
+  readonly embeddedCacheGb?: number;
 }
+
+/**
+ * Arguments that keep an embedded mongod a good neighbour on a small shared host: a capped cache
+ * instead of half the machine's memory, and no full-time diagnostic data collection on disk.
+ */
+export const embeddedMongodArgs = (
+  cacheGb: number = DEFAULT_EMBEDDED_CACHE_GB,
+): readonly string[] => [
+  "--wiredTigerCacheSizeGB",
+  String(Math.max(MIN_EMBEDDED_CACHE_GB, cacheGb)),
+  "--setParameter",
+  "diagnosticDataCollectionEnabled=false",
+];
 
 const connectToUri = async (uri: string): Promise<DatabaseConnection> => {
   const client = await MongoClient.connect(uri);
@@ -44,11 +63,19 @@ const adoptRunningEmbedded = async (dataDirectory: string): Promise<DatabaseConn
   }
 };
 
-const startEmbedded = async (dataDirectory: string): Promise<DatabaseConnection> => {
+const startEmbedded = async (
+  dataDirectory: string,
+  cacheGb: number | undefined,
+): Promise<DatabaseConnection> => {
   await mkdir(dataDirectory, { recursive: true });
   const { MongoMemoryServer } = await import("mongodb-memory-server");
   const mongod = await MongoMemoryServer.create({
-    instance: { port: EMBEDDED_PORT, dbPath: dataDirectory, storageEngine: "wiredTiger" },
+    instance: {
+      port: EMBEDDED_PORT,
+      dbPath: dataDirectory,
+      storageEngine: "wiredTiger",
+      args: [...embeddedMongodArgs(cacheGb)],
+    },
   });
   const client = await MongoClient.connect(mongod.getUri());
   const close = async (): Promise<void> => {
@@ -70,9 +97,11 @@ const startEmbedded = async (dataDirectory: string): Promise<DatabaseConnection>
 export const connectDatabase = async ({
   uri,
   embeddedDataDirectory,
+  embeddedCacheGb,
 }: DatabaseOptions): Promise<DatabaseConnection> => {
   if (uri !== undefined && uri !== "") return connectToUri(uri);
   return (
-    (await adoptRunningEmbedded(embeddedDataDirectory)) ?? startEmbedded(embeddedDataDirectory)
+    (await adoptRunningEmbedded(embeddedDataDirectory)) ??
+    startEmbedded(embeddedDataDirectory, embeddedCacheGb)
   );
 };

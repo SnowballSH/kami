@@ -130,7 +130,7 @@ beforeAll(async () => {
     transcribe: async (strokes: readonly Stroke[]) => (strokes.length > 1 ? "no gravity" : null),
     warmUp: async () => true,
   };
-  beautifier = createBeautifier("http://beautifier.test/beautify", async (_url, init) => {
+  beautifier = createBeautifier({ url: "http://beautifier.test/beautify" }, async (_url, init) => {
     const { name } = JSON.parse(String(init?.body)) as { name: string };
     return name === "a storm"
       ? new Response("model fell over", { status: 500 })
