@@ -16,6 +16,9 @@ services:
     volumes:
       - kami-data:/data
       # - ${KAMI_EYE_ARTIFACTS:-./ml/artifacts/kami-eye}:/models/kami-eye:ro
+      # A public server: a file holding one password, with KAMI_PASSWORD_FILE=/run/secrets/kami-password
+      # and KAMI_ALLOWED_ORIGINS in .env, and KAMI_PUBLISH=127.0.0.1:8080 behind an HTTPS proxy.
+      # - ./kami-password:/run/secrets/kami-password:ro
     env_file:
       - path: .env
         required: false

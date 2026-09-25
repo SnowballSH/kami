@@ -20,17 +20,61 @@ For one-machine development, set both `KAMI_BIND_HOST=127.0.0.1` and
   using a TLS reverse proxy. Keep port 8787 private; an explicit bind override does not add TLS.
 - Set `KAMI_ALLOWED_ORIGINS` to exact public HTTPS origins, including a non-default port if used.
   No paths, wildcard, trailing slash, `null` origin, or automatic trust of forwarded headers.
-- Configure separate high-entropy credentials for participants/controllers. Each grants exact
+  Loopback origins (`http://localhost:5173`, `http://127.0.0.1:8787`) are accepted too, because
+  browsers treat them as secure: that is for trying shared mode on one machine, not for serving it.
+- Set one password for everyone (`KAMI_PASSWORD`), or configure separate high-entropy credentials
+  for participants/controllers (`KAMI_CREDENTIALS`), or both. Each credential grants exact
   board IDs, exact controller IDs, and an explicit `models` permission. Empty lists grant nothing.
   Possession permits reading and changing the listed resources; this is not per-action RBAC.
 - UDP controller input is disabled: it cannot carry authentication. Setting a UDP port explicitly
   in shared mode fails startup. Use local USB serial (trusted host) or authenticated HTTP reports.
 - Invalid/missing shared settings stop startup. CORS allowlisting never replaces authentication.
 
+A shared server is signed into with either **one password** (`KAMI_PASSWORD`, below) or scoped
+**tokens** (`KAMI_CREDENTIALS`, "Provision credentials"), or both.
+
 This mode does not provide user registration, identity-provider login, distributed rate limits,
 or a public multi-tenant hosting service. A token with model permission can consume the common
 model budget. A trusted operator controls credentials, upstream URLs, host access and deployment.
 Do not expose the Vite development server as the shared service.
+
+## One password
+
+The simplest way to put Kami on the internet for friends, a class or a jam: one secret password.
+
+```text
+KAMI_PASSWORD_FILE=/run/secrets/kami-password
+KAMI_ALLOWED_ORIGINS=https://kami.example.org
+```
+
+- Setting `KAMI_PASSWORD` (or `KAMI_PASSWORD_FILE`, a file holding it) switches the server to
+  `shared` mode; `KAMI_ACCESS_MODE` may be left unset or set to `shared`. Setting it with
+  `KAMI_ACCESS_MODE=demo` stops start-up rather than silently ignoring the password. Every other
+  shared-mode rule applies: HTTPS allowed origins, loopback bind by default, UDP controllers off.
+- The password is equivalent to one credential that grants **every board, every controller and the
+  models**. Anyone holding it can read, change and delete every board, so share it like a house key
+  and pick a long passphrase (`openssl rand -base64 18` makes a good one). Surrounding whitespace is
+  ignored; it may be up to 1024 characters of anything.
+- The browser's access gate asks for a **password** (the server says so in `GET /api/session`,
+  `secret: "password"`): a real password field that password managers fill and offer to save, Enter
+  to submit, and a plain "Wrong password" when it is wrong. It is posted once, as a JSON body, to
+  `POST /api/session` and exchanged for the same eight-hour session cookie tokens get. It is never a
+  bearer credential on other requests, so it cannot be guessed there.
+- It can sit beside `KAMI_CREDENTIALS`: people type the password at the gate, while devices and
+  scripts (an HTTP controller, a big screen on a kiosk) keep their own scoped tokens. The password
+  must differ from every token, and no credential may use the id `password`.
+- Change it by changing the secret and restarting; sessions live in memory, so everyone signs in
+  again.
+
+**Guessing.** The password is compared in constant time (as a SHA-256 digest). Sign-in attempts are
+limited to 30 a minute for the whole server, and each client may fail 10 times in 15 minutes before
+it is told to wait (`429` with `Retry-After`) — other clients are unaffected, and a correct password
+clears the count. A client is the connecting address; behind a reverse proxy it is the last
+`X-Forwarded-For` entry, which is believed only from `KAMI_TRUSTED_PROXIES` (default the loopback
+addresses, where a proxy on the same host connects from). When Kami runs in a container behind the
+host's proxy, the proxy reaches it from the container network's gateway: add that address (e.g.
+`KAMI_TRUSTED_PROXIES=10.88.0.1` for podman's default network), or every visitor shares one
+count. Forwarded addresses are used for this count only, never to decide access.
 
 ## Provision credentials
 
@@ -53,9 +97,10 @@ credential requires an operator-controlled restart; sessions are held only in me
 expire on restart. Run one API process or use sticky routing; credentials and quotas are not
 coordinated across replicas. Do not enable proxy/header logging of Authorization or cookies.
 
-The iPad's startup form exchanges its token for an opaque `__Host-kami` cookie: `HttpOnly`,
-`Secure`, `SameSite=Strict`, `Path=/`, eight-hour lifetime. The token field is cleared, and tokens
-are not saved in local storage or appended to SSE URLs. Same-origin fetch clients—including
+The iPad's startup form exchanges its token (or the password) for an opaque `__Host-kami` cookie:
+`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`, eight-hour lifetime. The field is cleared once
+the attempt is answered, and secrets are not saved in local storage or appended to SSE URLs.
+The game's page and assets load without a session, so the gate can render; only `/api` asks. Same-origin fetch clients—including
 recognition, completion, compilation and handwriting—and native EventSource/WebSocket use this cookie
 without changing their payload contracts. The initial board/controller comes from the grant
 unless the URL already selects one. An explicit URL selection never expands its grant.
@@ -108,8 +153,8 @@ scripted client cannot run up the gateway bill or starve the host's other servic
 (`server/README.md`, "Self-hosting"). A slot stays occupied while the model response is read; response bodies have an
 8 MiB ceiling and 30-second read deadline. Upstream inference/request deadlines remain those of
 the individual adapters. Restart resets the counters. Board/controller traffic is not charged
-against the model budget. The login endpoint allows 30 attempts per minute and at most 128 active
-sessions per process. These limits bound work; they do not replace proxy connection/body limits
+against the model budget. The login endpoint allows 30 attempts per minute, 10 failures per client in 15
+minutes ("One password" above), and at most 128 active sessions per process. These limits bound work; they do not replace proxy connection/body limits
 or a firewall.
 
 | Request | Shared-mode result |
@@ -120,11 +165,15 @@ or a firewall.
 | Disallowed browser origin, including `null` | `403`, no CORS grant |
 | Allowed preflight, supported method and headers | `204`, exact origin and credentials headers |
 | Model/login budget exhausted | `429` with `Retry-After: 60` |
+| Too many failed sign-ins from one client | `429` with `Retry-After` until its 15-minute window ends |
+| Signed in with the password | Every board, controller and model route |
 | Board/controller list | Only resources in the credential's grant |
 
 Automated coverage in `server/http/access.test.ts` checks these cases with a temporary local
 database and mocked models, cookie expiry/logout, controller SSE, bounded model work, and demo
-requests. `src/ui/accessGate.test.ts` covers startup, token clearing and scope defaults without
+requests, the password gate's configuration, grant and per-client throttling.
+`src/ui/accessGate.test.ts` covers startup, the password and token wording, wrong-password and
+throttled messages, clearing and scope defaults without
 driving a browser or running inference.
 
 ## Network verification before shared use

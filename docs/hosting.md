@@ -63,7 +63,7 @@ chooses where compose publishes the game; `127.0.0.1:8080` keeps it behind a rev
 ## Configuration
 
 Everything is an environment variable ([server/README.md](../server/README.md) has the details).
-Any secret (`*_API_KEY`, `MONGODB_URI`, `KAMI_CREDENTIALS`) may be given as a file instead:
+Any secret (`*_API_KEY`, `MONGODB_URI`, `KAMI_CREDENTIALS`, `KAMI_PASSWORD`) may be given as a file instead:
 `KAMI_LLM_API_KEY_FILE=/run/secrets/llm-key`.
 
 ### Models
@@ -72,7 +72,7 @@ Any secret (`*_API_KEY`, `MONGODB_URI`, `KAMI_CREDENTIALS`) may be given as a fi
 |---|---|---|
 | `KAMI_LLM_URL`, `KAMI_LLM_MODEL` | off | Any OpenAI-compatible chat endpoint for the laws the offline grammar cannot read, and the model name it serves. Unset: the grammar alone, which still plays. |
 | `KAMI_LLM_API_KEY` | none | Sent as a bearer token. |
-| `KAMI_LLM_REASONING_EFFORT` | model's own | For reasoning models: `low` keeps laws snappy. |
+| `KAMI_LLM_REASONING_EFFORT` | `none` | Sent as `reasoning_effort`: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `off` to never send it. A server that rejects the field is asked again without it. |
 | `KAMI_SIDECAR` | `auto` | The image starts `ml/sidecar.py` on `127.0.0.1:8790` beside the server, restarts it if it dies and stops it on shutdown. `off` does without: handwriting then needs another reader. |
 | `KAMI_HANDWRITING_URL`, `KAMI_HANDWRITING_API_KEY` | the image's sidecar | Where handwriting is read (`POST /read`, [ml/CONTRACT.md](../ml/CONTRACT.md)): another sidecar, e.g. the `kami-eye` image on another host, or `off` to leave it to the vision model. |
 | `KAMI_TRANSCRIBE_URL`, `KAMI_TRANSCRIBE_MODEL`, `KAMI_TRANSCRIBE_API_KEY` | the LLM settings | A vision-capable model that reads handwriting, used only when no sidecar reader passes its start-up check. A text-only model fails that check and is simply not used. |
@@ -95,6 +95,30 @@ Point `KAMI_LLM_URL` at whatever speaks the OpenAI chat-completions API:
 A small, fast model is the right choice: Kami asks for short JSON and asks often. Keep the key out
 of the command line with `KAMI_LLM_API_KEY_FILE`.
 
+**An OpenAI reasoning model behind a gateway.** Any OpenAI-compatible gateway (modelgate, LiteLLM,
+a hosted router) works the same way. Ask for the lowest effort, so a law comes back in about the
+time a non-reasoning model takes:
+
+```text
+KAMI_LLM_URL=https://llm.example.org/v1
+KAMI_LLM_MODEL=<the model name the gateway routes, e.g. an OpenAI reasoning model>
+KAMI_LLM_API_KEY_FILE=/run/secrets/llm-key
+KAMI_LLM_REASONING_EFFORT=none
+```
+
+`none` is also the default, and it is sent as `"reasoning_effort": "none"` on every chat request;
+a model or gateway that rejects the field (or that value) is asked once more without it, and Kami
+remembers that for the rest of the run. Set a higher effort only if laws come back wrong, and
+`off` for a server that must never see the field. The gateway may bill each request, so cap the
+spend with `KAMI_MODEL_REQUESTS_PER_MINUTE` and `KAMI_MODEL_CONCURRENCY` (docs/access.md suggests
+`600` and `4` for a small public host).
+
+Handwriting is not sent to that model. The image's own sidecar reads it on the CPU, and a local
+reader always comes first: the vision model (`KAMI_TRANSCRIBE_*`, which defaults to the LLM
+settings) is only tried when no sidecar reader passes its start-up check. A text-only or
+reasoning-only model fails the vision check and is simply not used, so pointing `KAMI_LLM_URL` at a
+gateway changes how laws are read and nothing about handwriting.
+
 ### Storage
 
 | Variable | Default | What |
@@ -110,21 +134,22 @@ of the command line with `KAMI_LLM_API_KEY_FILE`.
 |---|---|---|
 | `PORT` | `8080` | The HTTP port inside the container. |
 | `KAMI_BIND_HOST` | `0.0.0.0` | What the server binds inside the container. |
-| `KAMI_ACCESS_MODE` | `demo` | `demo` trusts every peer that can reach it; `shared` for anything on the internet. |
+| `KAMI_ACCESS_MODE` | `demo`, or `shared` when a password is set | `demo` trusts every peer that can reach it; `shared` for anything on the internet. |
+| `KAMI_PASSWORD` | none | One password for everyone, granting every board; setting it makes the server `shared`. Prefer `KAMI_PASSWORD_FILE`. |
 | `KAMI_ALLOWED_ORIGINS` | none | Exact browser origins allowed besides the game's own, e.g. `https://kami.example.org`. |
-| `KAMI_CREDENTIALS` | none | Shared mode's participants, a JSON array; prefer `KAMI_CREDENTIALS_FILE`. |
+| `KAMI_CREDENTIALS` | none | Scoped participants, a JSON array of tokens, instead of or beside the password; prefer `KAMI_CREDENTIALS_FILE`. |
+| `KAMI_TRUSTED_PROXIES` | loopback | Proxy addresses whose `X-Forwarded-For` names the visitor, for counting failed sign-ins. |
 | `KAMI_WEB_DIR` | `/app/dist` | The built game the server serves at `/`. |
 | `KAMI_CONTROLLER_UDP_PORT`, `KAMI_CONTROLLER_SERIAL` | `off` | Physical controllers; a container has neither. |
 
-**Anything reachable from the public internet runs in `shared` mode**, behind TLS, with
-credentials: in `demo` mode every visitor can read, overwrite and delete every board and spend your
-model budget. [docs/access.md](access.md) explains the trust model, how to mint credentials and what
-the API answers.
+**Anything reachable from the public internet runs in `shared` mode**, behind TLS, with a password
+or credentials: in `demo` mode every visitor can read, overwrite and delete every board and spend
+your model budget. [docs/access.md](access.md) explains the trust model, how to mint credentials and
+what the API answers; "Put it on the internet" below is the short version.
 
 ```text
-KAMI_ACCESS_MODE=shared
+KAMI_PASSWORD_FILE=/run/secrets/kami-password
 KAMI_ALLOWED_ORIGINS=https://kami.example.org
-KAMI_CREDENTIALS_FILE=/run/secrets/kami-credentials
 ```
 
 ### Performance
@@ -210,86 +235,37 @@ kami.example.org {
 `proxy_read_timeout 1h;` and the usual `Upgrade`/`Connection` headers on `/api/stage/`. Whatever the
 proxy, the game and `/api` must share **one origin**, and that origin goes in `KAMI_ALLOWED_ORIGINS`.
 
-## Appendix: SnowSys
+## Put it on the internet
 
-Kami fits the snowdeploy shape used for the other services on that host: a manifest with the
-digest and health contract, and a quadlet template rendered by the daemon. The image already runs as
-uid 10001, so the standard `keep-id` mapping, read-only root and dropped capabilities apply
-unchanged. Boards go in a named volume, credentials in a mode-0400 file under the service user's
-tree, read through `KAMI_CREDENTIALS_FILE`.
+The recommended public setup is three pieces, each one line of configuration:
 
-`deploy/manifests/kami.yaml`:
+1. **A password gate.** `KAMI_PASSWORD_FILE` names a file holding one password; setting it makes the
+   server `shared`, and the game opens with a password prompt instead of the board. Everyone who
+   knows the password can play every board ([access.md](access.md), "One password").
+2. **HTTPS in front.** A reverse proxy terminates TLS (Caddy, above, gets a certificate by itself)
+   and the container is published on loopback only, so nothing reaches Kami except through it.
+3. **The public origin.** `KAMI_ALLOWED_ORIGINS` is the exact address people open.
 
-```yaml
-name: kami
-description: Kami, the hand-drawn puzzle-platformer
-image:
-  repository: ghcr.io/snowballsh/kami
-  digest: sha256:<the digest to deploy>
-template: kami.container.tmpl
-port: 8090
-network: kami-net
-env:
-  KAMI_ACCESS_MODE: shared
-  KAMI_ALLOWED_ORIGINS: https://kami.snowballsh.com
-  KAMI_CREDENTIALS_FILE: /run/kami/credentials
-  KAMI_LLM_URL: http://llm-gateway:8080/v1
-  KAMI_LLM_MODEL: kami-laws
-  KAMI_LLM_API_KEY_FILE: /run/kami/llm-key
-  KAMI_MONGO_CACHE_GB: "0.1"
-  BUN_OPTIONS: --smol
-volumes:
-  - kami-data.volume:/data
-  - /home/snowapps/.config/kami/credentials:/run/kami/credentials:ro
-  - /home/snowapps/.config/kami/llm-key:/run/kami/llm-key:ro
-health:
-  url: http://127.0.0.1:8090/api/health
-  timeout: 120s
+```bash
+openssl rand -base64 18 > /srv/kami/password && chmod 400 /srv/kami/password
+podman run -d --name kami -p 127.0.0.1:8080:8080 -v kami-data:/data \
+  -v /srv/kami/password:/run/secrets/kami-password:ro \
+  -e KAMI_PASSWORD_FILE=/run/secrets/kami-password \
+  -e KAMI_ALLOWED_ORIGINS=https://kami.example.org \
+  -e KAMI_TRUSTED_PROXIES=10.88.0.1 \
+  --userns=keep-id:uid=10001,gid=10001 \
+  --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+  --cap-drop=ALL --security-opt no-new-privileges \
+  ghcr.io/snowballsh/kami:latest
 ```
 
-`deploy/templates/kami.container.tmpl`:
+With compose, put the same variables in `.env` (leave `KAMI_ACCESS_MODE` empty or `shared`), mount
+the password file, and set `KAMI_PUBLISH=127.0.0.1:8080`. `KAMI_TRUSTED_PROXIES` names the address
+the proxy reaches the container from (the container network's gateway), so failed sign-ins are
+counted per visitor rather than for everyone at once; left out, it is safe but coarser. `GET
+/api/health` stays open for health checks and says nothing but `{"ok":true}`.
 
-```ini
-[Unit]
-Description={{.UnitDescription}}
-Requires={{.Network}}-network.service
-After={{.Network}}-network.service
+Sessions last eight hours in an `HttpOnly`, `Secure` cookie. To lock everyone out, change the
+password and restart. For people with different rights — one board each, a scoped kiosk — use
+`KAMI_CREDENTIALS` tokens instead of, or beside, the password.
 
-[Container]
-ContainerName={{.Name}}
-Image={{.Image.Repository}}@{{.Image.Digest}}
-Network={{.Network}}.network
-PublishPort=127.0.0.1:{{.Port}}:8080
-{{- range $name, $value := .Env}}
-Environment={{$name}}={{$value}}
-{{- end}}
-{{- range .EnvFiles}}
-EnvironmentFile={{.}}
-{{- end}}
-UserNS=keep-id:uid=10001,gid=10001
-{{- range .Volumes}}
-Volume={{.}}
-{{- end}}
-Tmpfs=/tmp:rw,noexec,nosuid,nodev,size=64M
-ReadOnly=true
-NoNewPrivileges=true
-DropCapability=ALL
-HealthCmd=bun -e "fetch('http://127.0.0.1:8080/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
-HealthInterval=30s
-HealthStartPeriod=120s
-LogDriver=journald
-
-[Service]
-Restart=on-failure
-RestartSec=5s
-MemoryMax=1G
-TasksMax=256
-
-[Install]
-WantedBy=default.target
-```
-
-The health timeout is generous because the first start imports the sketches. The Caddy site block
-above, with the published loopback port, completes the picture. Handwriting needs nothing more: the
-image reads it itself, even behind a text-only gateway. A trained Eye is one more volume,
-`/srv/kami/artifacts/kami-eye:/models/kami-eye:ro`.
