@@ -1,9 +1,21 @@
 import { z } from "zod";
+import { DEFAULT_REQUEST_SHAPE, degradeAfterRejection, type RequestShape } from "./requestShape";
+
+export {
+  parseReasoningEffort,
+  REASONING_EFFORTS,
+  type ReasoningEffort,
+  type RequestShape,
+} from "./requestShape";
+
+import type { ReasoningEffort } from "./requestShape";
 
 export interface LlmConfig {
   readonly url: string;
   readonly model: string;
   readonly apiKey?: string;
+  /** What to ask for as `reasoning_effort`; `null` never sends the field. Unset means `none`. */
+  readonly reasoningEffort?: ReasoningEffort | null;
 }
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -27,16 +39,12 @@ export interface AskOptions {
 
 const CHAT_COMPLETIONS_PATH = "/chat/completions";
 const API_VERSION_PATH = "/v1";
-const NO_REASONING = { reasoning_effort: "none" } as const;
-const responseFormat = (jsonSchema: AskOptions["jsonSchema"]): Readonly<Record<string, unknown>> =>
-  jsonSchema === undefined
-    ? { type: "json_object" }
-    : { type: "json_schema", json_schema: { name: "reply", strict: true, schema: jsonSchema } };
+const DEFAULT_REASONING_EFFORT: ReasoningEffort = "none";
 const REJECTED_REQUEST = 400;
 const REASONING_BLOCK = /<think>[\s\S]*?(<\/think>|$)/gi;
 
 const chatResponseSchema = z.object({
-  choices: z.array(z.object({ message: z.object({ content: z.string() }) })).min(1),
+  choices: z.array(z.object({ message: z.object({ content: z.string().nullable() }) })).min(1),
 });
 
 export const chatCompletionsUrl = (configured: string): string => {
@@ -84,34 +92,62 @@ const withTimeout = (timeoutMs: number, signal: AbortSignal | undefined): AbortS
     ? AbortSignal.timeout(timeoutMs)
     : AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]);
 
+const responseFormatOf = (
+  { responseFormat }: RequestShape,
+  jsonSchema: AskOptions["jsonSchema"],
+): Readonly<Record<string, unknown>> => {
+  if (responseFormat === "none") return {};
+  if (responseFormat === "json_schema" && jsonSchema !== undefined) {
+    return {
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "reply", strict: true, schema: jsonSchema },
+      },
+    };
+  }
+  return { response_format: { type: "json_object" } };
+};
+
 /**
- * One OpenAI-compatible `/v1/chat/completions` endpoint (vLLM, Ollama). Every failure — timeout,
- * HTTP error, garbage — is `null`. A short answer needs no chain of thought: on the GX10's qwen3.8,
- * asking for none answers in 1.6 s instead of 13.8 s; a server that rejects the field is asked
- * again without it, once, and not asked for it again.
+ * One OpenAI-compatible `/v1/chat/completions` endpoint: vLLM, Ollama, llama.cpp, OpenAI itself
+ * or a gateway in front of Anthropic. Every failure — timeout, HTTP error, garbage — is `null`.
+ *
+ * Servers disagree about the optional fields (`response_format`, `reasoning_effort`, `max_tokens`
+ * versus `max_completion_tokens`, a non-default `temperature`), and each says so with a 400. The
+ * client keeps a request shape, drops one feature per rejection (`requestShape.ts` decides which,
+ * reading the error when it names the field) and remembers the shape that worked, so the cost of
+ * learning a server is paid once per process, not once per request.
  */
 export class ChatClient {
   readonly #config: LlmConfig;
   readonly #fetch: FetchLike;
-  #skipsReasoning = true;
-  #usesJsonMode = true;
+  readonly #effort: ReasoningEffort | null;
+  #shape: RequestShape = DEFAULT_REQUEST_SHAPE;
 
   constructor(config: LlmConfig, fetchFn: FetchLike = fetch) {
     this.#config = config;
     this.#fetch = fetchFn;
+    this.#effort =
+      config.reasoningEffort === undefined ? DEFAULT_REASONING_EFFORT : config.reasoningEffort;
+    if (this.#effort === null) this.#shape = { ...this.#shape, reasoning: false };
+  }
+
+  /** The request shape this client has settled on so far. */
+  get shape(): RequestShape {
+    return this.#shape;
   }
 
   async ask(messages: readonly ChatMessage[], options: AskOptions): Promise<string | null> {
     try {
-      let response = await this.#post(messages, options);
-      if (response.status === REJECTED_REQUEST && this.#skipsReasoning) {
-        this.#skipsReasoning = false;
-        response = await this.#post(messages, options);
+      let shape = this.#shape;
+      let response = await this.#post(messages, options, shape);
+      while (response.status === REJECTED_REQUEST) {
+        const next = degradeAfterRejection(shape, await response.text());
+        if (next === null) break;
+        shape = next;
+        response = await this.#post(messages, options, shape);
       }
-      if (response.status === REJECTED_REQUEST && this.#usesJsonMode) {
-        this.#usesJsonMode = false;
-        response = await this.#post(messages, options);
-      }
+      this.#shape = shape;
       if (!response.ok) return null;
       const chat = chatResponseSchema.safeParse(await response.json());
       return chat.success ? (chat.data.choices[0]?.message.content ?? null) : null;
@@ -123,16 +159,17 @@ export class ChatClient {
   #post(
     messages: readonly ChatMessage[],
     { maxTokens, timeoutMs, jsonSchema, signal }: AskOptions,
+    shape: RequestShape,
   ): Promise<Response> {
     return this.#fetch(chatCompletionsUrl(this.#config.url), {
       method: "POST",
       headers: this.#headers(),
       body: JSON.stringify({
         model: this.#config.model,
-        temperature: 0,
-        max_tokens: maxTokens,
-        ...(this.#skipsReasoning ? NO_REASONING : {}),
-        ...(this.#usesJsonMode ? { response_format: responseFormat(jsonSchema) } : {}),
+        ...(shape.temperature ? { temperature: 0 } : {}),
+        [shape.tokenLimit]: maxTokens,
+        ...(shape.reasoning && this.#effort !== null ? { reasoning_effort: this.#effort } : {}),
+        ...responseFormatOf(shape, jsonSchema),
         messages,
       }),
       signal: withTimeout(timeoutMs, signal),
