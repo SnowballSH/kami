@@ -8,8 +8,6 @@ const MODEL_ROUTES = new Map([
   ["/api/beautify", "POST"],
   ["/api/compile", "POST"],
   ["/api/transcribe", "POST"],
-  ["/api/voice/speak", "POST"],
-  ["/api/voice/listen", "GET"],
   ["/api/exemplar", "GET"],
   ["/api/exemplars", "GET"],
   ["/api/scene", "POST"],
@@ -20,11 +18,6 @@ const MODEL_BODY_TIMEOUT_MS = 30_000;
 const MAX_MODEL_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 export type Respond = (request: Request) => Promise<Response>;
-
-export interface ModelStream {
-  readonly authorized: () => boolean;
-  readonly release: () => void;
-}
 
 /** A long-lived socket that does no model work; `authorized` is asked again for as long as it lives. */
 export interface SocketGrant {
@@ -94,23 +87,6 @@ export class ApiAccess {
       response.headers.set("access-control-max-age", "600");
     }
     return response;
-  }
-
-  openModelStream(request: Request): ModelStream | Response {
-    if (!this.#allowsOrigin(request)) return denied();
-    const url = new URL(request.url);
-    if (request.method !== "GET" || url.pathname !== "/api/voice/listen") return notFound();
-    const scope = this.scope(request);
-    if (this.config.mode === "shared") {
-      if (scope === null) return unauthorized();
-      if (!scope.models) return denied();
-    }
-    const release = this.#models.enter();
-    if (release === null) return busy();
-    return {
-      authorized: () => this.config.mode === "demo" || (this.scope(request)?.models ?? false),
-      release,
-    };
   }
 
   /**

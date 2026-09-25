@@ -6,9 +6,6 @@ export const json = (body: unknown, status = 200): Response => Response.json(bod
 
 export const ok = (): Response => json({ ok: true });
 
-export const audio = (body: ArrayBuffer, contentType = "audio/mpeg"): Response =>
-  new Response(body, { headers: { "content-type": contentType } });
-
 export const preflight = (): Response => new Response(null, { status: 204 });
 
 export const badRequest = (error: string, issues: readonly string[] = []): Response =>
