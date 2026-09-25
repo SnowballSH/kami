@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-import onnxruntime as ort
 from numpy.typing import NDArray
 
 from artifacts import (
@@ -16,6 +15,7 @@ from artifacts import (
     load_metadata,
     validate_tensors,
 )
+from onnx_runtime import ort
 from render import (
     CANVAS,
     MARGIN,

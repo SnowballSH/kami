@@ -17,7 +17,6 @@ from typing import Protocol
 
 import cv2
 import numpy as np
-import onnxruntime as ort
 from numpy.typing import NDArray
 
 from handwriting.ink import Image
@@ -28,6 +27,7 @@ from handwriting.sources import (
     SCREEN_CHARACTERS,
     SCREEN_MODEL,
 )
+from onnx_runtime import ort
 
 CTC_HEIGHT = 48
 CTC_MIN_WIDTH = 16

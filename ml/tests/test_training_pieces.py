@@ -3,8 +3,9 @@
 from pathlib import Path
 
 import numpy as np
-import onnxruntime as ort
 import pytest
+
+from onnx_runtime import ort
 
 torch = pytest.importorskip("torch")
 

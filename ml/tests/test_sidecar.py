@@ -5,10 +5,10 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import onnxruntime as ort
 import pytest
 from tiny_model import TINY_LABELS, TINY_TEMPERATURE
 
+from onnx_runtime import ort
 from render import render, to_model_input
 
 SQUARE = [
