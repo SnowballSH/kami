@@ -7,7 +7,8 @@ import logging
 import math
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -22,8 +23,10 @@ from render import Point
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8790
 DEFAULT_MODEL_DIR = Path(__file__).parent / "artifacts" / "kami-eye"
+HOST_ENV = "KAMI_EYE_HOST"
 PORT_ENV = "KAMI_EYE_PORT"
 MODEL_ENV = "KAMI_EYE_MODEL"
+THREADS_ENV = "KAMI_EYE_THREADS"
 MAX_BODY_BYTES = 262_144
 MAX_STROKES = 256
 MAX_POINTS_PER_STROKE = 1024
@@ -40,6 +43,38 @@ log = logging.getLogger("kami-eye")
 
 class BadRequest(ValueError):
     pass
+
+
+def _positive_int(env: Mapping[str, str], name: str) -> int | None:
+    raw = env.get(name, "").strip()
+    if raw == "":
+        return None
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise ValueError(f"{name} must be a positive integer, not {raw!r}") from error
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive integer, not {raw!r}")
+    return value
+
+
+@dataclass(frozen=True)
+class SidecarSettings:
+    """Where the sidecar listens and what it serves; `threads` None leaves ORT its default."""
+
+    model_dir: Path = DEFAULT_MODEL_DIR
+    host: str = HOST
+    port: int = DEFAULT_PORT
+    threads: int | None = None
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str] = os.environ) -> SidecarSettings:
+        return cls(
+            model_dir=Path(env.get(MODEL_ENV, "").strip() or DEFAULT_MODEL_DIR),
+            host=env.get(HOST_ENV, "").strip() or HOST,
+            port=_positive_int(env, PORT_ENV) or DEFAULT_PORT,
+            threads=_positive_int(env, THREADS_ENV),
+        )
 
 
 def parse_strokes(payload: object) -> list[list[Point]]:
@@ -232,10 +267,12 @@ def load_completer(recognizer: SketchRecognizer, model_dir: Path) -> SketchCompl
     return completer
 
 
-def create_server(model_dir: Path, port: int) -> ThreadingHTTPServer:
+def create_server(
+    model_dir: Path, port: int, *, host: str = HOST, threads: int | None = None
+) -> ThreadingHTTPServer:
     model_dir = model_dir.resolve(strict=True)
     artifact_id = validate_bundle(model_dir)
-    recognizer = SketchRecognizer(model_dir)
+    recognizer = SketchRecognizer(model_dir, threads=threads)
     completer = load_completer(recognizer, model_dir)
     started = time.perf_counter()
     recognizer.recognize(WARM_UP_STROKES)
@@ -245,16 +282,17 @@ def create_server(model_dir: Path, port: int) -> ThreadingHTTPServer:
         "%s: %d classes, warmed up in %.0f ms", recognizer.name, len(recognizer.labels), warm_up_ms
     )
     return ThreadingHTTPServer(
-        (HOST, port), make_handler(recognizer, completer, artifact_id=artifact_id)
+        (host, port), make_handler(recognizer, completer, artifact_id=artifact_id)
     )
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
-    model_dir = Path(os.environ.get(MODEL_ENV, DEFAULT_MODEL_DIR))
-    port = int(os.environ.get(PORT_ENV, DEFAULT_PORT))
-    server = create_server(model_dir, port)
-    log.info("listening on http://%s:%d", HOST, port)
+    settings = SidecarSettings.from_env()
+    server = create_server(
+        settings.model_dir, settings.port, host=settings.host, threads=settings.threads
+    )
+    log.info("listening on http://%s:%d", *server.server_address[:2])
     try:
         server.serve_forever()
     except KeyboardInterrupt:

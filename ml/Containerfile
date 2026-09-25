@@ -1,0 +1,48 @@
+# syntax=docker/dockerfile:1
+# Kami's Eye, the optional sketch-recognition sidecar (CONTRACT.md), with its serving dependencies
+# only: numpy, OpenCV (headless) and ONNX Runtime, never torch. The trained artefact directory is
+# mounted read-only at /models/kami-eye. docs/hosting.md shows it beside the game.
+
+ARG PYTHON_VERSION=3.12
+ARG UV_VERSION=0.12.13
+
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
+
+FROM docker.io/library/python:${PYTHON_VERSION}-slim AS build
+COPY --from=uv /uv /usr/local/bin/uv
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-default-groups
+
+
+FROM docker.io/library/python:${PYTHON_VERSION}-slim AS runtime
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 kami \
+    && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /app --shell /usr/sbin/nologin kami
+
+WORKDIR /app
+ENV PATH=/app/.venv/bin:$PATH \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    OMP_NUM_THREADS=1 \
+    KAMI_EYE_HOST=0.0.0.0 \
+    KAMI_EYE_PORT=8790 \
+    KAMI_EYE_MODEL=/models/kami-eye \
+    KAMI_EYE_THREADS=1
+COPY --from=build /app/.venv /app/.venv
+COPY *.py ./
+RUN python -c "import sidecar" && mkdir -p /models
+
+VOLUME /models
+EXPOSE 8790
+USER 10001:10001
+STOPSIGNAL SIGINT
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["python", "-c", "import os, sys, urllib.request; sys.exit(0 if urllib.request.urlopen(f\"http://127.0.0.1:{os.environ.get('KAMI_EYE_PORT', '8790')}/health\", timeout=4).status == 200 else 1)"]
+CMD ["python", "sidecar.py"]

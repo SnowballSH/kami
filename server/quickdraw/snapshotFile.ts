@@ -15,17 +15,21 @@ const sketchSchema = z.object({
  * A box with no internet cannot run the ingest, so what one machine ingested travels as a
  * gzipped NDJSON file. Features are left out and recomputed on arrival, so they cannot drift.
  */
-export const exportSnapshot = async (
-  repository: QuickdrawSampleRepository,
+export const writeSnapshot = async (
+  sketches: readonly StoredSketch[],
   path: string,
 ): Promise<number> => {
-  const sketches = await repository.loadDrawings();
   const ndjson = sketches.map((sketch) => JSON.stringify(sketch)).join("\n");
   await writeFile(path, gzipSync(ndjson));
   return sketches.length;
 };
 
-const readSketches = async (path: string): Promise<readonly StoredSketch[]> =>
+export const exportSnapshot = async (
+  repository: QuickdrawSampleRepository,
+  path: string,
+): Promise<number> => writeSnapshot(await repository.loadDrawings(), path);
+
+export const readSnapshot = async (path: string): Promise<readonly StoredSketch[]> =>
   gunzipSync(await readFile(path))
     .toString("utf8")
     .split("\n")
@@ -35,4 +39,4 @@ const readSketches = async (path: string): Promise<readonly StoredSketch[]> =>
 export const importSnapshot = async (
   repository: QuickdrawSampleRepository,
   path: string,
-): Promise<number> => indexSketches(repository, await readSketches(path));
+): Promise<number> => indexSketches(repository, await readSnapshot(path));

@@ -71,6 +71,20 @@ and `MONGODB_URI`.
 `bun run check` is the gate: typecheck, lint and about 2,400 tests, including headless playthroughs of
 whole boards.
 
+## Host it
+
+One container carries the server, the built game, an embedded MongoDB and the sketches it recognises
+with, so a fresh host plays at once:
+
+```bash
+podman run -d --name kami -p 8080:8080 -v kami-data:/data --read-only --tmpfs /tmp \
+  --cap-drop=ALL --security-opt no-new-privileges ghcr.io/snowballsh/kami:latest
+```
+
+[docs/hosting.md](docs/hosting.md) has the compose file, every setting (models, storage, access,
+performance), the optional Eye sidecar image, a reverse-proxy example and what `shared` mode means
+before anything faces the internet.
+
 ## How it works
 
 - **Ink is physics.** Strokes become rigid bodies in a fixed-step simulation (matter-js); a name gives
@@ -102,6 +116,7 @@ whole boards.
 | [docs/architecture.md](docs/architecture.md) | How the code fits together, the contracts between its parts, and what has and has not been verified |
 | [docs/modes.md](docs/modes.md) · [puzzles](docs/puzzles.md) · [boss](docs/boss.md) · [laws](docs/laws.md) | The ways to play and the rules of each |
 | [server/README.md](server/README.md) | The API, configuration and the GX10 deployment |
+| [docs/hosting.md](docs/hosting.md) | Hosting Kami anywhere with podman or docker: images, compose, settings, reverse proxy |
 | [ml/README.md](ml/README.md) | Training and serving Kami's Eye |
 | [docs/hardware.md](docs/hardware.md) | The arcade cabinet: what is built and what is not |
 | [docs/archive](docs/archive) | Earlier plans, kept as history |

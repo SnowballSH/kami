@@ -7,6 +7,7 @@
       "dependencies": {
         "matter-js": "^0.20.0",
         "mongodb": "^7.6.0",
+        "mongodb-memory-server": "^11.2.0",
         "perfect-freehand": "^1.2.3",
         "qrcode": "1.5.4",
         "roughjs": "^4.6.6",
@@ -22,7 +23,6 @@
         "gifenc": "1.0.3",
         "happy-dom": "^20.14.5",
         "hersheytext": "^2.0.0",
-        "mongodb-memory-server": "^11.2.0",
         "typescript": "^7.0.2",
         "vite": "^8.3.0",
         "vitest": "^5.0.1",

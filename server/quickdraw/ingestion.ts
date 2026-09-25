@@ -1,6 +1,6 @@
 import { type FetchLike, fetchCategoryDrawings } from "./dataset";
 import { sampleOf } from "./indexing";
-import type { QuickdrawSample, QuickdrawSampleRepository } from "./sampleRepository";
+import type { QuickdrawSampleRepository, StoredSketch } from "./sampleRepository";
 
 export const DEFAULT_SAMPLES_PER_CATEGORY = 300;
 const FETCH_CONCURRENCY = 6;
@@ -10,13 +10,37 @@ export interface IngestReport {
   readonly samples: number;
 }
 
-const fetchCategorySamples = async (
+export interface CategorySketches {
+  readonly category: string;
+  readonly sketches: readonly StoredSketch[];
+}
+
+const fetchCategorySketches = async (
   category: string,
   limit: number,
   fetchFn?: FetchLike,
-): Promise<readonly QuickdrawSample[]> => {
+): Promise<CategorySketches> => {
   const drawings = await fetchCategoryDrawings(category, limit, fetchFn);
-  return drawings.map(({ keyId, drawing }) => sampleOf({ category, keyId, drawing }));
+  return {
+    category,
+    sketches: drawings.map(({ keyId, drawing }) => ({ category, keyId, drawing })),
+  };
+};
+
+/** Downloads every category a few at a time, handing each one over as soon as it has arrived. */
+export const fetchQuickdrawSketches = async (
+  categories: readonly string[],
+  samplesPerCategory: number,
+  onCategory: (fetched: CategorySketches) => Promise<void>,
+  fetchFn?: FetchLike,
+): Promise<void> => {
+  const pending = [...categories];
+  const worker = async (): Promise<void> => {
+    for (let category = pending.shift(); category !== undefined; category = pending.shift()) {
+      await onCategory(await fetchCategorySketches(category, samplesPerCategory, fetchFn));
+    }
+  };
+  await Promise.all(Array.from({ length: FETCH_CONCURRENCY }, worker));
 };
 
 export const ingestQuickdraw = async (
@@ -27,16 +51,16 @@ export const ingestQuickdraw = async (
 ): Promise<readonly IngestReport[]> => {
   await repository.ensureIndexes();
   const reports: IngestReport[] = [];
-  const pending = [...categories];
-  const worker = async (): Promise<void> => {
-    for (let category = pending.shift(); category !== undefined; category = pending.shift()) {
-      const samples = await fetchCategorySamples(category, samplesPerCategory, fetchFn);
-      await repository.upsertCategory(category, samples);
-      reports.push({ category, samples: samples.length });
-      console.log(`${category}: ${samples.length} drawings`);
-    }
-  };
-  await Promise.all(Array.from({ length: FETCH_CONCURRENCY }, worker));
+  await fetchQuickdrawSketches(
+    categories,
+    samplesPerCategory,
+    async ({ category, sketches }) => {
+      await repository.upsertCategory(category, sketches.map(sampleOf));
+      reports.push({ category, samples: sketches.length });
+      console.log(`${category}: ${sketches.length} drawings`);
+    },
+    fetchFn,
+  );
   await repository.retainCategories(categories);
   return reports;
 };

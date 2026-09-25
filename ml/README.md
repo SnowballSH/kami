@@ -132,7 +132,10 @@ KAMI_EYE_MODEL=artifacts/kami-eye .venv/bin/python -m pytest tests/test_golden.p
 
 The separately managed serving sidecar uses `KAMI_RECOGNIZER_URL=http://127.0.0.1:8790` in the
 game's server. It needs `numpy`, `opencv-python-headless` and `onnxruntime`, and never imports
-torch. `KAMI_EYE_PORT` changes the port; `KAMI_EYE_MODEL` defaults to `artifacts/kami-eye`.
+torch. `KAMI_EYE_PORT` changes the port; `KAMI_EYE_MODEL` defaults to `artifacts/kami-eye`;
+`KAMI_EYE_HOST` (default `127.0.0.1`) is what it binds, `0.0.0.0` inside a container; `KAMI_EYE_THREADS`
+caps ONNX Runtime's threads on a shared host (unset leaves ONNX Runtime its default). `ml/Containerfile`
+packages the sidecar alone, and `docs/hosting.md` runs it beside the game.
 `bun run check:gx10 <full-commit-sha> <artifact-name>` runs the full ML checks, golden parity included,
 on the box against a named artifact ([scripts/ci/README.md](../scripts/ci/README.md)).
 
