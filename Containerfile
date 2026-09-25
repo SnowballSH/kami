@@ -19,7 +19,7 @@ RUN bun server/quickdraw/buildSnapshot.ts /out/data/quickdraw.ndjson.gz "${QUICK
 
 ARG MONGOD_VERSION
 ENV MONGOMS_VERSION=${MONGOD_VERSION} \
-    MONGOMS_DISTRO=debian-12 \
+    MONGOMS_DISTRO=ubuntu-24.04 \
     MONGOMS_DOWNLOAD_DIR=/out/mongod-download
 RUN bun scripts/container/fetchMongod.ts /out/mongod/mongod
 
@@ -33,7 +33,7 @@ RUN bun install --frozen-lockfile --production
 
 FROM docker.io/oven/bun:${BUN_VERSION}-slim AS runtime
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libcurl4 libssl3 \
+    && apt-get install -y --no-install-recommends libcurl4t64 libssl3t64 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 kami \
     && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /app --shell /usr/sbin/nologin kami

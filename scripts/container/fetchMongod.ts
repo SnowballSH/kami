@@ -5,7 +5,7 @@ import "../../server/db/bsonSnapshotShim";
 const { MongoBinary } = await import("mongodb-memory-server");
 
 const USAGE =
-  "usage: MONGOMS_VERSION=<x.y.z> [MONGOMS_DISTRO=debian-12] bun scripts/container/fetchMongod.ts <destination>";
+  "usage: MONGOMS_VERSION=<x.y.z> [MONGOMS_DISTRO=ubuntu-24.04] bun scripts/container/fetchMongod.ts <destination>";
 
 /**
  * The image build downloads mongod once, with the same resolver the server uses at runtime, so
