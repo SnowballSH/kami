@@ -7,6 +7,8 @@ import json
 import logging
 import math
 import os
+import signal
+import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -32,6 +34,7 @@ PORT_ENV = "KAMI_EYE_PORT"
 MODEL_ENV = "KAMI_EYE_MODEL"
 THREADS_ENV = "KAMI_EYE_THREADS"
 HANDWRITING_ENV = "KAMI_HANDWRITING_MODEL"
+PARENT_ENV = "KAMI_SIDECAR_PARENT_PID"
 MAX_BODY_BYTES = 262_144
 MAX_STROKES = 256
 MAX_POINTS_PER_STROKE = 1024
@@ -97,6 +100,7 @@ class SidecarSettings:
     port: int = DEFAULT_PORT
     threads: int | None = None
     handwriting_dir: Path = DEFAULT_HANDWRITING_DIR
+    parent_pid: int | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] = os.environ) -> SidecarSettings:
@@ -106,6 +110,7 @@ class SidecarSettings:
             port=_positive_int(env, PORT_ENV) or DEFAULT_PORT,
             threads=_positive_int(env, THREADS_ENV),
             handwriting_dir=Path(env.get(HANDWRITING_ENV, "").strip() or DEFAULT_HANDWRITING_DIR),
+            parent_pid=_positive_int(env, PARENT_ENV),
         )
 
 
@@ -370,9 +375,31 @@ def present(directory: Path, what: str, variable: str) -> Path | None:
     return None
 
 
+def interrupt_self() -> None:
+    os.kill(os.getpid(), signal.SIGINT)
+
+
+def exit_with_parent(
+    parent_pid: int, on_orphaned: Callable[[], None] = interrupt_self, poll_s: float = 1.0
+) -> threading.Thread:
+    """A server that started the sidecar and died without stopping it takes the sidecar along."""
+
+    def watch() -> None:
+        while os.getppid() == parent_pid:
+            time.sleep(poll_s)
+        log.info("the server that started the sidecar is gone: stopping")
+        on_orphaned()
+
+    watcher = threading.Thread(target=watch, name="parent-watch", daemon=True)
+    watcher.start()
+    return watcher
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     settings = SidecarSettings.from_env()
+    if settings.parent_pid is not None:
+        exit_with_parent(settings.parent_pid)
     model_dir = present(settings.model_dir, "Kami's Eye model", MODEL_ENV)
     handwriting_dir = present(settings.handwriting_dir, "handwriting model", HANDWRITING_ENV)
     if model_dir is None and handwriting_dir is None:

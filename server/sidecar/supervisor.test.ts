@@ -77,6 +77,7 @@ describe("SidecarSupervisor", () => {
       KAMI_EYE_THREADS: "1",
       KAMI_EYE_MODEL: "/models/kami-eye",
       KAMI_HANDWRITING_MODEL: "/app/models/handwriting",
+      KAMI_SIDECAR_PARENT_PID: String(process.pid),
       PATH: "/usr/bin",
     });
     expect(JSON.stringify(request.env)).not.toContain("secret");

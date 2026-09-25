@@ -383,7 +383,7 @@ child process (`sidecar/supervisor.ts`) on `127.0.0.1:KAMI_SIDECAR_PORT` (8790) 
 `KAMI_SIDECAR_PYTHON` (default `ml/.venv/bin/python`, else `python3`), `KAMI_EYE_THREADS`,
 `KAMI_EYE_MODEL` and `KAMI_HANDWRITING_MODEL`, and none of the server's secrets. Its log lines appear
 in the server's prefixed `sidecar:`; if it exits it is started again after 1 s, doubling to at most
-60 s, back to 1 s after a run of a minute; on shutdown it gets `SIGINT`, then `SIGKILL` after 1.5 s. The
+60 s, back to 1 s after a run of a minute; on shutdown it gets `SIGINT`, then `SIGKILL` after 1.5 s, and a server that dies without stopping it takes it along (`KAMI_SIDECAR_PARENT_PID`). The
 same sidecar serves Kami's Eye when a model is at `KAMI_EYE_MODEL`: `/api/recognize` and
 `/api/beautify` then use it unless `KAMI_RECOGNIZER_URL` / `KAMI_BEAUTIFY_URL` say otherwise.
 

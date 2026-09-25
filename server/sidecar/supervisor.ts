@@ -153,7 +153,7 @@ export class SidecarSupervisor {
     try {
       return spawn({
         command: [python, script],
-        env: sidecarEnvironment(this.#config, env),
+        env: sidecarEnvironment(this.#config, env, process.pid),
         cwd: dirname(script),
         onLine: (line) => log(`${SIDECAR_PREFIX}${line}`),
       });
