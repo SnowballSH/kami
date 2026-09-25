@@ -160,12 +160,12 @@ export class WorkerRankingPool implements InProcessSketchRanker {
   }
 
   #failed(slot: Slot, error: unknown): void {
+    if (this.#closed) return;
     const reason = error instanceof Error ? error.message : String(error);
     this.#settings.log(`recognition thread failed (${reason}); starting another`);
     slot.port.terminate();
     this.#slots.delete(slot);
     slot.job?.reject(new Error(`the ranking thread failed: ${reason}`));
-    if (this.#closed) return;
     this.#addSlot();
     const next = this.#queue.shift();
     const fresh = [...this.#slots].find((candidate) => candidate.job === null);

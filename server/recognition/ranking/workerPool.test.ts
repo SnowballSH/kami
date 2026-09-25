@@ -200,6 +200,24 @@ describe("WorkerRankingPool", () => {
     await expect(pool.read(CIRCLE)).rejects.toThrow(/closed/);
     expect(workers[0]?.terminated).toBe(true);
   });
+
+  it("lets its threads end quietly once closed", () => {
+    const lines: string[] = [];
+    const workers: FakeWorker[] = [];
+    const pool = new WorkerRankingPool(MATRIX, {
+      threads: 1,
+      spawn: () => {
+        const worker = new FakeWorker();
+        workers.push(worker);
+        return worker;
+      },
+      log: (line) => lines.push(line),
+    });
+    pool.close();
+    workers[0]?.crash();
+    expect(lines).toEqual([]);
+    expect(workers).toHaveLength(1);
+  });
 });
 
 describe("createKnnRanker", () => {
