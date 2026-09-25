@@ -41,7 +41,8 @@ and `renderMatches: true`; incompatible models never report healthy.
 
 ## The sidecar (`ml/sidecar.py`, Python 3.12, ONNX Runtime CPU, stdlib HTTP)
 
-Listens on `127.0.0.1:8790` (`KAMI_EYE_PORT`), loads `KAMI_EYE_MODEL` (an artifacts directory).
+Listens on `127.0.0.1:8790` (`KAMI_EYE_HOST`, `KAMI_EYE_PORT`), loads `KAMI_EYE_MODEL` (an artifacts
+directory) with `KAMI_EYE_THREADS` ONNX Runtime threads (unset: its default).
 
 | Route | Request | Response |
 |---|---|---|
