@@ -131,7 +131,7 @@ log(
 /**
  * One request each, in sequence: the rules model is asked "hello" so a cold local model loads before
  * the first player needs it (skipped with KAMI_LLM_WARM_UP=off, where every request is paid for); the
- * handwriting reader's image check is what enables /api/transcribe, so it always runs, once.
+ * handwriting reader's start-up check is what enables /api/transcribe, so it always runs, once.
  */
 const warmUp = async (): Promise<void> => {
   if (config.llm !== null) {
