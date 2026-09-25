@@ -97,6 +97,10 @@ export class DomHud implements Hud {
     this.zoom.setAutopilot(enabled);
   }
 
+  offerAutopilot(offered: boolean): void {
+    this.zoom.offerAutopilot(offered);
+  }
+
   setTidiness(tidiness: number): void {
     this.tidy.setValue(tidiness);
   }

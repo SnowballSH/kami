@@ -14,6 +14,12 @@ const TOOL_BY_KEY: ReadonlyMap<string, Tool> = new Map(
   TOOL_SPECS.map((spec) => [spec.hotkey, spec.tool]),
 );
 
+const SPACE_ACTIVATES = "button, a[href], [tabindex]";
+
+/** A focused control that Space presses keeps its Space; holding it there must not pan instead. */
+const pressesWithSpace = (target: EventTarget | null): boolean =>
+  target instanceof Element && target.closest(SPACE_ACTIVATES) !== null;
+
 const hasModifier = (event: KeyboardEvent): boolean =>
   event.metaKey || event.ctrlKey || event.altKey;
 
@@ -36,6 +42,7 @@ export class ToolHotkeys {
   private handleKeyDown(event: KeyboardEvent): void {
     if (isTextField(event.target) || hasModifier(event)) return;
     if (event.key === HOLD_PAN_KEY) {
+      if (pressesWithSpace(event.target)) return;
       event.preventDefault();
       if (!event.repeat) this.target.holdPan();
       return;
@@ -48,7 +55,7 @@ export class ToolHotkeys {
 
   private handleKeyUp(event: KeyboardEvent): void {
     if (event.key !== HOLD_PAN_KEY) return;
-    if (!isTextField(event.target)) event.preventDefault();
+    if (!isTextField(event.target) && !pressesWithSpace(event.target)) event.preventDefault();
     this.target.releasePan();
   }
 }

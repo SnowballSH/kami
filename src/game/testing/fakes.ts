@@ -49,6 +49,12 @@ export class FakeHud implements Hud {
     this.autopilot = enabled;
   }
 
+  autopilotOffered: boolean | null = null;
+
+  offerAutopilot(offered: boolean): void {
+    this.autopilotOffered = offered;
+  }
+
   tidiness: number | null = null;
 
   setTidiness(tidiness: number): void {

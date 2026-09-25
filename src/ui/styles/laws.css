@@ -1,8 +1,8 @@
 .kami-laws {
   position: absolute;
-  top: calc(var(--kami-safe-top) + var(--kami-control) + 12px);
+  top: calc(var(--kami-safe-top) + var(--kami-row));
   right: var(--kami-safe-right);
-  z-index: 11;
+  z-index: 9;
   pointer-events: none;
   width: min(300px, calc(100vw - 32px));
   flex-direction: column;
@@ -62,4 +62,10 @@
 
 .kami-law.is-confirming {
   background: var(--kami-danger);
+}
+
+@media (max-width: 640px) {
+  .kami-laws {
+    top: calc(var(--kami-safe-top) + 2 * var(--kami-row));
+  }
 }

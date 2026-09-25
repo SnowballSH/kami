@@ -76,7 +76,7 @@ export const BOSS_MODE: GameMode = {
     },
     roles: [
       "Drawer: draw a body around the heart, name it, and redraw whatever gets snipped off.",
-      "Player: steer with the keys, the thumbstick or the joystick; dodge the wind-up, swing what is drawn.",
+      "Player: steer with the arrow keys or the stick; dodge the wind-up, swing what is drawn.",
     ],
   },
   opening: {

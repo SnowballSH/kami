@@ -319,6 +319,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.nowMs = nowMs;
     this.lastFrameMs = nowMs;
     this.hud.setTool(this.tool);
+    this.hud.offerAutopilot(this.walksHerself());
     this.hud.setAutopilot(this.selfDriving);
     this.hud.setTidiness(this.tidiness);
     const opened = this.open(this.board.id);

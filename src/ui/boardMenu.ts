@@ -1,4 +1,5 @@
 import wordmarkUrl from "../brand/assets/kami-wordmark.svg";
+import { ArmedTap } from "./armedTap";
 import { el } from "./dom";
 import { icon } from "./icons";
 import { activateOnTap } from "./tap";
@@ -34,6 +35,7 @@ export class BoardMenu {
   private readonly toggle: HTMLButtonElement;
   private readonly popover: HTMLElement;
   private readonly clear: HTMLButtonElement;
+  private readonly clearing: ArmedTap;
   private currentId = "";
 
   constructor(handlers: BoardHandlers) {
@@ -56,7 +58,11 @@ export class BoardMenu {
       ],
     );
     activateOnTap(this.toggle, () => this.setOpen(!this.open));
-    this.clear = menuItem("kami-board-clear", CLEAR_LABEL, () => this.requestClear());
+    this.clearing = new ArmedTap(
+      () => this.choose(() => handlers.onClearBoard()),
+      (armed) => this.showClearArmed(armed),
+    );
+    this.clear = menuItem("kami-board-clear", CLEAR_LABEL, () => this.clearing.tap());
     this.popover = el(
       "div",
       { className: "kami-island kami-board-popover", attrs: { role: "menu" } },
@@ -111,27 +117,15 @@ export class BoardMenu {
     act();
   }
 
-  private requestClear(): void {
-    if (this.confirmingClear) {
-      this.choose(() => this.handlers.onClearBoard());
-      return;
-    }
-    this.setConfirmingClear(true);
-  }
-
-  private get confirmingClear(): boolean {
-    return this.clear.classList.contains(CONFIRMING_CLASS);
-  }
-
-  private setConfirmingClear(confirming: boolean): void {
-    this.clear.classList.toggle(CONFIRMING_CLASS, confirming);
-    this.clear.textContent = confirming ? CLEAR_CONFIRM_LABEL : CLEAR_LABEL;
+  private showClearArmed(armed: boolean): void {
+    this.clear.classList.toggle(CONFIRMING_CLASS, armed);
+    this.clear.textContent = armed ? CLEAR_CONFIRM_LABEL : CLEAR_LABEL;
   }
 
   private setOpen(open: boolean): void {
     this.popover.hidden = !open;
     this.toggle.setAttribute("aria-expanded", String(open));
-    this.setConfirmingClear(false);
+    this.clearing.disarm();
   }
 
   private closeIfOutside(target: EventTarget | null): void {
