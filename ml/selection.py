@@ -16,8 +16,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from calibrate import RegimeTemperatures
-from dataset import FULL_FRACTION
 from folding import FoldMap
+from metrics import FULL_FRACTION
 from selective import coverage_at_precision, expected_calibration_error
 
 WEIGHT_TOP1_FINISHED = 0.35

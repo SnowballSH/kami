@@ -1,356 +1,287 @@
 # Kami's Eye — training kit and sidecar
 
-One ResNet-18 that reads a 64×64 rendering of a sketch, finished or half-drawn, and names it.
-`CONTRACT.md` is the agreement with the rest of Kami (tensor, artefact files, sidecar routes); this
-directory is the Python that honours it. Nothing here touches the game: the Bun server reaches the
-model through the sidecar and falls back to its k-NN when the sidecar is not there.
+One ResNet-18 that reads a 64×64 rendering of a sketch, finished or half-drawn, and names it among
+345 Quick, Draw! categories. `CONTRACT.md` is the agreement with the rest of Kami (tensor, artefact
+files, sidecar routes); this directory is the Python that honours it: a retraining kit that runs on
+any machine, and the ONNX sidecar the Bun server asks. Nothing here touches the game: the server
+reaches the model through the sidecar and falls back to its k-NN when the sidecar is not there.
 
-Local inference and ML tests are allowed under [AGENTS.md](../AGENTS.md); choose models and
-concurrency that fit the machine. The GX10 was hackathon hardware and is no longer available.
-The commands and measurements below document that deployment. Model artifacts are not established
-by a passing TypeScript build. See the [current integration and verification guide](../docs/architecture.md#product-scope-and-verification);
-historical measurements below are not verification of the current source/artifact pair.
+The two models trained so far (`kami-eye`, 81.1 % top-1 on finished test drawings, and
+`kami-eye-xl`, **83.1 % / 95.2 %**) were trained at the hackathon on an NVIDIA GB10 box at
+6,800 img/s; that box and both models are gone. `docs/reports/kami-eye-results.md` keeps their
+numbers, `docs/reports/kami-eye-next.md` the analysis this kit's recipe follows.
 
-## The real run — on the GX10
-
-All training happens on the box (`ssh gx10`), in `~/kami-ml`. Its environment is a `uv` venv with the CUDA 13
-build of torch for the GB10 (`~/kami-ml/setup-env.sh` made it; `uv sync` would replace that torch with the
-index default, so call the venv's Python directly):
+## Retrain — one command, any machine
 
 ```sh
-rsync -az --delete --exclude .venv --exclude data --exclude artifacts --exclude '__pycache__' \
-  --exclude setup-env.sh --exclude logs ml/ gx10:kami-ml/          # from the repo root, on the Mac
-ssh gx10
-cd ~/kami-ml && .venv/bin/python -m pytest -q
-setsid nohup .venv/bin/python train.py --all --samples-per-class 8000 --epochs 8 --batch-size 1024 \
-  --name kami-eye > logs/kami-eye.log 2>&1 < /dev/null &
-~/kami/box/start.sh        # when it has finished: the game now answers with the new model
+ml/retrain.sh setup                                 # uv env: MPS/CPU torch on macOS, CUDA on Linux+NVIDIA
+ml/retrain.sh all --preset smoke --name smoke       # ~5 min: 8 categories end to end, a servable release
+ml/retrain.sh bench --seconds 300 --hours 24        # this machine's img/s, and what fits in 24 h
+ml/retrain.sh launch all --preset full --name kami-eye-next   # the real run, detached (below)
 ```
 
-`train.py` downloads the head of each category's `.bin`, renders it once into a memmap, trains
-(AdamW + OneCycle, AMP on CUDA, label smoothing 0.1, small affine augmentation), prints top-1/top-3
-on validation overall **and by prefix bucket**, fits the temperature, reports the test split, and
-writes `artifacts/<name>/`. It prints `img/s` after every epoch. Re-running with the same
-arguments reuses the download and the rendered dataset. `box/start.sh` serves `artifacts/kami-eye`;
-use another `--name` for experiments.
+`retrain.sh` is a thin wrapper: `setup`, `launch`, `status`, `watch` and `stop` are its own; every
+other word is a stage of `retrain.py`, run with the venv's Python (`uv run` would re-sync torch to
+the lock file and undo a CUDA build that `setup` installed).
 
-**Measured on the GB10** (batch 1024, AMP, GPU at 96 %): **6 800 img/s**, so an epoch over 2.5 M
-drawings takes 5 min 50 s. Downloading all 345 categories at 5.5 MB each (2.0 GB) took 3 min 20 s on the
-venue Wi-Fi; rendering 2.76 M drawings on 20 cores took 19 s.
+| Stage | What it does | Skipped when |
+|---|---|---|
+| `bench` | times the real training step (model, AdamW, autocast, loss scaling) per precision with `--sweep`; renders training looks on one core; prints hours for several corpus sizes and the `--drawings-per-class` that fits `--hours` | never |
+| `data` | range-fetches the head of each category's `.bin` (250 B per wanted drawing, topped up for categories that come up short) into `data/bin/`, then indexes it | the bytes and the index are there |
+| `train` | the resumable fit (below); ends with `model.pt` and `training.json` | `model.pt` exists |
+| `calibrate` | validation and test tables by prefix bucket, regime temperatures, 95 %-precision floors (CONTRACT.md → Regimes), selection metric S, own-drawing recall — `assessment.json` | `assessment.json` exists |
+| `export` | the release the sidecar serves: `model.onnx`, `labels.json`, `preprocess.json`, `golden.json`, `release.json` in a new immutable directory, then the `artifacts/<name>` link swapped | the release holds these weights |
+| `exemplars` | the `/complete` exemplar set (`--min-probability 0.7`, see below) | a set for this model exists |
+| `validate` | release hashes, golden parity, and a live sidecar answering `/health`, `/recognize` (the golden top-3) and `/complete` | never |
+| `package` | `kami-eye-<version>.tar.gz` (the release, exemplars included), the weights, `MODEL_CARD.md` with the test tables, `SHA256SUMS` | the four files exist |
+| `publish` | `gh release create eye-<version> …` with the package; `--dry-run` prints it | never (run it yourself) |
+| `all` | train → calibrate → export → exemplars → validate → package | per stage |
+| `status` | stages done, step, img/s, ETA, the last log lines | — |
 
-| Budget | Categories | Command arguments | Train passes | Dataset on disk | Download |
-|---|---|---|---|---|---|
-| ~50 min | all 345 | `--all --samples-per-class 8000 --epochs 8` | 19.9 M | 11 GB | 0.7 GB |
-| ~50 min | curated 113 | `--categories categories/curated.txt --samples-per-class 25000 --epochs 8` | 20.3 M | 12 GB | 0.8 GB |
-| ~2 h 50 | all 345 | `--all --samples-per-class 22000 --epochs 10` | 68 M | 31 GB | 2.1 GB |
-| ~2 h 55 | curated 113 | `--categories categories/curated.txt --samples-per-class 70000 --epochs 10` | 71 M | 32 GB | 2.0 GB |
+Where things are: downloads and the index in `ml/data/` (`bin/`, `index/`), a run's state in
+`ml/artifacts/runs/<name>/` (`recipe.json`, `checkpoint.pt`, `retrain.log`, `progress.json`,
+`model.pt`, `training.json`, `assessment.json`, `package/`), its release at `ml/artifacts/<name>` —
+a link to `ml/artifacts/.<name>-releases/release-…`, what `KAMI_EYE_MODEL` points at. All gitignored.
 
-All 345 is the default choice: `server/natures/` already has a nature for every category, so every
-class the model can name is playable. The curated list (`categories/curated.txt`: the 42 categories
-the k-NN knows plus 71 distinct physical objects and shapes) trades vocabulary for accuracy.
+### Recipe, runtime, resume
 
-Other switches: `--batch-size 512` (1024 is fine on a big card), `--learning-rate 2e-3`,
-`--thickness-jitter 1` (± px on training renders only, a build-time option), `--prefix-share 0.5`,
-`--megabytes-per-class N` (default is 250 B per requested drawing; a category that comes up short is
-reported and trained with what it has), `--device cuda|mps|cpu`, `--download-only`.
+The **recipe** (categories, drawings per class, epochs, batch, learning rate, arch, looks, eval
+head, seed) is written to `recipe.json` when a run starts. Re-running any stage with the same
+`--name` and no recipe flags continues that run; a contradicting flag is an error, never a silent
+restart. The **runtime** (`--device`, `--precision`, `--workers`, `--checkpoint-minutes`,
+`--probe-minutes`) may change between resumes, even to another machine.
 
-### The next recipe — flags that all default to the first one
+Checkpoints (weights, AdamW, loss scaler, step, clocks, history) are written atomically every 15
+minutes, at every epoch end, and on SIGINT/SIGTERM. The learning rate is a pure function of the step
+and every batch a pure function of (seed, step), so a resumed run trains exactly the batches it would
+have — a test checks that stop-and-resume ends bit-identical to an uninterrupted run. A crash, a
+reboot or a flat battery costs at most the minutes since the last checkpoint.
 
-`docs/reports/kami-eye-next.md` argues for each of these; without them `train.py` is the recipe
-above, step for step (same batches, same loss, same optimiser calls for the same seed).
+Every minute `retrain.log` gets a line — `step 12,345/66,000 (18.7 %) epoch 1/1 loss 1.912 lr
+1.46e-03 452 img/s trained 7h35 ETA 32h50 (Sat 09:14)` — and every hour (and each epoch end) a
+probe of 13,800 validation looks: `validation top-1 … (finished …, prefixes …)`.
 
-| Flag | |
+### The real run on a Mac, detached
+
+```sh
+ml/retrain.sh launch all --preset full --name kami-eye-next
+ml/retrain.sh watch --name kami-eye-next      # tail -F of retrain.log (Ctrl-C stops watching only)
+ml/retrain.sh status --name kami-eye-next     # stages done, step, img/s, ETA
+ml/retrain.sh stop --name kami-eye-next       # checkpoints and exits; `launch` the same line to resume
+```
+
+`launch` runs the stage under `nohup` (it survives the terminal) inside `caffeinate -dimsu` on macOS
+or `systemd-inhibit` on Linux (no idle or system sleep while it runs), and restarts `retrain.py` up
+to five times after a crash, a minute apart; each restart resumes from the checkpoint. After a reboot,
+run the same `launch` line again. On a MacBook: keep it on power and the lid open (a closed lid
+sleeps whatever `caffeinate` says, unless an external display is attached), switch Low Power Mode
+off, and expect a few percent less than a cold `bench` once it is warm.
+
+### Per platform
+
+| | Chosen by `--precision auto` and measured | Also |
+|---|---|---|
+| Apple Silicon (MPS) | fp32, contiguous. On the M4, fp16/bf16 autocast was 0.9–1.1× fp32, `channels_last` 0.4×, `torch.compile` 0.5× | `--workers 4` render on the CPU; the GPU is the limit |
+| NVIDIA CUDA | bf16 autocast (fp16 + GradScaler on cards without bf16), `channels_last`, fused AdamW, cuDNN autotuning, TF32 | `--compile` (measure it with `bench --compile`); pinned host memory |
+| CPU | fp32 (`--precision bf16` is allowed) | only for tests and smoke runs |
+
+## The recipe, and why it should beat kami-eye-xl
+
+kami-eye-xl pre-rendered each drawing once into a 31 GB memmap: half of the drawings existed only
+finished, half only as one fixed prefix, repeated identically for 10 epochs (68 M image passes over
+6.83 M training drawings) with a small affine on the GPU. The kit renders **on the fly** in
+DataLoader worker processes, from the `.bin` files and a small index (key_id, split, byte offset,
+rank per drawing), with `render.py` still the only rasteriser:
+
+- **Every pass is a new look.** Each image pass draws afresh: finished with probability 0.5,
+  otherwise a prefix of U(0.3, 1.0) of the points (kami-eye-xl's mixture, so its prefix buckets stay
+  comparable), then a rotation (±10°), shear (±0.1) and change of aspect (e^±0.1) **of the points**,
+  before rendering. The renderer fits every drawing to its own bounds, so shifts and zooms in pixel
+  space — what the GPU affine did — never occur at serving time; point-space re-shaping keeps every
+  training image exactly what the sidecar would draw for such ink.
+- **More drawings instead of more epochs.** Disk is the `.bin` bytes (~250 B a drawing), not 4 KB a
+  rendered image, so 120,000 drawings per class cost ~10 GB instead of 170 GB. The full preset makes
+  one pass over up to 120,000 recognised drawings per category (≈37 M training drawings, 5.5× xl's),
+  every image seen once.
+- **Rendering is free.** One M4 core renders ~1,700 training looks/s (decode, cut, re-shape,
+  render; measured while other jobs loaded the CPU); the GPU takes 300–500. The default four workers
+  are ample on the Mac; `bench` says how many a faster card needs.
+- **Schedule.** AdamW (lr 1.5e-3 at batch 512, weight decay 0.02), 3 % linear warm-up from lr/25,
+  cosine to lr/250,000 — OneCycle's envelope as a pure function of the step; label smoothing 0.1.
+- **Evaluation stays comparable.** Validation and test drawings are those of their split among each
+  category's first `--eval-head` (22,000) recognised drawings — exactly the drawings kami-eye-xl was
+  validated and tested on — each read finished and as one prefix of U(0.3, 1.0) seeded by its
+  key_id. So the test table has the same buckets (and twice xl's n per bucket), the alias folds and
+  floors are fitted as before, and `MODEL_CARD.md` prints kami-eye-xl's numbers beside the new ones.
+
+What was **not** taken from `kami-eye-next.md`: distillation (no teacher survives), ResNet-18D (0.94×
+the step speed on MPS and ~+4 % latency for an expected +0.3–1.0), 4-view pre-rendering (subsumed by
+fresh looks), embedding alignment and mixed precision on MPS (no speed-up there).
+
+### Pilots on this M4 (30 categories, one seed, while other jobs shared the GPU)
+
+Every arm trains on the same 30 categories (`angel … triangle`, every 11th of `all.txt`) and is
+scored by the kit on the same held-out drawings (validation + test among the first 2,000 per
+category: 5,957 finished drawings, 5,954 prefixes). Equal image passes (≈216 k) per arm.
+
+| Arm | Recipe | Finished top-1 / top-3 | 50–70 % top-1 | 30–50 % top-1 |
+|---|---|---|---|---|
+| A10 | kami-eye-xl's pipeline and schedule: 800 drawings/class × **10 epochs**, fixed pre-rendered views, GPU affine | 89.4 % / 97.0 % | 74.6 % | 52.7 % |
+| A | the same pipeline, 2,000/class × 4 epochs | 90.2 % / 97.4 % | 75.8 % | 54.4 % |
+| B | the kit: fresh looks every pass, 2,000/class × 4 epochs | 90.7 % / 97.8 % | 76.4 % | 53.5 % |
+| C | the kit: **8,000/class × 1 epoch**, every image unique | 90.7 % / 97.9 % | 77.1 % | 53.9 % |
+
+The binomial standard error of a finished top-1 here is ~0.4 points. At equal compute, the kit's
+one-pass recipe (C) beats kami-eye-xl's ten-epoch regime (A10) by 1.3 points on finished drawings
+and 2.5 on half-drawn ones; up to about four epochs repetition costs little (A ≈ B ≈ C), which is
+why the full run spends its hours on unique drawings rather than on a tenth pass. Also measured and
+rejected: 48 px training for the early steps (only 1.3× faster on MPS), `torch.compile`,
+`channels_last` and autocast on MPS (numbers below).
+
+### Measured on this M4 (MacBook Air, 10-core GPU, 24 GB)
+
+Measured with other agents' jobs sharing the GPU (it read 90–98 % busy before our runs started), so
+treat these as lower bounds and run `ml/retrain.sh bench --seconds 300 --hours 30` on an idle,
+plugged-in machine before launching. ResNet-18, batch 512, the real training step:
+
+| Setting | img/s |
 |---|---|
-| `--views 4` | every drawing rendered finished **and** as one prefix in each of 30–50, 50–70, 70–100 % (`images.u8` becomes `[N, 4, 64, 64]`, ×4 on disk: 17 GB at 3 k/class, 124 GB at 22 k). Validation then reads every view of every held-out drawing, so each bucket has the full n |
-| `--view-weights .40,.28,.22,.10` `--view-policy fixed\|resample` | sampling weights per view, finished first (default: the first recipe's mixture .50/.14/.14/.21); `fixed` keeps one view per drawing for the whole run, `resample` draws a fresh one every epoch |
-| `--dataset-name NAME` `--dataset-seed S` | share one rendered dataset between runs that differ in `--seed` (default: `--name`, `--seed`); `--dataset-only --render-workers 8` renders and stops |
-| `--arch resnet18d` | full-resolution 3×3 (1→32) before the stride, average pool before each 1×1 shortcut: +20 M MACs (+3.5 %). `resnet34` exists as a teacher only |
-| `--teacher-logits FILE --kd-alpha 0.7 --kd-temperature 2 --label-smoothing 0` | 0.3 CE + 0.7 τ² KL to a teacher's logits on the **finished** render of the same drawing, whatever view the student sees. `distill_teacher.py` writes the file (float16 `[N, K]`, tied to the dataset by the sha256 of its key_ids) |
-| `--embed-align 0.5` | paired batches (each drawing finished + one prefix view) and 0.5 · (1 − cos(z_prefix, stop-grad z_finished)); an epoch stays one epoch of *image passes*, so it covers half the drawings |
-| `--compile --amp-dtype bfloat16 --fused-optimizer` | `torch.compile` (one rehearsed step; eager if it fails, weights untouched), bf16 autocast without a GradScaler, fused AdamW. **On the GX10 today `--compile` falls back**: Triton 3.8 builds a small C shim at first use and the box has no `Python.h` (`sudo apt install python3.12-dev` would give it one) |
-| `--readers 4` | threads reading the memmap (a 124 GB dataset does not fit the page cache) |
-| `--fold-map categories/folds.json` | the aliases folded when floors and the selection metric are computed (default: the game's nine) |
+| fp32 (the default on MPS), quietest moment of the evening | 491 |
+| fp32 / fp16 autocast / bf16 autocast, `bench --sweep` while shared | 321 / 353 / 341 |
+| fp16 autocast, quietest moment | 440 |
+| fp32 `channels_last` | 186 |
+| fp32 `torch.compile` (inductor on MPS) | 234 |
+| ResNet-18D, fp32 | 298 (0.94× ResNet-18 at the same moment) |
+| batch 256 / 1024 | same as 512 / slower |
+| training inside `train`, pilots (DataLoader, 3 workers, shared GPU) | 290–365 |
+| inference (no grad), fp32 | ~1,200 |
+| one CPU core rendering training looks from the corpus | 1,724 |
+| `/recognize` through the sidecar, smoke model, keep-alive | 5.3 ms p50 |
 
-Every run now also fits one temperature per regime and the 95 %-precision floors (`CONTRACT.md` →
-Regimes) and writes the selection metric S of `selection.py` on validation into `preprocess.json`.
+kami-eye-xl's 68 M image passes would take 38–54 h here.
 
-### The overnight queue — `experiments.py`
+### The full run
 
-```sh
-ssh gx10
-cd ~/kami-ml && mkdir -p logs
-setsid nohup .venv/bin/python experiments.py eye-next > logs/experiments.log 2>&1 < /dev/null &
-tail -f logs/experiments.log            # one line per step and decision
-cat artifacts/experiments.md            # the table, rendered after every step from experiments.jsonl
-```
+`--preset full`: all 345 categories × up to 120,000 recognised drawings, one epoch, batch 512,
+lr 1.5e-3, 50 % finished looks, eval head 22,000, seed 0 — ≈37 M image passes, 55 % of
+kami-eye-xl's compute, every one a unique drawing in a fresh look.
 
-It first waits until no other `train.py` runs (it never stops a process it did not start), then
-follows `experiment_plan.py`: the baseline and the live model scored on the arms' validation views;
-two throughput probes that decide `--compile`; control arms B (seeds 0, 1), then V, V+D, V+K (taught
-by B's own logits), V+K+D, the best + alignment, and the winner at seed 1 — each 3 000 drawings per
-class × 4 epochs on one shared dataset, each followed by a CPU latency check of its ONNX against
-`artifacts/kami-eye` (interleaved in one process; 1, 4 and default threads; then `/recognize` over
-a loopback sidecar). Meanwhile the 22 k dataset renders at `nice 19`. The recipe that clears the bar
-(+0.5 replicated or +1.0 on S, no guard-rail broken, latency ≤ 1.25×) becomes the long run
-`kami-eye-next`, taught by `kami-eye-xl` when distillation was accepted, with
-E = ⌊0.93 · 12 600 s · img/s ÷ training drawings⌋ epochs; it is then scored against `kami-eye-xl`
-on the test split of the same views. If nothing clears the bar the hours go to a ResNet-34 teacher
-(`eye-teacher-r34`). A failed step is a `failed` row and the queue goes on; a restarted queue reuses
-every finished row. Logs: `logs/experiments/<step>.log`. Nothing is deployed and no exemplars are
-built. `experiments.py queue FILE.json` runs a plain list of `{"name", "flags"}` instead;
-`experiments.py eye-next --smoke --no-wait` is the whole plan on 8 categories in about a minute of GPU
-(12 minutes of wall clock, most of it the latency checks); it writes `artifacts/experiments-smoke.md`.
-
-Single tools, all on the box: `evaluate.py` (S and the bucket table of any model with a `model.pt`
-on any rendered dataset), `distill_teacher.py`, `latency.py`, `probe.py`.
-
-### What a run leaves behind
-
-The directory `artifacts/<name>/` (gitignored; it stays on the box, where the sidecar reads it):
-
-| File | |
+| | |
 |---|---|
-| `model.onnx` | opset 17, input `image` `[N,1,64,64]`, outputs `logits` `[N,K]` and `embedding` `[N,512]`, 45 MB |
-| `labels.json` | category names, index = logit index |
-| `preprocess.json` | the contract's fields (`temperature`, `renderSha256`, `top1`/`top3` = test split overall) plus `validation` and `test` tables by prefix bucket |
-| `golden.json` | 50 held-out cases for parity tests |
-| `model.pt` | the PyTorch weights, only needed to re-export |
+| Training | 37.3 M passes: **21 h at 491 img/s, 29 h at 353 img/s** (the ETA line tracks the real rate) |
+| Afterwards | ~1 h: assessment of 1.5 M held-out looks (~25 min), export, exemplars (~20–30 min on the CPU), validate, package |
+| Download | ~10 GB of `.bin` heads (250 B per drawing; short categories topped up), once |
+| Disk | ~10 GB data + ~1 GB index + checkpoints and releases (< 0.5 GB); no rendered dataset |
+| Memory | ~3–4 GB (main process, four workers, page cache for the `.bin` files as it can) |
 
-The printed validation/test tables by prefix bucket are the live-guessing curve; they are also kept in
-`preprocess.json`.
+Expected accuracy: the pilots put the one-pass recipe ~1.3 points ahead of xl's regime at equal
+compute, and kami-eye → kami-eye-xl gained ~1.1 points per doubling of compute, so 55 % of xl's
+compute spent this way lands at about xl's 83.1 % or a little above — **~83–84 % finished top-1**,
+with the half-drawn buckets gaining more. That is an estimate from a 30-category pilot, not a
+promise. With more hours, give the run more drawings, not more epochs (few categories have many more
+than 120 k recognised drawings; `--epochs 2` over 120 k costs twice as long and should add roughly
+another point). `bench --hours H` prints `--drawings-per-class` for a budget; the recipe is fixed
+once `train` starts.
 
-## Exercise a model on GX10
-
-Run in a dedicated GX10 shell/check environment after operator approval, without replacing the
-live service. Keep the box's CUDA environment intact; do not run `uv sync` over it.
+## Serve a model
 
 ```sh
-ssh gx10
-cd ~/kami-ml
-KAMI_EYE_MODEL=artifacts/kami-eye .venv/bin/python -m pytest tests/test_golden.py
+cd ml && KAMI_EYE_MODEL=artifacts/kami-eye-next uv run python sidecar.py      # :8790
+curl -s localhost:8790/recognize -d '{"strokes":[[{"x":0,"y":0},{"x":90,"y":5},{"x":85,"y":90},{"x":0,"y":80},{"x":0,"y":0}]]}'
 ```
 
-The separately managed serving sidecar uses `KAMI_RECOGNIZER_URL=http://127.0.0.1:8790` in the
-game's server. It needs `numpy`, `opencv-python-headless` and `onnxruntime`, and never imports
-torch. `KAMI_EYE_PORT` changes the port; `KAMI_EYE_MODEL` defaults to `artifacts/kami-eye`;
-`KAMI_EYE_HOST` (default `127.0.0.1`) is what it binds, `0.0.0.0` inside a container; `KAMI_EYE_THREADS`
-caps ONNX Runtime's threads on a shared host (unset leaves ONNX Runtime its default). `ml/Containerfile`
-packages the sidecar alone, and `docs/hosting.md` runs it beside the game.
-`bun run check:gx10 <full-commit-sha> <artifact-name>` runs the full ML checks, golden parity included,
-on the box against a named artifact ([scripts/ci/README.md](../scripts/ci/README.md)).
+The game's server uses it with `KAMI_RECOGNIZER_URL=http://127.0.0.1:8790` (and `/complete` with
+`KAMI_BEAUTIFY_URL=http://127.0.0.1:8790/complete`). The sidecar needs `numpy`,
+`opencv-python-headless` and `onnxruntime` and never imports torch. `KAMI_EYE_PORT` changes the
+port; `KAMI_EYE_MODEL` defaults to `artifacts/kami-eye`; `KAMI_EYE_HOST` (default `127.0.0.1`) is
+what it binds, `0.0.0.0` inside a container; `KAMI_EYE_THREADS` caps ONNX Runtime's threads on a
+shared host. `ml/Containerfile` packages the sidecar alone, and `docs/hosting.md` runs it beside the
+game. `KAMI_EYE_MODEL=artifacts/<name> uv run --group dev pytest tests/test_golden.py` checks golden
+parity of any release (the `validate` stage does the same and more).
 
-Sidecar behaviour beyond the contract's table: `partial` is validated and otherwise ignored (the one
-model reads prefixes and finished drawings alike); `top` is 1–1000 and capped at K; a drawing with
-no points, non-finite or absurd (> 1e9) coordinates, more than 256 strokes, 1024 points per stroke,
-2048 points total, a body over 262,144 bytes or anything outside the documented JSON is rejected
-before model execution (`400 {"error"}`); unknown routes are `404 {"error"}`; an
-unexpected exception is `500 {"error"}` and the process keeps serving. `/health` additionally
-reports `artifactId` (the release manifest SHA-256) and `renderMatches: true`.
-Incompatible or incomplete releases fail startup; they never serve predictions.
-One log line per request: `POST /recognize 200 5.3 ms`.
+Sidecar behaviour beyond the contract's table: `partial` selects the regime's temperature and floor
+(CONTRACT.md → Regimes); `top` is 1–1000 and capped at K; a drawing with no points, non-finite or
+absurd (> 1e9) coordinates, more than 256 strokes, 1024 points per stroke, 2048 points total, a body
+over 262,144 bytes or anything outside the documented JSON is rejected before model execution
+(`400 {"error"}`); unknown routes are `404 {"error"}`; an unexpected exception is `500 {"error"}` and
+the process keeps serving. `/health` additionally reports `artifactId` (the release manifest
+SHA-256) and `renderMatches: true`. Incompatible or incomplete releases fail startup; they never
+serve predictions. One log line per request: `POST /recognize 200 5.3 ms`. The handler sets
+`TCP_NODELAY`: the stdlib server writes headers and body separately, and a keep-alive client would
+otherwise sit out a 40 ms delayed ACK on every request.
 
 ## Kami finishes your drawing — exemplars and `/complete`
 
 `POST /complete` answers a rough sketch (and, optionally, the name the player gave it) with a clean
-human drawing of the same thing from Quick, Draw!, the one whose embedding is closest to the
-player's, scaled and centred onto their ink. The rules are in `CONTRACT.md` → Completion. It needs an
-exemplar set next to the model, built once per trained model, **on the box** (it embeds half a
-million drawings; ONNX Runtime on the CPU, no torch, no GPU), after the `rsync` above has put this
-directory's code in `~/kami-ml`:
+human drawing of the same thing from Quick, Draw!, chosen in the recogniser's own embedding space
+and morphed onto the player's ink; the rules are in `CONTRACT.md` → Completion. It needs an exemplar
+set next to the model, built once per trained model on the CPU (ONNX Runtime, no torch) by the
+`exemplars` stage, or by hand:
 
 ```sh
-ssh gx10
-cd ~/kami-ml
-setsid nohup nice -n 10 .venv/bin/python exemplars.py --model artifacts/kami-eye \
-  --min-probability 0.7 > logs/exemplars.log 2>&1 < /dev/null & disown      # ~26 min; tail the log
-~/kami/box/start.sh          # the sidecar loads artifacts/kami-eye/exemplars/, and the Kami server
-                             # gets KAMI_BEAUTIFY_URL=http://127.0.0.1:8790/complete
-curl -s localhost:8790/health                                  # … "exemplars": N (up to 345 × 200)
-curl -s localhost:8790/complete -d '{"name":"a square","strokes":[[{"x":0,"y":0},{"x":90,"y":5},{"x":85,"y":90},{"x":0,"y":80},{"x":0,"y":0}]]}'
+cd ml && uv run python exemplars.py --model artifacts/<name> --min-probability 0.7
 ```
 
 Switches: `--per-class 200`, `--candidates-per-class 1500` (the head of each `.bin`),
-`--min-probability 0.9`, `--threads 6` (ONNX Runtime; keep it modest while something trains),
-`--data-dir data` (holds `bin/`). The build prints progress every 25 categories and ends with a
-summary: exemplars kept, categories that came up short (reported, never fatal — a weak model is
-sure of fewer drawings), candidates per second, size on disk and load time. The same model, data and
-arguments write byte-identical files.
-
-`--min-probability` only decides categories that come up short: a category with 200 drawings above
-0.9 keeps the same 200 at any lower bar, because they are ranked by probability. The real `kami-eye`
-(8 epochs, 81 % top-1 on finished drawings) is rarely 0.9 sure of the plainest shapes, which look
-like many things: at 0.9 it keeps 2 of 1500 circles and 9 squares (bird 166; cloud, dog, cat, house,
-star, car, line, triangle 200); at 0.7 circle, square and bird are full too. Hence 0.7 above; the
-default stays the contract's 0.9.
-
-**Retrain the model and the set is stale**: the sidecar notices (`modelSha256`), warns, and serves
-without `/complete` until `exemplars.py` has run again.
-
-Without an exemplar set `/complete` is `404`, `/health` says `"exemplars": 0`, and the game keeps the
-player's own ink (`/api/beautify` → `501`).
-
-**Measured on the GB10** with `artifacts/timing` (345 classes, one epoch, 52 % top-1 — weak but
-real), CPU only, `--threads 6`, `nice -n 10`, while a training run and another job had the box:
-
-| | |
-|---|---|
-| Build | 517 500 candidates in 1 552 s — 333 drawings/s (4.3 s per category when the six threads are not contended) |
-| Kept | 44 477 exemplars: 163 categories full (200), 182 short, 35 of those empty (circle, square, cloud, dog, … — a one-epoch model is never 0.9 sure of them); median 174 per category, 4 strokes and 36 points per exemplar |
-| On disk | 50.7 MB: embeddings 45.5 MB, 1.76 M points 3.5 MB, offsets 1.0 MB, the rest 0.6 MB |
-| Load | 4 ms for the arrays; 26 ms at sidecar start with the sha256 of `model.onnx`; the sidecar's RSS is 179 MB with them |
-| Determinism | two builds with equal arguments in different directories: every file byte-identical |
-
-`POST /complete` on a quiet box, keep-alive, 25 held-out drawings (test split, beyond the first 8000
-of their `.bin`, never exemplars) from 25 categories, each posted four ways in world px (×2.5, offset):
-
-| Request (n = 25 each) | p50 | p95 | 200 | right category |
-|---|---|---|---|---|
-| finished | 8.8 ms | 16.8 ms | 15 | 14 |
-| finished, `name` | 8.8 ms | 12.9 ms | 23 | 23 |
-| first half of the points | 6.9 ms | 13.8 ms | 3 | 2 |
-| first half of the points, `name` | 9.3 ms | 15.5 ms | 23 | 23 |
-| all 100 | 8.8 ms | 16.1 ms | 64 | all 64 answers inside the request's bounds (measured before the morph: the answer was then the placed exemplar) |
-
-The 404s are this model, not the route: without a name a one-epoch model is rarely 0.5 sure, least
-of all of half a drawing, and two of the 25 categories had no exemplars. Example answers — finished
-banana, no name: banana 0.78, similarity 0.97, 2 strokes / 30 points in, 4 strokes / 26 points out,
-bounds (4000, −700)–(4342.5, −62.5) in, (4013.8, −700)–(4328.8, −62.5) out; half a calculator named
-"a calculator": confidence 0.36, similarity 0.89, 3 strokes / 26 points, full height, centred in the
-width; half a sailboat named: confidence 0.02 (the model sees something else in two strokes; the
-name decides), similarity 0.70, a whole sailboat inside the half's box.
-
-**The real model**, `artifacts/kami-eye` (8 epochs, 81 % top-1 finished), `--min-probability 0.7`, on
-a quiet box: 517 500 candidates in 1 054 s (491 drawings/s); **68 971 exemplars, 342 of 345
-categories full** (garden hose 191, hurricane 199, marker 181); 79.0 MB (embeddings 70.6 MB, 2.89 M
-points 5.8 MB); arrays load in 5 ms, 28 ms at sidecar start; sidecar RSS 207 MB. The same 100
-requests (their own 25 held-out drawings):
-
-| Request (n = 25 each) | p50 | p95 | 200 | right category |
-|---|---|---|---|---|
-| finished | 10.0 ms | 22.2 ms | 24 | 24 |
-| finished, `name` | 10.1 ms | 17.7 ms | 25 | 25 |
-| first half of the points | 9.8 ms | 18.2 ms | 17 | 11 |
-| first half of the points, `name` | 11.0 ms | 19.8 ms | 25 | 25 |
-| all 100 | 10.1 ms | 20.4 ms | 91 | all 91 answers inside the request's bounds (measured before the morph) |
-
-Finished envelope, no name: envelope 0.95, similarity 0.97, 1 stroke / 24 points in, 1 stroke / 25
-points out. Half a bracelet named "a bracelet": confidence 0.55, similarity 0.76, 2 strokes in, a
-whole 5-stroke bracelet out, full width, centred in the height. A hand-made five-point square named
-"a square": a human's one-stroke square, similarity 0.97. Half a panda without a name came back as
-a cat (0.80): with no name a wrong guess is a clean drawing of the wrong thing, which is why the
-game sends the name.
-
-The handler now sets `TCP_NODELAY`: the stdlib server writes headers and body separately, and on Linux
-a keep-alive client otherwise sits out the 40 ms delayed ACK on every request — `/recognize` on the
-box went from p50 51 ms to p50 3.6 ms, p95 6.3 ms (n = 60, keep-alive).
-
-## The first smoke test (on a Mac, before the box was reachable) — not the real model
-
-`uv run --group train python train.py --categories categories/smoke.txt --samples-per-class 2500 --epochs 3 --name smoke`
-— 8 categories (circle, line, square, triangle, star, mushroom, ladder, cloud), 20 000 drawings,
-M4 on MPS while the machine was busy with other work (load average ~6). 2 min 43 s wall including
-the 24 MB download, rendering and export; **353 img/s** training throughput (CPU: 48 img/s). It
-proves the pipeline; eight easy classes say nothing about 345.
-
-| Validation (n = 1018) | n | top-1 | top-3 |
-|---|---|---|---|
-| overall (half prefixes) | 1018 | 95.6 % | 99.3 % |
-| prefix 30–50 % of points | 127 | 84.3 % | 97.6 % |
-| prefix 50–70 % | 142 | 97.9 % | 100.0 % |
-| prefix 70–90 % | 147 | 94.6 % | 98.6 % |
-| prefix 90–100 % | 84 | 95.2 % | 100.0 % |
-| finished drawings | 518 | 98.1 % | 99.6 % |
-
-Test split (n = 1017): 94.5 % / 99.0 % overall, 73.6 % / 96.4 % on 30–50 % prefixes, 98.0 % / 99.6 %
-finished. Temperature 0.583 (validation NLL 0.258 → 0.173; label smoothing leaves the raw model
-under-confident). 49 of the 50 golden cases are right at top-1.
-
-Sidecar, ONNX Runtime CPU, same machine, a held-out mushroom posted in "world px" (×2.5, offset):
-
-| Request | p50 | p95 |
-|---|---|---|
-| `POST /recognize`, 24 points, keep-alive, n = 300 | 5.4 ms | 6.5 ms |
-| `POST /recognize`, new connection each time, n = 100 | 6.1 ms | 7.1 ms |
-| `POST /recognize`, one dense 1500-point stroke, n = 100 | 9.8 ms | 11.5 ms |
-| `POST /embed`, n = 300 | 5.9 ms | 6.9 ms |
-
-Warm-up at start: 10 ms. The 345-class model has the same backbone and a larger final `Linear`, so
-expect the same latency. Example answers: finished mushroom → mushroom 0.997; the first half of its
-points → mushroom 0.51, circle 0.26; half a ladder → ladder 0.99. The smoke artefact is left in
-`artifacts/smoke/` and the sidecar was stopped afterwards.
+`--min-probability 0.9` (the contract's default), `--threads 6`, `--data-dir data`. The same model,
+data and arguments write byte-identical files. `--min-probability` only decides categories that come
+up short: candidates are ranked by probability, so a category with 200 drawings above 0.9 keeps the
+same 200 at any lower bar. The 81 % model was rarely 0.9 sure of the plainest shapes (circle,
+square), which look like many things; at 0.7 it filled 342 of 345 categories (69 k exemplars,
+79 MB, 1,054 s for 517,500 candidates on the GB10's CPU), hence 0.7 in the kit. Retrain the model
+and the set is stale: the sidecar notices (`modelSha256`), warns, and serves without `/complete`
+until the set is rebuilt. Without an exemplar set `/complete` is `404` and the game keeps the
+player's own ink. `morph_review.py` measures the morph on held-out drawings drawn as a player would.
 
 ## How it is put together
 
 | File | |
 |---|---|
+| `retrain.py`, `retrain.sh` | the stages above; the wrapper that sets up, launches, watches and stops |
+| `kit/recipe.py` | `Recipe` (what a run learns, fingerprinted), presets `smoke` and `full`, `Runtime` |
+| `kit/corpus.py` | the index over the `.bin` files: label, byte offset, key_id, split, rank per drawing, memory-mapped; a pickled `Corpus` is two paths |
+| `kit/looks.py` | finished or prefix, point-space re-shaping; the held-out looks |
+| `kit/stream.py` | the epoch plan (a permutation per (seed, epoch)), the step sampler, the datasets that render whole batches in worker processes |
+| `kit/trainer.py` | the resumable fit, checkpoints, stop signals, progress lines and probes |
+| `kit/assess.py` | held-out reading, bucket tables, temperatures, floors, selection metric |
+| `kit/devices.py`, `kit/bench.py` | what each machine trains fastest with; the measurements behind `bench` |
+| `kit/verify.py`, `kit/release.py`, `kit/journal.py` | the `validate` checks; package, model card, `gh release`; the log and `progress.json` |
 | `render.py` | the contract's rasteriser, plus `take_prefix` / `render_prefix`, `from_xy_arrays`, `to_model_input`, `image_sha256` |
-| `quickdraw_bin.py` | `.bin` parser and writer; range-fetches the first N MB per category into `data/bin/`, cut back to whole records, with a manifest so nothing is fetched twice |
-| `dataset.py` | renders recognised drawings into `data/datasets/<name>/images.u8` (uint8 memmap) with labels, prefix fractions, splits and key_ids; one process per core |
-| `batches.py`, `augment.py` | memmap → device batches on a read-ahead thread; per-image random affine on the device |
-| `model.py` | `SketchNet`: torchvision `resnet18`, `forward -> (logits, embedding)` |
-| `loop.py`, `metrics.py`, `calibrate.py` | the fit loop, bucketed top-1/top-3, temperature scaling |
-| `export.py` | ONNX export and the four artefact files |
+| `quickdraw_bin.py` | `.bin` parser and writer; range-fetches the first N MB per category, cut back to whole records, with a manifest so nothing is fetched twice |
+| `splits.py` | the split of a drawing: splitmix64 of its `key_id`, modulo 100 — < 90 train, < 95 validation, else test |
+| `model.py` | `SketchNet`: torchvision `resnet18` with a 3×3 stride-2 stem and no max-pool, `forward -> (logits, embedding)`; `resnet18d`, `resnet34` |
+| `metrics.py`, `calibrate.py`, `folding.py`, `selective.py`, `retrieval.py`, `selection.py` | bucketed top-1/top-3, temperature scaling per regime, alias folding, ECE and coverage at 95 % precision, own-drawing recall@10, the selection metric S |
+| `export.py`, `artifacts.py`, `checkpoint.py` | ONNX export, `golden.json` and the release; bundle validation and atomic publication; a release back as a PyTorch model |
 | `recognizer.py`, `sidecar.py` | artefact directory → recogniser; the stdlib HTTP server over it |
-| `exemplars.py`, `exemplar_set.py` | the CLI that picks each category's prototypical drawings with a trained model; the file set they are kept in (ragged uint8 strokes + float16 embeddings) |
-| `completion.py` | sketch + optional name → category → the exemplar most like the ink → the morph |
-| `likeness.py` | which exemplar of the category is most like the player's ink, and in which of the eight poses: outlines compared first, the closest few fitted and compared again |
-| `pose.py` | the eight ways a drawing can face: as drawn or mirrored, by quarter turns |
-| `morph_review.py` | on the box: held-out drawings as a player would draw them (as is, wobbly, mirrored, turned, tilted) through `complete()` at three strengths — a table of departure, floating ends, chords, added ink and milliseconds, and contact sheets to look at. Run it in two copies of `ml/` to compare two morphs |
-| `morph.py` | the player's own strokes tidied toward the fitted exemplar (bounded, point for point), plus the parts that are missing |
-| `views.py`, `teacher.py`, `losses.py` | which view of a drawing a step sees; a teacher's stored logits; distillation and prefix→finished alignment |
-| `folding.py`, `selective.py`, `retrieval.py`, `selection.py`, `evaluation.py` | alias folding, ECE and coverage at 95 % precision, own-drawing recall@10, the selection metric S, a split read view by view |
-| `checkpoint.py`, `evaluate.py`, `distill_teacher.py`, `latency.py`, `probe.py` | a trained directory back as a PyTorch model, and the four tools built on it |
-| `experiment_plan.py`, `experiments.py` | the staged plan with its decision rules (pure), and the queue that runs it |
-| `train.py` | the CLI that runs all of the above |
+| `exemplars.py`, `exemplar_set.py`, `completion.py`, `likeness.py`, `pose.py`, `morph.py`, `morph_review.py` | `/complete`: the exemplar set, choosing an exemplar and pose, the morph, and its review |
+| `latency.py` | a model's ONNX and `/recognize` latency against another's, interleaved in one process |
 
-- **Stem: 3×3 stride 2, no max-pool** (not stride 1): ink is ~1.5 px wide after the 256 → 64
-  area-downsample, so one early stride loses little, and it is 4× cheaper than the CIFAR-style stem —
-  which is what buys more data per GPU hour and ~5 ms CPU inference.
-- **Fit**: points map to pixel centres 12 … 243 of the 256 canvas (span 231), rounded to whole
-  pixels, so the picture is exactly centred and a mirrored sketch gives a mirrored image. Translation
-  and power-of-two scaling reproduce the image bit for bit; other scales differ by rounding only.
+- **Stem: 3×3 stride 2, no max-pool**: ink is ~1.5 px wide after the 256 → 64 area-downsample, so
+  one early stride loses little, and it is 4× cheaper than a stride-1 stem — ~5 ms CPU inference.
+- **Fit**: points map to pixel centres 12 … 243 of the 256 canvas, rounded to whole pixels, so the
+  picture is exactly centred and a mirrored sketch gives a mirrored image.
 - **Prefixes** keep the first ⌈fraction × points⌉ points in drawing order (at least one) and are
-  fitted to their own bounds. They are rendered at dataset-build time: each drawing is a prefix with
-  probability 0.5, fraction uniform in [0.3, 1.0), from a generator seeded by `(seed, label)`, so a
-  rebuild is identical.
-  With `--views 4` every drawing keeps its finished render plus one prefix per band, fractions
-  uniform within 30–50, 50–70 and 70–100 %, from the same generator; which view a step sees is
-  drawn by `views.py` from its own stream, so the shuffle is the same with or without views.
-- **Split** by splitmix64 of `key_id`, modulo 100: < 90 train, < 95 validation, else test. A drawing
-  never changes side between runs or dataset sizes.
-- **`golden.json`** cases are test-split drawings spread evenly over the categories, every other one
-  cut to a 35/50/65/80 % prefix. `strokes` is already the (possibly cut) input in the sidecar's
-  request shape `[[{"x","y"},…],…]`; `imageSha256` is the sha256 of the 4096 row-major bytes of
-  `render(strokes)`; `top3` comes from the exported ONNX through the sidecar's own code path.
-  Additive fields: `probs`, `label` (the truth), `fraction`.
+  fitted to their own bounds.
+- **`golden.json`**: 50 test-split drawings spread over the categories, every other one cut to a
+  35/50/65/80 % prefix, in the sidecar's request shape, with the sha256 of `render(strokes)` and the
+  top-3 of the exported ONNX through the sidecar's own code path.
 - `renderSha256` is the sha256 of `render.py`'s bytes — any edit to that file, even whitespace,
-  rejects older models at startup. Re-export a reviewed compatible model on GX10.
-
-### Publishing releases
-
-Training exports all serving files and the checkpoint in a private release directory, then atomically
-switches the artifact name's symlink. Old releases remain intact for rollback. Existing plain artifact
-directories are not replaced: use a new training name, then select it with `KAMI_EYE_MODEL_NAME`.
-`release.json` binds the model, labels, preprocessing and golden cases by SHA-256.
-`box/start.sh` validates candidates on GX10 before stopping services and remembers the last working
-resolved model directory. It falls back to that compatible release when a new candidate is invalid.
-
-Pure control-flow checks (no model dependencies or execution) may run on the editing machine:
-`PYTHONPATH=ml python3 -m unittest discover -s ml/unit -v`.
-Golden parity, ONNX validation and inference remain GX10-only.
+  rejects older models at startup, so a model and its renderer can never drift.
+- **Releases**: export builds a private directory, validates it, and atomically swaps the
+  `artifacts/<name>` link; older releases stay for rollback. A plain directory at that name is never
+  replaced. `release.json` binds the four files by SHA-256.
 
 ## Checks
 
 ```sh
-uv run --group train pytest     # 212 tests: render, .bin round trip, dataset and its views, sidecar
-                                # routes on a tiny real ONNX model, model/export/calibration, golden
-                                # parity, exemplar files and selection, completion, /complete, the
-                                # regimes, losses, batches, the fit loop on synthetic drawings, the
-                                # selection metric, and the queue against a fake process runner
-uv run ruff check . && uv run ruff format --check . && uv run mypy .
+cd ml
+uv run --group dev --group train pytest -q     # render, .bin, corpus, looks, batches, the resumable
+                                               # trainer, `retrain.py all` end to end on synthetic
+                                               # drawings, sidecar routes, export, regimes, completion
+uv run --group check ruff check . && uv run --group check ruff format --check . && uv run --group check mypy .
 ```
 
-Without `--group train` the torch-dependent tests skip themselves.
+Without the `train` group the torch-dependent tests skip themselves.
 
 ## Serving: the sidecar and handwriting
 

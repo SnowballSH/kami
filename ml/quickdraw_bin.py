@@ -60,7 +60,8 @@ def complete_length(buffer: bytes | memoryview) -> int:
     return offset
 
 
-def _decode(buffer: bytes | memoryview, start: int) -> Drawing:
+def decode_drawing(buffer: bytes | memoryview, start: int) -> Drawing:
+    """The record that begins at byte `start`; the buffer must hold all of it."""
     key_id, country, recognized, timestamp, stroke_count = _HEADER.unpack_from(buffer, start)
     offset = start + _HEADER.size
     strokes: list[XyStroke] = []
@@ -74,11 +75,16 @@ def _decode(buffer: bytes | memoryview, start: int) -> Drawing:
     return Drawing(key_id, country.decode("ascii", "replace"), bool(recognized), timestamp, strokes)
 
 
-def parse_drawings(buffer: bytes | memoryview) -> Iterator[Drawing]:
+def located_drawings(buffer: bytes | memoryview) -> Iterator[tuple[int, Drawing]]:
+    """Every whole record with the byte offset it starts at, in file order."""
     offset = 0
     while (end := _record_end(buffer, offset)) is not None:
-        yield _decode(buffer, offset)
+        yield offset, decode_drawing(buffer, offset)
         offset = end
+
+
+def parse_drawings(buffer: bytes | memoryview) -> Iterator[Drawing]:
+    return (drawing for _, drawing in located_drawings(buffer))
 
 
 def read_drawings(path: Path) -> Iterator[Drawing]:

@@ -11,7 +11,7 @@ TOOLS="$UV_PROJECT_ENVIRONMENT/bin"
   cd ml
   "$TOOLS/ruff" check .
   "$TOOLS/ruff" format --check .
-  "$TOOLS/mypy" --config-file pyproject.toml artifacts.py prefetch.py unit
+  "$TOOLS/mypy" --config-file pyproject.toml artifacts.py unit
 )
 
 git ls-files --cached --others --exclude-standard -z '*.py' |

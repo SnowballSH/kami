@@ -10,7 +10,7 @@ made available by Google, Inc. under the
 [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/) licence:
 <https://github.com/googlecreativelab/quickdraw-dataset>.
 
-- The dataset is **not** in this repository. `bun run quickdraw:ingest` and `ml/train.py` download it from
+- The dataset is **not** in this repository. `bun run quickdraw:ingest` and `ml/retrain.py` download it from
   Google's public bucket.
 - What is derived from it: the recognition model and its exemplar set (built on your own machine, not
   distributed here), the list of its 345 category names (`server/natures/quickdrawCategories.txt`), and the
