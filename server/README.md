@@ -345,6 +345,13 @@ rejections once, not once per request; a request that is still refused with noth
 scene compiler and the handwriting reader each have their own client, so a vision model on another
 server learns separately.
 
+The schema each client sends is written for the strictest of them, OpenAI's strict structured
+outputs (`llm/strictJsonSchema.ts`): `anyOf` instead of `oneOf`, every object closed and every
+property required, an optional field spelled as a nullable one (so the reply schemas take `null`
+wherever a field may be left out), no string-length bounds. And OpenAI refuses `json_object` mode
+unless some message says "JSON", so the client adds a one-line system reminder when none does. A
+server that still refuses a step falls down the same chain.
+
 ## Handwriting reading
 
 `/api/transcribe` lets the player write with the pen instead of the text prompt. Two readers can

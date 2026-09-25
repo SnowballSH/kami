@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { CompiledRule, Governs, Scene, SceneCompiler } from "../../src/rules/types";
 import { clampEffect, describeEffect } from "../compile/effectRanges";
 import { ChatClient, type FetchLike, type LlmConfig, lastJsonObject } from "../llm/chatClient";
+import { strictJsonSchema } from "../llm/strictJsonSchema";
 import { rawRuleEffectSchema } from "../schemas";
 import { SCENE_SYSTEM_PROMPT } from "./prompt";
 
@@ -20,8 +21,8 @@ const finite = z.number().finite();
 const replySchema = z.object({
   place: z.string().nullable(),
   laws: z
-    .array(z.object({ effect: rawRuleEffectSchema, explanation: z.string().optional() }))
-    .optional(),
+    .array(z.object({ effect: rawRuleEffectSchema, explanation: z.string().nullish() }))
+    .nullish(),
   props: z
     .array(
       z.object({
@@ -30,10 +31,10 @@ const replySchema = z.object({
         size: finite,
       }),
     )
-    .optional(),
-  line: z.string().optional(),
+    .nullish(),
+  line: z.string().nullish(),
 });
-const replyJsonSchema = z.toJSONSchema(replySchema);
+const replyJsonSchema = strictJsonSchema(replySchema);
 
 type Reply = z.infer<typeof replySchema>;
 

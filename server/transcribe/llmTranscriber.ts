@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Stroke } from "../../src/core/geometry";
 import { ChatClient, type FetchLike, type LlmConfig, lastJsonObject } from "../llm/chatClient";
+import { strictJsonSchema } from "../llm/strictJsonSchema";
 import { HI_STROKES } from "./hiStrokes";
 import { TRANSCRIBER_SYSTEM_PROMPT, TRANSCRIBER_USER_LINE } from "./prompt";
 import { strokesToPngDataUrl } from "./strokeImage";
@@ -11,7 +12,7 @@ const WARM_UP_TIMEOUT_MS = 120_000;
 const MAX_REPLY_TOKENS = 80;
 
 const replySchema = z.object({ text: z.string().nullable() });
-const replyJsonSchema = z.toJSONSchema(replySchema);
+const replyJsonSchema = strictJsonSchema(replySchema);
 
 export const parseTranscription = (content: string): string | null => {
   const reply = replySchema.safeParse(lastJsonObject(content));

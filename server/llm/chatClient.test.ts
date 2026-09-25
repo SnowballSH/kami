@@ -119,6 +119,29 @@ describe("ChatClient against servers with different tastes", () => {
     expect(bodies[0]?.response_format).toEqual({ type: "json_object" });
   });
 
+  it("says JSON in the messages whenever it asks for a JSON object, as OpenAI insists", async () => {
+    const bodies: Body[] = [];
+    const client = new ChatClient(
+      CONFIG,
+      serverRefusing(
+        (body) =>
+          (body.response_format as { type?: string } | undefined)?.type === "json_schema"
+            ? "response_format: 'oneOf' is not permitted"
+            : null,
+        bodies,
+      ),
+    );
+    await client.ask(MESSAGES, OPTIONS);
+    await client.ask([{ role: "system", content: "Reply in JSON." }, ...MESSAGES], OPTIONS);
+    const sent = bodies.map((body) => body.messages);
+    expect(sent[0]).toEqual(MESSAGES);
+    expect(sent[1]).toEqual([
+      { role: "system", content: "Reply with a JSON object." },
+      ...MESSAGES,
+    ]);
+    expect(sent[2]).toEqual([{ role: "system", content: "Reply in JSON." }, ...MESSAGES]);
+  });
+
   it("gives up after a bounded number of attempts on a request that is simply bad", async () => {
     const bodies: Body[] = [];
     const client = new ChatClient(

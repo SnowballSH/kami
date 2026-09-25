@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { CompiledRule, RuleCompiler } from "../../src/rules/types";
 import { ChatClient, type FetchLike, type LlmConfig, lastJsonObject } from "../llm/chatClient";
+import { strictJsonSchema } from "../llm/strictJsonSchema";
 import { rawRuleEffectSchema } from "../schemas";
 import { clampEffect, describeEffect } from "./effectRanges";
 import { COMPILER_SYSTEM_PROMPT } from "./prompt";
@@ -15,9 +16,9 @@ const MAX_EXPLANATION_LENGTH = 80;
 
 const replySchema = z.object({
   effect: rawRuleEffectSchema.nullable(),
-  explanation: z.string().optional(),
+  explanation: z.string().nullish(),
 });
-const replyJsonSchema = z.toJSONSchema(replySchema);
+const replyJsonSchema = strictJsonSchema(replySchema);
 
 const parseModelReply = (content: string): CompiledRule | null => {
   const reply = replySchema.safeParse(lastJsonObject(content));
