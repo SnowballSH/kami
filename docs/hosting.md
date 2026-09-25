@@ -1,15 +1,16 @@
 # Hosting Kami
 
 One container holds everything the game needs: the API server, the built game, an embedded MongoDB
-(`mongod`, started by the server) and the Quick, Draw! sketches its built-in recogniser learns from.
-Nothing else is required; a language model, the Eye sidecar and an external MongoDB are optional
-and switched on with environment variables. Images are published for `linux/amd64` and
+(`mongod`, started by the server), the Quick, Draw! sketches its built-in recogniser learns from, and
+the sidecar that reads handwriting on the CPU ([ml/HANDWRITING.md](../ml/HANDWRITING.md)), which the
+server starts and looks after itself. Nothing else is required; a language model, a trained Kami's
+Eye and an external MongoDB are optional and switched on with environment variables or a volume. Images are published for `linux/amd64` and
 `linux/arm64` from [`.github/workflows/container.yml`](../.github/workflows/container.yml).
 
 | Image | From | What |
 |---|---|---|
 | `ghcr.io/snowballsh/kami` | [`Containerfile`](../Containerfile) | the game: server, web build, embedded mongod, sketches |
-| `ghcr.io/snowballsh/kami-eye` | [`ml/Containerfile`](../ml/Containerfile) | Kami's Eye, the optional sketch-recognition sidecar |
+| `ghcr.io/snowballsh/kami-eye` | [`ml/Containerfile`](../ml/Containerfile) | the same sidecar on its own (handwriting, and Kami's Eye when a model is mounted), for another host |
 
 Tags: `latest` follows `main`, `1.2.3` and `1.2` follow `v*` releases, `sha-<short>` every build.
 
@@ -24,7 +25,9 @@ podman run -d --name kami -p 8080:8080 -v kami-data:/data \
 
 Open <http://localhost:8080>. The sketches and their precomputed features are baked into the
 image, so the server listens about a second after the container starts (`podman logs -f kami`
-shows it) and `GET /api/health` then answers `{"ok":true}`. Boards live in the `kami-data`
+shows it) and `GET /api/health` then answers `{"ok":true}`. The handwriting reader is ready a second
+or two later: the log says `handwriting reader is ready: local reader (http://127.0.0.1:8790)`, and
+the sidecar's own lines are prefixed `sidecar:`. Boards live in the `kami-data`
 volume; nothing else is written, which is why `--read-only` works (mongod keeps a socket in `/tmp`,
 hence the tmpfs). A volume from an older image still holds a `quickdraw` collection; the first start
 drops it and logs that it did.
@@ -35,20 +38,24 @@ owner-readable. `docker run` takes the same flags.
 
 Build it yourself with `podman build -t kami .` (about ten minutes: it builds the game, fetches
 mongod, downloads 300 drawings for each of the 42 Quick, Draw! categories the k-NN knows and
-precomputes their features). `--build-arg QUICKDRAW_SAMPLES_PER_CATEGORY=100` makes a smaller,
-quicker image.
+precomputes their features, and installs the sidecar's Python with the handwriting model, 73 MB
+fetched from pinned revisions and checked against pinned SHA-256s). `--build-arg
+QUICKDRAW_SAMPLES_PER_CATEGORY=100` makes a smaller, quicker image. The sidecar adds about 400 MB
+(uncompressed) to the image: Python 102 MB, numpy, OpenCV and ONNX Runtime 223 MB, the models 76 MB.
 
 ## Compose
 
-[`compose.yaml`](../compose.yaml) runs the same container with two optional profiles. It works with
-`podman compose`, `podman-compose` and `docker compose`.
+[`compose.yaml`](../compose.yaml) runs the same container, with an optional MongoDB profile. It works
+with `podman compose`, `podman-compose` and `docker compose`.
 
 ```bash
 cp .env.example .env               # fill in what you use; every line is optional
-podman compose up -d               # the game, with its embedded MongoDB
-podman compose --profile eye up -d     # + Kami's Eye, with KAMI_RECOGNIZER_URL=http://eye:8790 in .env
+podman compose up -d               # the game, with its embedded MongoDB and handwriting sidecar
 podman compose --profile mongo up -d   # + MongoDB 8 instead of the embedded one: MONGODB_URI=mongodb://mongo:27017
 ```
+
+A trained Kami's Eye needs no second service: uncomment the `/models/kami-eye` volume in
+`compose.yaml` (`KAMI_EYE_ARTIFACTS` names the directory) and the kami container's own sidecar serves it.
 
 [`.env.example`](../.env.example) lists every variable with a line of explanation. `KAMI_PUBLISH`
 chooses where compose publishes the game; `127.0.0.1:8080` keeps it behind a reverse proxy.
@@ -66,8 +73,11 @@ Any secret (`*_API_KEY`, `MONGODB_URI`, `KAMI_CREDENTIALS`) may be given as a fi
 | `KAMI_LLM_URL`, `KAMI_LLM_MODEL` | off | Any OpenAI-compatible chat endpoint for the laws the offline grammar cannot read, and the model name it serves. Unset: the grammar alone, which still plays. |
 | `KAMI_LLM_API_KEY` | none | Sent as a bearer token. |
 | `KAMI_LLM_REASONING_EFFORT` | model's own | For reasoning models: `low` keeps laws snappy. |
-| `KAMI_TRANSCRIBE_URL`, `KAMI_TRANSCRIBE_MODEL`, `KAMI_TRANSCRIBE_API_KEY` | the LLM settings | A vision-capable model that reads handwriting. |
-| `KAMI_RECOGNIZER_URL`, `KAMI_RECOGNIZER_API_KEY` | off | Kami's Eye ([ml/CONTRACT.md](../ml/CONTRACT.md)). Unset, the built-in k-NN over Quick, Draw! recognises alone. |
+| `KAMI_SIDECAR` | `auto` | The image starts `ml/sidecar.py` on `127.0.0.1:8790` beside the server, restarts it if it dies and stops it on shutdown. `off` does without: handwriting then needs another reader. |
+| `KAMI_HANDWRITING_URL`, `KAMI_HANDWRITING_API_KEY` | the image's sidecar | Where handwriting is read (`POST /read`, [ml/CONTRACT.md](../ml/CONTRACT.md)): another sidecar, e.g. the `kami-eye` image on another host, or `off` to leave it to the vision model. |
+| `KAMI_TRANSCRIBE_URL`, `KAMI_TRANSCRIBE_MODEL`, `KAMI_TRANSCRIBE_API_KEY` | the LLM settings | A vision-capable model that reads handwriting, used only when no sidecar reader passes its start-up check. A text-only model fails that check and is simply not used. |
+| `KAMI_EYE_MODEL` | `/models/kami-eye` | Kami's Eye for the image's sidecar ([ml/CONTRACT.md](../ml/CONTRACT.md)). Mount a trained model there and the sidecar recognises sketches and finishes drawings; without one, the built-in k-NN recognises alone. |
+| `KAMI_RECOGNIZER_URL`, `KAMI_RECOGNIZER_API_KEY` | the image's sidecar, when it has an Eye | Kami's Eye elsewhere. `off`: the k-NN alone. |
 | `KAMI_SKETCHES` | Quick, Draw! | The Eye's exemplar set, whose drawings are summoned by name. |
 | `KAMI_BEAUTIFY_URL`, `KAMI_BEAUTIFY_API_KEY` | off | A sketch beautifier, if you have one. |
 | `KAMI_MODEL_REQUESTS_PER_MINUTE`, `KAMI_MODEL_CONCURRENCY` | server defaults | Caps on what the game may spend at the model endpoints. |
@@ -124,7 +134,7 @@ KAMI_CREDENTIALS_FILE=/run/secrets/kami-credentials
 | `KAMI_MONGO_CACHE_GB` | `0.25` | Lower to `0.1` on a very small host; boards are tiny. |
 | `KAMI_MODEL_CONCURRENCY` | server default | How many model calls may be in flight; match your endpoint. |
 | `BUN_OPTIONS` | none | Flags for Bun itself. `--smol` made no measurable difference to Kami's idle memory. |
-| `KAMI_EYE_THREADS` (eye image) | `1` | ONNX Runtime threads. `1` on a shared host; more only if you have idle cores. |
+| `KAMI_EYE_THREADS` | `1` | The sidecar's ONNX Runtime threads (handwriting and the Eye). `1` on a shared host; more only if you have idle cores. |
 
 **Small shared CPU hosts.** Measured idle, freshly started with an empty volume (rootless podman,
 arm64): the Bun server about 180–200 MB resident, of which 65 MB is the k-NN's feature matrix and
@@ -133,16 +143,35 @@ executable (file-backed, so the kernel can reclaim them) and under 30 MB its own
 the watchdog `mongodb-memory-server` keeps beside it. That is about 350 MB of resident memory, and
 `podman stats` reports a little more because it also counts the page cache of files the container
 has read. Boards are tiny, so mongod's WiredTiger cache (`KAMI_MONGO_CACHE_GB`, already at its
-0.25 GB minimum) stays nearly empty. A `MemoryMax` of 512 MB leaves room for the static site's
-compressed-file cache and bursts of drawings; check with `podman stats --no-stream`. The
-Eye's RSS was measured at about 180–210 MB with an exemplar set loaded
-([ml/README.md](../ml/README.md)). One CPU is enough: recognition takes milliseconds and the model
-calls wait on the network, not the CPU. Neither container needs a GPU.
+0.25 GB minimum) stays nearly empty. The handwriting sidecar adds about 210 MB resident idle
+(Python, numpy, OpenCV, ONNX Runtime and both models), settling near 260 MB after hundreds of reads,
+for about 800–850 MB in `podman stats` in all. A `MemoryMax` of 1 GB leaves room for the static
+site's compressed-file cache and bursts of drawings; check with `podman stats --no-stream`. A mounted
+Eye adds its own model to the sidecar (its RSS alone was measured at about 180–210 MB with an
+exemplar set, [ml/README.md](../ml/README.md)). One CPU is enough for a table of players: a line of
+handwriting costs 40–330 ms of one core (p50; at most 0.85 s for the messiest), a drawing ~7 ms,
+recognition milliseconds, and reads go one at a time. No container needs a GPU.
 
-## Kami's Eye
+## Kami's Eye and the sidecar
 
-The sidecar image holds the serving code and its dependencies (numpy, OpenCV headless, ONNX
-Runtime). The trained artefacts, which are not in the repository, are mounted read-only:
+The kami image's sidecar reads handwriting from the start and serves Kami's Eye too once trained
+artefacts, which are not in the repository, are mounted read-only at `/models/kami-eye`:
+
+```bash
+podman run -d --name kami -p 8080:8080 -v kami-data:/data \
+  -v /srv/kami/artifacts/kami-eye:/models/kami-eye:ro \
+  --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+  --cap-drop=ALL --security-opt no-new-privileges \
+  ghcr.io/snowballsh/kami:latest
+```
+
+The server then recognises sketches with the Eye (the k-NN still answers whenever it does not) and
+finishes drawings with its exemplar set. An artefact directory that is there but incomplete stops
+the sidecar ([ml/CONTRACT.md](../ml/CONTRACT.md) says which file is missing); the server logs its
+exits and keeps restarting it, less often each time, while the game plays on with the k-NN and
+without handwriting. The sidecar's lines in the server log are prefixed `sidecar:`.
+
+The `kami-eye` image is the same sidecar alone, for a separate host:
 
 ```bash
 podman run -d --name kami-eye -p 127.0.0.1:8790:8790 \
@@ -151,11 +180,11 @@ podman run -d --name kami-eye -p 127.0.0.1:8790:8790 \
   ghcr.io/snowballsh/kami-eye:latest
 ```
 
-`GET /health` on it reports the model, its classes and whether an exemplar set is loaded. Give the
-game `KAMI_RECOGNIZER_URL=http://kami-eye:8790` (on the same podman network, or `--profile eye`
-with compose). The sidecar refuses to start without a complete artefact bundle
-([ml/CONTRACT.md](../ml/CONTRACT.md)) and says which file is missing. `KAMI_EYE_MODEL` names another
-directory under the mount; `KAMI_EYE_HOST` and `KAMI_EYE_PORT` move the listener.
+`GET /health` on it says what it can do (`capabilities`), the Eye's model and classes and whether an
+exemplar set is loaded. Give the game `KAMI_RECOGNIZER_URL=http://kami-eye:8790` for the Eye and, to
+read handwriting there instead of in the game's own container, `KAMI_HANDWRITING_URL` likewise with
+`KAMI_SIDECAR=off`. `KAMI_EYE_MODEL` names another directory under the mount; `KAMI_EYE_HOST` and
+`KAMI_EYE_PORT` move the listener.
 
 ## Behind a reverse proxy
 
@@ -253,7 +282,7 @@ LogDriver=journald
 [Service]
 Restart=on-failure
 RestartSec=5s
-MemoryMax=768M
+MemoryMax=1G
 TasksMax=256
 
 [Install]
@@ -261,5 +290,6 @@ WantedBy=default.target
 ```
 
 The health timeout is generous because the first start imports the sketches. The Caddy site block
-above, with the published loopback port, completes the picture; the Eye would be a second manifest
-on the same network with `KAMI_RECOGNIZER_URL=http://kami-eye:8790` added to this one.
+above, with the published loopback port, completes the picture. Handwriting needs nothing more: the
+image reads it itself, even behind a text-only gateway. A trained Eye is one more volume,
+`/srv/kami/artifacts/kami-eye:/models/kami-eye:ro`.

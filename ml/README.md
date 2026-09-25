@@ -351,3 +351,21 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy .
 ```
 
 Without `--group train` the torch-dependent tests skip themselves.
+
+## Serving: the sidecar and handwriting
+
+`sidecar.py` serves two things, each optional: Kami's Eye over a trained artefact directory
+(`KAMI_EYE_MODEL`) and the handwriting reader (`POST /read`, `KAMI_HANDWRITING_MODEL`) over two pinned
+pretrained models, PP-OCRv5 English mobile and TrOCR-small-handwritten int8. `handwriting/` is its
+code, [HANDWRITING.md](HANDWRITING.md) the design and the measurements behind it, [CONTRACT.md](CONTRACT.md)
+the routes.
+
+```sh
+uv sync --no-default-groups                              # numpy, OpenCV headless, ONNX Runtime
+uv run python -m handwriting.fetch models/handwriting    # 73 MB, checked against pinned SHA-256s
+uv run python sidecar.py                                 # 127.0.0.1:8790; serves what it finds
+```
+
+The kami image runs this sidecar itself (the Bun server starts and supervises it with
+`KAMI_SIDECAR=auto`); `Containerfile` here builds it alone. With the bundle fetched, `pytest` also
+reads Kami's own pen strokes (`tests/fixtures/handwriting/`) through the real models.

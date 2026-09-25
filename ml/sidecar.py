@@ -15,8 +15,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Protocol
 
-import onnxruntime as ort
-
 from artifacts import validate_bundle
 from completion import SketchCompleter
 from exemplar_set import load_exemplars_of_model
@@ -52,7 +50,6 @@ WARM_UP_WRITING: list[list[Point]] = [
 ]
 EYE_ROUTES = ("/recognize", "/embed", "/complete")
 READ_ROUTE = "/read"
-ONNX_RUNTIME_ERRORS_ONLY = 3
 
 Answer = tuple[HTTPStatus, dict[str, object]]
 
@@ -375,7 +372,6 @@ def present(directory: Path, what: str, variable: str) -> Path | None:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
-    ort.set_default_logger_severity(ONNX_RUNTIME_ERRORS_ONLY)
     settings = SidecarSettings.from_env()
     model_dir = present(settings.model_dir, "Kami's Eye model", MODEL_ENV)
     handwriting_dir = present(settings.handwriting_dir, "handwriting model", HANDWRITING_ENV)
