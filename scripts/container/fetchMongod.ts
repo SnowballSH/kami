@@ -26,4 +26,6 @@ if (destination === undefined) {
   process.exit(2);
 }
 const source = await fetchMongod(destination);
-console.log(`mongod ${process.env.MONGOMS_VERSION ?? "(default version)"}: ${source} -> ${destination}`);
+console.log(
+  `mongod ${process.env.MONGOMS_VERSION ?? "(default version)"}: ${source} -> ${destination}`,
+);

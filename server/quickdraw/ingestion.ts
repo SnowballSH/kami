@@ -21,7 +21,10 @@ const fetchCategorySketches = async (
   fetchFn?: FetchLike,
 ): Promise<CategorySketches> => {
   const drawings = await fetchCategoryDrawings(category, limit, fetchFn);
-  return { category, sketches: drawings.map(({ keyId, drawing }) => ({ category, keyId, drawing })) };
+  return {
+    category,
+    sketches: drawings.map(({ keyId, drawing }) => ({ category, keyId, drawing })),
+  };
 };
 
 /** Downloads every category a few at a time, handing each one over as soon as it has arrived. */
