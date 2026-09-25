@@ -2,8 +2,30 @@ import type { PersistenceState } from "../persistence/types";
 import { el } from "./dom";
 import { activateOnTap } from "./tap";
 
+const NOTHING_KEPT = "Not saved";
+
+const messageFor = (state: PersistenceState): string => {
+  const failedLoad = state.errors.some(({ operation }) => operation === "load");
+  return [
+    state.loading ? "Loading board…" : failedLoad ? "Saved board unavailable." : "",
+    state.saving
+      ? "Saving…"
+      : state.unsaved > 0
+        ? "Unsaved changes — keep this tab open."
+        : state.errors.some(({ operation }) => operation === "list")
+          ? "Board list unavailable."
+          : !failedLoad && !state.loading
+            ? "Saved"
+            : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+};
+
+/** Whether the page is saved: a quiet line under the top-left cluster, with Retry when saving failed. */
 export class PersistenceStatus {
   private readonly label = el("span", {
+    className: "kami-persistence-label",
     attrs: { role: "status", "aria-live": "polite", "aria-atomic": "true" },
   });
   private readonly retry = el("button", {
@@ -20,24 +42,13 @@ export class PersistenceStatus {
     });
   }
 
-  show(state: PersistenceState): void {
-    const failedLoad = state.errors.some(({ operation }) => operation === "load");
-    const message = [
-      state.loading ? "Loading board…" : failedLoad ? "Saved board unavailable." : "",
-      state.saving
-        ? "Saving…"
-        : state.unsaved > 0
-          ? "Unsaved changes — keep this tab open."
-          : state.errors.some(({ operation }) => operation === "list")
-            ? "Board list unavailable."
-            : !failedLoad && !state.loading
-              ? "Saved"
-              : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
-    if (this.label.textContent !== message) this.label.textContent = message;
-    this.retry.hidden = state.errors.length === 0 && state.unsaved === 0;
-    this.retry.disabled = state.loading || state.saving;
+  show(state: PersistenceState | null): void {
+    const message = state === null ? NOTHING_KEPT : messageFor(state);
+    if (this.label.textContent !== message) {
+      this.label.textContent = message;
+      this.label.title = message;
+    }
+    this.retry.hidden = state === null || (state.errors.length === 0 && state.unsaved === 0);
+    this.retry.disabled = state === null || state.loading || state.saving;
   }
 }

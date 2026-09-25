@@ -59,7 +59,8 @@ are not saved in local storage or appended to SSE URLs. Same-origin fetch client
 recognition, completion, compilation and handwriting—and native EventSource/WebSocket use this cookie
 without changing their payload contracts. The initial board/controller comes from the grant
 unless the URL already selects one. An explicit URL selection never expands its grant.
-Sign out revokes the cookie session; existing controller streams recheck before each state or
+Sign out (the door button beside home, shown only on a shared server) revokes the cookie session
+and reloads to the access gate; existing controller streams recheck before each state or
 five-second heartbeat and close when authorization expires. Previously delivered board data
 cannot be recalled.
 
@@ -86,7 +87,9 @@ hosting; allowlisting another origin alone does not make cross-site cookie authe
 Rotate a bearer token to revoke it; browser sign-out does not revoke the underlying credential.
 
 When the API is unreachable, the startup screen offers retry or **Play without server**.
-Choosing local play grants no API access; shared requests still require a valid credential.
+Choosing local play grants no API access; shared requests still require a valid credential. The
+game then runs on a `ForgetfulBoardStore` with no board link: the save status reads *Not saved*
+and the share button (QR and link) stays hidden, since no other device could join.
 If an existing session expires during play, reload to sign in again; unsaved changes may remain
 only in the open tab.
 

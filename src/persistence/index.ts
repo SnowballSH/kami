@@ -6,6 +6,7 @@ import { RemoteRuleCompiler } from "./remoteRuleCompiler";
 import { RemoteSceneCompiler } from "./remoteSceneCompiler";
 import type { BoardStore, HandwritingReader, SketchCatalogue } from "./types";
 
+export type { Connection } from "./session";
 export type * from "./types";
 export { guardUnsavedChanges } from "./unsavedGuard";
 

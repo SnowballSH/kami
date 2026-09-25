@@ -37,6 +37,12 @@ export interface HudHandlers {
   onRetryPersistence(): void;
 }
 
+/** What the page offers beside the game's own handlers. */
+export interface HudOptions {
+  /** Ends the token session; the sign-out button shows only with it. */
+  readonly signOut?: () => Promise<void>;
+}
+
 export interface Hud {
   toolbarBottom(): number;
   setTool(tool: Tool): void;
@@ -45,7 +51,8 @@ export interface Hud {
   offerAutopilot(offered: boolean): void;
   setTidiness(tidiness: number): void;
   setBoards(boards: readonly BoardListing[], currentId: string): void;
-  setPersistence(state: PersistenceState): void;
+  /** Whether the page is saved, and how that is going; null when nothing on this page is kept. */
+  setPersistence(state: PersistenceState | null): void;
   /** The title card of a staged room, fading on its own; `null` clears it and its progress mark. */
   showRoomCard(card: RoomCard | null): void;
   /**

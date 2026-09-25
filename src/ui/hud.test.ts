@@ -215,6 +215,32 @@ describe("DomHud", () => {
       expect(retry.hidden).toBe(true);
     });
 
+    it("never claims a page is saved when nothing on it is kept", () => {
+      const { root, hud } = setup();
+      hud.setPersistence(null);
+      expect(find(root, ".kami-persistence [role='status']").textContent).toBe("Not saved");
+      expect(find<HTMLButtonElement>(root, "[aria-label='Retry board persistence']").hidden).toBe(
+        true,
+      );
+    });
+
+    it("keeps the save status in view while the share affordance stands in for the board menu", () => {
+      const { root, hud } = setup();
+      hud.setShare({ boardId: "together", link: "http://kami.test/?board=together", company: 0 });
+      const status = find<HTMLElement>(root, ".kami-persistence");
+      expect(find<HTMLElement>(root, ".kami-board-menu").hidden).toBe(true);
+      expect(status.closest("[hidden]")).toBeNull();
+    });
+
+    it("offers sign-out beside home only when the session can end", () => {
+      const { root } = setup();
+      expect(root.querySelector(".kami-page-sign-out")).toBeNull();
+      const signed = document.createElement("div");
+      document.body.append(signed);
+      huds.push(new DomHud(signed, createHandlers(), { signOut: async () => {} }));
+      expect(find(signed, ".kami-page-actions .kami-page-sign-out")).toBeTruthy();
+    });
+
     it("distinguishes a load failure from an empty saved board and from loading", () => {
       const { root, hud } = setup();
       hud.setPersistence({

@@ -29,6 +29,7 @@ const ICON_PATHS = {
     "M12 13.5l3.5 7",
   ],
   share: ["M12 15V4", "M8 8l4-4 4 4", "M5 13v6h14v-6"],
+  signOut: ["M10 4H5v16h5", "M14 8l4 4-4 4", "M9 12h9"],
   home: ["M4 11.5 12 4l8 7.5", "M6 10v10h12V10", "M10 20v-6h4v6"],
 } as const satisfies Record<string, readonly string[]>;
 

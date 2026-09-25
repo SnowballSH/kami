@@ -61,6 +61,8 @@ export class HttpBoardStore implements BoardStore {
     this.#fetch = fetchFn;
   }
 
+  readonly keepsBoards = true;
+
   get hasUnsavedChanges(): boolean {
     return [...this.#boards.values()].some((memory) => memory.pending.size > 0);
   }

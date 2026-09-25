@@ -77,7 +77,7 @@ export class FakeHud implements Hud {
     this.boards = boards;
   }
 
-  setPersistence(state: PersistenceState): void {
+  setPersistence(state: PersistenceState | null): void {
     this.persistence = state;
   }
 
@@ -163,6 +163,7 @@ interface Shelf {
 
 export class MemoryBoardStore implements BoardStore {
   private readonly shelves = new Map<string, Shelf>();
+  readonly keepsBoards = true;
   readonly hasUnsavedChanges = false;
 
   state(): PersistenceState {

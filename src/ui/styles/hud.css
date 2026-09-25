@@ -8,10 +8,7 @@
   --kami-island-padding: 3px;
   --kami-island-height: calc(var(--kami-control) + 2 * var(--kami-island-padding) + 2px);
   --kami-row: calc(var(--kami-island-height) + 8px);
-  --kami-popover-max: min(
-    320px,
-    calc(100vw - var(--kami-safe-left) - var(--kami-safe-right) - var(--kami-row))
-  );
+  --kami-popover-max: min(320px, calc(100vw - var(--kami-safe-left) - var(--kami-safe-right)));
   --kami-radius: 8px;
   --kami-radius-inner: 6px;
   --kami-line: 1px solid var(--kami-ink);
@@ -280,22 +277,23 @@
   position: absolute;
   top: var(--kami-safe-top);
   left: var(--kami-safe-left);
+  max-width: calc(100vw - var(--kami-safe-left) - var(--kami-safe-right));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.kami-top-left-row {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 8px;
 }
 
-.kami-board-menu {
-  position: relative;
-}
-
 .kami-page-actions .kami-icon {
   width: 20px;
   height: 20px;
-}
-
-.kami-share {
-  position: relative;
 }
 
 .kami-share-toggle {
@@ -651,14 +649,22 @@
     transform: none;
   }
 
-  .kami-board-menu {
-    display: flex;
+  .kami-top-left {
+    flex-direction: row;
     align-items: center;
     gap: 6px;
   }
 
   .kami-persistence {
-    max-width: calc(100vw - 200px);
+    min-width: 0;
+  }
+
+  .kami-persistence-label {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 
   .kami-tidy {

@@ -28,8 +28,7 @@
 }
 
 .access-gate input,
-.access-gate button,
-.access-sign-out {
+.access-gate button {
   min-height: 44px;
   font: inherit;
   padding: 0.5rem 1rem;
@@ -40,27 +39,17 @@
   touch-action: manipulation;
 }
 
-.access-gate button,
-.access-sign-out {
+.access-gate button {
   cursor: pointer;
 }
 
-.access-gate button:focus-visible,
-.access-sign-out:focus-visible {
+.access-gate button:focus-visible {
   outline: 3px solid var(--kami-ink);
   outline-offset: 3px;
 }
 
 @media (hover: hover) {
-  .access-gate button:hover,
-  .access-sign-out:hover {
+  .access-gate button:hover {
     background: var(--kami-hover);
   }
-}
-
-.access-sign-out {
-  position: fixed;
-  right: max(1rem, env(safe-area-inset-right));
-  top: max(12px, env(safe-area-inset-top));
-  z-index: 100;
 }

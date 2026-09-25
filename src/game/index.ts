@@ -5,6 +5,8 @@ import { createHandwriting } from "../handwriting";
 import { createInkSession, findDrawingAt } from "../ink";
 import { type GameMode, PUZZLE_MODE_ID } from "../modes";
 import {
+  type BoardStore,
+  type Connection,
   createBoardStore,
   createHandwritingReader,
   createRemoteRuleCompiler,
@@ -75,14 +77,18 @@ const rememberBoardInUrl = (boardId: string): void => {
   window.history.replaceState(null, "", url);
 };
 
-export function startGame(root: HTMLElement): void {
+const storeFor = (mode: GameMode, connection: Connection): BoardStore =>
+  connection.online && mode.id !== PUZZLE_MODE_ID ? createBoardStore() : new ForgetfulBoardStore();
+
+/** Opens the chosen mode in `root`; without a server nothing is saved and nothing is shared. */
+export function startGame(root: HTMLElement, connection: Connection): void {
   const canvas = document.createElement("canvas");
   root.prepend(canvas);
   const handwriting = createHandwriting();
   const stage = createStageSource();
   const renderer = mirroredRenderer(createRenderer(canvas, handwriting), stage);
   const mode = modeInUrl(window.location.search);
-  const store = mode.id === PUZZLE_MODE_ID ? new ForgetfulBoardStore() : createBoardStore();
+  const store = storeFor(mode, connection);
   guardUnsavedChanges(window, store);
   const recognizer = createRecognizer();
   const game = new Game(
@@ -102,12 +108,21 @@ export function startGame(root: HTMLElement): void {
       resolvePhysics,
       boardFor,
       createInkSession,
-      createHud: (handlers) => createHud(root, handlers),
+      createHud: (handlers) =>
+        createHud(
+          root,
+          handlers,
+          connection.signOut === undefined ? {} : { signOut: connection.signOut },
+        ),
       createLawsPanel: (handlers) => mirroredLaws(createLawsPanel(root, handlers), stage),
       findDrawingAt,
       onBoardOpened: rememberBoardInUrl,
-      link: createBoardLink(),
-      shareLinkFor: (boardId) => shareLink(window.location.href, boardId, mode),
+      ...(connection.online
+        ? {
+            link: createBoardLink(),
+            shareLinkFor: (boardId: string) => shareLink(window.location.href, boardId, mode),
+          }
+        : {}),
       mode,
       selfDriving: startsSelfDriving(mode),
       onSelfDrivingChanged: rememberSelfDriving,

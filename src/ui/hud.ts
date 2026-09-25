@@ -18,7 +18,7 @@ import { Toolbar } from "./toolbar";
 import { ToolHotkeys } from "./toolHotkeys";
 import { ToolSelection } from "./toolSelection";
 import { installTouchGuards } from "./touchGuards";
-import type { BoardListing, Detach, Hud, HudHandlers, ShareInfo, Tool } from "./types";
+import type { BoardListing, Detach, Hud, HudHandlers, HudOptions, ShareInfo, Tool } from "./types";
 import { WalkIntentMerger } from "./walkIntent";
 import { ZoomControls } from "./zoomControls";
 
@@ -38,7 +38,7 @@ export class DomHud implements Hud {
   private readonly card = new TitleCard();
   private readonly detachers: readonly Detach[];
 
-  constructor(root: HTMLElement, handlers: HudHandlers) {
+  constructor(root: HTMLElement, handlers: HudHandlers, options: HudOptions = {}) {
     this.zoom = new ZoomControls(handlers);
     const owner = root.ownerDocument;
     const host = owner.defaultView ?? window;
@@ -53,18 +53,24 @@ export class DomHud implements Hud {
     );
     this.toolbar.show(this.tools.inForce);
     this.boards = new BoardMenu(handlers);
-    this.page = new PageActions(() => host.location.assign(homeUrl(host.location)));
+    this.page = new PageActions({
+      goHome: () => host.location.assign(homeUrl(host.location)),
+      signedOut: () => host.location.reload(),
+      ...(options.signOut === undefined ? {} : { signOut: options.signOut }),
+    });
     this.persistence = new PersistenceStatus(() => handlers.onRetryPersistence());
-    this.boards.element.append(this.persistence.element);
     this.prompt = new TextPrompt(host);
     this.stick = new Joystick(walk.source());
     this.tidy = new TidySlider((tidiness) => handlers.onTidinessChanged(tidiness));
     const remoteStick = createRemoteStick(walk.source());
     this.overlay.append(
       el("div", { className: "kami-top-left" }, [
-        this.page.element,
-        this.boards.element,
-        this.share.element,
+        el("div", { className: "kami-top-left-row" }, [
+          this.page.element,
+          this.boards.element,
+          this.share.element,
+        ]),
+        this.persistence.element,
       ]),
       this.card.element,
       this.toolbar.element,
@@ -113,7 +119,7 @@ export class DomHud implements Hud {
     this.boards.setBoards(boards, currentId);
   }
 
-  setPersistence(state: PersistenceState): void {
+  setPersistence(state: PersistenceState | null): void {
     this.persistence.show(state);
   }
 

@@ -12,8 +12,12 @@ import type { Rule, RuleId } from "../rules/types";
 const NOTHING_KEPT: PersistenceState = { loading: false, saving: false, unsaved: 0, errors: [] };
 const BLANK: BoardSnapshot = { drawings: [], notes: [], rules: [] };
 
-/** A store for play that leaves no trace: a puzzle room opens blank every time and remembers no solution. */
+/**
+ * A store for play that leaves no trace: a puzzle room opens blank every time and remembers no
+ * solution, and a page played without a server is gone when the tab closes.
+ */
 export class ForgetfulBoardStore implements BoardStore {
+  readonly keepsBoards = false;
   readonly hasUnsavedChanges = false;
 
   state(_boardId: string): PersistenceState {

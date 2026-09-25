@@ -1,4 +1,4 @@
-import { ApiSession, type SessionStatus } from "../persistence/session";
+import { ApiSession, type Connection, OFFLINE, type SessionStatus } from "../persistence/session";
 import "./styles/access.css";
 
 const selectScope = (status: SessionStatus): void => {
@@ -15,7 +15,7 @@ const selectScope = (status: SessionStatus): void => {
 
 export const enterGame = async (
   root: HTMLElement,
-  start: (root: HTMLElement) => void,
+  start: (root: HTMLElement, connection: Connection) => void,
   session: ApiSession = new ApiSession(),
 ): Promise<void> => {
   const panel = document.createElement("form");
@@ -43,7 +43,7 @@ export const enterGame = async (
   offline.hidden = true;
   offline.addEventListener("click", () => {
     panel.remove();
-    start(root);
+    start(root, OFFLINE);
   });
   panel.append(heading, label, message, submit, offline);
   root.append(panel);
@@ -63,24 +63,12 @@ export const enterGame = async (
       }
       selectScope(status);
       panel.remove();
-      start(root);
-      if (status.mode === "shared") {
-        const signOut = document.createElement("button");
-        signOut.type = "button";
-        signOut.className = "access-sign-out";
-        signOut.textContent = "Sign out";
-        signOut.addEventListener("click", () => {
-          signOut.disabled = true;
-          void session.signOut().then(
-            () => window.location.reload(),
-            () => {
-              signOut.textContent = "Retry sign out";
-              signOut.disabled = false;
-            },
-          );
-        });
-        root.append(signOut);
-      }
+      start(
+        root,
+        status.mode === "shared"
+          ? { online: true, signOut: () => session.signOut() }
+          : { online: true },
+      );
     } catch {
       message.textContent =
         "Cannot reach the Kami server. Please retry, or play without saved boards.";

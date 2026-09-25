@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiSession, type SessionStatus } from "../persistence/session";
+import { ApiSession, type Connection, type SessionStatus } from "../persistence/session";
 import { enterGame } from "./accessGate";
 
 const SHARED: SessionStatus = {
@@ -34,7 +34,7 @@ describe("API session entry", () => {
     const start = vi.fn();
     const app = root();
     await enterGame(app, start, new ApiSession(fetch));
-    expect(start).toHaveBeenCalledWith(app);
+    expect(start).toHaveBeenCalledWith(app, { online: true });
     expect(app.querySelector("form")).toBeNull();
     expect(window.location.search).toBe("");
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -51,7 +51,7 @@ describe("API session entry", () => {
       }
       return Response.json(status);
     });
-    const start = vi.fn();
+    const start = vi.fn<(root: HTMLElement, connection: Connection) => void>();
     const app = root();
     await enterGame(app, start, session);
     expect(start).not.toHaveBeenCalled();
@@ -70,7 +70,10 @@ describe("API session entry", () => {
       headers: { authorization: "Bearer test-only-token" },
     });
     expect(calls[1]?.init?.body).toBeUndefined();
-    expect(app.querySelector(".access-sign-out")?.textContent).toBe("Sign out");
+    const connection = start.mock.calls[0]?.[1];
+    expect(connection?.online).toBe(true);
+    await connection?.signOut?.();
+    expect(calls.at(-1)?.init?.method).toBe("DELETE");
   });
 
   it("preserves explicitly selected board and controller URLs", async () => {
@@ -106,6 +109,6 @@ describe("API session entry", () => {
     expect(offline.textContent).toContain("Please retry");
     expect(start).not.toHaveBeenCalled();
     offline.querySelector<HTMLButtonElement>('button[type="button"]')?.click();
-    expect(start).toHaveBeenCalledWith(offline);
+    expect(start).toHaveBeenCalledWith(offline, { online: false });
   });
 });

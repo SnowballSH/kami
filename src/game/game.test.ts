@@ -45,6 +45,7 @@ import {
   SOUL_WAITS_LINE,
   TEAR_OPENS_LINES,
 } from "./bossLines";
+import { ForgetfulBoardStore } from "./forgetfulStore";
 import { Game, MAX_REMARKS } from "./game";
 import { HELD_INK_FADE_MS } from "./heldInk";
 import {
@@ -451,6 +452,12 @@ describe("Game during persistence outages", () => {
     } finally {
       warn.mockRestore();
     }
+  });
+
+  it("tells the HUD nothing is kept when the store forgets everything", async () => {
+    const player = new Player("wonderland", { store: new ForgetfulBoardStore() });
+    await player.arrive();
+    expect(player.hud.persistence).toBeNull();
   });
 
   it("does not reopen a board after retry completes on a different board", async () => {

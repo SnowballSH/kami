@@ -9,6 +9,16 @@ const statusSchema = z.object({
 });
 
 export type SessionStatus = z.infer<typeof statusSchema>;
+
+/** What the game knows of its server once past the access gate. */
+export interface Connection {
+  /** False when the player chose to play without the server: nothing is saved or shared. */
+  readonly online: boolean;
+  /** Ends the token session; present only when a shared server asked for a token. */
+  readonly signOut?: () => Promise<void>;
+}
+
+export const OFFLINE: Connection = { online: false };
 const SESSION_PATH = "/api/session";
 
 export class ApiSession {

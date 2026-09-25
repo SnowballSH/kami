@@ -36,6 +36,8 @@ export interface PersistenceState {
 
 /** Failed writes stay in memory until acknowledged or superseded. Reads may reject. */
 export interface BoardStore {
+  /** False for a store that forgets everything it is given: nothing on the page is saved. */
+  readonly keepsBoards: boolean;
   readonly hasUnsavedChanges: boolean;
   state(boardId: string): PersistenceState;
   retry(boardId: string): Promise<void>;

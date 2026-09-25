@@ -9,6 +9,7 @@ import type {
   Detach,
   Hud,
   HudHandlers,
+  HudOptions,
   LawsPanel,
   LawsPanelHandlers,
   Tool,
@@ -17,8 +18,8 @@ import type {
 export type * from "./types";
 
 /** Builds the HUD overlay inside `root` and listens for keyboard and on-screen walking. */
-export function createHud(root: HTMLElement, handlers: HudHandlers): Hud {
-  return new DomHud(root, handlers);
+export function createHud(root: HTMLElement, handlers: HudHandlers, options: HudOptions = {}): Hud {
+  return new DomHud(root, handlers, options);
 }
 
 /** Mounts the list of standing laws inside `root`; tapping a law twice repeals it. */

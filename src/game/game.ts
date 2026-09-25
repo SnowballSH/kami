@@ -333,8 +333,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   frame(nowMs: number): void {
-    this.hud.setPersistence(this.modules.store.state(this.board.id));
-    const { sim, renderer } = this.modules;
+    const { sim, renderer, store } = this.modules;
+    this.hud.setPersistence(store.keepsBoards ? store.state(this.board.id) : null);
     const steps = this.loop.advance(nowMs - this.lastFrameMs);
     this.nowMs = nowMs;
     this.lastFrameMs = nowMs;
