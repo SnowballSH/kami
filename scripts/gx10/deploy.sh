@@ -17,7 +17,7 @@ AUTOSTART=${1:-}
 RELEASE="$(date -u +%Y%m%dT%H%M%S)-$(git rev-parse --short HEAD)-$$"
 STAGE=".gx10/releases/$RELEASE"
 
-for needed in dist/index.html "$BUILD/server.js" "$BUILD/snapshot.js" "$BUILD/quickdraw.ndjson.gz" "$BUILD/runtime.json"; do
+for needed in dist/index.html "$BUILD/server.js" "$BUILD/quickdraw.ndjson.gz" "$BUILD/runtime.json"; do
   [ -s "$needed" ] || { echo "✗ $needed is missing — run 'bun run gx10:prepare' first (with internet)."; exit 1; }
 done
 if ! ssh -o BatchMode=yes "$HOST_ALIAS" true 2>/dev/null; then

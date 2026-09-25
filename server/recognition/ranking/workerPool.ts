@@ -1,5 +1,5 @@
 /**
- * Ranks sketches on worker threads so a brute-force k-NN pass (tens of milliseconds over ~50 000
+ * Ranks sketches on worker threads so a brute-force k-NN pass (several milliseconds over ~50 000
  * rows) never stalls the event loop that every other request shares. The queue is bounded, and live
  * sketches more tightly still: when there is no room, a new drawing takes the place of the oldest
  * waiting live sketch, which is answered with silence at once (the contract allows "nothing to say

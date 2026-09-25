@@ -70,9 +70,11 @@ is fitted to its own bounding box, as a half-drawn sketch arrives from a player.
 drawing at the same point count are stored once, under the larger share, so no sketch votes twice with the
 same picture; a two-point line is stored at 0.65 and 1 only (`prefix.test.ts`).
 
-**Index** (`indexing.ts`, `sampleRepository.ts`). MongoDB holds one document per drawing,
-`{ category, keyId, drawing, features: [{ fraction, feature }] }`, unique on `{ category, keyId }`. At
-start-up all features are copied into one flat `Float32Array`, whole-drawing rows first, prefix rows after.
+**Index** (`corpusIndex.ts`, `featureMatrix.ts`). When this report was written MongoDB held one document
+per drawing with its prefix features, copied at start-up into one flat `Float32Array`, whole-drawing rows
+first, prefix rows after. Today the drawings are a read-only corpus file and the same rows, in the same
+order, are a sparse matrix computed from it and cached on disk; the rankings are bit for bit the same
+([server/README.md](../../server/README.md#quick-draw)).
 
 **Queries and voting** (`server/quickdraw/recognizer.ts`). A *finished* query is compared with the
 whole-drawing rows only, a *partial* query with every row, by a brute-force scan keeping the k = 15 most

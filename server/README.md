@@ -41,15 +41,14 @@ other services needs:
   `KAMI_CREDENTIALS` — may be given as `<NAME>_FILE`, the path of a file whose trimmed content is
   the value (podman/docker secrets, systemd `LoadCredential`). Setting both `X` and `X_FILE`, or
   naming a file that cannot be read, stops start-up with a message naming the variable.
-- **Sketches without an ingest.** Export a snapshot once where the ingest ran
-  (`bun server/quickdraw/snapshot.ts export quickdraw.ndjson.gz`) and set `KAMI_QUICKDRAW_SNAPSHOT`
-  to it in the container: an empty `quickdraw` collection is filled from it at start-up, before the
-  features load, and the log says `quickdraw seed: imported N sketches`. A collection that already
-  holds sketches is never touched by the file.
+- **Sketches without an ingest.** The Quick, Draw! corpus is a read-only file, not a collection:
+  copy the `quickdraw.ndjson.gz` an ingest wrote and point `KAMI_QUICKDRAW_SNAPSHOT` at it. The
+  image bakes one in with its features precomputed, so a container start reads 65 MB of features
+  in well under a second and MongoDB holds boards alone ("Quick, Draw!" below).
 - **Ranking off the event loop.** The built-in k-NN compares a sketch with ~50 000 rows
-  (about 20 ms of arithmetic) on every pen lift and every 150 ms while drawing; it does so on a worker
+  (about 8 ms of arithmetic) on every pen lift and every 150 ms while drawing; it does so on a worker
   thread (`KAMI_RECOGNIZER_THREADS`, default 1; `0` ranks on the event loop as before) over one shared
-  copy of the 116 MB matrix. At most 32 drawings wait for a thread, and at most 4 of them live
+  copy of the 65 MB sparse matrix. At most 32 drawings wait for a thread, and at most 4 of them live
   sketches: a newer live sketch replaces the oldest waiting one, which is answered with the empty
   "nothing to say yet" result the contract allows; with only finished drawings waiting, a live sketch
   gets that silence itself and a finished one is refused with **503** and `Retry-After: 1`. Measured
@@ -59,7 +58,8 @@ other services needs:
   with guesses still answered in 51 ms median, 74 ms p99.
 - **A small `mongod`.** The embedded one is started with `--wiredTigerCacheSizeGB` set to
   `KAMI_MONGO_CACHE_GB` (default `0.25`, the smallest WiredTiger allows; without it mongod takes half
-  the machine's memory) and without diagnostic data collection.
+  the machine's memory), with room for 1000 WiredTiger sessions instead of 33 000 (each preallocated;
+  about 60 MB) and without diagnostic data collection.
 - **Model budgets.** `KAMI_MODEL_REQUESTS_PER_MINUTE` / `KAMI_MODEL_CONCURRENCY` default to
   6000 / 32, sized for a LAN demo. For a public box behind a paid gateway set them to what the
   gateway and your wallet allow, e.g. `600` / `4`; `docs/access.md` has the reasoning.
@@ -124,9 +124,9 @@ the language model.
 | `KAMI_MODEL_REQUESTS_PER_MINUTE` | Positive integer, default `6000`, shared across all model routes and callers per process. One iPad posts a live guess and a handwriting read on every pen lift — several a second while drawing — so the default leaves room for a few devices on a LAN; a public box behind a paid gateway wants far less (`600`; see `docs/access.md`). |
 | `KAMI_MODEL_CONCURRENCY` | Positive integer, default `32`, held through complete model responses. Requests over the limit are refused with `429`, not queued. `4` is plenty on a shared 2-vCPU host. |
 | `MONGODB_URI` | Use this MongoDB instead of the embedded one, e.g. the Atlas `mongodb+srv://…` string. Database `kami`. May be given as `MONGODB_URI_FILE`. |
-| `KAMI_DATA_DIR` | Where the embedded `mongod` keeps its data, default `<repo>/.kami-data`. Mount a volume there in a container. |
+| `KAMI_DATA_DIR` | Where the embedded `mongod` keeps its data, default `<repo>/.kami-data`; also where the Quick, Draw! corpus is by default, and where its feature index is cached when it cannot be written beside the corpus. Mount a volume there in a container. |
 | `KAMI_MONGO_CACHE_GB` | The embedded `mongod`'s WiredTiger cache in GB, default `0.25` (its minimum); ignored with `MONGODB_URI`. |
-| `KAMI_QUICKDRAW_SNAPSHOT` | A gzipped NDJSON Quick, Draw! snapshot (`bun server/quickdraw/snapshot.ts export …`) imported at start-up when the `quickdraw` collection is empty; a database that already holds sketches is left alone. |
+| `KAMI_QUICKDRAW_SNAPSHOT` | The Quick, Draw! corpus the k-NN learns from and summons out of: the gzipped NDJSON file `bun run quickdraw:ingest` writes, default `$KAMI_DATA_DIR/quickdraw.ndjson.gz` (the image sets its baked copy). Read-only; its features are cached beside it (see "Quick, Draw!"). |
 | `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile`, `/api/scene` and `/api/transcribe`: a root (`http://127.0.0.1:11434`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM, Ollama, llama.cpp, OpenAI itself and gateways in front of Anthropic all work; see "Model-backed compile" for how the client learns what each accepts. |
 | `KAMI_LLM_MODEL` | Compiler model name; also the fallback handwriting model. Compilation is **off** unless both URL and model are set. |
 | `KAMI_LLM_API_KEY` | Optional bearer token; may be given as `KAMI_LLM_API_KEY_FILE`. |
@@ -190,7 +190,6 @@ not make labels follow moving drawings. Passing remarks and guess notes remain t
 ```sh
 bun run quickdraw:ingest          # 300 drawings per category (default)
 bun run quickdraw:ingest 600      # or another N
-bun server/quickdraw/reindex.ts   # recompute every feature from the drawings already stored; no network
 bun server/quickdraw/evaluate.ts
 ```
 
@@ -199,11 +198,23 @@ bun server/quickdraw/evaluate.ts
 categories in `quickdraw/categories.ts` (chosen because the Cat's lexicon can use them: mushroom,
 ladder, stairs, cloud, hot air balloon, cake, wine bottle, key, door, …, plus the plain shapes),
 keeps `recognized: true` drawings, drops the line the byte range cut short, takes the first N and
-upserts them into the `quickdraw` collection with their features. It is repeatable; a smaller N or a
-shorter category list prunes what is no longer wanted. About 25 s for N = 300; `.kami-data` is
-114 MB after a re-index with the prefix features below. **Restart the server afterwards** —
-features are loaded into memory once, at startup. Ingest, re-index and evaluate may run while the
-server is up (they share its `mongod`, and stop it only if they started it).
+writes them to the **corpus**, `KAMI_QUICKDRAW_SNAPSHOT` (default `.kami-data/quickdraw.ndjson.gz`):
+gzipped NDJSON, one `{ category, keyId, drawing }` per line, sorted (`quickdraw/snapshotFile.ts`;
+1.4 MB for N = 300). Each run replaces the file, so a smaller N or a shorter category list is simply
+what remains. About 25 s for N = 300, then it builds the feature index below so the next start is
+fast. **Restart the server afterwards** — the corpus is loaded once, at startup. The server only
+reads the file; nothing about sketches lives in MongoDB. A database from before this change still
+holds a `quickdraw` collection: the server drops it on its first start (and logs that it did), so
+run the ingest once to recreate the corpus as a file if `.kami-data` has none.
+
+**Feature index.** Features are derived, never stored in the corpus, so they cannot drift from the
+code. `quickdraw/corpus.ts` computes them once (2–3 s for 12 600 drawings, peaking around 0.5 GB)
+and caches them as `quickdraw.features.bin` beside the corpus, or in `KAMI_DATA_DIR` when that
+directory is read-only; `quickdraw/indexFile.ts` has the layout. The cache is keyed by a SHA-256 of
+the corpus file, the index format and a fingerprint of the features a few fixed drawings get, so a
+changed corpus or a change to `feature.ts`/`prefix.ts` recomputes it on the next start without
+anyone remembering to. Reading it is a few `read`s straight into shared memory: 30 ms. The container
+build precomputes it, so a container start never computes features.
 
 The feature (`quickdraw/feature.ts`, shared by ingest and `/api/recognize`): strokes are fitted to
 a 24×24 grid by their bounding box (aspect kept, centred, 1.5-cell margin), rasterised with
@@ -215,17 +226,16 @@ code, which makes recognition independent of where and how large something was d
 drawing is indexed at each share of its points in `PREFIX_FRACTIONS` (`quickdraw/prefix.ts`: 20 %,
 35 %, 65 % and 100 %). `prefixOfStrokes` takes the first share of the points in drawing order
 across strokes, keeps stroke boundaries and cuts the stroke under the pen short; each prefix is
-then fitted to *its own* bounding box, exactly as a half-drawn sketch arrives from the player. One
-document per drawing holds all of them (`features: [{ fraction, feature }]`), so the unique
-`{ category, keyId }` index, the snapshot format and the pruning are unchanged; shares that cut a
-short drawing at the same point are stored once. Ingest and snapshot import (so the GX10 too) do
-this on the way in. `reindex.ts` does it for a database ingested before prefixes existed, from the
-stored drawings alone — 6 s for 12 600 drawings; until it has run, old documents (a single
-`feature`) still load, as whole drawings. 12 600 drawings become 50 206 rows: 116 MB of
-`Float32Array`, loaded in 0.3 s (the process peaks around 0.6 GB while loading).
+then fitted to *its own* bounding box, exactly as a half-drawn sketch arrives from the player.
+Shares that cut a short drawing at the same point are indexed once. 12 600 drawings become 50 206
+rows. A feature is mostly empty paper — 37 % of the cells are non-zero — so the matrix keeps only
+those, with their cell numbers: 65 MB instead of 116 MB of dense `Float32Array`. Features are never
+negative, so summing over the non-zero cells in order gives bit for bit the dense dot product (every
+skipped term adds zero); on 10 800 queries against the real corpus the sparse and dense rankers
+agreed exactly, and the sparse one is 2.2–2.8× faster.
 
-The recogniser (`quickdraw/recognizer.ts`) keeps every feature in one flat `Float32Array`, whole
-drawings first, and does brute-force cosine k-NN: k = 15, each neighbour votes for its category
+The recogniser (`quickdraw/recognizer.ts`) keeps every feature in one sparse matrix
+(`quickdraw/featureMatrix.ts`), whole drawings first, and does brute-force cosine k-NN: k = 15, each neighbour votes for its category
 with weight similarity⁸, categories are ranked by vote share (the `confidence` the route returns),
 and up to three with a share of at least 0.08 are returned. If the single best neighbour is below
 0.35 similarity the answer is `[]`. `rank(strokes, { partial })` is synchronous; `read(strokes,
@@ -234,8 +244,8 @@ see "Naming without asking"), and `recognition/inProcessRanker.ts` wraps that in
 shape the recogniser chain speaks.
 
 - **Finished** (`partial` absent or false): compared with the whole-drawing rows only. Same answers
-  as before prefixes existed, 4.8 ms per sketch.
-- **Still under the pen** (`partial: true`): compared with every row, 19 ms per sketch. Too few
+  as before prefixes existed, 2.6 ms per sketch.
+- **Still under the pen** (`partial: true`): compared with every row, 7.8 ms per sketch. Too few
   points is never a reason to refuse, but the answer is `[]` unless the leading category holds at
   least 0.6 of the vote (`partialLeaderFloor`) — Kami takes most of a second to write a guess, so a
   live guess has to be worth writing.
@@ -243,7 +253,7 @@ shape the recogniser chain speaks.
 ### Measured accuracy
 
 `evaluate.ts` fetches, for each category, the next 50 recognised drawings that are **not** in the
-collection (42 × 50 = 2100), shows the recogniser the first 20/40/60/80/100 % of each one's points
+corpus (42 × 50 = 2100), shows the recogniser the first 20/40/60/80/100 % of each one's points
 as a live guess and the whole drawing once more as a finished one, and scores the answers as the
 route would give them (floors included). *Top-1/top-3* ignore the live silence floor, to show what
 the ranking knows; *speaks* is how often the live floor lets an answer out and *right when it
@@ -259,6 +269,9 @@ high confidence: how often the leader reaches 0.8, and how often it is right whe
 | 80 %, live | 58.2 % | 78.6 % | 30.4 % | 85.9 % | 13.0 % / 95.2 % | 19 ms |
 | 100 %, live | 62.0 % | 81.0 % | 35.4 % | 89.0 % | 15.0 % / 98.1 % | 19 ms |
 | 100 %, finished | **65.1 %** | **82.9 %** | always | 65.1 % | 25.3 % / 95.5 % | 4.8 ms |
+
+The per-query times predate the sparse matrix, which gives the same answers in 2.6 ms (finished) and
+7.8 ms (live) on the same kind of machine.
 
 Over all 10 500 live trials a stated guess is right **79.6 %** of the time and one is stated 21.6 %
 of the time. The floor is a trade (`evaluate.ts` prints the sweep): ≥ 0.5 speaks 32.4 % / right
@@ -349,7 +362,8 @@ writes `summon a rabbit` or `a house, a tree and the sun`. With `KAMI_SKETCHES` 
 exemplar set (`ml/CONTRACT.md`: plain `.npy`, one contiguous window per category, best first;
 `sketch/npy.ts` reads the integer arrays, `sketch/exemplarLibrary.ts` loads the whole set in tens of
 milliseconds) and picks at random among a category's 24 best, so what appears is recognisable but not
-always the same. Without it, `sketch/storedLibrary.ts` answers from the k-NN's ingested samples and
+always the same. Without it, `sketch/storedLibrary.ts` answers from the corpus — the 24 drawings of
+each category closest to its mean picture, chosen when the feature index is built — and
 `sketch/quickdrawLibrary.ts` fetches the first recognised drawings of each curated category straight
 from Quick, Draw! on first request. Strokes are handed out in the dataset's 0–255 space; the client
 scales and places them. `GET /api/exemplars` lists the categories, from which the game builds its
@@ -545,9 +559,9 @@ requires starting `current/box/start.sh` (or selecting `previous`) after inspect
 
 How it fits: the server serves the built game itself (`KAMI_WEB_DIR`, `server/http/staticSite.ts`), so one
 process is the product. `bun build` bundles it to a single `server.js`, so the box needs no
-`node_modules`. `server/quickdraw/snapshot.ts` exports the k-NN's drawings on the Mac and imports them on
-the box, recomputing features (prefixes included) on arrival; `start.sh` re-imports whenever the snapshot
-or the importer changes. The game asks the language model **last** — the offline grammar and known names
+`node_modules`. `prepare.sh` ships the Mac's Quick, Draw! corpus (`.kami-data/quickdraw.ndjson.gz`)
+and `start.sh` points the server at it; the server computes the feature index beside it on the first
+start of a release. The game asks the language model **last** — the offline grammar and known names
 are instant — and the server warms it at start.
 
 **Kami's Eye on the box.** Training runs there (`ml/README.md`), and `start.sh` serves the model it finds at

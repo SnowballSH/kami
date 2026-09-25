@@ -9,7 +9,6 @@ from pathlib import Path
 REQUIRED = (
     "dist/index.html",
     "app/server.js",
-    "app/snapshot.js",
     "app/quickdraw.ndjson.gz",
     "box/install.sh",
     "box/start.sh",

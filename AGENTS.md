@@ -54,7 +54,7 @@ API are additive, or announced here first.
 |---|---|
 | `bun install` | Install dependencies |
 | `bun run dev` | Web (:5173, on the LAN — open the printed Network URL on the iPad) + API/MongoDB server (:8787) |
-| `bun run quickdraw:ingest` | Once: load Quick, Draw! samples into MongoDB so Kami can recognise sketches (restart the server after) |
+| `bun run quickdraw:ingest` | Once: download Quick, Draw! samples to `.kami-data/quickdraw.ndjson.gz` so Kami can recognise sketches (restart the server after) |
 | `bun run font:build` | Regenerate the handwriting stroke font from `hersheytext` |
 | `bun run check` | Typecheck + lint + tests — the gate before every push |
 | `bun run format` | Auto-format and apply safe lint fixes |
