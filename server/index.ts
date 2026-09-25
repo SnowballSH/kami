@@ -18,8 +18,6 @@ import { createLlmSceneCompiler } from "./scene/llmSceneCompiler";
 import { createSketchLibrary } from "./sketch";
 import { isStageSocket, stageSockets } from "./stage/socket";
 import { createLlmTranscriber } from "./transcribe/llmTranscriber";
-import { VOICE_SOCKET_PATH, voiceSockets } from "./voice/socket";
-import { createSpeaker } from "./voice/speaker";
 
 const API_PREFIX = "/api";
 
@@ -46,7 +44,6 @@ const controllers = await startControllers(config.controllers, {
 const compiler = createLlmCompiler(config.llm);
 const transcriber = createLlmTranscriber(config.transcribe);
 const access = new ApiAccess(config.access);
-const voice = voiceSockets(config.voice, access);
 const stage = stageSockets(access);
 const api = createApi({
   access,
@@ -57,7 +54,6 @@ const api = createApi({
   controllers: controllers.hub,
   transcriber,
   exemplars: createExemplarSource(sketches, quickdrawNatureTable),
-  speaker: createSpeaker(config.voice),
   scenes: createLlmSceneCompiler(
     config.llm,
     (word) => categoryOf(word, quickdrawNatureTable) !== null,
@@ -67,19 +63,15 @@ const site = config.webDirectory === null ? null : createStaticSite(config.webDi
 const isApiCall = (request: Request): boolean =>
   new URL(request.url).pathname.startsWith(API_PREFIX);
 
-const isVoiceSocket = (request: Request): boolean =>
-  new URL(request.url).pathname === VOICE_SOCKET_PATH;
-
 const serving = {
   maxRequestBodySize: INPUT_LIMITS.sketchBytes,
   fetch: async (request, listening) => {
-    if (isVoiceSocket(request)) return voice.upgrade(request, listening);
     if (isStageSocket(request)) return stage.upgrade(request, listening);
     return isApiCall(request) || site === null
       ? api.handle(request)
       : ((await site(request)) ?? api.handle(request));
   },
-  websocket: socketsOf(voice.websocket, stage.websocket),
+  websocket: socketsOf(stage.websocket),
 } satisfies Pick<Bun.Serve.Options<SocketData>, "fetch" | "websocket" | "maxRequestBodySize">;
 
 const server = Bun.serve<SocketData>({
@@ -104,7 +96,7 @@ console.log(`Kami server on http://${config.hostname}:${server.port} (${config.a
 console.log(
   config.tls === null
     ? "  https: off (set KAMI_TLS_CERT/KAMI_TLS_KEY)"
-    : `Kami server on https://${config.hostname}:${config.tls.port} (microphone-capable)`,
+    : `Kami server on https://${config.hostname}:${config.tls.port}`,
 );
 console.log(`  memory: ${connection.description}`);
 console.log(`  game: ${config.webDirectory ?? "not built (Vite serves it in development)"}`);
@@ -118,9 +110,6 @@ console.log(`  beautifier: ${config.beautifyUrl ?? "none attached"}`);
 console.log(`  ${sketches.describe()}`);
 console.log(`  controllers: ${controllers.description}`);
 console.log("  big screen: open /?screen on the monitor; it shows whichever device is drawing");
-console.log(
-  `  voice: ${config.voice === null ? "off (set DEEPGRAM_API_KEY)" : `${config.voice.listenModel} in, ${config.voice.speakModel} out`}`,
-);
 console.log(`  model compile: ${config.llm === null ? "off" : config.llm.model}`);
 console.log(
   `  handwriting: ${config.transcribe === null ? "off" : `${config.transcribe.model} (checking vision)`}`,
@@ -146,9 +135,8 @@ const once = (task: () => Promise<void>): (() => Promise<void>) => {
 };
 
 /**
- * Closing politely can wait for ever on a socket that will not close (a voice stream held open to
- * Deepgram did, with the https listener already gone). Everything that must survive lives in
- * MongoDB, a process of its own, so after a short grace the server simply leaves.
+ * Closing politely can wait for ever on a socket that will not close. Everything that must
+ * survive lives in MongoDB, a process of its own, so after a short grace the server simply leaves.
  */
 const SHUTDOWN_GRACE_MS = 3000;
 

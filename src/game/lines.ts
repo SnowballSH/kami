@@ -78,11 +78,9 @@ export const PORTAL_LONELY_LINE = "It leads nowhere yet. Draw it a twin.";
 export const IN_THE_DARK_LINE = "She won't take a step she can't see.";
 export const SUMIKUI_SEALED_LINE = "Sealed. It waits under the page, with the one it came from.";
 export const SUMIKUI_LORE_LINE_DELAY_MS = 3_200;
+export const FELL_OFF_PAGE_LINE = "Off the edge of the page. Back to where she last stood.";
 
 export const glossOf = (explanation: string): string => `kami: ${explanation}`;
-
-/** Said aloud, he does not sign his own name — and would only wake himself if he did. */
-export const aloud = (text: string): string => text.replace(/^kami:\s*/i, "");
 
 const HELP_REQUEST = /^(help|hint|hints|stuck|i'?m stuck|i am stuck|\?+|what now|tell me)\b/i;
 

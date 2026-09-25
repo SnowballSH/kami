@@ -67,7 +67,7 @@ wait for `model is awake` and `handwriting reader is ready` in the server log. I
 rule and handwriting requests retain their 30-second and 35-second server deadlines; the browser
 allows 40 seconds for handwriting so it receives the server's answer on a CPU-only machine.
 The original trained Eye and tidying artifacts are separate from
-the language model; voice still uses the configured Deepgram service.
+the language model.
 
 | Env | |
 |---|---|
@@ -80,16 +80,13 @@ the language model; voice still uses the configured Deepgram service.
 | `KAMI_ALLOWED_ORIGINS` | Comma-separated exact origins, no trailing slash or wildcard. Shared mode requires HTTPS origins. Demo also permits same-origin requests. |
 | `KAMI_CREDENTIALS` | Shared-only JSON credentials with `id`, `token`, `boards`, `controllers`, and `models` grants; keep outside version control. |
 | `KAMI_MODEL_REQUESTS_PER_MINUTE` | Positive integer, default `6000`, shared across all model routes and callers per process. One iPad posts a live guess and a handwriting read on every pen lift — several a second while drawing — so the default leaves room for a few devices; lower it for shared hosting. |
-| `KAMI_MODEL_CONCURRENCY` | Positive integer, default `32`, held through complete model responses. Requests over the limit are refused with `429`, not queued, and an open voice socket holds a slot for as long as it listens. |
+| `KAMI_MODEL_CONCURRENCY` | Positive integer, default `32`, held through complete model responses. Requests over the limit are refused with `429`, not queued. |
 | `MONGODB_URI` | Use this MongoDB instead of the embedded one, e.g. the Atlas `mongodb+srv://…` string. Database `kami`. |
 | `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile` and `/api/transcribe`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
 | `KAMI_LLM_MODEL` | Compiler model name; also the fallback handwriting model. Compilation is **off** unless both URL and model are set. |
 | `KAMI_TRANSCRIBE_MODEL` | Handwriting model, defaulting to `KAMI_LLM_MODEL`; uses the same URL/key. Startup must correctly read a known PNG before `/api/transcribe` is enabled. While warming up or after a failed image check, the route returns **501**. |
 | `KAMI_LLM_API_KEY` | Optional bearer token. |
 | `KAMI_SKETCHES` | The Eye's exemplar set directory (`ml/CONTRACT.md`; on the box `~/kami-ml/artifacts/kami-eye/exemplars`), whose clean drawings `/api/exemplar` summons by name across all 345 categories. Unset, summons come from the ingested Quick, Draw! samples, then from Quick, Draw! itself, for the curated categories only. |
-| `DEEPGRAM_API_KEY` | Turns voice on: speech in (`nova-3`) and Kami's lines out (`aura-2`). Without it `/api/voice/*` answers `501` and the game plays silently. See `docs/voice.md`. |
-| `KAMI_VOICE_LISTEN_MODEL` | Deepgram speech-to-text model, default `nova-3`. |
-| `KAMI_VOICE_SPEAK_MODEL` | Deepgram text-to-speech voice, default `aura-2-draco-en`. |
 | `KAMI_CONTROLLER_UDP_PORT` | UDP port physical controllers send to, default `8788`; `off` disables. See `docs/controllers.md`. |
 | `KAMI_CONTROLLER_SERIAL` | `auto` (default: every `/dev/ttyACM*`, rescanned every 3 s), a device path, or `off`. The user needs the `dialout` group. |
 
@@ -115,8 +112,6 @@ the language model; voice still uses the configured Deepgram service.
 | `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
 | `GET /api/controllers` | `[{ id, x, y, held, buttons, transport, idleMs }]` |
 | `WS /api/stage/:stage?role=source\|screen` | The big screen: playing devices show what they render, a monitor on `/?screen` watches whichever is in use (`docs/screen.md`) |
-| `WS /api/voice/listen?rate=<Hz>[&wake=1]` | With `wake=1` the stream stands open and one `{type:"heard",text}` comes back per utterance, for the browser to match against the wake word. Otherwise one held utterance: the browser sends mono `linear16` frames and `{"type":"done"}` on release; the server answers `{type:"listening"}`, `{type:"hearing",text}` as Deepgram guesses, one `{type:"heard",text}` when it settles, `{type:"trouble"}` if Deepgram fails |
-| `POST /api/voice/speak` `{ text }` | `audio/mpeg` of Kami saying it (Deepgram `aura-2`, repeated lines cached in memory); `501` without a key or if Deepgram did not answer |
 | `POST /api/transcribe` `{ strokes: {x,y}[][] }` | `{ text: string \| null }` — the strokes read as handwriting, `null` for a drawing; `501` without a model |
 | `GET /api/exemplars` | `{ categories: string[] }` — every Quick, Draw! category a drawing can be summoned for |
 

@@ -21,7 +21,6 @@ import { createStageSource, mirroredLaws, mirroredRenderer } from "../stage";
 import { Summoner } from "../summoning";
 import { createBoardLink } from "../sync";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
-import { createVoice } from "../voice";
 import { ForgetfulBoardStore } from "./forgetfulStore";
 import { DEFAULT_TIDINESS, Game } from "./game";
 import { BOARD_PARAM, boardInUrl, modeInUrl, shareLink } from "./launch";
@@ -104,7 +103,6 @@ export function startGame(root: HTMLElement): void {
       boardFor,
       createInkSession,
       createHud: (handlers) => createHud(root, handlers),
-      createVoice,
       createLawsPanel: (handlers) => mirroredLaws(createLawsPanel(root, handlers), stage),
       findDrawingAt,
       onBoardOpened: rememberBoardInUrl,

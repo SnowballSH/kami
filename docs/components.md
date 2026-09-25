@@ -35,7 +35,7 @@ Principles the components enforce:
 | Side | Owns | Docs |
 |---|---|---|
 | Client (Devin) | `src/` — game loop, sim, render, autopilot, ink, board, Cat, UI, rules | this page, [architecture.md](architecture.md), [laws.md](laws.md), [modes.md](modes.md) |
-| Server (Claude) | `server/`, `ml/`, scripts, persistence and recognition HTTP clients (`src/persistence`, `src/recognition`), deployment on the GX10 | [server/README.md](../server/README.md), [access.md](access.md), [voice.md](voice.md), [controllers.md](controllers.md) |
+| Server (Claude) | `server/`, `ml/`, scripts, persistence and recognition HTTP clients (`src/persistence`, `src/recognition`), deployment on the GX10 | [server/README.md](../server/README.md), [access.md](access.md), [controllers.md](controllers.md) |
 
 The seam is the HTTP API ([server/README.md § API contract](../server/README.md#api-contract-what-the-client-may-rely-on))
 plus `src/rules/types.ts`. Whenever `RuleEffect` changes, five places move together:
@@ -53,7 +53,7 @@ server on `:8787`. All of that is Claude's; do not restart, retrain or redeploy 
 ```
 main.ts → game/index.ts:startGame(canvas, options)
   builds: board, sim, ink session, ledger, cat, rule compilers, autopilot, renderer, hud,
-          board store, recognizer, summoner, scenes, mode director, voice, controller stick
+          board store, recognizer, summoner, scenes, mode director, controller stick
   runs:   fixedStepLoop → each tick: inputs → sim.step (1/60 s) → events → game reacts
           each frame: camera → renderer.draw(world)
 ```
@@ -180,7 +180,6 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 | Virtual thumbstick | `src/ui/joystick.ts` | built | bottom-left stick, manual override |
 | Walk intent merger | `src/ui/walkIntent.ts` | built | keyboard + stick + controller → one `intent`, steering the selected Alice (`Party.steer`) |
 | Arduino / cabinet | `src/controller/*`, `server/controllers/*` | external | `kami arcade <x> <y> [buttons]` over UDP/serial/HTTP → SSE → `createRemoteStick` ([controllers.md](controllers.md), [hardware.md](hardware.md)) |
-| Voice | `src/voice/*`, `server/voice/*`, `src/ui/talkButton.ts` | external | hold-to-talk / wake word → Deepgram proxy → funnel; Kami speaks back ([voice.md](voice.md)) |
 | HUD | `src/ui/hud.ts`, `toolbar.ts`, `lawsPanel.ts`, `controls.ts`, `persistenceStatus.ts`, `accessGate.ts`, `titleCard.ts`, `roomCard.ts` | built | always-available clear-page button; labeled, focusable 44px controls; laws panel stays visible with an empty-state hint; HUD dragging cannot select text; accessible title/room dialogs dismiss on tap or Enter/Space and honor reduced motion; autopilot switch, save status, access gate |
 
 ## 11. The text funnel
@@ -215,7 +214,7 @@ repeals what it enacted.
 | Eye (server) | `server/quickdraw/*`, `server/recognition/*`, `server/natures/*`, `ml/` | external | k-NN + trained model on the GX10; 345 categories ruled server-side |
 | Beautify art layer | `src/art/types.ts` | contract | model image over the player's ink, physics stays the strokes — planned |
 
-## 14. Kami's voice on the page
+## 14. Kami's hand on the page
 
 | Component | Files | Status | Notes |
 |---|---|---|---|
@@ -283,7 +282,7 @@ pen ──► InkSession ──► Drawing ──► ledger + sim body (load-bea
                                                                                          (nature, temper→heed, own motion)
 text ─► funnel: grammar ─► scene ─► summons ─► naming ─► model ─► Rule ─► RuleBook.fold ─► sim.setPhysics
                                                                                               │
-party (a pilot per Alice) / stick / keyboard / cabinet / voice ─► intent per Alice ─► Alices ◄── creatures (urgeOf: heed) ◄─┘
+party (a pilot per Alice) / stick / keyboard / cabinet         ─► intent per Alice ─► Alices ◄── creatures (urgeOf: heed) ◄─┘
                                                                   ◄── vehicles, portals, Sumikui, twins
 each frame: camera(angle = paper turn) ─► renderer(board, ink@pose, notes, Alice, Sumikui, night)
 persistent: drawings, notes, rules ─► BoardStore ─► Bun API ─► MongoDB

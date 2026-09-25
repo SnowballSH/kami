@@ -28,7 +28,7 @@ discarded. Firmware debounces all six switches for 20 ms. Invalid fields and lin
 256 characters are discarded through their terminator. `kami` frames remain supported unchanged.
 `S` frames are not accepted by UDP/HTTP.
 
-This supports the walking path only. Knob drawing, button gestures, cabinet-triggered speech,
+This supports the walking path only. Knob drawing, button gestures,
 game-driven LEDs and a visible connection status/retry UI are deferred. The server reads USB and the browser uses SSE;
 no Web Serial adapter or "Connect cabinet" button exists. Automatic device rescans and EventSource
 reconnects are already implemented. Use `GET /api/controllers` and server logs during bring-up.

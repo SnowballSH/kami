@@ -110,11 +110,10 @@ describe("deployment configuration", () => {
     });
   });
 
-  it("retains voice and independent transcription settings in shared mode", () => {
+  it("retains independent transcription settings in shared mode", () => {
     expect(
       readConfig({
         ...ENV,
-        DEEPGRAM_API_KEY: "test-only-key",
         KAMI_LLM_URL: "http://gx10.test:8000",
         KAMI_LLM_MODEL: "compiler",
         KAMI_TRANSCRIBE_MODEL: "handwriting",
@@ -122,7 +121,6 @@ describe("deployment configuration", () => {
     ).toMatchObject({
       access: SHARED,
       hostname: "127.0.0.1",
-      voice: { apiKey: "test-only-key", listenModel: "nova-3", speakModel: "aura-2-draco-en" },
       transcribe: { model: "handwriting" },
       llm: { model: "compiler" },
     });
@@ -140,7 +138,6 @@ describe("shared API access", () => {
   const recognize = vi.fn(async () => ({ ranking: [], certainAbove: null }));
   const beautify = vi.fn(async () => Response.json({ tidied: STROKES, added: [] }));
   const transcribe = vi.fn(async () => "hello");
-  const speak = vi.fn(async () => new Uint8Array([73, 68, 51]).buffer);
   const exemplar = vi.fn(async (word: string) => (word === "rabbit" ? RABBIT : null));
 
   beforeAll(async () => {
@@ -161,7 +158,6 @@ describe("shared API access", () => {
       recognizer: { read: recognize },
       beautifier: { beautify },
       transcriber: { transcribe, ready: true, warmUp: async () => true },
-      speaker: { speak },
       exemplars: { categories: ["rabbit"], exemplar },
     });
     vi.clearAllMocks();
@@ -194,7 +190,6 @@ describe("shared API access", () => {
     ["POST", "recognize"],
     ["POST", "beautify"],
     ["POST", "transcribe"],
-    ["POST", "voice/speak"],
     ["GET", "exemplar?word=rabbit"],
     ["GET", "exemplars"],
   ])("denies unauthenticated %s %s before touching data or models", async (method, path) => {
@@ -204,7 +199,6 @@ describe("shared API access", () => {
     expect(recognize).not.toHaveBeenCalled();
     expect(beautify).not.toHaveBeenCalled();
     expect(transcribe).not.toHaveBeenCalled();
-    expect(speak).not.toHaveBeenCalled();
     expect(exemplar).not.toHaveBeenCalled();
     expect((await boards.snapshot("my game")).notes).toHaveLength(1);
     expect(controllers.list()).toEqual([]);
@@ -270,7 +264,6 @@ describe("shared API access", () => {
     ["beautify", { strokes: STROKES }],
     ["compile", { text: "gravity like mars" }],
     ["transcribe", { strokes: STROKES }],
-    ["voice/speak", { text: "hello" }],
   ])("authenticates %s through both cookies and bearer credentials", async (path, body) => {
     const cookie = await login();
     for (const headers of [{ cookie, origin: ORIGIN }, bearer()]) {
@@ -286,28 +279,6 @@ describe("shared API access", () => {
         )
       ).status,
     ).toBe(403);
-  });
-
-  it("preserves audio bytes and applies only the allowed origin to speech responses", async () => {
-    const response = await api.handle(
-      request("voice/speak", {
-        method: "POST",
-        headers: { cookie: await login(), origin: ORIGIN },
-        body: JSON.stringify({ text: "hello" }),
-      }),
-    );
-    expect(response.headers.get("content-type")).toBe("audio/mpeg");
-    expect(response.headers.get("access-control-allow-origin")).toBe(ORIGIN);
-    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([73, 68, 51]));
-    const denied = await api.handle(
-      request("voice/speak", {
-        method: "POST",
-        headers: { ...bearer(), origin: "https://evil.test" },
-        body: JSON.stringify({ text: "hello" }),
-      }),
-    );
-    expect(denied.status).toBe(403);
-    expect(speak).toHaveBeenCalledTimes(1);
   });
 
   it("allows exemplar reads with a model grant through cookies and bearer credentials", async () => {
@@ -577,7 +548,7 @@ describe("model work budgets", () => {
     }
   });
 
-  it.each(["beautify", "voice/speak"])(
+  it.each(["beautify", "transcribe"])(
     "bounds concurrent %s until response bodies finish and releases failures",
     async (path) => {
       const access = new ApiAccess({ ...DEMO_ACCESS, modelConcurrency: 1 });
@@ -614,13 +585,13 @@ describe("model work budgets", () => {
     let now = 100_000;
     const access = new ApiAccess({ ...DEMO_ACCESS, modelRequestsPerMinute: 2 }, () => now);
     const respond = vi.fn(async () => Response.json({ ok: true }));
-    for (const path of ["recognize", "voice/speak"]) {
+    for (const path of ["recognize", "transcribe"]) {
       expect((await access.handle(request(path, { method: "POST" }), respond)).status).toBe(200);
     }
     const rejected = await access.handle(request("beautify", { method: "POST" }), respond);
     expect(rejected.status).toBe(429);
     expect(rejected.headers.get("retry-after")).toBe("60");
-    for (const path of ["voice/speak", "voice//speak/", "transcribe"]) {
+    for (const path of ["compile", "compile//", "transcribe"]) {
       expect((await access.handle(request(path, { method: "POST" }), respond)).status).toBe(429);
     }
     expect((await access.handle(request("boards/my%20game"), respond)).status).toBe(200);

@@ -6,8 +6,8 @@
 all IPv4 interfaces, so **every reachable peer can read, overwrite and delete every board, report
 controller state, and spend model capacity**. Use an isolated, trusted LAN with no public port
 forwarding. The iPad opens the existing Vite network URL in development or the built game on
-GX10 port 8787. For microphone access on the LAN, use the server's built-in TLS listener at
-`https://<box>:8443` and accept its self-signed certificate once. Ordinary same-origin requests need no token. A browser origin other than the
+GX10 port 8787. The server's built-in TLS listener serves the same game at `https://<box>:8443`;
+accept its self-signed certificate once. Ordinary same-origin requests need no token. A browser origin other than the
 request's own origin must appear in `KAMI_ALLOWED_ORIGINS`; there is no wildcard CORS response.
 Origin checks protect browser requests but do not authenticate non-browser peers.
 
@@ -56,7 +56,7 @@ coordinated across replicas. Do not enable proxy/header logging of Authorization
 The iPad's startup form exchanges its token for an opaque `__Host-kami` cookie: `HttpOnly`,
 `Secure`, `SameSite=Strict`, `Path=/`, eight-hour lifetime. The token field is cleared, and tokens
 are not saved in local storage or appended to SSE URLs. Same-origin fetch clients—including
-recognition, completion, compilation, handwriting and speech—and native EventSource/WebSocket use this cookie
+recognition, completion, compilation and handwriting—and native EventSource/WebSocket use this cookie
 without changing their payload contracts. The initial board/controller comes from the grant
 unless the URL already selects one. An explicit URL selection never expands its grant.
 Sign out revokes the cookie session; existing controller streams recheck before each state or
@@ -72,11 +72,9 @@ whiteboard — and the `?board=<id>&mode=sandbox` link the share panel shows car
 `peer` query is a name for a tab, minted by the browser and forgotten when it closes; it is not an
 identity and grants nothing.
 
-Voice listening (`/api/voice/listen`) checks the same origin, session and `models` grant before
-the WebSocket upgrade or any upstream connection. It rechecks before forwarding audio or
-transcripts and every 15 seconds while idle; expired or signed-out sessions close both ends.
-Voice speaking (`POST /api/voice/speak`) also requires `models`. The proxy must support WebSocket
-upgrades in addition to SSE. Browser microphone capture requires a secure context.
+The big screen's stage socket (`/api/stage/:stage`) checks the same origin and session before the
+WebSocket upgrade and every 15 seconds while open; expired or signed-out sessions close it. The
+proxy must support WebSocket upgrades in addition to SSE.
 
 Exemplar reads (`GET /api/exemplar?word=…`) require `models` too. They sample stored Quick, Draw!
 sketches without inference, but still use database work and return vector data; they share the
@@ -94,15 +92,13 @@ only in the open tab.
 
 ## Limits and expected responses
 
-Model routes (`recognize`, `beautify`, `compile`, `transcribe`, `voice/speak`, `exemplar`) and voice-listening
-upgrades share a per-process fixed-window budget of 6,000 requests per minute and 32 concurrent
+Model routes (`recognize`, `beautify`, `compile`, `transcribe`, `exemplar`) share a per-process
+fixed-window budget of 6,000 requests per minute and 32 concurrent
 operations by default, in both
 modes. Tune `KAMI_MODEL_REQUESTS_PER_MINUTE` and `KAMI_MODEL_CONCURRENCY` for the GX10 and expected
 pen traffic. A slot stays occupied while the model response is read; response bodies have an
 8 MiB ceiling and 30-second read deadline. Upstream inference/request deadlines remain those of
-the individual adapters. A listening socket, including continuous wake-word listening, occupies
-one concurrent slot for its entire lifetime; closing it releases the slot. Opening it counts
-once against the rate limit, rather than once per audio frame. Restart resets the counters. Board/controller traffic is not charged
+the individual adapters. Restart resets the counters. Board/controller traffic is not charged
 against the model budget. The login endpoint allows 30 attempts per minute and at most 128 active
 sessions per process. These limits bound work; they do not replace proxy connection/body limits
 or a firewall.
@@ -119,8 +115,7 @@ or a firewall.
 
 Automated coverage in `server/http/access.test.ts` checks these cases with a temporary local
 database and mocked models, cookie expiry/logout, controller SSE, bounded model work, and demo
-requests. `server/voice/socket.test.ts` uses mocked upstream sockets to verify handshake denial,
-cookie/bearer access, shared work limits and revocation. `src/ui/accessGate.test.ts` covers startup, token clearing and scope defaults without
+requests. `src/ui/accessGate.test.ts` covers startup, token clearing and scope defaults without
 driving a browser or running inference.
 
 ## GX10 network verification before shared use
@@ -140,8 +135,8 @@ against a deployment. An authorized operator must verify the real network before
    operator authorization and check that excess requests receive `429`.
 4. For demo mode, verify the intended iPad and controller network is isolated, that both dev/API
    ports are restricted to trusted peers, and that there is no router port-forwarding exposure.
-   Cold-start the iPad, draw repeatedly at the expected pen-lift rate while voice listening is
-   active, and verify live guesses and controller SSE. Tune the finite model budgets from that
+   Cold-start the iPad, draw repeatedly at the expected pen-lift rate, and verify live guesses and
+   controller SSE. Tune the finite model budgets from that
    GX10 run; mocked tests do not establish suitable limits for a live demo.
 
 The repository's GX10 start script exports its own variables. Ensure the actual service process

@@ -18,24 +18,6 @@ LIVE_MODEL_FILE=$ML_HOME/artifacts/LIVE
 EYE_MODEL_NAME=${KAMI_EYE_MODEL_NAME:-$(cat "$LIVE_MODEL_FILE" 2>/dev/null || echo kami-eye)}
 MODEL=${KAMI_LLM_MODEL:-qwen3.8:latest}
 export MONGODB_URI="mongodb://127.0.0.1:$MONGO_PORT"
-SECRETS_FILE=$HOME/kami/secrets.env
-
-# Keys the server reads from its environment live in ~/kami/secrets.env (mode 600, sent by deploy.sh,
-# never inside a release and never printed). The file is read as NAME=value lines, not run as a script,
-# and only the names below are taken from it.
-load_secrets() {
-  [ -r "$SECRETS_FILE" ] || return 0
-  local name value
-  while IFS='=' read -r name value || [ -n "$name" ]; do
-    value=${value%$'\r'}
-    value=${value#[\"\']}
-    value=${value%[\"\']}
-    case "$name" in
-      DEEPGRAM_API_KEY) [ -n "$value" ] && export "$name=$value" ;;
-    esac
-  done < "$SECRETS_FILE"
-}
-load_secrets
 
 ensure_tls_cert() {
   local cert=run/tls/kami.crt

@@ -4,7 +4,7 @@ Companion to `docs/spec.md` §11. The cabinet remains an **optional, incomplete 
 The implemented controller relay is described in [controllers.md](controllers.md).
 
 **Goal:** a self-contained cabinet that plays the whole game. Today only the arcade stick's
-walking/jumping/climbing path is connected to the game. Knob drawing, INK gestures, CAT speech,
+walking/jumping/climbing path is connected to the game. Knob drawing, INK and CAT gestures,
 game-driven LEDs and a visible connection indicator are deferred. Keep mouse, keyboard and touch
 available; the game never depends on the cabinet. Software checks and firmware compilation pass;
 physical controls, feedback and the actual booth browser/host have **not** been verified.
@@ -43,9 +43,8 @@ Original checkout-list status (19 September); recheck physical availability befo
 5. **Two momentary pushbuttons** (arcade 30 mm ideal, tactile switches fine). Thumb-joystick clicks work but feel mushy and aren't obviously "buttons" to a judge.
 6. **Knob caps** for the pots — 3D print, or anything grippable. Bare pot shafts are miserable to draw with.
 7. **A panel/enclosure.** A cardboard box with holes and hand-lettered labels fits the aesthetic better than a print and takes 30 minutes. Print only the knob caps.
-8. **Headset or USB mic** — optional for the browser voice path; the physical CAT button is not bound to it.
-9. For the strip: 330 Ω resistor (data line), 1000 µF capacitor (across 5 V/GND); check the strip's wiring guidance.
-10. Zip ties, tape, a multimeter from the desk.
+8. For the strip: 330 Ω resistor (data line), 1000 µF capacitor (across 5 V/GND); check the strip's wiring guidance.
+9. Zip ties, tape, a multimeter from the desk.
 
 Items 1–3 enable physical stick bring-up. Knob/button readings alone do not make the full cabinet playable.
 
@@ -59,8 +58,8 @@ Items 1–3 enable physical stick bring-up. Knob/button readings alone do not ma
 └──────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────┐
 │   (◉)            [ INK ]   [ CAT ]          (○)    (○)   │
-│  WALK            pen ↓↑    hold to          ←→      ↑↓   │
-│  arcade stick              talk             Etch A Sketch│
+│  WALK            pen ↓↑    ask for          ←→      ↑↓   │
+│  arcade stick              a hint           Etch A Sketch│
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -69,14 +68,11 @@ Items 1–3 enable physical stick bring-up. Knob/button readings alone do not ma
 | **WALK** stick | ←/→ walk; ↑ jumps on the ground or climbs; ↓ climbs down. Opposing switches cancel. |
 | **Knobs** | Smoothed 12-bit values appear in serial diagnostics. The server validates them but does not relay them or move the pen. |
 | **INK** | Relayed as unbound button `b`. Toggle/long-press erase are deferred. |
-| **CAT** | Relayed as unbound button `x`. Binding this physical button to speech is deferred. |
+| **CAT** | Relayed as unbound button `x`. Binding this physical button is deferred. |
 
 The Etch A Sketch drawing proposal in the spec needs a separate client pen contract. The current
-whiteboard has **unlimited ink**, no ink meter and no out-of-ink state. Naming uses writing/typing
-or the optional [browser voice path](voice.md): the on-screen CAT button/Space requests the microphone,
-and the server relays to Deepgram when configured. This needs HTTPS on the LAN and microphone
-permission. The cabinet's physical CAT button does not invoke it. Speech was not tested in this
-cabinet verification.
+whiteboard has **unlimited ink**, no ink meter and no out-of-ink state. Naming uses writing or
+typing.
 
 **Firmware-only feedback, not connected to game events:**
 
