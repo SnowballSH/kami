@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
-# Kami's Eye, the optional sketch-recognition sidecar (CONTRACT.md), with its serving dependencies
-# only: numpy, OpenCV (headless) and ONNX Runtime, never torch. The trained artefact directory is
-# mounted read-only at /models/kami-eye. docs/hosting.md shows it beside the game.
+# Kami's sidecar on its own (CONTRACT.md): the handwriting reader, whose pinned model is fetched and
+# checked at build time, and Kami's Eye when a trained artefact directory is mounted read-only at
+# /models/kami-eye. Serving dependencies only: numpy, OpenCV (headless) and ONNX Runtime, never
+# torch. The kami image runs this same sidecar itself; docs/hosting.md shows both.
 
 ARG PYTHON_VERSION=3.12
 ARG UV_VERSION=0.12.13
@@ -17,6 +18,8 @@ ENV UV_PROJECT_ENVIRONMENT=/app/.venv \
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-default-groups
+COPY handwriting ./handwriting
+RUN python -m handwriting.fetch /app/models/handwriting
 
 
 FROM docker.io/library/python:${PYTHON_VERSION}-slim AS runtime
@@ -34,10 +37,13 @@ ENV PATH=/app/.venv/bin:$PATH \
     KAMI_EYE_HOST=0.0.0.0 \
     KAMI_EYE_PORT=8790 \
     KAMI_EYE_MODEL=/models/kami-eye \
-    KAMI_EYE_THREADS=1
+    KAMI_EYE_THREADS=1 \
+    KAMI_HANDWRITING_MODEL=/app/models/handwriting
 COPY --from=build /app/.venv /app/.venv
+COPY --from=build /app/models /app/models
+COPY handwriting ./handwriting
 COPY *.py ./
-RUN python -c "import sidecar" && mkdir -p /models
+RUN python -m compileall -q handwriting *.py && python -c "import sidecar" && mkdir -p /models
 
 VOLUME /models
 EXPOSE 8790

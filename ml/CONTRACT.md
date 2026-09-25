@@ -42,14 +42,21 @@ and `renderMatches: true`; incompatible models never report healthy.
 ## The sidecar (`ml/sidecar.py`, Python 3.12, ONNX Runtime CPU, stdlib HTTP)
 
 Listens on `127.0.0.1:8790` (`KAMI_EYE_HOST`, `KAMI_EYE_PORT`), loads `KAMI_EYE_MODEL` (an artifacts
-directory) with `KAMI_EYE_THREADS` ONNX Runtime threads (unset: its default).
+directory) and `KAMI_HANDWRITING_MODEL` (the handwriting bundle, [HANDWRITING.md](HANDWRITING.md)) with
+`KAMI_EYE_THREADS` ONNX Runtime threads (unset: its default). Either may be absent — the sidecar then
+serves the other and logs which is missing; with neither it refuses to start. A directory that is there
+but unsound (a bundle that fails its checks below, a handwriting file that is not the pinned bytes)
+stops start-up.
 
 | Route | Request | Response |
 |---|---|---|
-| `GET /health` | | `{ "ok": true, "classes": K, "model": "<name>", "exemplars": N }` — `N` is 0 when the model has no exemplar set |
+| `GET /health` | | `{ "ok": true, "capabilities": { "eye": bool, "handwriting": bool } }`, plus with the Eye `"classes": K, "model": "<name>", "exemplars": N, "renderMatches": true, "artifactId"` (`N` is 0 when the model has no exemplar set) and with handwriting `"handwriting": { "model": "<name>" }`. A sidecar without `capabilities` predates handwriting and is an Eye alone |
+| `POST /read` | `{ "strokes": ... }` | `{ "text": "summon a rabbit" \| null }` — the words the strokes say, whitespace collapsed; `null` for a drawing or when the readers are unsure. `503 {"error"}` without a handwriting model |
 | `POST /recognize` | `{ "strokes": [[{"x":1,"y":2},...],...], "partial": false, "top": 5 }` | `{ "labels": [...], "probs": [...] }` — best first, temperature-scaled softmax, `top` entries (default 5); plus `"certainAbove": 0.80 \| null` when the model states its floors — see Regimes |
 | `POST /embed` | `{ "strokes": ... }` | `{ "embedding": [512 floats, L2-normalised] }` |
 | `POST /complete` | `{ "strokes": ..., "name": "a mushroom", "strength": 0.5 }` (`name`, `strength` optional) | `{ "tidied": [[{"x":..,"y":..},...],...], "added": [...], "category": "mushroom", "confidence": 0.93, "similarity": 0.81, "boldness": 0.9, "exemplar": "5152802093400064", "pose": {"mirrored": false, "quarterTurns": 0} }`, or `404 {"error"}` — see Completion |
+
+The Eye's routes answer `503 {"error"}` when no Eye model is loaded.
 
 Strokes arrive raw, in world px; the sidecar owns rendering. Bad input → `400 {"error"}`; never a crash.
 
@@ -236,3 +243,9 @@ from the reviewed table in `server/natures/`. The public route's shape does not 
 `KAMI_BEAUTIFY_URL` set to the sidecar's `/complete` (e.g. `http://127.0.0.1:8790/complete`) makes
 `POST /api/beautify` — which forwards `{ strokes, name }` and passes the answer through — finish drawings
 this way; `box/start.sh` sets it whenever the sidecar came up, unless it is already set.
+
+`POST /api/transcribe` reads handwriting through the sidecar's `/read` first (`KAMI_HANDWRITING_URL`, else
+the sidecar the server runs itself with `KAMI_SIDECAR=auto`, else `KAMI_RECOGNIZER_URL`'s), one read at a
+time, and through a vision model only when no sidecar passes its start-up check. The kami image runs the
+sidecar as a child of the server (`server/sidecar/supervisor.ts`) and uses it for the Eye too whenever a
+model is mounted at `KAMI_EYE_MODEL`. `server/README.md` → "Handwriting reading" has the details.

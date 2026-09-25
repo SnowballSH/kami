@@ -264,9 +264,11 @@ merged before selecting the best three and calculating certainty.
 
 **Model-backed compile.** If `KAMI_LLM_URL` (any OpenAI-compatible `/v1/chat/completions`, e.g. vLLM or Ollama) and `KAMI_LLM_MODEL` are set, `/api/compile` asks the model for a `RuleEffect` as JSON, validates it with zod, clamps it, and returns it; otherwise `{ rule: null }`. Compile once: the result is stored as a `Rule` and never asks the model again.
 
-**Handwriting reading.** `KAMI_TRANSCRIBE_MODEL` selects the vision reader, falling back to
-`KAMI_LLM_MODEL`; URL/key are shared with compilation. Startup must correctly read a known image
-before the route becomes ready. Until then, or without a reader, it returns `501`. A ready reader
+**Handwriting reading.** The sidecar's local reader comes first: two small pretrained models on the
+CPU (`ml/HANDWRITING.md`), in the sidecar the server starts itself (`KAMI_SIDECAR=auto`, the image's
+default) or at `KAMI_HANDWRITING_URL`. A vision model (`KAMI_TRANSCRIBE_MODEL`, falling back to
+`KAMI_LLM_MODEL`; URL/key shared with compilation) reads only when no sidecar passes its start-up
+check. Until a reader has passed its check, or without one, the route returns `501`. A ready reader
 returns words or `null`; the client treats failure as no words and keeps the ink. See
 [handwriting reading](../server/README.md#handwriting-reading).
 

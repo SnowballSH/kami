@@ -1,10 +1,36 @@
+import os
 import threading
 from pathlib import Path
 
 import pytest
 from test_sidecar import SQUARE, call
 
-from sidecar import DEFAULT_MODEL_DIR, DEFAULT_PORT, HOST, SidecarSettings, create_server
+from sidecar import (
+    DEFAULT_MODEL_DIR,
+    DEFAULT_PORT,
+    HOST,
+    SidecarSettings,
+    create_server,
+    exit_with_parent,
+)
+
+
+def test_a_managed_sidecar_knows_its_parent() -> None:
+    assert SidecarSettings.from_env({"KAMI_SIDECAR_PARENT_PID": "42"}).parent_pid == 42
+    assert SidecarSettings.from_env({}).parent_pid is None
+
+
+def test_a_sidecar_whose_parent_is_gone_stops() -> None:
+    orphaned = threading.Event()
+    watcher = exit_with_parent(os.getppid() + 1, orphaned.set, poll_s=0.01)
+    assert orphaned.wait(timeout=5)
+    watcher.join(timeout=5)
+
+
+def test_a_sidecar_whose_parent_lives_keeps_serving() -> None:
+    orphaned = threading.Event()
+    exit_with_parent(os.getppid(), orphaned.set, poll_s=0.01)
+    assert not orphaned.wait(timeout=0.1)
 
 
 def test_defaults_are_loopback_and_leave_onnx_runtime_its_threads() -> None:

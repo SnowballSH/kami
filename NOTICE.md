@@ -26,6 +26,21 @@ made available by Google, Inc. under the
 Kami's handwriting is a converted subset of the single-stroke font EMS Readability, under the SIL Open Font
 License 1.1: [`src/handwriting/fonts/LICENSE-EMSReadability.md`](src/handwriting/fonts/LICENSE-EMSReadability.md).
 
+## Handwriting models
+
+Kami reads handwriting with two pretrained models it downloads, never modifies and does not keep in
+this repository; `ml/handwriting/sources.py` pins each file to a revision and a SHA-256, and the
+container image carries them.
+
+- **PP-OCRv5 English mobile text recognition** (`en_PP-OCRv5_mobile_rec`) by PaddlePaddle, under the
+  [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0): <https://huggingface.co/PaddlePaddle/en_PP-OCRv5_mobile_rec>,
+  in its ONNX conversion at <https://huggingface.co/monkt/paddleocr-onnx> (also Apache-2.0).
+- **TrOCR-small-handwritten** by Microsoft (Li et al., *TrOCR: Transformer-based Optical Character
+  Recognition with Pre-trained Models*, 2021), from <https://github.com/microsoft/unilm> under the
+  [MIT License](https://github.com/microsoft/unilm/blob/master/LICENSE), in the int8 ONNX export at
+  <https://huggingface.co/Xenova/trocr-small-handwritten>. It was fine-tuned on the IAM Handwriting
+  Database; Kami distributes none of IAM's data.
+
 ## Libraries
 
 Dependencies are listed in `package.json` and `ml/pyproject.toml` and are installed from their registries

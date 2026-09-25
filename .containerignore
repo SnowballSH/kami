@@ -10,7 +10,12 @@ coverage
 docs
 hardware
 ml
+!ml/pyproject.toml
+!ml/uv.lock
+!ml/*.py
+!ml/handwriting
 scripts/local
+**/__pycache__
 *.local
 .env*
 .deepgram.env

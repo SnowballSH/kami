@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import type { Stroke } from "../../src/core/geometry";
 import type { ChatPart } from "../llm/chatClient";
-import { createLlmTranscriber, parseTranscription, readsAsWriting } from "./llmTranscriber";
+import { createLlmTranscriber, parseTranscription } from "./llmTranscriber";
+import { readsAsWriting } from "./types";
 
 const CONFIG = { url: "http://127.0.0.1:11434", model: "qwen3.8:latest" } as const;
 

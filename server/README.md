@@ -65,7 +65,7 @@ other services needs:
   gateway and your wallet allow, e.g. `600` / `4`; `docs/access.md` has the reasoning.
 - **Warm-ups.** At start-up the rules model is asked one question so a cold local model loads before
   the first player needs it; `KAMI_LLM_WARM_UP=off` skips it where every request costs money. The
-  handwriting reader's single image check always runs, because passing it is what enables
+  handwriting reader's single check always runs, because passing it is what enables
   `/api/transcribe`.
 - **Static files.** The built game is served from memory with `br`/`gzip` compression negotiated per
   request and cached, immutable caching for hashed `assets/`, and `ETag` / `304` for `index.html`.
@@ -130,9 +130,15 @@ the language model.
 | `KAMI_LLM_MODEL` | Compiler model name; also the fallback handwriting model. Compilation is **off** unless both URL and model are set. |
 | `KAMI_LLM_API_KEY` | Optional bearer token; may be given as `KAMI_LLM_API_KEY_FILE`. |
 | `KAMI_LLM_REASONING_EFFORT` | What to ask for as `reasoning_effort`: `none` (default), `minimal`, `low`, `medium`, `high`, `xhigh`, or `off` to never send the field. Anything else stops start-up. A server that rejects the field is asked again without it, once, and remembered. |
-| `KAMI_TRANSCRIBE_URL` / `KAMI_TRANSCRIBE_MODEL` / `KAMI_TRANSCRIBE_API_KEY` / `KAMI_TRANSCRIBE_REASONING_EFFORT` | The handwriting (vision) model; each falls back to its `KAMI_LLM_*` counterpart, so a different model on the same server needs only `KAMI_TRANSCRIBE_MODEL`, and a different server sets `KAMI_TRANSCRIBE_URL` (and its own key, or it inherits the LLM's). The key may be given as `KAMI_TRANSCRIBE_API_KEY_FILE`. Handwriting is off without a URL and a model. Start-up must correctly read a known PNG before `/api/transcribe` is enabled; while warming up or after a failed image check the route returns **501** — a text-only gateway fails the check and simply leaves the pen as ink. |
+| `KAMI_SIDECAR` | `auto` starts `ml/sidecar.py` beside the server and supervises it (the image's default); `off` or unset does not. Anything else stops start-up. See "Handwriting reading". |
+| `KAMI_SIDECAR_PYTHON` / `KAMI_SIDECAR_PORT` | The Python the sidecar runs with (default `ml/.venv/bin/python` if it exists, else `python3`) and its loopback port (default `8790`). |
+| `KAMI_HANDWRITING_MODEL` | The handwriting bundle the sidecar loads (default `ml/models/handwriting`; the image bakes one in at `/app/models/handwriting`). |
+| `KAMI_EYE_MODEL` / `KAMI_EYE_THREADS` | Passed to the managed sidecar: Kami's Eye artefact directory (default `ml/artifacts/kami-eye`; `/models/kami-eye` in the image — the server recognises with the sidecar only when it exists) and ONNX Runtime threads (a positive integer; unset leaves Runtime its default, the image says `1`). |
+| `KAMI_HANDWRITING_URL` | The sidecar whose `POST /read` reads handwriting, first choice over the vision model. Unset: the managed sidecar, else `KAMI_RECOGNIZER_URL`'s. `off`: never a sidecar. |
+| `KAMI_HANDWRITING_API_KEY` | Sent as `Authorization: Bearer` to that sidecar; may be given as `KAMI_HANDWRITING_API_KEY_FILE`. Defaults to `KAMI_RECOGNIZER_API_KEY` only when the URL is the recogniser's. |
+| `KAMI_TRANSCRIBE_URL` / `KAMI_TRANSCRIBE_MODEL` / `KAMI_TRANSCRIBE_API_KEY` / `KAMI_TRANSCRIBE_REASONING_EFFORT` | The handwriting vision model, used only when no sidecar reader passes its check; each falls back to its `KAMI_LLM_*` counterpart, so a different model on the same server needs only `KAMI_TRANSCRIBE_MODEL`, and a different server sets `KAMI_TRANSCRIBE_URL` (and its own key, or it inherits the LLM's). The key may be given as `KAMI_TRANSCRIBE_API_KEY_FILE`. Start-up must correctly read a known PNG before it is used — a text-only gateway fails the check and is simply not used. With no reader ready the route returns **501**. |
 | `KAMI_LLM_WARM_UP` | `off` skips the rules model's one start-up question ("hello"), which only serves to load a cold local model; the handwriting image check still runs once. |
-| `KAMI_RECOGNIZER_URL` | The Kami's Eye sidecar (`ml/CONTRACT.md`), used for `/api/recognize` with the k-NN as its fallback; unset or `off` means the k-NN alone. |
+| `KAMI_RECOGNIZER_URL` | The Kami's Eye sidecar (`ml/CONTRACT.md`), used for `/api/recognize` with the k-NN as its fallback; unset, the managed sidecar (`KAMI_SIDECAR=auto`) when a model is at `KAMI_EYE_MODEL`, else the k-NN alone; `off` means the k-NN alone. |
 | `KAMI_RECOGNIZER_API_KEY` | Sent as `Authorization: Bearer` to the sidecar, for one behind an authenticating proxy or on another host; may be given as `KAMI_RECOGNIZER_API_KEY_FILE`. |
 | `KAMI_RECOGNIZER_THREADS` | Worker threads ranking sketches for the built-in k-NN, default `1`; `0` ranks on the event loop. See "Self-hosting" above for the queue. |
 | `KAMI_BEAUTIFY_URL` | Where `/api/beautify` forwards to. Unset with `KAMI_RECOGNIZER_URL` set, it is the sidecar's `<KAMI_RECOGNIZER_URL>/complete` (the Eye serves both) with the recogniser's key; `off` keeps the player's own ink (**501**). |
@@ -164,7 +170,7 @@ the language model.
 | `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
 | `GET /api/controllers` | `[{ id, x, y, held, buttons, transport, idleMs }]` |
 | `WS /api/stage/:stage?role=source\|screen` | The big screen: playing devices show what they render, a monitor on `/?screen` watches whichever is in use (`docs/screen.md`) |
-| `POST /api/transcribe` `{ strokes: {x,y}[][] }` | `{ text: string \| null }` — the strokes read as handwriting, `null` for a drawing; `501` without a model |
+| `POST /api/transcribe` `{ strokes: {x,y}[][] }` | `{ text: string \| null }` — the strokes read as handwriting, `null` for a drawing; `501` without a reader |
 | `GET /api/exemplars` | `{ categories: string[] }` — every Quick, Draw! category a drawing can be summoned for |
 
 Entity/model JSON bodies are validated with Zod (`schemas.ts` re-exports the browser-safe entity
@@ -339,20 +345,49 @@ server learns separately.
 
 ## Handwriting reading
 
-`transcribe/llmTranscriber.ts` lets the player write with the pen instead of the text prompt. The
-strokes are drawn black-on-white into a small grayscale PNG (`transcribe/strokeImage.ts`, a line of
-writing fitted to 64 px tall, no image library) and shown to `KAMI_TRANSCRIBE_MODEL` (falling back
-to `KAMI_LLM_MODEL`) as a vision model through `llm/chatClient.ts`, the OpenAI-compatible client
-`/api/compile` also uses, with
-`reasoning_effort: "none"` (`KAMI_TRANSCRIBE_REASONING_EFFORT`, falling back to the LLM's) so it
-answers in one breath (about 2 s warm on a local GPU; a `400` from a server that does not know the field
-retries without it — "One client, many servers" above). The prompt (`transcribe/prompt.ts`) asks for
-`{"text": "…"}` for words and `{"text": null}` for a drawing; the answer is parsed like the
-compiler's, then must read as writing (≤ 80 characters, at least two different letters — a fence
-once came back as `IIIIII`). Anything else, a timeout (20 s), an HTTP error or an abort is `null`:
-the strokes stay ink. Startup must successfully read the known warm-up image; unready readers
-return `501`. `/api/transcribe` forwards the request's abort signal to stop an obsolete client
-wait; that does not guarantee an upstream model cancels work already accepted.
+`/api/transcribe` lets the player write with the pen instead of the text prompt. Two readers can
+answer it, tried in this order at start-up (`transcribe/transcriber.ts`, `transcribe/chain.ts`): the
+first whose start-up check passes reads from then on, and the log says which
+(`handwriting reader is ready: local reader (http://127.0.0.1:8790)`).
+
+1. **The sidecar's local reader** (`transcribe/sidecarTranscriber.ts`): `POST /read` on a Kami
+   sidecar (`ml/CONTRACT.md`), which renders the strokes and reads them with two small pretrained
+   models on the CPU, no external service (`ml/HANDWRITING.md`). Where: `KAMI_HANDWRITING_URL`; unset,
+   the sidecar the server runs itself (`KAMI_SIDECAR=auto`, below); else `KAMI_RECOGNIZER_URL`'s
+   sidecar with its key. `KAMI_HANDWRITING_URL=off` skips it. Its check: the sidecar's `/health`
+   reports `capabilities.handwriting` (polled for up to two minutes while it starts) and it answers one
+   read. Reads go one at a time, eight at most waiting: every pen lift asks about the ink so far and
+   withdraws the question before it, and a withdrawn read that has not started is dropped unsent
+   (`transcribe/serialQueue.ts`). A read has 10 s.
+2. **A vision model**: `transcribe/llmTranscriber.ts` draws the strokes black-on-white into a small
+   grayscale PNG (`transcribe/strokeImage.ts`, a line of writing fitted to 64 px tall, no image library)
+   and shows it to `KAMI_TRANSCRIBE_MODEL` (falling back to `KAMI_LLM_MODEL`) through
+   `llm/chatClient.ts`, the OpenAI-compatible client `/api/compile` also uses, with
+   `reasoning_effort: "none"` (`KAMI_TRANSCRIBE_REASONING_EFFORT`, falling back to the LLM's) so it
+   answers in one breath (about 2 s warm on a local GPU; a `400` from a server that does not know the field
+   retries without it — "One client, many servers" above). The prompt (`transcribe/prompt.ts`) asks for
+   `{"text": "…"}` for words and `{"text": null}` for a drawing. Its check is reading a known image of
+   "HI"; a text-only gateway fails it and is simply not used for handwriting.
+
+Either answer must read as writing (`transcribe/types.ts`: ≤ 80 characters, at least two different
+letters — a fence once came back as `IIIIII`). Anything else, a timeout, an HTTP error or an abort is
+`null`: the strokes stay ink. With no reader ready the route returns `501`. `/api/transcribe` forwards
+the request's abort signal to stop an obsolete client wait; that does not guarantee a model cancels
+work already accepted.
+
+### The sidecar the server runs itself
+
+`KAMI_SIDECAR=auto` (the image's default; off otherwise) makes the server start `ml/sidecar.py` as a
+child process (`sidecar/supervisor.ts`) on `127.0.0.1:KAMI_SIDECAR_PORT` (8790) with
+`KAMI_SIDECAR_PYTHON` (default `ml/.venv/bin/python`, else `python3`), `KAMI_EYE_THREADS`,
+`KAMI_EYE_MODEL` and `KAMI_HANDWRITING_MODEL`, and none of the server's secrets. Its log lines appear
+in the server's prefixed `sidecar:`; if it exits it is started again after 1 s, doubling to at most
+60 s, back to 1 s after a run of a minute; on shutdown it gets `SIGINT`, then `SIGKILL` after 1.5 s, and a server that dies without stopping it takes it along (`KAMI_SIDECAR_PARENT_PID`). The
+same sidecar serves Kami's Eye when a model is at `KAMI_EYE_MODEL`: `/api/recognize` and
+`/api/beautify` then use it unless `KAMI_RECOGNIZER_URL` / `KAMI_BEAUTIFY_URL` say otherwise.
+
+Outside the image: `cd ml && uv sync --no-default-groups && uv run python -m handwriting.fetch
+models/handwriting`, then `KAMI_SIDECAR=auto bun run dev`.
 
 ## Summoning
 
@@ -409,7 +444,7 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
 | `GET /api/exemplars` | — | `{ categories: string[] }` — every Quick, Draw! category `/api/exemplar` has a drawing of; the client builds its summoning lexicon from it |
 | `POST /api/scene` | `{ text }` — the whole travel sentence ("teleport us to the moon") | `{ scene: Scene \| null }` where `Scene = { place: string, laws: CompiledRule[], props: { word: string, at: {x,y}, size: number }[], line: string }`. `laws` are ordinary compiled rules (at most five, one per setting, clamped to `effectRanges`); `props` are Quick, Draw! categories with where to stand them relative to the note (`at.x` ±450, `at.y` −350 … −40, y up is negative) and a size factor 0.3–2; `line` is what Kami says on arrival. `null` when the text asks to go nowhere or the model cannot make the place. Only asked for places the client's own atlas lacks (`src/rules/scenes/atlas.ts`). |
-| `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no model is configured or its image warm-up has not passed (`KAMI_LLM_URL` and `KAMI_TRANSCRIBE_MODEL`, falling back to `KAMI_LLM_MODEL`). Stateless; the client may abort a request (the read of a prefix) freely. |
+| `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no reader is configured or none has passed its start-up check (a sidecar's local reader, or the vision model — "Handwriting reading"). Stateless; the client may abort a request (the read of a prefix) freely. |
 | boards, drawings, notes, rules | see the table above | |
 | `GET /api/boards/:board/events` | `?peer=<id>` (`[a-z0-9-]{1,64}`, this device's name on the board, optional) and `?since=<seq>` or the browser's own `Last-Event-ID` on reconnect | `text/event-stream`: `retry: 1000`, then the board's changes as `id: <seq>` + `data: {"seq","type":"put","kind":"drawings"\|"notes"\|"rules","id","entity"}`, `{"seq","type":"delete","kind","id"}` or `{"seq","type":"clear"}` — first everything after `since` that the server still holds (the last 2000 per board, in memory), else `data: {"type":"resync","seq"}` meaning *reload the board, then follow from `seq`*; without `since`, `data: {"type":"cursor","seq"}` says where the feed stands. `data: {"type":"presence","peer","alice"}` for every peer on the board on connect and on every report, with `alice: null` when one leaves (its stream closed). `: keep-alive` every 5 s. Every `PUT`/`DELETE` on the board's entities and `DELETE` of the board is echoed to every stream, the sender's included; the schemas are `src/sync/wire.ts` (`feedMessageSchema`) |
 | `POST /api/boards/:board/presence` | `{ peer: string, alice: AliceSnapshot }` — `alice` is the client's own `sim` snapshot of her (`src/sim/types.ts`) with `look: { kind: "alice" }` — a drawn body stays on its own page (`ghostOf`, `src/sync/wire.ts`) | `204`; `400` `{ error }` for a bad peer or snapshot. Relayed as a `presence` message; nothing is stored |

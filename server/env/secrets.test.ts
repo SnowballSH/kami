@@ -58,6 +58,7 @@ describe("resolveSecretFiles", () => {
       "KAMI_LLM_API_KEY",
       "KAMI_TRANSCRIBE_API_KEY",
       "KAMI_RECOGNIZER_API_KEY",
+      "KAMI_HANDWRITING_API_KEY",
       "KAMI_BEAUTIFY_API_KEY",
       "MONGODB_URI",
       "KAMI_CREDENTIALS",

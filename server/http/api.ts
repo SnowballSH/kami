@@ -31,7 +31,7 @@ import {
 } from "../schemas";
 import { boardEventStream, sinceOf } from "../sync/boardEventStream";
 import { BoardFeed } from "../sync/boardFeed";
-import type { HandwritingTranscriber } from "../transcribe/llmTranscriber";
+import type { HandwritingTranscriber } from "../transcribe/types";
 import { ApiAccess, HEALTH_PATH } from "./access";
 import {
   badRequest,
