@@ -4,7 +4,7 @@
 
 ## Code and Technology Guidelines
 
-* At most 4 subagents at any time. Use Sonnet 5 for boring (i.e. verification) tasks, Fable 5.1 for hard (i.e. large engineering or design) tasks.
+* At most 4 subagents at any time. Use Sonnet 5 for boring (i.e. verification) tasks, Opus 5.5 for hard (i.e. large engineering or design) tasks.
 
 - Prefer well-known libraries over lesser-known Github repos for dependencies.
 - Prefer well-maintained open-source projects
