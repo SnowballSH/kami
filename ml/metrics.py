@@ -8,8 +8,7 @@ from itertools import pairwise
 import numpy as np
 from numpy.typing import NDArray
 
-from dataset import FULL_FRACTION
-
+FULL_FRACTION = 1.0
 TOP_K = 3
 FULL_BUCKET = "finished"
 OVERALL_BUCKET = "overall"

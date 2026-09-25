@@ -34,7 +34,7 @@ finished drawings, which is what lets one stateless model guess while the pen is
 Exports build a new immutable sibling release and atomically replace the model-name symlink only
 after compatibility checks and golden generation succeed. Readers resolve the link once; previous
 releases remain available. An existing ordinary directory is never overwritten: export under a new
-name and select it with `KAMI_EYE_MODEL_NAME`. Legacy bundles require a reviewed re-export on GX10.
+name and select it with `KAMI_EYE_MODEL_NAME`. Legacy bundles require a reviewed re-export (`ml/retrain.py export`).
 The sidecar rejects incomplete/corrupt bundles, renderer mismatches, invalid temperature, duplicate
 or empty labels, and incompatible tensor types/shapes before listening. Its health adds `artifactId`
 and `renderMatches: true`; incompatible models never report healthy.
@@ -235,4 +235,4 @@ from the reviewed table in `server/natures/`. The public route's shape does not 
 
 `KAMI_BEAUTIFY_URL` set to the sidecar's `/complete` (e.g. `http://127.0.0.1:8790/complete`) makes
 `POST /api/beautify` — which forwards `{ strokes, name }` and passes the answer through — finish drawings
-this way; `box/start.sh` sets it whenever the sidecar came up, unless it is already set.
+this way (`docs/hosting.md` lists both variables).

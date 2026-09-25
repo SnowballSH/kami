@@ -1,4 +1,4 @@
-"""Losses, batches, architectures, calibration regimes, the selection metric, the teacher store."""
+"""Architectures, calibration regimes, own-drawing recall, the selection metric, floors."""
 
 from pathlib import Path
 
@@ -8,142 +8,15 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-import torch.nn.functional as F  # noqa: E402
-from test_dataset import CATEGORIES, SAMPLES_PER_CLASS, write_synthetic_bins  # noqa: E402
-
-from batches import PairedEpochs, paired_rows, sequential_rows, shuffled_rows  # noqa: E402
 from calibrate import RegimeTemperatures, fit_regime_temperatures  # noqa: E402
-from dataset import DatasetSpec, SketchDataset, Split, build_dataset  # noqa: E402
 from export import conservative_floors, export_onnx, json_safe  # noqa: E402
 from folding import FoldMap  # noqa: E402
-from losses import Distillation, Objective, alignment_loss, distillation_loss  # noqa: E402
 from model import EMBEDDING_SIZE, Arch, SketchNet  # noqa: E402
 from render import SIZE  # noqa: E402
 from retrieval import own_drawing_recall  # noqa: E402
 from selection import selection_report  # noqa: E402
-from teacher import TeacherLogits  # noqa: E402
-from views import (  # noqa: E402
-    FINISHED_VIEW,
-    STRATIFIED_VIEW_COUNT,
-    ViewPlan,
-    ViewPolicy,
-    ViewSampler,
-)
 
 CLASS_COUNT = 5
-EARLY_WEIGHTS = (0.40, 0.28, 0.22, 0.10)
-
-
-@pytest.fixture(scope="module")
-def stratified(tmp_path_factory: pytest.TempPathFactory) -> SketchDataset:
-    root = tmp_path_factory.mktemp("stratified")
-    write_synthetic_bins(root / "bin")
-    spec = DatasetSpec(CATEGORIES, SAMPLES_PER_CLASS, views=STRATIFIED_VIEW_COUNT)
-    return build_dataset(spec, root / "bin", root / "out", workers=2)
-
-
-def test_distillation_is_zero_for_the_teachers_own_logits_and_grows_with_disagreement() -> None:
-    teacher = torch.randn(16, CLASS_COUNT)
-    assert float(distillation_loss(teacher.clone(), teacher, 2.0)) == pytest.approx(0, abs=1e-6)
-    assert float(distillation_loss(-teacher, teacher, 2.0)) > 0.1
-    shifted = teacher + 7.0
-    assert float(distillation_loss(shifted, teacher, 2.0)) == pytest.approx(0, abs=1e-5)
-
-
-def test_distillation_matches_its_definition() -> None:
-    student, teacher, tau = torch.randn(8, CLASS_COUNT), torch.randn(8, CLASS_COUNT), 2.0
-    target = F.softmax(teacher / tau, dim=1)
-    by_hand = (target * (target.log() - F.log_softmax(student / tau, dim=1))).sum(dim=1).mean()
-    assert float(distillation_loss(student, teacher, tau)) == pytest.approx(
-        float(by_hand) * tau**2, rel=1e-5
-    )
-
-
-def test_alignment_moves_only_the_prefix() -> None:
-    prefix = torch.randn(6, EMBEDDING_SIZE, requires_grad=True)
-    finished = torch.randn(6, EMBEDDING_SIZE, requires_grad=True)
-    loss = alignment_loss(prefix, finished)
-    loss.backward()
-    assert prefix.grad is not None and float(prefix.grad.abs().sum()) > 0
-    assert finished.grad is None
-    assert float(alignment_loss(finished.detach() * 3, finished)) == pytest.approx(0, abs=1e-6)
-
-
-def test_the_default_objective_is_label_smoothed_cross_entropy() -> None:
-    logits, labels = torch.randn(12, CLASS_COUNT), torch.randint(0, CLASS_COUNT, (12,))
-    embedding = torch.randn(12, EMBEDDING_SIZE)
-    loss = Objective(label_smoothing=0.1)(logits, embedding, labels, None, False)
-    assert float(loss) == pytest.approx(float(F.cross_entropy(logits, labels, label_smoothing=0.1)))
-
-
-def test_the_full_objective_adds_its_terms_and_refuses_missing_inputs() -> None:
-    logits, labels = torch.randn(12, CLASS_COUNT), torch.randint(0, CLASS_COUNT, (12,))
-    teacher, embedding = torch.randn(12, CLASS_COUNT), torch.randn(12, EMBEDDING_SIZE)
-    objective = Objective(0.0, Distillation(alpha=0.7, temperature=2.0), embed_align=0.5)
-    finished, prefix = embedding.chunk(2)
-    expected = (
-        0.3 * F.cross_entropy(logits, labels)
-        + 0.7 * distillation_loss(logits, teacher, 2.0)
-        + 0.5 * alignment_loss(prefix, finished)
-    )
-    assert float(objective(logits, embedding, labels, teacher, True)) == pytest.approx(
-        float(expected), rel=1e-5
-    )
-    with pytest.raises(ValueError):
-        objective(logits, embedding, labels, None, True)
-    with pytest.raises(ValueError):
-        objective(logits, embedding, labels, teacher, False)
-    with pytest.raises(ValueError):
-        Distillation(alpha=1.5, temperature=2.0)
-
-
-def test_single_view_epochs_are_the_batches_of_the_first_recipe() -> None:
-    indices = np.arange(3, 1000, 3, dtype=np.int64)
-    sampler = ViewSampler(ViewPlan(), 1000, seed=0)
-    rows = shuffled_rows(indices, 64, np.random.default_rng(5), sampler, 1000)
-    order = np.random.default_rng(5).permutation(indices)
-    legacy = [np.sort(order[start : start + 64]) for start in range(0, len(order), 64)]
-    assert len(rows) == len(legacy)
-    for batch_rows, chunk in zip(rows, legacy, strict=True):
-        assert np.array_equal(batch_rows.indices, chunk)
-        assert not batch_rows.views.any() and not batch_rows.paired
-
-
-def test_shuffled_rows_carry_each_drawings_view() -> None:
-    indices = np.arange(0, 400, 2, dtype=np.int64)
-    plan = ViewPlan(EARLY_WEIGHTS, ViewPolicy.FIXED)
-    expected = ViewSampler(plan, 400, seed=3).views(np.arange(400, dtype=np.int64))
-    rows = shuffled_rows(indices, 32, np.random.default_rng(0), ViewSampler(plan, 400, 3), 400)
-    assert sorted(np.concatenate([batch.indices for batch in rows]).tolist()) == indices.tolist()
-    for batch in rows:
-        assert np.array_equal(batch.views, expected[batch.indices])
-
-
-def test_paired_epochs_cover_every_drawing_once_in_two_epochs() -> None:
-    indices = np.arange(101, dtype=np.int64)
-    pairs = PairedEpochs(indices, np.random.default_rng(0))
-    first, second = pairs.next_drawings(), pairs.next_drawings()
-    assert len(first) == len(second) == pairs.drawings_per_epoch == 50
-    assert len(set(first.tolist()) | set(second.tolist())) == 100
-    assert not np.array_equal(np.sort(pairs.next_drawings()), np.sort(first))
-
-
-def test_a_paired_batch_is_each_drawing_finished_then_as_a_prefix() -> None:
-    sampler = ViewSampler(ViewPlan(EARLY_WEIGHTS, ViewPolicy.RESAMPLE), 200, seed=0)
-    rows = paired_rows(np.arange(0, 200, 2, dtype=np.int64), 32, sampler, 200)
-    assert sum(len(batch.indices) for batch in rows) == 200
-    for batch in rows:
-        half = len(batch.indices) // 2
-        assert batch.paired and len(batch.indices) <= 32
-        assert np.array_equal(batch.indices[:half], batch.indices[half:])
-        assert np.all(batch.views[:half] == FINISHED_VIEW)
-        assert np.all(batch.views[half:] > FINISHED_VIEW)
-
-
-def test_sequential_rows_keep_the_order_and_the_view() -> None:
-    rows = sequential_rows(np.arange(10, dtype=np.int64), 2, 4)
-    assert [batch.indices.tolist() for batch in rows] == [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9]]
-    assert all((batch.views == 2).all() for batch in rows)
 
 
 @pytest.mark.parametrize("arch", list(Arch))
@@ -212,6 +85,17 @@ def test_own_drawing_recall_counts_prefixes_that_find_their_finished_drawing() -
     assert own_drawing_recall(shuffled, finished, labels, k=1) < 0.3
 
 
+def test_recall_can_ask_with_some_prefixes_against_every_finished_drawing() -> None:
+    rng = np.random.default_rng(1)
+    finished = rng.normal(size=(40, 16)).astype(np.float32)
+    labels = np.repeat(np.arange(2), 20).astype(np.int64)
+    prefixes = finished[rng.permutation(40)]
+    prefixes[:5] = finished[:5]
+    asking = np.arange(40) < 5
+    assert own_drawing_recall(prefixes, finished, labels, k=1, queries=asking) == 1.0
+    assert np.isnan(own_drawing_recall(prefixes, finished, labels, queries=np.zeros(40, bool)))
+
+
 def test_the_selection_score_is_the_designers_weighted_sum_on_folded_labels() -> None:
     labels_of = ("cake", "birthday cake", "cat")
     fold_map = FoldMap.of(labels_of, {"birthday cake": "cake"})
@@ -269,29 +153,3 @@ def test_floors_are_rounded_up_and_nan_is_written_as_null() -> None:
         "b": [1.0, None],
         "c": {"d": 2},
     }
-
-
-def test_teacher_logits_are_tied_to_their_dataset(
-    stratified: SketchDataset, tmp_path: Path
-) -> None:
-    path = tmp_path / "teachers" / "peer.npy"
-    logits = TeacherLogits.create(path, "peer", stratified)
-    train = stratified.indices(Split.TRAIN)
-    logits[train] = np.arange(len(train), dtype=np.float16)[:, None]
-    del logits
-
-    teacher = TeacherLogits.load(path, stratified)
-    assert teacher.name == "peer"
-    assert teacher.logits.shape == (len(stratified.labels), len(CATEGORIES))
-    assert teacher.rows(train[:3]).tolist() == [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]]
-
-    other = SketchDataset(
-        stratified.categories,
-        stratified.images,
-        stratified.labels,
-        stratified.fractions,
-        stratified.splits,
-        stratified.key_ids[::-1].copy(),
-    )
-    with pytest.raises(ValueError):
-        TeacherLogits.load(path, other)

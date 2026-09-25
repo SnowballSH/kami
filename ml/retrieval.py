@@ -23,14 +23,21 @@ def own_drawing_recall(
     finished_embeddings: NDArray[np.floating],
     labels: NDArray[np.int64],
     k: int = RECALL_AT,
+    queries: NDArray[np.bool_] | None = None,
 ) -> float:
-    """Row i of both arrays is the same drawing; returns the share of prefixes that find it."""
-    if len(labels) == 0:
+    """Row i of both arrays is the same drawing; returns the share of prefixes that find it.
+
+    `queries` limits which prefixes ask (the gallery stays every finished drawing of the class)."""
+    asking = np.ones(len(labels), dtype=np.bool_) if queries is None else queries
+    if not asking.any():
         return float("nan")
     hits = 0
-    for label in np.unique(labels):
-        rows = np.flatnonzero(labels == label)
-        similarity = _unit_rows(prefix_embeddings[rows]) @ _unit_rows(finished_embeddings[rows]).T
-        closer = (similarity > np.diag(similarity)[:, None]).sum(axis=1)
+    for label in np.unique(labels[asking]):
+        gallery = np.flatnonzero(labels == label)
+        asked = gallery[asking[gallery]]
+        prefixes = _unit_rows(prefix_embeddings[asked])
+        similarity = prefixes @ _unit_rows(finished_embeddings[gallery]).T
+        own = similarity[np.arange(len(asked)), np.searchsorted(gallery, asked)]
+        closer = (similarity > own[:, None]).sum(axis=1)
         hits += int((closer < k).sum())
-    return hits / len(labels)
+    return hits / int(asking.sum())

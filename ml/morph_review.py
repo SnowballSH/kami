@@ -22,10 +22,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 from completion import Completion, SketchCompleter
-from dataset import Split, split_of
 from exemplar_set import load_exemplars_of_model
 from quickdraw_bin import Drawing, category_path, read_drawings
 from recognizer import SketchRecognizer
+from splits import Split, split_of
 
 Points = NDArray[np.float64]
 Picture = NDArray[np.uint8]

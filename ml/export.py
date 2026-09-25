@@ -22,7 +22,6 @@ from artifacts import (
     seal_bundle,
 )
 from calibrate import RegimeTemperatures
-from dataset import Split, split_of
 from metrics import Accuracy
 from model import SketchNet
 from quickdraw_bin import category_path, read_drawings
@@ -43,6 +42,7 @@ from render import (
     render_source_sha256,
     take_prefix,
 )
+from splits import Split, split_of
 
 GOLDEN_FILE = "golden.json"
 GOLDEN_CASES = 50

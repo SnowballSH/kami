@@ -1,4 +1,4 @@
-"""A trained artefact directory back as a PyTorch model, for teaching and for re-evaluation."""
+"""A trained artefact directory back as a PyTorch model, for re-evaluation and re-export."""
 
 from __future__ import annotations
 

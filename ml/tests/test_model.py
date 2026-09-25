@@ -7,7 +7,6 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from augment import random_affine  # noqa: E402
 from calibrate import MAX_TEMPERATURE, fit_temperature  # noqa: E402
 from export import ONNX_OPSET, export_onnx  # noqa: E402
 from model import EMBEDDING_SIZE, SketchNet  # noqa: E402
@@ -20,15 +19,6 @@ def test_forward_returns_logits_and_the_pooled_embedding() -> None:
     logits, embedding = SketchNet(CLASS_COUNT)(torch.zeros(3, 1, SIZE, SIZE))
     assert logits.shape == (3, CLASS_COUNT)
     assert embedding.shape == (3, EMBEDDING_SIZE)
-
-
-def test_augmentation_keeps_shape_range_and_most_of_the_ink() -> None:
-    images = torch.zeros(8, 1, SIZE, SIZE)
-    images[:, :, 16:48, 16:48] = 1.0
-    augmented = random_affine(images)
-    assert augmented.shape == images.shape
-    assert float(augmented.min()) >= 0.0 and float(augmented.max()) <= 1.0 + 1e-6
-    assert 0.7 < float(augmented.sum() / images.sum()) < 1.4
 
 
 def test_onnx_export_honours_the_contract_and_matches_torch(tmp_path: Path) -> None:
