@@ -121,6 +121,69 @@ describe("readConfig", () => {
     ).toEqual({ url: "https://eye.test", apiKey: "eye-key" });
   });
 
+  it("starts no sidecar of its own unless KAMI_SIDECAR is auto", () => {
+    expect(readConfig({}).sidecar).toBeNull();
+    expect(readConfig({ KAMI_SIDECAR: "off" }).sidecar).toBeNull();
+    expect(() => readConfig({ KAMI_SIDECAR: "yes" })).toThrow(/KAMI_SIDECAR must be auto or off/);
+    const image = readConfig({
+      KAMI_SIDECAR: " AUTO ",
+      KAMI_SIDECAR_PYTHON: "/app/ml/.venv/bin/python",
+      KAMI_SIDECAR_PORT: "9790",
+      KAMI_EYE_THREADS: "2",
+      KAMI_EYE_MODEL: "/models/kami-eye",
+      KAMI_HANDWRITING_MODEL: "/app/models/handwriting",
+    }).sidecar;
+    expect(image).toEqual({
+      python: "/app/ml/.venv/bin/python",
+      script: expect.stringMatching(/\/ml\/sidecar\.py$/),
+      port: 9790,
+      threads: 2,
+      eyeModel: "/models/kami-eye",
+      handwritingModel: "/app/models/handwriting",
+    });
+    const defaults = readConfig({ KAMI_SIDECAR: "auto" }).sidecar;
+    expect(defaults).toMatchObject({ port: 8790, threads: null });
+    expect(defaults?.handwritingModel).toMatch(/\/ml\/models\/handwriting$/);
+    expect(() => readConfig({ KAMI_SIDECAR: "auto", KAMI_EYE_THREADS: "0" })).toThrow(
+      /KAMI_EYE_THREADS/,
+    );
+  });
+
+  it("recognises with its own sidecar only when there is an Eye for it to serve", () => {
+    const missing = { KAMI_SIDECAR: "auto", KAMI_EYE_MODEL: "/nowhere/kami-eye" };
+    expect(readConfig(missing).recognizer).toBeNull();
+    expect(readConfig(missing).beautifier).toBeNull();
+    const present = { KAMI_SIDECAR: "auto", KAMI_EYE_MODEL: import.meta.dirname };
+    expect(readConfig(present).recognizer).toEqual({ url: "http://127.0.0.1:8790" });
+    expect(readConfig(present).beautifier).toEqual({ url: "http://127.0.0.1:8790/complete" });
+    expect(readConfig({ ...present, KAMI_RECOGNIZER_URL: "off" }).recognizer).toBeNull();
+    expect(readConfig({ ...present, KAMI_RECOGNIZER_URL: "http://eye.test" }).recognizer).toEqual({
+      url: "http://eye.test",
+    });
+  });
+
+  it("reads handwriting with a sidecar's local reader first: named, its own, then the Eye's", () => {
+    expect(readConfig({}).handwriting).toBeNull();
+    expect(readConfig(LLM).handwriting).toBeNull();
+    expect(readConfig({ KAMI_SIDECAR: "auto" }).handwriting).toEqual({
+      url: "http://127.0.0.1:8790",
+    });
+    expect(
+      readConfig({ KAMI_RECOGNIZER_URL: "https://eye.test", KAMI_RECOGNIZER_API_KEY: "eye-key" })
+        .handwriting,
+    ).toEqual({ url: "https://eye.test", apiKey: "eye-key" });
+    expect(
+      readConfig({
+        KAMI_SIDECAR: "auto",
+        KAMI_HANDWRITING_URL: "https://read.test",
+        KAMI_HANDWRITING_API_KEY: "read-key",
+      }).handwriting,
+    ).toEqual({ url: "https://read.test", apiKey: "read-key" });
+    const off = readConfig({ ...LLM, KAMI_SIDECAR: "auto", KAMI_HANDWRITING_URL: "off" });
+    expect(off.handwriting).toBeNull();
+    expect(off.transcribe).toEqual(off.llm);
+  });
+
   it("beautifies through the sidecar's /complete unless told where else, or off", () => {
     expect(readConfig({}).beautifier).toBeNull();
     expect(

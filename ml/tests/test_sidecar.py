@@ -34,6 +34,7 @@ def test_health(sidecar_url: str) -> None:
     assert isinstance(artifact_id, str) and len(artifact_id) == 64
     assert body == {
         "ok": True,
+        "capabilities": {"eye": True, "handwriting": False},
         "classes": len(TINY_LABELS),
         "model": "tiny",
         "renderMatches": True,

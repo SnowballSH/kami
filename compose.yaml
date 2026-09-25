@@ -1,9 +1,11 @@
 # Kami with podman compose, podman-compose or docker compose. docs/hosting.md walks through it.
 #
 #   cp .env.example .env            # then fill in what you want (a model URL, access mode, ...)
-#   podman compose up -d            # the game on http://localhost:8080
-#   podman compose --profile eye up -d     # + Kami's Eye; set KAMI_RECOGNIZER_URL=http://eye:8790
+#   podman compose up -d            # the game on http://localhost:8080, reading handwriting locally
 #   podman compose --profile mongo up -d   # + MongoDB 8; set MONGODB_URI=mongodb://mongo:27017
+#
+# The kami container runs its own sidecar (handwriting, and Kami's Eye once a trained model is
+# mounted at /models/kami-eye: uncomment the volume below).
 
 services:
   kami:
@@ -13,6 +15,7 @@ services:
       - "${KAMI_PUBLISH:-8080}:8080"
     volumes:
       - kami-data:/data
+      # - ${KAMI_EYE_ARTIFACTS:-./ml/artifacts/kami-eye}:/models/kami-eye:ro
     env_file:
       - path: .env
         required: false
@@ -22,22 +25,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m
-    cap_drop: [ALL]
-    security_opt:
-      - no-new-privileges:true
-    restart: unless-stopped
-
-  eye:
-    profiles: [eye]
-    image: ghcr.io/snowballsh/kami-eye:latest
-    build: ./ml
-    volumes:
-      - ${KAMI_EYE_ARTIFACTS:-./ml/artifacts/kami-eye}:/models/kami-eye:ro
-    environment:
-      KAMI_EYE_THREADS: ${KAMI_EYE_THREADS:-1}
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=16m
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true

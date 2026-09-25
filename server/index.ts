@@ -16,15 +16,18 @@ import { indexPathsFor, loadQuickdrawCorpus } from "./quickdraw/corpus";
 import { createRecognizerChain } from "./recognition/chain";
 import { createKnnRanker } from "./recognition/ranking/ranker";
 import { createLlmSceneCompiler } from "./scene/llmSceneCompiler";
+import { SidecarSupervisor } from "./sidecar/supervisor";
 import { createSketchLibrary } from "./sketch";
 import { isStageSocket, stageSockets } from "./stage/socket";
-import { createLlmTranscriber } from "./transcribe/llmTranscriber";
+import { createTranscriber } from "./transcribe/transcriber";
 
 const API_PREFIX = "/api";
 
 const log = (line: string): void => console.log(`  ${line}`);
 
 const config = readConfig();
+const sidecar = config.sidecar === null ? null : new SidecarSupervisor(config.sidecar, { log });
+sidecar?.start();
 const connection = await connectDatabase(config.database);
 
 const boards = new BoardRepository(connection.db);
@@ -45,7 +48,7 @@ const eye = createRecognizerChain(config.recognizer, knn.ranker, { log });
 const controllers = await startControllers(config.controllers, { log });
 
 const compiler = createLlmCompiler(config.llm);
-const transcriber = createLlmTranscriber(config.transcribe);
+const transcriber = createTranscriber({ sidecar: config.handwriting, vision: config.transcribe });
 const access = new ApiAccess(config.access);
 const stage = stageSockets(access);
 const api = createApi({
@@ -110,14 +113,19 @@ log(
     ? `recognition: ${knn.size} Quick, Draw! sketches; ${knn.describe()}`
     : "recognition: empty (run `bun run quickdraw:ingest`, or point KAMI_QUICKDRAW_SNAPSHOT at a corpus)",
 );
-void eye.describe().then(log);
+void (sidecar?.whenUp() ?? Promise.resolve()).then(() => eye.describe()).then(log);
 log(`beautifier: ${config.beautifier?.url ?? "none attached"}`);
 log(sketches.describe());
 log(`controllers: ${controllers.description}`);
 log("big screen: open /?screen on the monitor; it shows whichever device is drawing");
 log(`model compile: ${config.llm === null ? "off" : config.llm.model}`);
 log(
-  `handwriting: ${config.transcribe === null ? "off" : `${config.transcribe.model} (checking vision)`}`,
+  sidecar === null
+    ? "sidecar: off (KAMI_SIDECAR=auto starts ml/sidecar.py beside the server)"
+    : `sidecar: starting ${config.sidecar?.script} on ${sidecar.url}`,
+);
+log(
+  `handwriting: ${transcriber === null ? "off" : `${transcriber.candidates.join(", then ")} (checking)`}`,
 );
 
 /**
@@ -136,7 +144,11 @@ const warmUp = async (): Promise<void> => {
   }
   if (transcriber === null) return;
   const reads = await transcriber.warmUp();
-  log(`handwriting reader ${reads ? "is ready" : "disabled: image check failed"}`);
+  log(
+    reads
+      ? `handwriting reader is ready: ${transcriber.chosen}`
+      : "handwriting reader disabled: no reader passed its start-up check",
+  );
 };
 void warmUp();
 
@@ -153,9 +165,11 @@ const once = (task: () => Promise<void>): (() => Promise<void>) => {
  * survive lives in MongoDB, a process of its own, so after a short grace the server simply leaves.
  */
 const SHUTDOWN_GRACE_MS = 3000;
+const SIDECAR_GRACE_MS = 1500;
 
 const shutDown = once(async () => {
   setTimeout(() => process.exit(0), SHUTDOWN_GRACE_MS).unref();
+  await sidecar?.stop(SIDECAR_GRACE_MS);
   await controllers.close();
   await tlsServer?.stop(true);
   await server.stop(true);

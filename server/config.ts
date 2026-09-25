@@ -17,13 +17,17 @@ import { type AccessConfig, readAccessConfig } from "./http/accessConfig";
 import type { AuthenticatedEndpoint } from "./http/endpoint";
 import { parseReasoningEffort } from "./llm/chatClient";
 import { sidecarUrl } from "./recognition/sidecarUrl";
+import { type ManagedSidecarConfig, managedSidecarUrl } from "./sidecar/managed";
 
 const DEFAULT_PORT = 8787;
 const DEFAULT_CONTROLLER_UDP_PORT = 8788;
 const DEFAULT_RECOGNIZER_THREADS = 1;
+const DEFAULT_SIDECAR_PORT = 8790;
 const EMBEDDED_DATA_DIRECTORY = fileURLToPath(new URL("../.kami-data", import.meta.url));
 const QUICKDRAW_SNAPSHOT_NAME = "quickdraw.ndjson.gz";
 const BUILT_WEB_DIRECTORY = fileURLToPath(new URL("../dist", import.meta.url));
+const ML_DIRECTORY = fileURLToPath(new URL("../ml", import.meta.url));
+const SIDECAR_MODES = ["auto", "off"] as const;
 
 export interface ServerConfig {
   readonly hostname: string;
@@ -32,7 +36,12 @@ export interface ServerConfig {
   readonly tls: TlsConfig | null;
   readonly database: DatabaseOptions;
   readonly llm: LlmConfig | null;
+  /** The vision model that reads handwriting when no local reader passes its check. */
   readonly transcribe: LlmConfig | null;
+  /** The sidecar whose local models read handwriting (`POST /read`); preferred over `transcribe`. */
+  readonly handwriting: AuthenticatedEndpoint | null;
+  /** The sidecar the server starts and supervises itself (KAMI_SIDECAR=auto); null when off. */
+  readonly sidecar: ManagedSidecarConfig | null;
   /** Ask the rules model one warm-up question at start-up; off spares a paid gateway the request. */
   readonly warmUp: boolean;
   /** The built game to serve alongside the API; null in development, where Vite serves it. */
@@ -134,11 +143,72 @@ const webDirectoryFrom = (env: Env): string | null => {
 const endpointOf = (url: string, apiKey: string | undefined): AuthenticatedEndpoint =>
   apiKey === undefined ? { url } : { url, apiKey };
 
-const recognizerFrom = (env: Env): AuthenticatedEndpoint | null => {
+const positiveIntegerOrNull = (env: Env, name: string): number | null => {
+  const raw = nonEmpty(env[name]);
+  if (raw === undefined) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer, not "${raw}"`);
+  }
+  return value;
+};
+
+const pythonOfTheSidecar = (): string => {
+  const venv = join(ML_DIRECTORY, ".venv", "bin", "python");
+  return existsSync(venv) ? venv : "python3";
+};
+
+/** `KAMI_SIDECAR=auto` starts ml/sidecar.py beside the server (the image's default); off by default. */
+const managedSidecarFrom = (env: Env): ManagedSidecarConfig | null => {
+  const mode = (nonEmpty(env.KAMI_SIDECAR) ?? "off").toLowerCase();
+  if (!(SIDECAR_MODES as readonly string[]).includes(mode)) {
+    throw new Error(
+      `KAMI_SIDECAR must be ${SIDECAR_MODES.join(" or ")}, not "${env.KAMI_SIDECAR}"`,
+    );
+  }
+  if (mode === "off") return null;
+  return {
+    python: nonEmpty(env.KAMI_SIDECAR_PYTHON) ?? pythonOfTheSidecar(),
+    script: join(ML_DIRECTORY, "sidecar.py"),
+    port: portFrom(env.KAMI_SIDECAR_PORT, DEFAULT_SIDECAR_PORT),
+    threads: positiveIntegerOrNull(env, "KAMI_EYE_THREADS"),
+    eyeModel: nonEmpty(env.KAMI_EYE_MODEL) ?? join(ML_DIRECTORY, "artifacts", "kami-eye"),
+    handwritingModel:
+      nonEmpty(env.KAMI_HANDWRITING_MODEL) ?? join(ML_DIRECTORY, "models", "handwriting"),
+  };
+};
+
+/**
+ * KAMI_RECOGNIZER_URL, or the managed sidecar when it has an Eye to serve (a model at
+ * KAMI_EYE_MODEL); `off` keeps the k-NN alone either way.
+ */
+const recognizerFrom = (
+  env: Env,
+  sidecar: ManagedSidecarConfig | null,
+): AuthenticatedEndpoint | null => {
   const url = nonEmpty(env.KAMI_RECOGNIZER_URL);
-  return url === undefined || isOff(url)
-    ? null
-    : endpointOf(url, nonEmpty(env.KAMI_RECOGNIZER_API_KEY));
+  if (isOff(url)) return null;
+  if (url !== undefined) return endpointOf(url, nonEmpty(env.KAMI_RECOGNIZER_API_KEY));
+  return sidecar !== null && existsSync(sidecar.eyeModel)
+    ? { url: managedSidecarUrl(sidecar) }
+    : null;
+};
+
+/**
+ * Whose `/read` reads handwriting: KAMI_HANDWRITING_URL, else the managed sidecar, else the
+ * recogniser's sidecar (with its key); `off` leaves handwriting to the vision model alone.
+ */
+const handwritingFrom = (
+  env: Env,
+  sidecar: ManagedSidecarConfig | null,
+  recognizer: AuthenticatedEndpoint | null,
+): AuthenticatedEndpoint | null => {
+  const configured = nonEmpty(env.KAMI_HANDWRITING_URL);
+  if (isOff(configured)) return null;
+  const apiKey = nonEmpty(env.KAMI_HANDWRITING_API_KEY);
+  if (configured !== undefined) return endpointOf(configured, apiKey);
+  if (sidecar !== null) return { url: managedSidecarUrl(sidecar) };
+  return recognizer === null ? null : endpointOf(recognizer.url, apiKey ?? recognizer.apiKey);
 };
 
 /**
@@ -163,7 +233,8 @@ export const readConfig = (
 ): ServerConfig => {
   const env = resolveSecretFiles(rawEnv, readSecretFile);
   const access = readAccessConfig(env);
-  const recognizer = recognizerFrom(env);
+  const sidecar = managedSidecarFrom(env);
+  const recognizer = recognizerFrom(env, sidecar);
   const embeddedDataDirectory = nonEmpty(env.KAMI_DATA_DIR) ?? EMBEDDED_DATA_DIRECTORY;
   return {
     hostname: nonEmpty(env.KAMI_BIND_HOST) ?? (access.mode === "shared" ? "127.0.0.1" : "0.0.0.0"),
@@ -177,6 +248,8 @@ export const readConfig = (
     },
     llm: modelFrom(env, LLM_VARIABLES),
     transcribe: modelFrom(env, TRANSCRIBE_VARIABLES, LLM_VARIABLES),
+    handwriting: handwritingFrom(env, sidecar, recognizer),
+    sidecar,
     warmUp: !isOff(env.KAMI_LLM_WARM_UP),
     webDirectory: webDirectoryFrom(env),
     beautifier: beautifierFrom(env, recognizer),
