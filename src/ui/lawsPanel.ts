@@ -1,14 +1,14 @@
 import type { RuleId } from "../rules/types";
+import { DISARM_AFTER_MS } from "./armedTap";
 import { el } from "./dom";
 import { activateOnTap } from "./tap";
 import type { LawListing, LawsPanel, LawsPanelHandlers } from "./types";
 
 const HEADING = "laws in force";
-const REPEAL_HINT = "tap a law to repeal it";
+const REPEAL_HINT = "tap a law twice to repeal it";
 const EMPTY_HINT = "None yet — write one, like 'gravity is weaker'.";
 const CONFIRM_LABEL = "tap again to repeal";
 const CONFIRMING_CLASS = "is-confirming";
-const DISARM_AFTER_MS = 3000;
 
 /**
  * The standing laws of the board, newest last, each a button. The first tap arms a law, the

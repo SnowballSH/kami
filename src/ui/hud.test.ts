@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import type { WalkIntent } from "../sim/types";
+import { DISARM_AFTER_MS } from "./armedTap";
 import { DomHud } from "./hud";
 import type { BoardListing, HudHandlers, Tool } from "./types";
 import { ZOOM_STEP } from "./zoomControls";
@@ -92,12 +93,40 @@ describe("DomHud", () => {
       expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-erase")]);
     });
 
-    it("shows a clear-page button that calls the clear handler", () => {
+    it("clears the page only on a second tap of the clear-page button", () => {
       const { root, handlers } = setup();
       const clear = find<HTMLButtonElement>(root, ".kami-clear-page");
       expect(clear.getAttribute("aria-label")).toBe("Clear the page");
+
+      tap(clear);
+      expect(handlers.onClearBoard).not.toHaveBeenCalled();
+      expect(clear.getAttribute("aria-label")).toBe("Tap again to clear the page");
+      expect(clear.classList.contains("is-confirming")).toBe(true);
+
       tap(clear);
       expect(handlers.onClearBoard).toHaveBeenCalledOnce();
+      expect(clear.getAttribute("aria-label")).toBe("Clear the page");
+      expect(clear.classList.contains("is-confirming")).toBe(false);
+    });
+
+    it("forgets a half-confirmed page clear after a few seconds or when a tool is picked", () => {
+      vi.useFakeTimers();
+      try {
+        const { root, handlers } = setup();
+        const clear = find<HTMLButtonElement>(root, ".kami-clear-page");
+
+        tap(clear);
+        vi.advanceTimersByTime(DISARM_AFTER_MS);
+        tap(clear);
+        expect(handlers.onClearBoard).not.toHaveBeenCalled();
+
+        tap(find(root, ".kami-tool-erase"));
+        tap(clear);
+        expect(handlers.onClearBoard).not.toHaveBeenCalled();
+        expect(clear.classList.contains("is-confirming")).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("switches tools with D, T, E and H", () => {
@@ -132,6 +161,19 @@ describe("DomHud", () => {
 
       expect(handlers.onToolChanged.mock.calls).toEqual([["pan"], ["erase"]]);
       expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-erase")]);
+    });
+
+    it("leaves Space to a focused control instead of panning", () => {
+      const { root, handlers } = setup();
+      const recenter = find<HTMLButtonElement>(root, ".kami-recenter");
+      recenter.focus();
+
+      const down = key("keydown", { key: " " });
+      recenter.dispatchEvent(down);
+      recenter.dispatchEvent(key("keyup", { key: " " }));
+
+      expect(down.defaultPrevented).toBe(false);
+      expect(handlers.onToolChanged).not.toHaveBeenCalled();
     });
 
     it("lets go of a held Space when the window loses focus", () => {
@@ -391,6 +433,18 @@ describe("DomHud", () => {
       expect(toggle.getAttribute("aria-pressed")).toBe("false");
       toggle.click();
       expect(handlers.onAutopilotToggled).toHaveBeenLastCalledWith(true);
+    });
+
+    it("hides the self-walking switch in a mode that forbids it", () => {
+      const { root, hud } = setup();
+      const toggle = find<HTMLButtonElement>(root, ".kami-autopilot");
+      expect(toggle.hidden).toBe(false);
+
+      hud.offerAutopilot(false);
+      expect(toggle.hidden).toBe(true);
+
+      hud.offerAutopilot(true);
+      expect(toggle.hidden).toBe(false);
     });
   });
 
