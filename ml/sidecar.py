@@ -289,6 +289,11 @@ def create_server(
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     settings = SidecarSettings.from_env()
+    if not settings.model_dir.exists():
+        raise SystemExit(
+            f"no model at {settings.model_dir}: mount an exported Kami's Eye there "
+            f"or point {MODEL_ENV} at one (ml/CONTRACT.md)"
+        )
     server = create_server(
         settings.model_dir, settings.port, host=settings.host, threads=settings.threads
     )
