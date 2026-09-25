@@ -42,6 +42,8 @@ const API_VERSION_PATH = "/v1";
 const DEFAULT_REASONING_EFFORT: ReasoningEffort = "none";
 const REJECTED_REQUEST = 400;
 const REASONING_BLOCK = /<think>[\s\S]*?(<\/think>|$)/gi;
+const JSON_MENTION = /json/i;
+const JSON_REMINDER = "Reply with a JSON object.";
 
 const chatResponseSchema = z.object({
   choices: z.array(z.object({ message: z.object({ content: z.string().nullable() }) })).min(1),
@@ -108,6 +110,36 @@ const responseFormatOf = (
   return { response_format: { type: "json_object" } };
 };
 
+const textOf = ({ content }: ChatMessage): string =>
+  typeof content === "string"
+    ? content
+    : content.map((part) => (part.type === "text" ? part.text : "")).join(" ");
+
+const withReminder = ({ role, content }: ChatMessage): ChatMessage => ({
+  role,
+  content:
+    typeof content === "string"
+      ? `${content}\n\n${JSON_REMINDER}`
+      : [...content, { type: "text", text: JSON_REMINDER }],
+});
+
+/**
+ * OpenAI refuses `json_object` mode unless the input says "JSON", and a gateway to its Responses
+ * API moves system messages out of the input into `instructions`: so the word must be in a user
+ * message. When none says it, the last user message is told.
+ */
+const mentioningJson = (messages: readonly ChatMessage[]): readonly ChatMessage[] => {
+  if (messages.some((message) => message.role !== "system" && JSON_MENTION.test(textOf(message))))
+    return messages;
+  const last = messages.findLastIndex((message) => message.role === "user");
+  return last === -1
+    ? [...messages, { role: "user", content: JSON_REMINDER }]
+    : messages.with(last, withReminder(messages[last] as ChatMessage));
+};
+
+const isJsonObjectMode = ({ response_format }: Readonly<Record<string, unknown>>): boolean =>
+  (response_format as { type?: string } | undefined)?.type === "json_object";
+
 /**
  * One OpenAI-compatible `/v1/chat/completions` endpoint: vLLM, Ollama, llama.cpp, OpenAI itself
  * or a gateway in front of Anthropic. Every failure — timeout, HTTP error, garbage — is `null`.
@@ -161,6 +193,7 @@ export class ChatClient {
     { maxTokens, timeoutMs, jsonSchema, signal }: AskOptions,
     shape: RequestShape,
   ): Promise<Response> {
+    const responseFormat = responseFormatOf(shape, jsonSchema);
     return this.#fetch(chatCompletionsUrl(this.#config.url), {
       method: "POST",
       headers: this.#headers(),
@@ -169,8 +202,8 @@ export class ChatClient {
         ...(shape.temperature ? { temperature: 0 } : {}),
         [shape.tokenLimit]: maxTokens,
         ...(shape.reasoning && this.#effort !== null ? { reasoning_effort: this.#effort } : {}),
-        ...responseFormatOf(shape, jsonSchema),
-        messages,
+        ...responseFormat,
+        messages: isJsonObjectMode(responseFormat) ? mentioningJson(messages) : messages,
       }),
       signal: withTimeout(timeoutMs, signal),
     });
