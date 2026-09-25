@@ -43,7 +43,7 @@ const DEFAULT_REASONING_EFFORT: ReasoningEffort = "none";
 const REJECTED_REQUEST = 400;
 const REASONING_BLOCK = /<think>[\s\S]*?(<\/think>|$)/gi;
 const JSON_MENTION = /json/i;
-const JSON_REMINDER: ChatMessage = { role: "system", content: "Reply with a JSON object." };
+const JSON_REMINDER = "Reply with a JSON object.";
 
 const chatResponseSchema = z.object({
   choices: z.array(z.object({ message: z.object({ content: z.string().nullable() }) })).min(1),
@@ -115,11 +115,27 @@ const textOf = ({ content }: ChatMessage): string =>
     ? content
     : content.map((part) => (part.type === "text" ? part.text : "")).join(" ");
 
-/** OpenAI refuses `json_object` mode unless some message says "JSON". */
-const mentioningJson = (messages: readonly ChatMessage[]): readonly ChatMessage[] =>
-  messages.some((message) => JSON_MENTION.test(textOf(message)))
-    ? messages
-    : [JSON_REMINDER, ...messages];
+const withReminder = ({ role, content }: ChatMessage): ChatMessage => ({
+  role,
+  content:
+    typeof content === "string"
+      ? `${content}\n\n${JSON_REMINDER}`
+      : [...content, { type: "text", text: JSON_REMINDER }],
+});
+
+/**
+ * OpenAI refuses `json_object` mode unless the input says "JSON", and a gateway to its Responses
+ * API moves system messages out of the input into `instructions`: so the word must be in a user
+ * message. When none says it, the last user message is told.
+ */
+const mentioningJson = (messages: readonly ChatMessage[]): readonly ChatMessage[] => {
+  if (messages.some((message) => message.role !== "system" && JSON_MENTION.test(textOf(message))))
+    return messages;
+  const last = messages.findLastIndex((message) => message.role === "user");
+  return last === -1
+    ? [...messages, { role: "user", content: JSON_REMINDER }]
+    : messages.with(last, withReminder(messages[last] as ChatMessage));
+};
 
 const isJsonObjectMode = ({ response_format }: Readonly<Record<string, unknown>>): boolean =>
   (response_format as { type?: string } | undefined)?.type === "json_object";

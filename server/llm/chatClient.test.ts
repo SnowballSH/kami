@@ -119,7 +119,7 @@ describe("ChatClient against servers with different tastes", () => {
     expect(bodies[0]?.response_format).toEqual({ type: "json_object" });
   });
 
-  it("says JSON in the messages whenever it asks for a JSON object, as OpenAI insists", async () => {
+  it("says JSON in a user message whenever it asks for a JSON object, as OpenAI insists", async () => {
     const bodies: Body[] = [];
     const client = new ChatClient(
       CONFIG,
@@ -131,15 +131,22 @@ describe("ChatClient against servers with different tastes", () => {
         bodies,
       ),
     );
-    await client.ask(MESSAGES, OPTIONS);
-    await client.ask([{ role: "system", content: "Reply in JSON." }, ...MESSAGES], OPTIONS);
+    const system = { role: "system", content: "Reply in JSON." } as const;
+    const image = { type: "image_url", image_url: { url: "data:," } } as const;
+    await client.ask([system, ...MESSAGES], OPTIONS);
+    await client.ask([system, { role: "user", content: [image] }], OPTIONS);
+    await client.ask([system, { role: "user", content: "json please" }], OPTIONS);
     const sent = bodies.map((body) => body.messages);
-    expect(sent[0]).toEqual(MESSAGES);
+    expect(sent[0]).toEqual([system, ...MESSAGES]);
     expect(sent[1]).toEqual([
-      { role: "system", content: "Reply with a JSON object." },
-      ...MESSAGES,
+      system,
+      { role: "user", content: "hello\n\nReply with a JSON object." },
     ]);
-    expect(sent[2]).toEqual([{ role: "system", content: "Reply in JSON." }, ...MESSAGES]);
+    expect(sent[2]).toEqual([
+      system,
+      { role: "user", content: [image, { type: "text", text: "Reply with a JSON object." }] },
+    ]);
+    expect(sent[3]).toEqual([system, { role: "user", content: "json please" }]);
   });
 
   it("gives up after a bounded number of attempts on a request that is simply bad", async () => {

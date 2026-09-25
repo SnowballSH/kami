@@ -349,8 +349,11 @@ The schema each client sends is written for the strictest of them, OpenAI's stri
 outputs (`llm/strictJsonSchema.ts`): `anyOf` instead of `oneOf`, every object closed and every
 property required, an optional field spelled as a nullable one (so the reply schemas take `null`
 wherever a field may be left out), no string-length bounds. And OpenAI refuses `json_object` mode
-unless some message says "JSON", so the client adds a one-line system reminder when none does. A
-server that still refuses a step falls down the same chain.
+unless the input says "JSON". The system prompts say it, but a gateway that speaks OpenAI's
+Responses API upstream (modelgate does, for its OpenAI models) moves system messages out of the
+input into `instructions`, where that check does not look; so in `json_object` mode, when no user
+message mentions JSON, the client adds "Reply with a JSON object." to the last one. A server that
+still refuses a step falls down the same chain.
 
 ## Handwriting reading
 

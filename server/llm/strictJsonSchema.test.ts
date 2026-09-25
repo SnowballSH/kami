@@ -38,26 +38,34 @@ const strictViolations = (schema: JsonSchema): readonly string[] =>
 
 type Body = {
   response_format?: { type: string; json_schema?: { schema: JsonSchema } };
-  messages: { content: string | { type: string; text?: string }[] }[];
+  messages: { role: string; content: string | { type: string; text?: string }[] }[];
 };
 
-const mentionsJson = ({ messages }: Body): boolean =>
-  messages.some(({ content }) =>
-    /json/i.test(
-      typeof content === "string" ? content : content.map((part) => part.text ?? "").join(" "),
-    ),
-  );
+/** Gateways to the Responses API move system messages into `instructions`, where OpenAI's check for "JSON" does not look. */
+const inputMentionsJson = ({ messages }: Body): boolean =>
+  messages
+    .filter(({ role }) => role !== "system")
+    .some(({ content }) =>
+      /json/i.test(
+        typeof content === "string" ? content : content.map((part) => part.text ?? "").join(" "),
+      ),
+    );
 
-/** A server as strict as OpenAI about response formats, answering `reply` to what it accepts. */
-const openAiLike = (reply: string, bodies: Body[]): FetchLike => {
+/**
+ * A server as strict as OpenAI behind a Responses-API gateway, answering `reply` to what it
+ * accepts; `schemas: false` stands for one that takes no json_schema at all.
+ */
+const openAiLike = (reply: string, bodies: Body[], { schemas = true } = {}): FetchLike => {
   return async (_url, init) => {
     const body = JSON.parse(String(init?.body)) as Body;
     bodies.push(body);
     const format = body.response_format;
     const complaints =
       format?.type === "json_schema"
-        ? strictViolations(format.json_schema?.schema ?? {})
-        : format?.type === "json_object" && !mentionsJson(body)
+        ? schemas
+          ? strictViolations(format.json_schema?.schema ?? {})
+          : ["'json_schema' is not supported"]
+        : format?.type === "json_object" && !inputMentionsJson(body)
           ? ["'messages' must contain the word 'json' in some form, to use 'response_format'"]
           : [];
     return complaints.length > 0
@@ -126,5 +134,22 @@ describe("every model client against a server as strict as OpenAI", () => {
     expect(await transcriber?.transcribe(HI_STROKES)).toBe("hi");
     expect(bodies).toHaveLength(1);
     expect(bodies[0]?.response_format?.type).toBe("json_schema");
+  });
+
+  it("says JSON outside the system prompt when it falls back to a JSON object", async () => {
+    const bodies: Body[] = [];
+    const reply = '{"effect":null,"place":null,"text":"hi"}';
+    const server = openAiLike(reply, bodies, { schemas: false });
+    await createLlmCompiler(CONFIG, server).compile("mars");
+    await createLlmSceneCompiler(CONFIG, () => true, server).compile("take us to mars");
+    expect(await createLlmTranscriber(CONFIG, server)?.transcribe(HI_STROKES)).toBe("hi");
+    expect(bodies.map((body) => body.response_format?.type)).toEqual([
+      "json_schema",
+      "json_object",
+      "json_schema",
+      "json_object",
+      "json_schema",
+      "json_object",
+    ]);
   });
 });
