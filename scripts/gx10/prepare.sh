@@ -53,10 +53,11 @@ bunx vite build --logLevel warn
 
 echo "→ Bundling the server into single files"
 bun build server/index.ts --target=bun --outfile="$BUILD/server.js" --external mongodb-memory-server >/dev/null
-bun build server/quickdraw/snapshot.ts --target=bun --outfile="$BUILD/snapshot.js" --external mongodb-memory-server >/dev/null
 
-echo "→ Exporting what Kami learned from Quick, Draw!"
-bun server/quickdraw/snapshot.ts export "$BUILD/quickdraw.ndjson.gz"
+echo "→ The Quick, Draw! corpus Kami learns from"
+CORPUS=${KAMI_QUICKDRAW_SNAPSHOT:-.kami-data/quickdraw.ndjson.gz}
+[ -s "$CORPUS" ] || { echo "✗ $CORPUS is missing — run 'bun run quickdraw:ingest' first (with internet)."; exit 1; }
+cp "$CORPUS" "$BUILD/quickdraw.ndjson.gz"
 
 echo "→ Runtimes for the box (Linux arm64)"
 fetch_once "https://github.com/oven-sh/bun/releases/download/bun-v$BUN_VERSION/bun-linux-aarch64.zip" \

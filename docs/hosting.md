@@ -22,18 +22,21 @@ podman run -d --name kami -p 8080:8080 -v kami-data:/data \
   ghcr.io/snowballsh/kami:latest
 ```
 
-Open <http://localhost:8080>. The first start imports the sketches into the empty database, which
-takes a minute; `podman logs -f kami` shows it, and `GET /api/health` answers `{"ok":true}` once
-the server listens. Boards live in the `kami-data` volume; nothing else is written, which is why
-`--read-only` works (mongod keeps a socket in `/tmp`, hence the tmpfs).
+Open <http://localhost:8080>. The sketches and their precomputed features are baked into the
+image, so the server listens about a second after the container starts (`podman logs -f kami`
+shows it) and `GET /api/health` then answers `{"ok":true}`. Boards live in the `kami-data`
+volume; nothing else is written, which is why `--read-only` works (mongod keeps a socket in `/tmp`,
+hence the tmpfs). A volume from an older image still holds a `quickdraw` collection; the first start
+drops it and logs that it did.
 
 The image runs as uid/gid 10001 and needs no capability. Rootless podman maps that user onto your
 own with `--userns=keep-id:uid=10001,gid=10001`, which also keeps bind-mounted secret files
 owner-readable. `docker run` takes the same flags.
 
 Build it yourself with `podman build -t kami .` (about ten minutes: it builds the game, fetches
-mongod and downloads 300 drawings for each of the 345 Quick, Draw! categories). `--build-arg
-QUICKDRAW_SAMPLES_PER_CATEGORY=100` makes a smaller, quicker image.
+mongod, downloads 300 drawings for each of the 42 Quick, Draw! categories the k-NN knows and
+precomputes their features). `--build-arg QUICKDRAW_SAMPLES_PER_CATEGORY=100` makes a smaller,
+quicker image.
 
 ## Compose
 
@@ -86,10 +89,10 @@ of the command line with `KAMI_LLM_API_KEY_FILE`.
 
 | Variable | Default | What |
 |---|---|---|
-| `KAMI_DATA_DIR` | `/data` | Where the embedded mongod keeps boards and sketches. Mount a volume here. |
+| `KAMI_DATA_DIR` | `/data` | Where the embedded mongod keeps boards. Mount a volume here. |
 | `KAMI_MONGO_CACHE_GB` | `0.25` | The embedded mongod's WiredTiger cache; its main use of memory. |
 | `MONGODB_URI` | unset | Use this MongoDB instead of starting one; `/data` is then unused. |
-| `KAMI_QUICKDRAW_SNAPSHOT` | baked into the image | A gzipped NDJSON Quick, Draw! snapshot imported at startup if the sketch collection is empty. `bun run quickdraw:snapshot <file>` builds one. |
+| `KAMI_QUICKDRAW_SNAPSHOT` | baked into the image | The Quick, Draw! corpus: a read-only gzipped NDJSON file, which `bun run quickdraw:ingest` writes. Features for another corpus are computed at start (a few seconds) and cached beside it, or in `/data` if that is read-only. |
 
 ### Access
 
@@ -120,13 +123,18 @@ KAMI_CREDENTIALS_FILE=/run/secrets/kami-credentials
 |---|---|---|
 | `KAMI_MONGO_CACHE_GB` | `0.25` | Lower to `0.1` on a very small host; boards are tiny. |
 | `KAMI_MODEL_CONCURRENCY` | server default | How many model calls may be in flight; match your endpoint. |
-| `BUN_OPTIONS` | none | Flags for Bun itself; `--smol` shrinks its heap at some cost in speed. |
+| `BUN_OPTIONS` | none | Flags for Bun itself. `--smol` made no measurable difference to Kami's idle memory. |
 | `KAMI_EYE_THREADS` (eye image) | `1` | ONNX Runtime threads. `1` on a shared host; more only if you have idle cores. |
 
-**Small shared CPU hosts.** The container's memory is Bun with the k-NN features in memory plus
-the embedded mongod, whose WiredTiger cache is the one knob (`KAMI_MONGO_CACHE_GB`). Start from a
-`MemoryMax` of 768 MB; on a tighter budget set `KAMI_MONGO_CACHE_GB=0.1` and `BUN_OPTIONS=--smol`,
-and measure with `podman stats --no-stream` after the first start has imported the sketches. The
+**Small shared CPU hosts.** Measured idle, freshly started with an empty volume (rootless podman,
+arm64): the Bun server about 180–200 MB resident, of which 65 MB is the k-NN's feature matrix and
+45 MB Bun's own executable; the embedded mongod about 140 MB, of which some 115 MB are pages of its
+executable (file-backed, so the kernel can reclaim them) and under 30 MB its own memory; and 15 MB for
+the watchdog `mongodb-memory-server` keeps beside it. That is about 350 MB of resident memory, and
+`podman stats` reports a little more because it also counts the page cache of files the container
+has read. Boards are tiny, so mongod's WiredTiger cache (`KAMI_MONGO_CACHE_GB`, already at its
+0.25 GB minimum) stays nearly empty. A `MemoryMax` of 512 MB leaves room for the static site's
+compressed-file cache and bursts of drawings; check with `podman stats --no-stream`. The
 Eye's RSS was measured at about 180–210 MB with an exemplar set loaded
 ([ml/README.md](../ml/README.md)). One CPU is enough: recognition takes milliseconds and the model
 calls wait on the network, not the CPU. Neither container needs a GPU.

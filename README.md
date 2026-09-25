@@ -57,7 +57,7 @@ live, whichever device is being drawn on ([docs/screen.md](docs/screen.md)).
 
 ```bash
 bun install
-bun run quickdraw:ingest   # once: a small set of Quick, Draw! sketches for offline recognition
+bun run quickdraw:ingest   # once: a small set of Quick, Draw! sketches for offline recognition (.kami-data/)
 bun run dev                # the game on :5173, the API and MongoDB on :8787
 ```
 

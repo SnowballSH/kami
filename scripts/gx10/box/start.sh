@@ -92,13 +92,6 @@ runtime/mongodb/bin/mongod --dbpath "$PWD/data" --bind_ip 127.0.0.1 --port "$MON
   --fork --logpath "$PWD/logs/mongod.log" --pidfilepath "$PWD/run/mongod.pid" >/dev/null
 wait_for_port "$MONGO_PORT" || { echo "✗ mongod did not start:"; tail -5 logs/mongod.log; exit 1; }
 
-snapshot=app/quickdraw.ndjson.gz
-stamp=$(cat "$snapshot" app/snapshot.js | cksum | cut -d' ' -f1)
-if [ "$(cat run/quickdraw.stamp 2>/dev/null)" != "$stamp" ]; then
-  runtime/bun app/snapshot.js import "$snapshot" | sed 's/^/  /'
-  echo "$stamp" > run/quickdraw.stamp
-fi
-
 if [ -z "$EYE_MODEL" ] || [ ! -s app/eye/sidecar.py ] || [ -z "$EYE_PYTHON" ]; then
   echo "  eye: no trained model (or its Python packages) on this box — the k-NN recognises sketches"
 elif start_eye "$EYE_MODEL" "$EYE_PYTHON"; then
@@ -128,7 +121,8 @@ fi
 KAMI_TLS_CERT=
 KAMI_TLS_KEY=
 ensure_tls_cert
-PORT=$PORT KAMI_WEB_DIR="$PWD/dist" KAMI_LLM_URL="http://127.0.0.1:11434" KAMI_LLM_MODEL="$MODEL" \
+PORT=$PORT KAMI_WEB_DIR="$PWD/dist" KAMI_QUICKDRAW_SNAPSHOT="$PWD/app/quickdraw.ndjson.gz" \
+  KAMI_DATA_DIR="$PWD/data" KAMI_LLM_URL="http://127.0.0.1:11434" KAMI_LLM_MODEL="$MODEL" \
   KAMI_TLS_CERT="$KAMI_TLS_CERT" KAMI_TLS_KEY="$KAMI_TLS_KEY" KAMI_TLS_PORT="$TLS_PORT" \
   nohup runtime/bun app/server.js > logs/server.log 2>&1 &
 echo $! > run/server.pid

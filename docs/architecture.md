@@ -237,7 +237,7 @@ Every control activates on `pointerup` (`activateOnTap`), so Apple Pencil, finge
 
 ## server/
 
-Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_URI` (Atlas at the hackathon); without it, `mongodb-memory-server` runs a real `mongod` with its data in `.kami-data/` so memory survives restarts with zero setup. Database `kami`.
+Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_URI` (Atlas at the hackathon); without it, `mongodb-memory-server` runs a real `mongod` with its data in `.kami-data/` so memory survives restarts with zero setup. Database `kami`; it holds boards only. The Quick, Draw! corpus the k-NN learns from is a read-only file beside it (`.kami-data/quickdraw.ndjson.gz`, `KAMI_QUICKDRAW_SNAPSHOT`), its features cached in `quickdraw.features.bin` ([server/README.md](../server/README.md#quick-draw)).
 
 | Route | |
 |---|---|
@@ -256,9 +256,9 @@ These are summaries; request limits and full wire shapes live in the
 [API contract](../server/README.md#api-contract-what-the-client-may-rely-on).
 
 **Recognition.** `KAMI_RECOGNIZER_URL` selects Kami's Eye on GX10, with a short-timeout/circuit-breaker
-fallback to the built-in Quick, Draw! k-NN. Without a sidecar, k-NN answers alone; without ingested
-samples it returns no guesses and the Cat uses geometry. `quickdraw:ingest` defaults to 300 samples
-for each of 42 curated categories; restart the API to load a changed index. The reviewed nature
+fallback to the built-in Quick, Draw! k-NN. Without a sidecar, k-NN answers alone; without a
+corpus file it returns no guesses and the Cat uses geometry. `quickdraw:ingest` writes 300 samples
+for each of 42 curated categories to that file by default; restart the API to load a changed corpus. The reviewed nature
 table covers all 345 categories, independently of which recognizer supplied them. Aliases are
 merged before selecting the best three and calculating certainty.
 

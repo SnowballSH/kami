@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Kami in one image: the API server, the built game, an embedded mongod and the Quick, Draw!
-# sketches it recognises with. docs/hosting.md explains how to run it.
+# sketches it recognises with, their features precomputed. docs/hosting.md explains how to run it.
 
 ARG BUN_VERSION=1.4.2
 ARG MONGOD_VERSION=8.2.6
@@ -15,7 +15,9 @@ COPY . .
 RUN bun run build
 
 ARG QUICKDRAW_SAMPLES_PER_CATEGORY
-RUN bun server/quickdraw/buildSnapshot.ts /out/data/quickdraw.ndjson.gz "${QUICKDRAW_SAMPLES_PER_CATEGORY}"
+RUN KAMI_DATA_DIR=/out/data KAMI_QUICKDRAW_SNAPSHOT=/out/data/quickdraw.ndjson.gz \
+    bun server/quickdraw/ingest.ts "${QUICKDRAW_SAMPLES_PER_CATEGORY}" \
+    && test -s /out/data/quickdraw.features.bin
 
 ARG MONGOD_VERSION
 ENV MONGOMS_VERSION=${MONGOD_VERSION} \
@@ -47,7 +49,7 @@ COPY --from=build /app/package.json /app/bun.lock ./
 COPY --from=build /app/server ./server
 COPY --from=build /app/src ./src
 COPY --from=build /app/dist ./dist
-COPY --from=build /out/data/quickdraw.ndjson.gz /app/data/quickdraw.ndjson.gz
+COPY --from=build /out/data/quickdraw.ndjson.gz /out/data/quickdraw.features.bin /app/data/
 
 ARG MONGOD_VERSION
 ENV NODE_ENV=production \

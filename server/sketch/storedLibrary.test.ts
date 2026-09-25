@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import type { StoredSketch } from "../quickdraw/sampleRepository";
+import type { StoredSketch } from "../quickdraw/snapshotFile";
 import { FirstAnswering, StoredLibrary } from "./storedLibrary";
 import type { Sketch, SketchLibrary } from "./types";
 

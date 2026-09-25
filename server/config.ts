@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { LlmConfig } from "./compile/llmCompiler";
 import { AUTO_SERIAL_DEVICE, type ControllerTransportConfig } from "./controllers/types";
@@ -21,6 +22,7 @@ const DEFAULT_PORT = 8787;
 const DEFAULT_CONTROLLER_UDP_PORT = 8788;
 const DEFAULT_RECOGNIZER_THREADS = 1;
 const EMBEDDED_DATA_DIRECTORY = fileURLToPath(new URL("../.kami-data", import.meta.url));
+const QUICKDRAW_SNAPSHOT_NAME = "quickdraw.ndjson.gz";
 const BUILT_WEB_DIRECTORY = fileURLToPath(new URL("../dist", import.meta.url));
 
 export interface ServerConfig {
@@ -41,8 +43,8 @@ export interface ServerConfig {
   readonly recognizer: AuthenticatedEndpoint | null;
   /** Worker threads ranking sketches for the built-in k-NN; 0 ranks on the event loop. */
   readonly recognizerThreads: number;
-  /** A gzipped NDJSON Quick, Draw! snapshot to import when the collection is empty at start-up. */
-  readonly quickdrawSnapshot: string | null;
+  /** The Quick, Draw! corpus the k-NN learns from: a gzipped NDJSON snapshot (`quickdraw/snapshotFile.ts`). */
+  readonly quickdrawSnapshot: string;
   /** The Eye's exemplar set (ml/CONTRACT.md), whose drawings are summoned by name; null summons from Quick, Draw! itself. */
   readonly sketchesDirectory: string | null;
   /** How physical controllers reach the hub (docs/controllers.md); a `null` transport is switched off. */
@@ -162,6 +164,7 @@ export const readConfig = (
   const env = resolveSecretFiles(rawEnv, readSecretFile);
   const access = readAccessConfig(env);
   const recognizer = recognizerFrom(env);
+  const embeddedDataDirectory = nonEmpty(env.KAMI_DATA_DIR) ?? EMBEDDED_DATA_DIRECTORY;
   return {
     hostname: nonEmpty(env.KAMI_BIND_HOST) ?? (access.mode === "shared" ? "127.0.0.1" : "0.0.0.0"),
     access,
@@ -169,7 +172,7 @@ export const readConfig = (
     tls: tlsFrom(env),
     database: {
       uri: nonEmpty(env.MONGODB_URI),
-      embeddedDataDirectory: nonEmpty(env.KAMI_DATA_DIR) ?? EMBEDDED_DATA_DIRECTORY,
+      embeddedDataDirectory,
       embeddedCacheGb: positiveNumberFrom(env.KAMI_MONGO_CACHE_GB, DEFAULT_EMBEDDED_CACHE_GB),
     },
     llm: modelFrom(env, LLM_VARIABLES),
@@ -182,7 +185,8 @@ export const readConfig = (
       env.KAMI_RECOGNIZER_THREADS,
       DEFAULT_RECOGNIZER_THREADS,
     ),
-    quickdrawSnapshot: nonEmpty(env.KAMI_QUICKDRAW_SNAPSHOT) ?? null,
+    quickdrawSnapshot:
+      nonEmpty(env.KAMI_QUICKDRAW_SNAPSHOT) ?? join(embeddedDataDirectory, QUICKDRAW_SNAPSHOT_NAME),
     sketchesDirectory: nonEmpty(env.KAMI_SKETCHES) ?? null,
     controllers: controllersFrom(env, access),
   };

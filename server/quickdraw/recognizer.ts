@@ -1,12 +1,13 @@
 import type { Stroke } from "../../src/core/geometry";
 import { floorFor } from "../recognition/certainty";
 import type { CertaintyFloors, RankedCategory, RankOptions, Reading } from "../recognition/types";
-import { computeFeature, FEATURE_LENGTH } from "./feature";
+import { computeFeature } from "./feature";
 import {
   buildFeatureMatrix,
   type FeatureMatrix,
   isFeatureMatrix,
   type LabelledFeature,
+  rowCountOf,
 } from "./featureMatrix";
 
 export type { FeatureMatrix, LabelledFeature, RankedCategory, RankOptions };
@@ -67,7 +68,7 @@ export const statedGuesses = (
 };
 
 /**
- * Cosine k-NN over unit-length sketch features, held in one flat matrix for speed. Whole drawings
+ * Cosine k-NN over unit-length sketch features, held in one sparse matrix for speed. Whole drawings
  * come first in the matrix, so a finished sketch is compared with them alone and a sketch still
  * under the pen with every row, half-finished ones included.
  */
@@ -89,7 +90,7 @@ export class QuickdrawRecognizer {
   }
 
   get rows(): number {
-    return this.#matrix.rowCategories.length;
+    return rowCountOf(this.#matrix);
   }
 
   recognize(strokes: readonly Stroke[], options?: RankOptions): readonly string[] {
@@ -137,15 +138,15 @@ export class QuickdrawRecognizer {
   }
 
   #nearest(feature: Float32Array, rows: number): readonly Neighbour[] {
-    const matrix = this.#matrix.features;
+    const { rowStarts, cells, values } = this.#matrix;
     const capacity = this.#options.neighbours;
     const nearest: Neighbour[] = [];
     let weakest = Number.NEGATIVE_INFINITY;
     for (let row = 0; row < rows; row += 1) {
-      const offset = row * FEATURE_LENGTH;
+      const end = rowStarts[row + 1] ?? 0;
       let similarity = 0;
-      for (let cell = 0; cell < FEATURE_LENGTH; cell += 1) {
-        similarity += (matrix[offset + cell] ?? 0) * (feature[cell] ?? 0);
+      for (let entry = rowStarts[row] ?? 0; entry < end; entry += 1) {
+        similarity += (values[entry] ?? 0) * (feature[cells[entry] ?? 0] ?? 0);
       }
       if (similarity <= weakest) continue;
       insertNeighbour(nearest, { index: row, similarity }, capacity);
