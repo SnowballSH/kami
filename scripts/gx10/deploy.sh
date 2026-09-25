@@ -13,7 +13,6 @@ PORT=8787
 BUILD=.gx10/build
 CACHE=.gx10/cache
 LOG=.gx10/deploy.log
-SECRETS=.deepgram.env
 AUTOSTART=${1:-}
 RELEASE="$(date -u +%Y%m%dT%H%M%S)-$(git rev-parse --short HEAD)-$$"
 STAGE=".gx10/releases/$RELEASE"
@@ -60,11 +59,6 @@ echo "→ Shipping runtimes and Python wheels the box doesn't have yet"
 ship_missing "$CACHE" cache
 ship_missing "$CACHE/wheels" cache/wheels
 
-if [ -s "$SECRETS" ]; then
-  echo "→ Sending the keys in $SECRETS to the box (kept in ~/kami/secrets.env, mode 600, outside every release)"
-  ssh "$HOST_ALIAS" 'umask 077; mkdir -p ~/kami; cat > ~/kami/secrets.env' < "$SECRETS"
-fi
-
 echo "→ Installing and starting on the box"
 ssh "$HOST_ALIAS" "bash ~/kami/releases/$RELEASE/box/activate.sh ~/kami/releases/$RELEASE"
 [ "$AUTOSTART" = "--autostart" ] && ssh "$HOST_ALIAS" 'bash ~/kami/current/box/autostart.sh enable'
@@ -72,7 +66,7 @@ ssh "$HOST_ALIAS" "bash ~/kami/releases/$RELEASE/box/activate.sh ~/kami/releases
 echo "→ Checking it from this side of the Wi-Fi"
 if curl -fs -m 8 "http://$BOX_ADDRESS:$PORT/api/boards" >/dev/null; then
   echo "✓ Kami is live. On the iPad, on the same network: http://$BOX_ADDRESS:$PORT"
-  echo "  On the iPad, for the microphone (accept the certificate once): https://$BOX_ADDRESS:8443"
+  echo "  Over https (accept the certificate once): https://$BOX_ADDRESS:8443"
 else
   echo "✗ The server runs on the box but port $PORT isn't reachable from here — likely its firewall."
   echo "  On the box:  sudo ufw allow $PORT/tcp     (needs the box password)"
