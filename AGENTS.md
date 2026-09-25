@@ -27,20 +27,16 @@ Large training runs remain a separate task: do not start one just to set up or r
 GX10 deployment scripts and historical measurements remain useful reference material, but their
 hostnames, paths and compute restrictions are not requirements for local development.
 
-## Who owns what
+## The client–server seam
 
-Two agents work on this repo in parallel. Stay on your side of the seam; cross it only by agreement.
+The browser game (`src/`) and the API server (`server/`) meet at the HTTP API (`server/README.md` →
+"API contract") and `src/rules/types.ts`. Nothing in `src/` imports `server/`; the browser reaches it only
+through the thin clients in `src/persistence` and `src/recognition`. The server mirrors `RuleEffect` with a
+zod schema that fails the typecheck when the two drift, on purpose: a change to `RuleEffect` updates
+`server/schemas.ts`, `server/compile/effectRanges.ts` and the model prompt in the same change. Changes to
+the API are additive; anything else is called out in the commit or PR description.
 
-| Owner | Paths |
-|---|---|
-| **Client agent** | everything under `src/` — game, autopilot, sim, render, ui, ink, cat, handwriting, board, and `src/rules` (the offline grammar and its types) — except the two thin HTTP clients below |
-| **Server agent** | `server/`, `scripts/` (deploy, the GX10), `src/persistence`, `src/recognition`, `src/stage` (the big screen, `docs/screen.md`), the trained models, and the server sections of the docs |
-
-The seam is the HTTP API (`server/README.md` → "API contract") and `src/rules/types.ts`. The server mirrors
-`RuleEffect` with a zod schema that fails the typecheck when the two drift, on purpose: a change to
-`RuleEffect` updates `server/schemas.ts` and `server/compile/effectRanges.ts` in the same PR (the minimal
-mirror), says so in the PR description, and the server agent follows with the model prompt. Changes to the
-API are additive, or announced here first.
+Hosting (the container image, compose, environment variables) is documented in `docs/hosting.md`.
 
 ## Git
 
@@ -54,6 +50,7 @@ API are additive, or announced here first.
 |---|---|
 | `bun install` | Install dependencies |
 | `bun run dev` | Web (:5173, on the LAN — open the printed Network URL on the iPad) + API/MongoDB server (:8787) |
+| `podman build -t kami .` | The self-hostable image (`docs/hosting.md`) |
 | `bun run quickdraw:ingest` | Once: load Quick, Draw! samples into MongoDB so Kami can recognise sketches (restart the server after) |
 | `bun run font:build` | Regenerate the handwriting stroke font from `hersheytext` |
 | `bun run check` | Typecheck + lint + tests — the gate before every push |
