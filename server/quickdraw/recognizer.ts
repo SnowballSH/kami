@@ -2,16 +2,14 @@ import type { Stroke } from "../../src/core/geometry";
 import { floorFor } from "../recognition/certainty";
 import type { CertaintyFloors, RankedCategory, RankOptions, Reading } from "../recognition/types";
 import { computeFeature, FEATURE_LENGTH } from "./feature";
-import { COMPLETE_FRACTION } from "./prefix";
+import {
+  buildFeatureMatrix,
+  type FeatureMatrix,
+  isFeatureMatrix,
+  type LabelledFeature,
+} from "./featureMatrix";
 
-export type { RankedCategory, RankOptions };
-
-export interface LabelledFeature {
-  readonly category: string;
-  readonly feature: Float32Array;
-  /** The share of the drawing's points this row was computed from; absent means all of them. */
-  readonly fraction?: number;
-}
+export type { FeatureMatrix, LabelledFeature, RankedCategory, RankOptions };
 
 export interface RecognizerOptions {
   readonly neighbours: number;
@@ -51,9 +49,6 @@ const insertNeighbour = (nearest: Neighbour[], candidate: Neighbour, capacity: n
   if (nearest.length > capacity) nearest.pop();
 };
 
-const isComplete = ({ fraction = COMPLETE_FRACTION }: LabelledFeature): boolean =>
-  fraction >= COMPLETE_FRACTION;
-
 /**
  * Which of the scored categories are worth saying aloud. A finished drawing always gets its best
  * guesses; one still under the pen gets none until the leader is sure enough to be right most of the time.
@@ -77,34 +72,24 @@ export const statedGuesses = (
  * under the pen with every row, half-finished ones included.
  */
 export class QuickdrawRecognizer {
-  readonly #categories: readonly string[];
-  readonly #matrix: Float32Array;
-  readonly #completeRows: number;
+  readonly #matrix: FeatureMatrix;
   readonly #options: RecognizerOptions;
 
   constructor(
-    samples: readonly LabelledFeature[],
+    source: FeatureMatrix | readonly LabelledFeature[],
     options: RecognizerOptions = DEFAULT_RECOGNIZER_OPTIONS,
   ) {
-    const usable = samples.filter(({ feature }) => feature.length === FEATURE_LENGTH);
-    const complete = usable.filter(isComplete);
-    const ordered = [...complete, ...usable.filter((sample) => !isComplete(sample))];
-    this.#categories = ordered.map(({ category }) => category);
-    this.#matrix = new Float32Array(ordered.length * FEATURE_LENGTH);
-    for (const [row, { feature }] of ordered.entries()) {
-      this.#matrix.set(feature, row * FEATURE_LENGTH);
-    }
-    this.#completeRows = complete.length;
+    this.#matrix = isFeatureMatrix(source) ? source : buildFeatureMatrix(source);
     this.#options = options;
   }
 
   /** How many sketches are known, however many prefixes each is indexed at. */
   get size(): number {
-    return this.#completeRows;
+    return this.#matrix.completeRows;
   }
 
   get rows(): number {
-    return this.#categories.length;
+    return this.#matrix.rowCategories.length;
   }
 
   recognize(strokes: readonly Stroke[], options?: RankOptions): readonly string[] {
@@ -134,13 +119,14 @@ export class QuickdrawRecognizer {
   ): readonly RankedCategory[] {
     const nearest = this.#nearest(
       computeFeature(strokes),
-      partial ? this.rows : this.#completeRows,
+      partial ? this.rows : this.#matrix.completeRows,
     );
     const best = nearest[0];
     if (best === undefined || best.similarity < this.#options.similarityFloor) return [];
+    const { categories, rowCategories } = this.#matrix;
     const votes = new Map<string, number>();
     for (const { index, similarity } of nearest) {
-      const category = this.#categories[index] ?? "";
+      const category = categories[rowCategories[index] ?? 0] ?? "";
       const weight = Math.max(0, similarity) ** this.#options.voteSharpness;
       votes.set(category, (votes.get(category) ?? 0) + weight);
     }
@@ -151,7 +137,7 @@ export class QuickdrawRecognizer {
   }
 
   #nearest(feature: Float32Array, rows: number): readonly Neighbour[] {
-    const matrix = this.#matrix;
+    const matrix = this.#matrix.features;
     const capacity = this.#options.neighbours;
     const nearest: Neighbour[] = [];
     let weakest = Number.NEGATIVE_INFINITY;
