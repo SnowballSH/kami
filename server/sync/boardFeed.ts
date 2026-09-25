@@ -7,11 +7,18 @@ export type Unsubscribe = () => void;
 /** How many changes a board keeps for clients that reconnect with a `since` cursor. */
 export const KEPT_CHANGES = 2_000;
 
+/**
+ * A device announces its Alice several times a second. One that has been silent this long has gone,
+ * whether or not its event stream ever told us: an announcement can arrive after the stream closed,
+ * and nothing else would ever withdraw that ghost.
+ */
+export const PRESENCE_GONE_AFTER_MS = 5_000;
+
 interface Page {
   seq: number;
   readonly log: BoardChange[];
   readonly listeners: Set<Publish>;
-  readonly peers: Map<PeerId, Ghost>;
+  readonly peers: Map<PeerId, { readonly alice: Ghost; readonly heardAtMs: number }>;
 }
 
 /**
@@ -20,6 +27,8 @@ interface Page {
  */
 export class BoardFeed {
   readonly #pages = new Map<string, Page>();
+
+  constructor(private readonly now: () => number = Date.now) {}
 
   record(boardId: string, edit: BoardEdit): BoardChange {
     const page = this.#page(boardId);
@@ -33,8 +42,9 @@ export class BoardFeed {
 
   announce(boardId: string, peer: PeerId, alice: Ghost): void {
     const page = this.#page(boardId);
-    page.peers.set(peer, alice);
+    page.peers.set(peer, { alice, heardAtMs: this.now() });
     this.#tell(page, { type: "presence", peer, alice });
+    this.#forgetTheSilent(page);
   }
 
   leave(boardId: string, peer: PeerId): void {
@@ -44,7 +54,9 @@ export class BoardFeed {
   }
 
   peers(boardId: string): readonly PeerId[] {
-    return [...this.#page(boardId).peers.keys()];
+    const page = this.#page(boardId);
+    this.#forgetTheSilent(page);
+    return [...page.peers.keys()];
   }
 
   /**
@@ -58,11 +70,21 @@ export class BoardFeed {
     else if (since > page.seq || (since < page.seq && !this.#reaches(page, since))) {
       listener({ type: "resync", seq: page.seq });
     } else for (const change of page.log) if (change.seq > since) listener(change);
-    for (const [peer, alice] of page.peers) listener({ type: "presence", peer, alice });
+    this.#forgetTheSilent(page);
+    for (const [peer, { alice }] of page.peers) listener({ type: "presence", peer, alice });
     page.listeners.add(listener);
     return () => {
       page.listeners.delete(listener);
     };
+  }
+
+  #forgetTheSilent(page: Page): void {
+    const nowMs = this.now();
+    for (const [peer, { heardAtMs }] of page.peers) {
+      if (nowMs - heardAtMs <= PRESENCE_GONE_AFTER_MS) continue;
+      page.peers.delete(peer);
+      this.#tell(page, { type: "presence", peer, alice: null });
+    }
   }
 
   #reaches(page: Page, since: number): boolean {

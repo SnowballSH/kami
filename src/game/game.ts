@@ -149,6 +149,8 @@ import { deafLine, FELL_OFF_PAGE_LINE } from "./voiceLines";
 const MAX_STEPS_PER_FRAME = 5;
 export const DEFAULT_TIDINESS = 0.5;
 const RETIDY_AFTER_MS = 350;
+/** Twenty missed announcements: long enough for a slow network, short enough that nobody stares at it. */
+const GHOST_GONE_AFTER_MS = 5000;
 const MOST_RETIDIED = 12;
 const ERASER_TOLERANCE = 18;
 const NAMING_REACH = 190;
@@ -291,6 +293,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private restartDueAtMs: number | null = null;
   private unfollow: Detach | null = null;
   private readonly ghosts = new Map<PeerId, Ghost>();
+  private readonly ghostsHeardAtMs = new Map<PeerId, number>();
   private shown: ShareInfo | null = null;
 
   constructor(
@@ -378,6 +381,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const world = sim.snapshot();
     if (this.unfollow !== null && !this.loading && world.alice !== null)
       this.modules.link?.announce(world.alice, nowMs);
+    this.forgetSilentGhosts(nowMs);
     this.showShare();
     renderer.render({
       nowMs,
@@ -711,11 +715,28 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.hud.setShare(share);
   }
 
+  private forgetGhost(peer: PeerId): void {
+    this.ghosts.delete(peer);
+    this.ghostsHeardAtMs.delete(peer);
+  }
+
+  /**
+   * A device says where its Alice is several times a second, so one that has said nothing for
+   * `GHOST_GONE_AFTER_MS` has gone — closed, asleep, or lost while the server restarted, which is
+   * the one way to leave without anyone being told. Its ghost would otherwise stand there for good.
+   */
+  private forgetSilentGhosts(nowMs: number): void {
+    for (const [peer, heardAtMs] of this.ghostsHeardAtMs) {
+      if (nowMs - heardAtMs > GHOST_GONE_AFTER_MS) this.forgetGhost(peer);
+    }
+  }
+
   /** On a shared page, hears what other devices do to it and tells them where Alice is. */
   private followPage(boardId: string): void {
     this.unfollow?.();
     this.unfollow = null;
     this.ghosts.clear();
+    this.ghostsHeardAtMs.clear();
     const { link } = this.modules;
     if (this.director.mode.sharing !== "live" || link === undefined || link === null) return;
     const epoch = this.epoch;
@@ -725,8 +746,11 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       },
       seen: (peer, alice) => {
         if (epoch !== this.epoch) return;
-        if (alice === null) this.ghosts.delete(peer);
-        else this.ghosts.set(peer, alice);
+        if (alice === null) this.forgetGhost(peer);
+        else {
+          this.ghosts.set(peer, alice);
+          this.ghostsHeardAtMs.set(peer, this.nowMs);
+        }
       },
       resync: () => {
         if (epoch === this.epoch) void this.open(boardId);
