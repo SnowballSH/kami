@@ -993,6 +993,7 @@ describe("Alice on her own", () => {
   it("stays put when the player switches her self-walking off, and sets off again when it is back on", async () => {
     const player = new Player("wonderland");
     await player.arrive();
+    expect(player.hud.autopilotOffered).toBe(true);
     player.game.onAutopilotToggled(false);
     expect(player.hud.autopilot).toBe(false);
     const parked = player.alice.center.x;
@@ -1814,6 +1815,7 @@ describe("Game under a mode", () => {
   it("keeps Alice from walking herself when the mode forbids it", async () => {
     const player = new Player("wonderland", { mode: { ...EMBODIED_MODE, autopilot: "forbidden" } });
     await player.arrive();
+    expect(player.hud.autopilotOffered).toBe(false);
     const parked = player.alice.center.x;
     player.game.onAutopilotToggled(true);
     expect(player.hud.autopilot).toBe(false);

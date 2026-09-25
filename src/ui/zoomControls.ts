@@ -21,7 +21,7 @@ export class ZoomControls {
     });
     this.element = el(
       "div",
-      { className: "kami-island kami-zoom", attrs: { role: "group", "aria-label": "Zoom" } },
+      { className: "kami-island kami-zoom", attrs: { role: "group", "aria-label": "View" } },
       [
         this.autopilot,
         iconButton({
@@ -48,5 +48,9 @@ export class ZoomControls {
 
   setAutopilot(enabled: boolean): void {
     this.autopilot.setAttribute(PRESSED, String(enabled));
+  }
+
+  offerAutopilot(offered: boolean): void {
+    this.autopilot.hidden = !offered;
   }
 }
