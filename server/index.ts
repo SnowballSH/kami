@@ -50,7 +50,7 @@ const controllers = await startControllers(config.controllers, { log });
 
 const compiler = createLlmCompiler(config.llm);
 const transcriber = createTranscriber({ sidecar: config.handwriting, vision: config.transcribe });
-const access = new ApiAccess(config.access);
+const access = new ApiAccess(config.access, Date.now, (line) => console.log(`  ${line}`));
 const stage = stageSockets(access);
 const api = createApi({
   access,

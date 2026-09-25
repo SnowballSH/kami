@@ -261,8 +261,11 @@ podman run -d --name kami -p 127.0.0.1:8080:8080 -v kami-data:/data \
 
 With compose, put the same variables in `.env` (leave `KAMI_ACCESS_MODE` empty or `shared`), mount
 the password file, and set `KAMI_PUBLISH=127.0.0.1:8080`. `KAMI_TRUSTED_PROXIES` names the address
-the proxy reaches the container from (the container network's gateway), so failed sign-ins are
-counted per visitor rather than for everyone at once; left out, it is safe but coarser. `GET
+the proxy's connections arrive from, so failed sign-ins are counted per visitor rather than for
+everyone at once; left out, it is safe but coarser. The address depends on the container network
+(the gateway, or with rootless podman sometimes the container's own address): one wrong password
+through the proxy logs `sign-in refused: connection from <address>`, and that is the one to use
+([access.md](access.md)). `GET
 /api/health` stays open for health checks and says nothing but `{"ok":true}`.
 
 Sessions last eight hours in an `HttpOnly`, `Secure` cookie. To lock everyone out, change the

@@ -684,6 +684,35 @@ describe("shared API access", () => {
       }
       expect((await signIn(PASSWORD, "192.0.2.1", forwarded("198.51.100.99"))).status).toBe(429);
     });
+
+    it("logs where a refused sign-in came from, so a host can find its proxy's address", async () => {
+      const lines: string[] = [];
+      const logged = createApi({
+        boards,
+        controllers,
+        access: new ApiAccess(
+          { ...SHARED, credentials: [BOB], password: PASSWORD },
+          () => now,
+          (line) => lines.push(line),
+        ),
+        compiler: { compile },
+        recognizer: { read: recognize },
+        beautifier: { beautify },
+      });
+      await logged.handle(
+        request("session", {
+          method: "POST",
+          headers: {
+            origin: ORIGIN,
+            "content-type": "application/json",
+            "x-forwarded-for": "203.0.113.9",
+          },
+          body: JSON.stringify({ password: "guess" }),
+        }),
+        "127.0.0.1",
+      );
+      expect(lines).toEqual(["sign-in refused: connection from 127.0.0.1, counted as 203.0.113.9"]);
+    });
   });
 });
 

@@ -62,6 +62,7 @@ export class ApiAccess {
   constructor(
     private readonly config: AccessConfig = DEMO_ACCESS,
     now: () => number = Date.now,
+    private readonly log: (line: string) => void = () => {},
   ) {
     this.#sessions = new Sessions(config.credentials, config.password, now);
     this.#models = new WorkLimit(config.modelRequestsPerMinute, config.modelConcurrency, now);
@@ -216,6 +217,7 @@ export class ApiAccess {
       const grant = await this.#presented(request);
       if (grant === null) {
         this.#failures.fail(client);
+        this.log(`sign-in refused: connection from ${peer ?? "unknown"}, counted as ${client}`);
         return unauthorized();
       }
       this.#failures.succeed(client);

@@ -72,9 +72,12 @@ it is told to wait (`429` with `Retry-After`) — other clients are unaffected, 
 clears the count. A client is the connecting address; behind a reverse proxy it is the last
 `X-Forwarded-For` entry, which is believed only from `KAMI_TRUSTED_PROXIES` (default the loopback
 addresses, where a proxy on the same host connects from). When Kami runs in a container behind the
-host's proxy, the proxy reaches it from the container network's gateway: add that address (e.g.
-`KAMI_TRUSTED_PROXIES=10.88.0.1` for podman's default network), or every visitor shares one
-count. Forwarded addresses are used for this count only, never to decide access.
+host's proxy, add the address the proxy's connections arrive from, or every visitor shares one
+count. Which address that is depends on the container network: often the network's gateway
+(`10.88.0.1` on rootful podman's default network, `172.17.0.1` on Docker's), but rootless podman can
+deliver published-port connections from the container's own address instead. Each refused sign-in
+is logged as `sign-in refused: connection from <address>, counted as <client>`: try one wrong
+password through the proxy, and the `connection from` address is the one to trust. Forwarded addresses are used for this count only, never to decide access.
 
 ## Provision credentials
 
