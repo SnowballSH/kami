@@ -24,7 +24,6 @@
     "dev:web": "vite --host",
     "server": "bun --watch server/index.ts",
     "quickdraw:ingest": "bun server/quickdraw/ingest.ts",
-    "quickdraw:snapshot": "bun server/quickdraw/buildSnapshot.ts",
     "font:build": "bun scripts/buildStrokeFont.ts",
     "brand:build": "bun src/brand/build.ts",
     "gx10:tunnel": "scripts/gx10/tunnel.sh",

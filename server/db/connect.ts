@@ -7,6 +7,12 @@ export const DATABASE_NAME = "kami";
 export const MIN_EMBEDDED_CACHE_GB = 0.25;
 export const DEFAULT_EMBEDDED_CACHE_GB = MIN_EMBEDDED_CACHE_GB;
 
+/**
+ * WiredTiger preallocates a slot for every session it may ever open, 33 000 by default: about
+ * 60 MB of resident memory. One game server needs a few dozen at most.
+ */
+export const EMBEDDED_SESSION_MAX = 1000;
+
 const EMBEDDED_PORT = 27117;
 const EMBEDDED_URI = `mongodb://127.0.0.1:${EMBEDDED_PORT}/?directConnection=true`;
 const ADOPTION_TIMEOUT_MS = 500;
@@ -27,13 +33,16 @@ export interface DatabaseOptions {
 
 /**
  * Arguments that keep an embedded mongod a good neighbour on a small shared host: a capped cache
- * instead of half the machine's memory, and no full-time diagnostic data collection on disk.
+ * instead of half the machine's memory, room for fewer sessions, and no full-time diagnostic data
+ * collection on disk.
  */
 export const embeddedMongodArgs = (
   cacheGb: number = DEFAULT_EMBEDDED_CACHE_GB,
 ): readonly string[] => [
   "--wiredTigerCacheSizeGB",
   String(Math.max(MIN_EMBEDDED_CACHE_GB, cacheGb)),
+  "--wiredTigerEngineConfigString",
+  `session_max=${EMBEDDED_SESSION_MAX}`,
   "--setParameter",
   "diagnosticDataCollectionEnabled=false",
 ];

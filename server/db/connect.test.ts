@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_EMBEDDED_CACHE_GB, embeddedMongodArgs, MIN_EMBEDDED_CACHE_GB } from "./connect";
 
 describe("embeddedMongodArgs", () => {
-  it("caps WiredTiger's cache at a quarter gigabyte by default and turns diagnostics off", () => {
+  it("caps WiredTiger's cache and sessions, and turns diagnostics off", () => {
     expect(DEFAULT_EMBEDDED_CACHE_GB).toBe(0.25);
     expect(embeddedMongodArgs()).toEqual([
       "--wiredTigerCacheSizeGB",
       "0.25",
+      "--wiredTigerEngineConfigString",
+      "session_max=1000",
       "--setParameter",
       "diagnosticDataCollectionEnabled=false",
     ]);
