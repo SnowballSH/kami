@@ -25,8 +25,50 @@ PORT=8799 bun server/index.ts
 ```
 
 With no configuration the server starts a real `mongod` (via `mongodb-memory-server`, binary cached
-in `node_modules/.cache`) on `127.0.0.1:27117` with its data in `.kami-data/` (gitignored), so
-boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the `mongod` down cleanly.
+in `node_modules/.cache`) on `127.0.0.1:27117` with its data in `.kami-data/` (gitignored, or
+`KAMI_DATA_DIR`), so boards survive restarts with zero setup. `Ctrl-C` / `SIGTERM` shuts the
+`mongod` down cleanly. `GET /api/health` answers `200 {"ok":true}` as soon as the server listens, in
+either access mode and without a session, for a container's health check.
+
+### Self-hosting on a small shared box
+
+Kami runs as one process (plus its `mongod`) behind a TLS reverse proxy such as Caddy, in a rootless
+container if you like; `docs/access.md` has the trust model. What a 2-vCPU / 4 GB host shared with
+other services needs:
+
+- **Secrets as files.** Every secret-bearing variable — `KAMI_LLM_API_KEY`,
+  `KAMI_TRANSCRIBE_API_KEY`, `KAMI_RECOGNIZER_API_KEY`, `KAMI_BEAUTIFY_API_KEY`, `MONGODB_URI`,
+  `KAMI_CREDENTIALS` — may be given as `<NAME>_FILE`, the path of a file whose trimmed content is
+  the value (podman/docker secrets, systemd `LoadCredential`). Setting both `X` and `X_FILE`, or
+  naming a file that cannot be read, stops start-up with a message naming the variable.
+- **Sketches without an ingest.** Export a snapshot once where the ingest ran
+  (`bun server/quickdraw/snapshot.ts export quickdraw.ndjson.gz`) and set `KAMI_QUICKDRAW_SNAPSHOT`
+  to it in the container: an empty `quickdraw` collection is filled from it at start-up, before the
+  features load, and the log says `quickdraw seed: imported N sketches`. A collection that already
+  holds sketches is never touched by the file.
+- **Ranking off the event loop.** The built-in k-NN compares a sketch with ~50 000 rows
+  (about 20 ms of arithmetic) on every pen lift and every 150 ms while drawing; it does so on a worker
+  thread (`KAMI_RECOGNIZER_THREADS`, default 1; `0` ranks on the event loop as before) over one shared
+  copy of the 116 MB matrix. At most 32 drawings wait for a thread, and at most 4 of them live
+  sketches: a newer live sketch replaces the oldest waiting one, which is answered with the empty
+  "nothing to say yet" result the contract allows; with only finished drawings waiting, a live sketch
+  gets that silence itself and a finished one is refused with **503** and `Retry-After: 1`. Measured
+  on an M-series laptop with a synthetic 50 000-row matrix (`bun scripts/bench/recognizerLatency.ts`):
+  at 25 live guesses a second the p99 lag of a 5 ms timer on the event loop fell from 19.8 ms to
+  0.8 ms with one thread; at 100 a second (2.7× more than one thread can rank) from 21.9 ms to 1.1 ms,
+  with guesses still answered in 51 ms median, 74 ms p99.
+- **A small `mongod`.** The embedded one is started with `--wiredTigerCacheSizeGB` set to
+  `KAMI_MONGO_CACHE_GB` (default `0.25`, the smallest WiredTiger allows; without it mongod takes half
+  the machine's memory) and without diagnostic data collection.
+- **Model budgets.** `KAMI_MODEL_REQUESTS_PER_MINUTE` / `KAMI_MODEL_CONCURRENCY` default to
+  6000 / 32, sized for a LAN demo. For a public box behind a paid gateway set them to what the
+  gateway and your wallet allow, e.g. `600` / `4`; `docs/access.md` has the reasoning.
+- **Warm-ups.** At start-up the rules model is asked one question so a cold local model loads before
+  the first player needs it; `KAMI_LLM_WARM_UP=off` skips it where every request costs money. The
+  handwriting reader's single image check always runs, because passing it is what enables
+  `/api/transcribe`.
+- **Static files.** The built game is served from memory with `br`/`gzip` compression negotiated per
+  request and cached, immutable caching for hashed `assets/`, and `ETag` / `304` for `index.html`.
 
 ### Local models without the hackathon hardware
 
@@ -79,13 +121,23 @@ the language model; voice still uses the configured Deepgram service.
 | `KAMI_WEB_HOST` | Vite development bind address, default `0.0.0.0`; use `127.0.0.1` for local-only development. |
 | `KAMI_ALLOWED_ORIGINS` | Comma-separated exact origins, no trailing slash or wildcard. Shared mode requires HTTPS origins. Demo also permits same-origin requests. |
 | `KAMI_CREDENTIALS` | Shared-only JSON credentials with `id`, `token`, `boards`, `controllers`, and `models` grants; keep outside version control. |
-| `KAMI_MODEL_REQUESTS_PER_MINUTE` | Positive integer, default `6000`, shared across all model routes and callers per process. One iPad posts a live guess and a handwriting read on every pen lift — several a second while drawing — so the default leaves room for a few devices; lower it for shared hosting. |
-| `KAMI_MODEL_CONCURRENCY` | Positive integer, default `32`, held through complete model responses. Requests over the limit are refused with `429`, not queued, and an open voice socket holds a slot for as long as it listens. |
-| `MONGODB_URI` | Use this MongoDB instead of the embedded one, e.g. the Atlas `mongodb+srv://…` string. Database `kami`. |
-| `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile` and `/api/transcribe`: a root (`http://gx10.local:8000`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM and Ollama both work. |
+| `KAMI_MODEL_REQUESTS_PER_MINUTE` | Positive integer, default `6000`, shared across all model routes and callers per process. One iPad posts a live guess and a handwriting read on every pen lift — several a second while drawing — so the default leaves room for a few devices on a LAN; a public box behind a paid gateway wants far less (`600`; see `docs/access.md`). |
+| `KAMI_MODEL_CONCURRENCY` | Positive integer, default `32`, held through complete model responses. Requests over the limit are refused with `429`, not queued, and an open voice socket holds a slot for as long as it listens. `4` is plenty on a shared 2-vCPU host. |
+| `MONGODB_URI` | Use this MongoDB instead of the embedded one, e.g. the Atlas `mongodb+srv://…` string. Database `kami`. May be given as `MONGODB_URI_FILE`. |
+| `KAMI_DATA_DIR` | Where the embedded `mongod` keeps its data, default `<repo>/.kami-data`. Mount a volume there in a container. |
+| `KAMI_MONGO_CACHE_GB` | The embedded `mongod`'s WiredTiger cache in GB, default `0.25` (its minimum); ignored with `MONGODB_URI`. |
+| `KAMI_QUICKDRAW_SNAPSHOT` | A gzipped NDJSON Quick, Draw! snapshot (`bun server/quickdraw/snapshot.ts export …`) imported at start-up when the `quickdraw` collection is empty; a database that already holds sketches is left alone. |
+| `KAMI_LLM_URL` | An OpenAI-compatible server for `/api/compile`, `/api/scene` and `/api/transcribe`: a root (`http://127.0.0.1:11434`), a `/v1` base, or the full `/v1/chat/completions` URL. vLLM, Ollama, llama.cpp, OpenAI itself and gateways in front of Anthropic all work; see "Model-backed compile" for how the client learns what each accepts. |
 | `KAMI_LLM_MODEL` | Compiler model name; also the fallback handwriting model. Compilation is **off** unless both URL and model are set. |
-| `KAMI_TRANSCRIBE_MODEL` | Handwriting model, defaulting to `KAMI_LLM_MODEL`; uses the same URL/key. Startup must correctly read a known PNG before `/api/transcribe` is enabled. While warming up or after a failed image check, the route returns **501**. |
-| `KAMI_LLM_API_KEY` | Optional bearer token. |
+| `KAMI_LLM_API_KEY` | Optional bearer token; may be given as `KAMI_LLM_API_KEY_FILE`. |
+| `KAMI_LLM_REASONING_EFFORT` | What to ask for as `reasoning_effort`: `none` (default), `minimal`, `low`, `medium`, `high`, `xhigh`, or `off` to never send the field. Anything else stops start-up. A server that rejects the field is asked again without it, once, and remembered. |
+| `KAMI_TRANSCRIBE_URL` / `KAMI_TRANSCRIBE_MODEL` / `KAMI_TRANSCRIBE_API_KEY` / `KAMI_TRANSCRIBE_REASONING_EFFORT` | The handwriting (vision) model; each falls back to its `KAMI_LLM_*` counterpart, so a different model on the same server needs only `KAMI_TRANSCRIBE_MODEL`, and a different server sets `KAMI_TRANSCRIBE_URL` (and its own key, or it inherits the LLM's). The key may be given as `KAMI_TRANSCRIBE_API_KEY_FILE`. Handwriting is off without a URL and a model. Start-up must correctly read a known PNG before `/api/transcribe` is enabled; while warming up or after a failed image check the route returns **501** — a text-only gateway fails the check and simply leaves the pen as ink. |
+| `KAMI_LLM_WARM_UP` | `off` skips the rules model's one start-up question ("hello"), which only serves to load a cold local model; the handwriting image check still runs once. |
+| `KAMI_RECOGNIZER_URL` | The Kami's Eye sidecar (`ml/CONTRACT.md`), used for `/api/recognize` with the k-NN as its fallback; unset or `off` means the k-NN alone. |
+| `KAMI_RECOGNIZER_API_KEY` | Sent as `Authorization: Bearer` to the sidecar, for one behind an authenticating proxy or on another host; may be given as `KAMI_RECOGNIZER_API_KEY_FILE`. |
+| `KAMI_RECOGNIZER_THREADS` | Worker threads ranking sketches for the built-in k-NN, default `1`; `0` ranks on the event loop. See "Self-hosting" above for the queue. |
+| `KAMI_BEAUTIFY_URL` | Where `/api/beautify` forwards to. Unset with `KAMI_RECOGNIZER_URL` set, it is the sidecar's `<KAMI_RECOGNIZER_URL>/complete` (the Eye serves both) with the recogniser's key; `off` keeps the player's own ink (**501**). |
+| `KAMI_BEAUTIFY_API_KEY` | Sent as `Authorization: Bearer` to the beautifier; may be given as `KAMI_BEAUTIFY_API_KEY_FILE`. Defaults to `KAMI_RECOGNIZER_API_KEY` only when the URL is derived from the recogniser's. |
 | `KAMI_SKETCHES` | The Eye's exemplar set directory (`ml/CONTRACT.md`; on the box `~/kami-ml/artifacts/kami-eye/exemplars`), whose clean drawings `/api/exemplar` summons by name across all 345 categories. Unset, summons come from the ingested Quick, Draw! samples, then from Quick, Draw! itself, for the curated categories only. |
 | `DEEPGRAM_API_KEY` | Turns voice on: speech in (`nova-3`) and Kami's lines out (`aura-2`). Without it `/api/voice/*` answers `501` and the game plays silently. See `docs/voice.md`. |
 | `KAMI_VOICE_LISTEN_MODEL` | Deepgram speech-to-text model, default `nova-3`. |
@@ -97,6 +149,7 @@ the language model; voice still uses the configured Deepgram service.
 
 | Route | Answer |
 |---|---|
+| `GET /api/health` | `{ ok: true }` — the server is up; no session needed in either mode, nothing else disclosed |
 | `GET /api/session` | `{ mode, authenticated, boards, controllers }`; anonymous callers receive no grants |
 | `POST /api/session` | Exchange `Authorization: Bearer …` for an eight-hour secure HTTP-only session cookie |
 | `DELETE /api/session` | Revoke the current browser session and clear its cookie |
@@ -258,6 +311,25 @@ clamped (`compile/effectRanges.ts`): gravity ±30 g per axis, wind ±3 g, timeSc
 raw model values are clamped before they reach it. Injected-fetch and fake-server tests establish
 transport/parsing behavior, not real model quality. Current-release GX10 validation is separate.
 
+### One client, many servers
+
+`llm/chatClient.ts` speaks to whatever stands at `KAMI_LLM_URL`, and servers disagree about the
+optional fields. vLLM, Ollama and llama.cpp take `response_format` with a JSON schema; a gateway in
+front of Anthropic (modelgate) rejects `response_format` outright with a 400 but takes
+`reasoning_effort`; OpenAI's gpt-5 family rejects `max_tokens` (wanting `max_completion_tokens`),
+any `temperature` but the default, and `reasoning_effort: "none"` on the models that predate it.
+Rather than pick a dialect per vendor, the client starts with everything — `temperature: 0`,
+`max_tokens`, `reasoning_effort` (`KAMI_LLM_REASONING_EFFORT`, default `none`) and
+`response_format: json_schema` — and on each 400 drops one feature (`llm/requestShape.ts`): the one
+the error message names when it names a field we send, otherwise the next in an order that gives up
+the least first — `json_schema` → `json_object` → no `response_format`, then reasoning control, then
+`max_tokens` → `max_completion_tokens`, then the temperature. The shape that finally works is
+remembered by that client for the rest of the process, so the learning costs a handful of cheap
+rejections once, not once per request; a request that is still refused with nothing left to drop
+(a text-only gateway shown an image, say) is `null` after at most six attempts. The compiler, the
+scene compiler and the handwriting reader each have their own client, so a vision model on another
+server learns separately.
+
 ## Handwriting reading
 
 `transcribe/llmTranscriber.ts` lets the player write with the pen instead of the text prompt. The
@@ -265,8 +337,9 @@ strokes are drawn black-on-white into a small grayscale PNG (`transcribe/strokeI
 writing fitted to 64 px tall, no image library) and shown to `KAMI_TRANSCRIBE_MODEL` (falling back
 to `KAMI_LLM_MODEL`) as a vision model through `llm/chatClient.ts`, the OpenAI-compatible client
 `/api/compile` also uses, with
-`reasoning_effort: "none"` so it answers in one breath (~2 s warm on the GX10; a `400` from a server
-that does not know the field retries without it). The prompt (`transcribe/prompt.ts`) asks for
+`reasoning_effort: "none"` (`KAMI_TRANSCRIBE_REASONING_EFFORT`, falling back to the LLM's) so it
+answers in one breath (~2 s warm on the GX10; a `400` from a server that does not know the field
+retries without it — "One client, many servers" above). The prompt (`transcribe/prompt.ts`) asks for
 `{"text": "…"}` for words and `{"text": null}` for a drawing; the answer is parsed like the
 compiler's, then must read as writing (≤ 80 characters, at least two different letters — a fence
 once came back as `IIIIII`). Anything else, a timeout (20 s), an HTTP error or an abort is `null`:

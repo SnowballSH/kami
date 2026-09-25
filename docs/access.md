@@ -97,8 +97,14 @@ only in the open tab.
 Model routes (`recognize`, `beautify`, `compile`, `transcribe`, `voice/speak`, `exemplar`) and voice-listening
 upgrades share a per-process fixed-window budget of 6,000 requests per minute and 32 concurrent
 operations by default, in both
-modes. Tune `KAMI_MODEL_REQUESTS_PER_MINUTE` and `KAMI_MODEL_CONCURRENCY` for the GX10 and expected
-pen traffic. A slot stays occupied while the model response is read; response bodies have an
+modes. Those defaults are sized for a LAN demo with a local model. Tune
+`KAMI_MODEL_REQUESTS_PER_MINUTE` and `KAMI_MODEL_CONCURRENCY` for the host and the expected pen
+traffic: one iPad posts a few live guesses a second while drawing plus a compile or handwriting read
+per pen lift, so a shared 2-vCPU box serving a handful of players behind a paid model gateway does
+well with about `600` requests a minute and `4` concurrent — enough for play, small enough that a
+scripted client cannot run up the gateway bill or starve the box's other services. The budget counts
+`recognize` too, which the built-in k-NN answers from a worker thread with a bounded queue of its own
+(`server/README.md`, "Self-hosting"). A slot stays occupied while the model response is read; response bodies have an
 8 MiB ceiling and 30-second read deadline. Upstream inference/request deadlines remain those of
 the individual adapters. A listening socket, including continuous wake-word listening, occupies
 one concurrent slot for its entire lifetime; closing it releases the slot. Opening it counts
