@@ -1,4 +1,15 @@
-import { type AccessConfig, type Credential, DEMO_ACCESS } from "./accessConfig";
+import { z } from "zod";
+import {
+  type AccessConfig,
+  covers,
+  DEMO_ACCESS,
+  EVERY,
+  type Grant,
+  MAX_PASSWORD_LENGTH,
+  type Scope,
+  secretKindOf,
+} from "./accessConfig";
+import { clientOf, LoginThrottle } from "./loginThrottle";
 import { badRequest, json, notFound, preflight } from "./responses";
 import { Sessions } from "./sessions";
 import { WorkLimit } from "./workLimit";
@@ -18,6 +29,8 @@ const METHODS = "GET, PUT, POST, DELETE, OPTIONS";
 const HEADERS = new Set(["content-type", "authorization"]);
 const MODEL_BODY_TIMEOUT_MS = 30_000;
 const MAX_MODEL_RESPONSE_BYTES = 8 * 1024 * 1024;
+const MAX_SIGN_IN_BODY_CHARS = MAX_PASSWORD_LENGTH * 4;
+const passwordBodySchema = z.object({ password: z.string() });
 
 export type Respond = (request: Request) => Promise<Response>;
 
@@ -32,36 +45,40 @@ const unauthorized = (): Response =>
     status: 401,
     headers: { "content-type": "application/json", "www-authenticate": "Bearer" },
   });
-const busy = (): Response =>
+const busy = (retryAfterSeconds = 60): Response =>
   new Response(JSON.stringify({ error: "request limit reached; try again later" }), {
     status: 429,
-    headers: { "content-type": "application/json", "retry-after": "60" },
+    headers: { "content-type": "application/json", "retry-after": String(retryAfterSeconds) },
   });
+const listed = (scope: Scope | undefined): readonly string[] =>
+  scope === undefined || scope === EVERY ? [] : scope;
 
 export class ApiAccess {
   readonly #sessions: Sessions;
   readonly #models: WorkLimit;
   readonly #logins: WorkLimit;
+  readonly #failures: LoginThrottle;
 
   constructor(
     private readonly config: AccessConfig = DEMO_ACCESS,
     now: () => number = Date.now,
   ) {
-    this.#sessions = new Sessions(config.credentials, now);
+    this.#sessions = new Sessions(config.credentials, config.password, now);
     this.#models = new WorkLimit(config.modelRequestsPerMinute, config.modelConcurrency, now);
     this.#logins = new WorkLimit(30, 1, now);
+    this.#failures = new LoginThrottle(now);
   }
 
-  scope(request: Request): Credential | null {
-    return this.config.mode === "demo" ? null : this.#sessions.credential(request);
+  scope(request: Request): Grant | null {
+    return this.config.mode === "demo" ? null : this.#sessions.grant(request);
   }
 
   allowsBoard(request: Request, id: string): boolean {
-    return this.config.mode === "demo" || (this.scope(request)?.boards.includes(id) ?? false);
+    return this.#allows(request, "boards", id);
   }
 
   allowsController(request: Request, id: string): boolean {
-    return this.config.mode === "demo" || (this.scope(request)?.controllers.includes(id) ?? false);
+    return this.#allows(request, "controllers", id);
   }
 
   visible<T extends { readonly id: string }>(
@@ -71,14 +88,15 @@ export class ApiAccess {
   ): readonly T[] {
     if (this.config.mode === "demo") return items;
     const scope = this.scope(request);
-    return scope === null ? [] : items.filter(({ id }) => scope[resource].includes(id));
+    return scope === null ? [] : items.filter(({ id }) => covers(scope[resource], id));
   }
 
-  async handle(request: Request, respond: Respond): Promise<Response> {
+  /** `peer` is the connection's remote address, by which failed sign-ins are throttled. */
+  async handle(request: Request, respond: Respond, peer?: string): Promise<Response> {
     const origin = request.headers.get("origin");
     const url = new URL(request.url);
     if (!this.#allowsOrigin(request)) return denied();
-    const response = await this.#handle(request, url, respond);
+    const response = await this.#handle(request, url, respond, peer);
     response.headers.set("vary", "Origin");
     response.headers.set("cache-control", "no-store");
     if (origin !== null) {
@@ -105,6 +123,12 @@ export class ApiAccess {
     return { authorized: () => this.allowsBoard(request, stage) };
   }
 
+  #allows(request: Request, resource: "boards" | "controllers", id: string): boolean {
+    if (this.config.mode === "demo") return true;
+    const scope = this.scope(request);
+    return scope !== null && covers(scope[resource], id);
+  }
+
   #allowsOrigin(request: Request): boolean {
     const origin = request.headers.get("origin");
     return origin === null
@@ -113,7 +137,12 @@ export class ApiAccess {
           (this.config.mode === "demo" && origin === new URL(request.url).origin);
   }
 
-  async #handle(request: Request, url: URL, respond: Respond): Promise<Response> {
+  async #handle(
+    request: Request,
+    url: URL,
+    respond: Respond,
+    peer: string | undefined,
+  ): Promise<Response> {
     if (request.method === "OPTIONS") {
       const method = request.headers.get("access-control-request-method");
       const headers = (request.headers.get("access-control-request-headers") ?? "")
@@ -136,7 +165,7 @@ export class ApiAccess {
     const path = `/${segments.join("/")}`;
     if (api !== "api") return notFound();
     if (path === HEALTH_PATH && request.method === "GET") return respond(request);
-    if (resource === "session" && segments.length === 2) return this.#session(request);
+    if (resource === "session" && segments.length === 2) return this.#session(request, peer);
     const scope = this.scope(request);
     if (this.config.mode === "shared") {
       if (scope === null) return unauthorized();
@@ -153,20 +182,23 @@ export class ApiAccess {
     }
   }
 
-  #permits(scope: Credential, path: string, resource?: string, id?: string): boolean {
-    if (resource === "boards") return id === undefined || scope.boards.includes(id);
-    if (resource === "controllers") return id === undefined || scope.controllers.includes(id);
+  #permits(scope: Grant, path: string, resource?: string, id?: string): boolean {
+    if (resource === "boards") return id === undefined || covers(scope.boards, id);
+    if (resource === "controllers") return id === undefined || covers(scope.controllers, id);
     return MODEL_ROUTES.has(path) && scope.models;
   }
 
-  #session(request: Request): Response {
+  async #session(request: Request, peer: string | undefined): Promise<Response> {
     if (request.method === "GET") {
       const scope = this.scope(request);
       return json({
         mode: this.config.mode,
         authenticated: this.config.mode === "demo" || scope !== null,
-        boards: scope?.boards ?? [],
-        controllers: scope?.controllers ?? [],
+        boards: listed(scope?.boards),
+        controllers: listed(scope?.controllers),
+        secret: secretKindOf(this.config),
+        unrestricted:
+          this.config.mode === "demo" || (scope?.boards === EVERY && scope.controllers === EVERY),
       });
     }
     if (request.method === "DELETE") {
@@ -175,12 +207,19 @@ export class ApiAccess {
       return response;
     }
     if (request.method !== "POST" || this.config.mode !== "shared") return notFound();
+    const client = clientOf(request, peer, this.config.trustedProxies);
+    const wait = this.#failures.waitSeconds(client);
+    if (wait > 0) return busy(wait);
     const release = this.#logins.enter();
     if (release === null) return busy();
     try {
-      const credential = this.#sessions.bearer(request);
-      if (credential === null) return unauthorized();
-      const cookie = this.#sessions.create(credential);
+      const grant = await this.#presented(request);
+      if (grant === null) {
+        this.#failures.fail(client);
+        return unauthorized();
+      }
+      this.#failures.succeed(client);
+      const cookie = this.#sessions.create(grant);
       if (cookie === null) return busy();
       const response = json({ ok: true });
       response.headers.set("set-cookie", cookie);
@@ -188,6 +227,22 @@ export class ApiAccess {
     } finally {
       release();
     }
+  }
+
+  /** A bearer token in the header, or the shared password as `{ "password": … }` in the body. */
+  async #presented(request: Request): Promise<Grant | null> {
+    if (request.headers.has("authorization")) return this.#sessions.bearer(request);
+    if (this.config.password === null) return null;
+    const text = await request.text().catch(() => "");
+    if (text.length > MAX_SIGN_IN_BODY_CHARS) return null;
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return null;
+    }
+    const parsed = passwordBodySchema.safeParse(body);
+    return parsed.success ? this.#sessions.password(parsed.data.password) : null;
   }
 
   async #bufferModelResponse(response: Response): Promise<Response> {

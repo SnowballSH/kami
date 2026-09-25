@@ -64,10 +64,11 @@ export class Router {
     return this;
   }
 
-  readonly handle = async (request: Request): Promise<Response> => {
+  /** `peer` is the remote address of the connection the request came on, when known. */
+  readonly handle = async (request: Request, peer?: string): Promise<Response> => {
     return this.access === undefined
       ? this.#route(request)
-      : this.access.handle(request, this.#route);
+      : this.access.handle(request, this.#route, peer);
   };
 
   readonly #route = async (request: Request): Promise<Response> => {

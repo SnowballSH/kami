@@ -9,6 +9,7 @@ coverage/
 .cache/
 __pycache__/
 .deepgram.env
+kami-password
 .serena/
 .claude/
 docs.zip

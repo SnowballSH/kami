@@ -10,6 +10,7 @@ export const SECRET_VARIABLES = [
   "KAMI_BEAUTIFY_API_KEY",
   "MONGODB_URI",
   "KAMI_CREDENTIALS",
+  "KAMI_PASSWORD",
 ] as const;
 
 export type SecretVariable = (typeof SECRET_VARIABLES)[number];

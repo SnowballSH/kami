@@ -38,7 +38,7 @@ other services needs:
 
 - **Secrets as files.** Every secret-bearing variable — `KAMI_LLM_API_KEY`,
   `KAMI_TRANSCRIBE_API_KEY`, `KAMI_RECOGNIZER_API_KEY`, `KAMI_BEAUTIFY_API_KEY`, `MONGODB_URI`,
-  `KAMI_CREDENTIALS` — may be given as `<NAME>_FILE`, the path of a file whose trimmed content is
+  `KAMI_CREDENTIALS`, `KAMI_PASSWORD` — may be given as `<NAME>_FILE`, the path of a file whose trimmed content is
   the value (podman/docker secrets, systemd `LoadCredential`). Setting both `X` and `X_FILE`, or
   naming a file that cannot be read, stops start-up with a message naming the variable.
 - **Sketches without an ingest.** The Quick, Draw! corpus is a read-only file, not a collection:
@@ -115,11 +115,13 @@ the language model.
 | `PORT` | HTTP port, default `8787` (what `vite.config.ts` proxies `/api` to) |
 | `KAMI_TLS_CERT` / `KAMI_TLS_KEY` | Enable the optional HTTPS listener when both are non-empty; certificate and private-key files. |
 | `KAMI_TLS_PORT` | HTTPS port, default `8443`. |
-| `KAMI_ACCESS_MODE` | `demo` (default, trusted LAN only) or `shared` (scoped authentication). See [access and deployment](../docs/access.md). |
+| `KAMI_ACCESS_MODE` | `demo` (default, trusted LAN only) or `shared` (scoped authentication). Unset with `KAMI_PASSWORD` set means `shared`; `demo` beside a password stops start-up. See [access and deployment](../docs/access.md). |
+| `KAMI_PASSWORD` | One password for the whole server: setting it switches on `shared` mode, and signing in with it grants every board, every controller and the models. Surrounding whitespace is ignored; at most 1024 characters. Prefer `KAMI_PASSWORD_FILE`. May sit beside `KAMI_CREDENTIALS` (the gate then asks for the password; scoped tokens keep working for devices and scripts), but must differ from every token. |
+| `KAMI_TRUSTED_PROXIES` | Comma-separated IP addresses, default `127.0.0.1,::1`. When a sign-in comes from one of these, the last `X-Forwarded-For` entry names the client whose failed attempts are counted. Used for sign-in throttling only, never for authorization. Empty trusts none. |
 | `KAMI_BIND_HOST` | HTTP bind address: `0.0.0.0` in demo, `127.0.0.1` in shared mode. |
 | `KAMI_WEB_HOST` | Vite development bind address, default `0.0.0.0`; use `127.0.0.1` for local-only development. |
-| `KAMI_ALLOWED_ORIGINS` | Comma-separated exact origins, no trailing slash or wildcard. Shared mode requires HTTPS origins. Demo also permits same-origin requests. |
-| `KAMI_CREDENTIALS` | Shared-only JSON credentials with `id`, `token`, `boards`, `controllers`, and `models` grants; keep outside version control. |
+| `KAMI_ALLOWED_ORIGINS` | Comma-separated exact origins, no trailing slash or wildcard. Shared mode requires HTTPS origins, or loopback ones (`http://localhost:5173`) for trying it on one machine. Demo also permits same-origin requests. |
+| `KAMI_CREDENTIALS` | Shared-only JSON credentials with `id`, `token`, `boards`, `controllers`, and `models` grants; keep outside version control. Required in shared mode unless `KAMI_PASSWORD` is set. |
 | `KAMI_MODEL_REQUESTS_PER_MINUTE` | Positive integer, default `6000`, shared across all model routes and callers per process. One iPad posts a live guess and a handwriting read on every pen lift — several a second while drawing — so the default leaves room for a few devices on a LAN; a public box behind a paid gateway wants far less (`600`; see `docs/access.md`). |
 | `KAMI_MODEL_CONCURRENCY` | Positive integer, default `32`, held through complete model responses. Requests over the limit are refused with `429`, not queued. `4` is plenty on a shared 2-vCPU host. |
 | `MONGODB_URI` | Use this MongoDB instead of the embedded one, e.g. the Atlas `mongodb+srv://…` string. Database `kami`. May be given as `MONGODB_URI_FILE`. |
@@ -152,8 +154,8 @@ the language model.
 | Route | Answer |
 |---|---|
 | `GET /api/health` | `{ ok: true }` — the server is up; no session needed in either mode, nothing else disclosed |
-| `GET /api/session` | `{ mode, authenticated, boards, controllers }`; anonymous callers receive no grants |
-| `POST /api/session` | Exchange `Authorization: Bearer …` for an eight-hour secure HTTP-only session cookie |
+| `GET /api/session` | `{ mode, authenticated, boards, controllers, secret, unrestricted }`; anonymous callers receive no grants. `secret` is what the gate asks for — `"password"`, `"token"`, or `null` in demo mode; `unrestricted` is true when the session reaches every board and controller (demo, or the password), whose lists are then empty |
+| `POST /api/session` | Exchange `Authorization: Bearer <token>`, or the body `{ "password": "…" }` (JSON) when `KAMI_PASSWORD` is set, for an eight-hour secure HTTP-only session cookie. `401` for a wrong secret; `429` with `Retry-After` after 30 attempts a minute in all, or 10 failures from one client in 15 minutes |
 | `DELETE /api/session` | Revoke the current browser session and clear its cookie |
 | `GET /api/boards` | `{ boards: BoardSummary[] }` |
 | `GET /api/boards/:board` | `{ drawings: StoredDrawing[], notes: Note[], rules: Rule[] }`, oldest first; an unknown board is empty |

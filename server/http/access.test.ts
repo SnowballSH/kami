@@ -110,6 +110,54 @@ describe("deployment configuration", () => {
     });
   });
 
+  it("turns KAMI_PASSWORD into a shared server with one grant for everything", () => {
+    const password = readAccessConfig({
+      KAMI_PASSWORD: "  correct horse  ",
+      KAMI_ALLOWED_ORIGINS: ORIGIN,
+    });
+    expect(password).toMatchObject({
+      mode: "shared",
+      password: "correct horse",
+      credentials: [],
+      origins: [ORIGIN],
+    });
+    expect(readConfig({ KAMI_PASSWORD: "pw", KAMI_ALLOWED_ORIGINS: ORIGIN })).toMatchObject({
+      hostname: "127.0.0.1",
+      controllers: { udpPort: null },
+    });
+    expect(readAccessConfig({ ...ENV, KAMI_PASSWORD: "pw" })).toMatchObject({
+      password: "pw",
+      credentials: [ALICE, BOB],
+    });
+    expect(
+      readConfig(
+        { KAMI_PASSWORD_FILE: "/run/secrets/kami", KAMI_ALLOWED_ORIGINS: ORIGIN },
+        () => "from a file\n",
+      ).access.password,
+    ).toBe("from a file");
+    expect(
+      readAccessConfig({ KAMI_PASSWORD: "pw", KAMI_ALLOWED_ORIGINS: "http://localhost:5173" })
+        .origins,
+    ).toEqual(["http://localhost:5173"]);
+    expect(readAccessConfig({ KAMI_PASSWORD: "", KAMI_ALLOWED_ORIGINS: ORIGIN }).mode).toBe("demo");
+  });
+
+  it.each([
+    [{ KAMI_ACCESS_MODE: "demo" }, /remove KAMI_ACCESS_MODE=demo/],
+    [{ KAMI_ALLOWED_ORIGINS: undefined }, /KAMI_ALLOWED_ORIGINS/],
+    [{ KAMI_ALLOWED_ORIGINS: "http://kami.test" }, /HTTPS/],
+    [{ KAMI_PASSWORD: "x".repeat(1025) }, /at most 1024/],
+    [{ KAMI_CREDENTIALS: "not json" }, /valid KAMI_CREDENTIALS/],
+    [{ KAMI_CREDENTIALS: JSON.stringify([{ ...ALICE, id: "password" }]) }, /distinct ids/],
+    [{ KAMI_CREDENTIALS: JSON.stringify([ALICE]), KAMI_PASSWORD: ALICE.token }, /distinct/],
+    [{ KAMI_TRUSTED_PROXIES: "proxy.local" }, /IP addresses/],
+    [{ KAMI_CONTROLLER_UDP_PORT: "8788" }, /UDP/],
+  ])("refuses to start a password gate with %j", (override, reason) => {
+    expect(() =>
+      readConfig({ KAMI_PASSWORD: "pw", KAMI_ALLOWED_ORIGINS: ORIGIN, ...override }),
+    ).toThrow(reason);
+  });
+
   it("retains independent transcription settings in shared mode", () => {
     expect(
       readConfig({
@@ -455,9 +503,13 @@ describe("shared API access", () => {
       authenticated: false,
       boards: [],
       controllers: [],
+      secret: "token",
+      unrestricted: false,
     });
     for (let i = 0; i < 30; i++) {
-      expect((await api.handle(request("session", { method: "POST" }))).status).toBe(401);
+      expect((await api.handle(request("session", { method: "POST" }), `10.0.0.${i}`)).status).toBe(
+        401,
+      );
     }
     expect(
       (await api.handle(request("session", { method: "POST", headers: bearer() }))).status,
@@ -516,6 +568,122 @@ describe("shared API access", () => {
     const unauthenticated = await api.handle(request("boards", { headers: { origin: ORIGIN } }));
     expect(unauthenticated.status).toBe(401);
     expect(unauthenticated.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+  });
+
+  describe("behind one password", () => {
+    const PASSWORD = "correct horse battery";
+    let gated: ReturnType<typeof createApi>;
+    beforeEach(() => {
+      gated = createApi({
+        boards,
+        controllers,
+        access: new ApiAccess({ ...SHARED, credentials: [BOB], password: PASSWORD }, () => now),
+        compiler: { compile },
+        recognizer: { read: recognize },
+        beautifier: { beautify },
+      });
+    });
+    const signIn = (password: unknown, peer = "203.0.113.7", headers: HeadersInit = {}) =>
+      gated.handle(
+        request("session", {
+          method: "POST",
+          headers: { origin: ORIGIN, "content-type": "application/json", ...headers },
+          body: JSON.stringify({ password }),
+        }),
+        peer,
+      );
+    const session = async (cookie?: string) =>
+      (
+        await gated.handle(request("session", { headers: cookie === undefined ? {} : { cookie } }))
+      ).json();
+
+    it("asks for a password, refuses a wrong one and grants every board, controller and model for the right one", async () => {
+      expect(await session()).toEqual({
+        mode: "shared",
+        authenticated: false,
+        boards: [],
+        controllers: [],
+        secret: "password",
+        unrestricted: false,
+      });
+      for (const wrong of ["correct horse", "", 42, "x".repeat(5000)]) {
+        const refused = await signIn(wrong);
+        expect(refused.status).toBe(401);
+        expect(refused.headers.has("set-cookie")).toBe(false);
+      }
+      const accepted = await signIn(` ${PASSWORD} `);
+      expect(accepted.status).toBe(200);
+      const setCookie = accepted.headers.get("set-cookie") ?? "";
+      expect(setCookie).toContain("HttpOnly; Secure; SameSite=Strict");
+      expect(setCookie).toContain(`Max-Age=${SESSION_SECONDS}`);
+      expect(setCookie).not.toContain(PASSWORD);
+      const cookie = setCookie.split(";")[0] ?? "";
+      expect(await session(cookie)).toMatchObject({ authenticated: true, unrestricted: true });
+      controllers.report("arcade", { x: 0, y: 0, buttons: [] }, "http");
+      const headers = { cookie, origin: ORIGIN };
+      expect(await (await gated.handle(request("boards", { headers }))).json()).toEqual({
+        boards: expect.arrayContaining([
+          expect.objectContaining({ id: "my game" }),
+          expect.objectContaining({ id: "private" }),
+        ]),
+      });
+      for (const path of ["boards/private", "boards/never%20made", "controllers"]) {
+        expect((await gated.handle(request(path, { headers }))).status).toBe(200);
+      }
+      expect(
+        (
+          await gated.handle(
+            request("compile", {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ text: "gravity like mars" }),
+            }),
+          )
+        ).status,
+      ).toBe(200);
+    });
+
+    it("never takes the password as a bearer credential, and keeps scoped tokens working beside it", async () => {
+      const asBearer = { authorization: `Bearer ${PASSWORD.replaceAll(" ", "-")}`, origin: ORIGIN };
+      expect((await gated.handle(request("boards", { headers: asBearer }))).status).toBe(401);
+      expect((await gated.handle(request("boards/private", { headers: bearer(BOB) }))).status).toBe(
+        200,
+      );
+      expect(
+        (await gated.handle(request("boards/my%20game", { headers: bearer(BOB) }))).status,
+      ).toBe(403);
+      expect(
+        (
+          await gated.handle(
+            request("session", { method: "POST", headers: bearer(BOB) }),
+            "203.0.113.7",
+          )
+        ).status,
+      ).toBe(200);
+    });
+
+    it("makes one client wait out its window after ten wrong passwords, and no one else", async () => {
+      for (let i = 0; i < 10; i++) expect((await signIn("guess")).status).toBe(401);
+      const throttled = await signIn(PASSWORD);
+      expect(throttled.status).toBe(429);
+      expect(Number(throttled.headers.get("retry-after"))).toBe(15 * 60);
+      expect((await signIn(PASSWORD, "198.51.100.2")).status).toBe(200);
+      now += 15 * 60_000;
+      expect((await signIn(PASSWORD)).status).toBe(200);
+    });
+
+    it("throttles the client a trusted proxy names, and ignores what an untrusted peer claims", async () => {
+      const forwarded = (address: string) => ({ "x-forwarded-for": `10.9.9.9, ${address}` });
+      for (let i = 0; i < 10; i++) {
+        expect((await signIn("guess", "127.0.0.1", forwarded("203.0.113.9"))).status).toBe(401);
+      }
+      expect((await signIn(PASSWORD, "127.0.0.1", forwarded("203.0.113.9"))).status).toBe(429);
+      expect((await signIn(PASSWORD, "127.0.0.1", forwarded("203.0.113.10"))).status).toBe(200);
+      for (let i = 0; i < 10; i++) {
+        expect((await signIn("guess", "192.0.2.1", forwarded(`198.51.100.${i}`))).status).toBe(401);
+      }
+      expect((await signIn(PASSWORD, "192.0.2.1", forwarded("198.51.100.99"))).status).toBe(429);
+    });
   });
 });
 

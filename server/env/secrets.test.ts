@@ -53,7 +53,7 @@ describe("resolveSecretFiles", () => {
     ).toThrow(/KAMI_CREDENTIALS_FILE names \/run\/secrets\/missing.*ENOENT/);
   });
 
-  it("covers every key, the database URI and the shared credentials", () => {
+  it("covers every key, the database URI, the shared credentials and the password", () => {
     expect([...SECRET_VARIABLES]).toEqual([
       "KAMI_LLM_API_KEY",
       "KAMI_TRANSCRIBE_API_KEY",
@@ -62,6 +62,14 @@ describe("resolveSecretFiles", () => {
       "KAMI_BEAUTIFY_API_KEY",
       "MONGODB_URI",
       "KAMI_CREDENTIALS",
+      "KAMI_PASSWORD",
     ]);
+  });
+
+  it("reads the shared password from a file, without its trailing newline", () => {
+    const readFile = (path: string): string => (path === "/run/secrets/kami" ? "hunter22\n" : "");
+    expect(resolveSecretFiles({ KAMI_PASSWORD_FILE: "/run/secrets/kami" }, readFile)).toEqual({
+      KAMI_PASSWORD: "hunter22",
+    });
   });
 });
