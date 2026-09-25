@@ -162,8 +162,10 @@ describe("readConfig", () => {
     expect(readConfig({ KAMI_MONGO_CACHE_GB: "lots" }).database.embeddedCacheGb).toBe(0.25);
   });
 
-  it("names a Quick, Draw! snapshot to seed an empty database from", () => {
-    expect(readConfig({}).quickdrawSnapshot).toBeNull();
+  it("reads the Quick, Draw! corpus from the data directory unless told otherwise", () => {
+    expect(readConfig({ KAMI_DATA_DIR: "/data" }).quickdrawSnapshot).toBe(
+      "/data/quickdraw.ndjson.gz",
+    );
     expect(
       readConfig({ KAMI_QUICKDRAW_SNAPSHOT: " /srv/quickdraw.ndjson.gz " }).quickdrawSnapshot,
     ).toBe("/srv/quickdraw.ndjson.gz");

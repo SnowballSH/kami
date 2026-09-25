@@ -20,3 +20,10 @@ export const transformSketch = (
   strokes.map((stroke) =>
     stroke.map(({ x, y }) => ({ x: x * scale + offset.x, y: y * scale + offset.y })),
   );
+
+/** Strokes as Quick, Draw!'s simplified format stores them: rounded `[xs, ys]` pairs. */
+export const toSimplified = (strokes: readonly Stroke[]): [number[], number[]][] =>
+  strokes.map((stroke) => [
+    stroke.map(({ x }) => Math.round(x)),
+    stroke.map(({ y }) => Math.round(y)),
+  ]);

@@ -23,10 +23,19 @@ export interface FeatureMatrix {
 const isComplete = ({ fraction = COMPLETE_FRACTION }: LabelledFeature): boolean =>
   fraction >= COMPLETE_FRACTION;
 
-const shared = <T extends Float32Array | Uint16Array>(
-  make: (buffer: SharedArrayBuffer) => T,
-  bytes: number,
-): T => make(new SharedArrayBuffer(bytes));
+/** An all-zero matrix of `rows` rows in shared memory, for a builder or a reader to fill in place. */
+export const allocateFeatureMatrix = (
+  categories: readonly string[],
+  rows: number,
+  completeRows: number,
+): FeatureMatrix => ({
+  categories,
+  rowCategories: new Uint16Array(new SharedArrayBuffer(rows * Uint16Array.BYTES_PER_ELEMENT)),
+  features: new Float32Array(
+    new SharedArrayBuffer(rows * FEATURE_LENGTH * Float32Array.BYTES_PER_ELEMENT),
+  ),
+  completeRows,
+});
 
 export const buildFeatureMatrix = (samples: readonly LabelledFeature[]): FeatureMatrix => {
   const usable = samples.filter(({ feature }) => feature.length === FEATURE_LENGTH);
@@ -34,19 +43,12 @@ export const buildFeatureMatrix = (samples: readonly LabelledFeature[]): Feature
   const ordered = [...complete, ...usable.filter((sample) => !isComplete(sample))];
   const categories = [...new Set(ordered.map(({ category }) => category))];
   const categoryIndex = new Map(categories.map((category, index) => [category, index]));
-  const features = shared(
-    (buffer) => new Float32Array(buffer),
-    ordered.length * FEATURE_LENGTH * Float32Array.BYTES_PER_ELEMENT,
-  );
-  const rowCategories = shared(
-    (buffer) => new Uint16Array(buffer),
-    ordered.length * Uint16Array.BYTES_PER_ELEMENT,
-  );
+  const matrix = allocateFeatureMatrix(categories, ordered.length, complete.length);
   for (const [row, { category, feature }] of ordered.entries()) {
-    features.set(feature, row * FEATURE_LENGTH);
-    rowCategories[row] = categoryIndex.get(category) ?? 0;
+    matrix.features.set(feature, row * FEATURE_LENGTH);
+    matrix.rowCategories[row] = categoryIndex.get(category) ?? 0;
   }
-  return { categories, rowCategories, features, completeRows: complete.length };
+  return matrix;
 };
 
 export const isFeatureMatrix = (

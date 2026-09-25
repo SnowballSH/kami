@@ -1,6 +1,6 @@
 import { readConfig } from "../config";
-import { connectDatabase } from "../db/connect";
 import { QUICKDRAW_CATEGORIES } from "./categories";
+import { indexPathsFor, loadQuickdrawCorpus } from "./corpus";
 import { fetchCategoryDrawings, toStrokes } from "./dataset";
 import {
   HIGH_CONFIDENCE,
@@ -13,7 +13,7 @@ import {
   tally,
 } from "./evaluation";
 import { DEFAULT_RECOGNIZER_OPTIONS, QuickdrawRecognizer } from "./recognizer";
-import { QuickdrawSampleRepository } from "./sampleRepository";
+import { readSnapshot } from "./snapshotFile";
 
 const HOLDOUT_PER_CATEGORY = 50;
 const LEADER_FLOORS = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] as const;
@@ -22,10 +22,9 @@ const percent = (hits: number, total: number): string =>
   total === 0 ? "n/a" : `${((hits / total) * 100).toFixed(1)}%`;
 
 const fetchUnseen = async (
-  repository: QuickdrawSampleRepository,
+  ingested: ReadonlySet<string>,
   category: string,
 ): Promise<readonly LabelledSketch[]> => {
-  const ingested = await repository.keyIdsOf(category);
   const fetched = await fetchCategoryDrawings(category, ingested.size + HOLDOUT_PER_CATEGORY);
   return fetched
     .filter(({ keyId }) => !ingested.has(keyId))
@@ -82,29 +81,29 @@ const printFloorSweep = (outcomes: readonly Outcome[]): void => {
   }
 };
 
-const connection = await connectDatabase(readConfig().database);
-try {
-  const repository = new QuickdrawSampleRepository(connection.db);
-  const recognizer = new QuickdrawRecognizer(await repository.loadFeatures());
-  console.log(
-    `Index: ${recognizer.size} sketches in ${recognizer.rows} rows, from ${connection.description}`,
-  );
+const config = readConfig();
+const snapshot = config.quickdrawSnapshot;
+const { corpus, description } = await loadQuickdrawCorpus(
+  snapshot,
+  indexPathsFor(snapshot, config.database.embeddedDataDirectory),
+);
+const recognizer = new QuickdrawRecognizer(corpus.matrix);
+console.log(`Index: ${recognizer.size} sketches in ${recognizer.rows} rows (${description})`);
 
-  const outcomes: Outcome[] = [];
-  for (const category of QUICKDRAW_CATEGORIES) {
-    const unseen = await fetchUnseen(repository, category);
-    const ofCategory = unseen.flatMap((sketch) =>
-      TRIALS.map((trial) => runTrial(recognizer, sketch, trial)),
-    );
-    outcomes.push(...ofCategory);
-    printCategory(category, ofCategory);
-  }
-
-  console.log(
-    `\n${outcomes.length / TRIALS.length} unseen sketches, each shown ${TRIALS.length} ways`,
+const ingested = Map.groupBy(await readSnapshot(snapshot), ({ category }) => category);
+const outcomes: Outcome[] = [];
+for (const category of QUICKDRAW_CATEGORIES) {
+  const keyIds = new Set((ingested.get(category) ?? []).map(({ keyId }) => keyId));
+  const unseen = await fetchUnseen(keyIds, category);
+  const ofCategory = unseen.flatMap((sketch) =>
+    TRIALS.map((trial) => runTrial(recognizer, sketch, trial)),
   );
-  printTrials(outcomes);
-  printFloorSweep(outcomes);
-} finally {
-  await connection.close();
+  outcomes.push(...ofCategory);
+  printCategory(category, ofCategory);
 }
+
+console.log(
+  `\n${outcomes.length / TRIALS.length} unseen sketches, each shown ${TRIALS.length} ways`,
+);
+printTrials(outcomes);
+printFloorSweep(outcomes);

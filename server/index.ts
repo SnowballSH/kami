@@ -5,15 +5,14 @@ import { readConfig } from "./config";
 import { startControllers } from "./controllers";
 import { BoardRepository } from "./db/boardRepository";
 import { connectDatabase } from "./db/connect";
+import { dropRetiredCollections } from "./db/retiredCollections";
 import { categoryOf, createExemplarSource } from "./exemplar/exemplars";
 import { ApiAccess } from "./http/access";
 import { createApi } from "./http/api";
 import { type SocketData, socketsOf } from "./http/sockets";
 import { createStaticSite } from "./http/staticSite";
 import { quickdrawNatureTable } from "./natures/natureTable";
-import { buildFeatureMatrix } from "./quickdraw/featureMatrix";
-import { QuickdrawSampleRepository } from "./quickdraw/sampleRepository";
-import { describeSeed, seedQuickdraw } from "./quickdraw/seed";
+import { indexPathsFor, loadQuickdrawCorpus } from "./quickdraw/corpus";
 import { createRecognizerChain } from "./recognition/chain";
 import { createKnnRanker } from "./recognition/ranking/ranker";
 import { createLlmSceneCompiler } from "./scene/llmSceneCompiler";
@@ -30,14 +29,17 @@ const connection = await connectDatabase(config.database);
 
 const boards = new BoardRepository(connection.db);
 await boards.ensureIndexes();
+const retired = await dropRetiredCollections(connection.db);
 
-const samples = new QuickdrawSampleRepository(connection.db);
-const seeded = await seedQuickdraw(samples, config.quickdrawSnapshot);
-const knn = createKnnRanker(buildFeatureMatrix(await samples.loadFeatures()), {
-  threads: config.recognizerThreads,
+const quickdraw = await loadQuickdrawCorpus(
+  config.quickdrawSnapshot,
+  indexPathsFor(config.quickdrawSnapshot, config.database.embeddedDataDirectory),
+);
+const knn = createKnnRanker(quickdraw.corpus.matrix, { threads: config.recognizerThreads, log });
+const sketches = await createSketchLibrary(config.sketchesDirectory, {
+  stored: quickdraw.corpus,
   log,
 });
-const sketches = await createSketchLibrary(config.sketchesDirectory, { stored: samples, log });
 const eye = createRecognizerChain(config.recognizer, knn.ranker, { log });
 
 const controllers = await startControllers(config.controllers, { log });
@@ -101,11 +103,12 @@ console.log(
 );
 log(`memory: ${connection.description}`);
 log(`game: ${config.webDirectory ?? "not built (Vite serves it in development)"}`);
-log(describeSeed(seeded, config.quickdrawSnapshot));
+if (retired.length > 0) log(`memory: dropped ${retired.join(", ")}, which nothing reads any more`);
+log(quickdraw.description);
 log(
   knn.size > 0
     ? `recognition: ${knn.size} Quick, Draw! sketches; ${knn.describe()}`
-    : "recognition: empty (run `bun run quickdraw:ingest` or set KAMI_QUICKDRAW_SNAPSHOT)",
+    : "recognition: empty (run `bun run quickdraw:ingest`, or point KAMI_QUICKDRAW_SNAPSHOT at a corpus)",
 );
 void eye.describe().then(log);
 log(`beautifier: ${config.beautifier?.url ?? "none attached"}`);

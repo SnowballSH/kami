@@ -24,6 +24,19 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 export const datasetUrl = (category: string): string =>
   `${DATASET_BASE_URL}/${encodeURIComponent(category)}.ndjson`;
 
+const FRAME = 256;
+
+const inFrame = (coordinate: number): boolean =>
+  Number.isFinite(coordinate) && coordinate >= 0 && coordinate <= FRAME;
+
+/** Strokes of at least two points each, every point inside Quick, Draw!'s 0–256 frame. */
+export const isWellFormedDrawing = (drawing: readonly SimplifiedStroke[]): boolean =>
+  drawing.length > 0 &&
+  drawing.every(
+    ([xs, ys]) =>
+      xs.length > 1 && xs.length === ys.length && xs.every(inFrame) && ys.every(inFrame),
+  );
+
 export const toStrokes = (drawing: readonly SimplifiedStroke[]): readonly Stroke[] =>
   drawing.map(([xs, ys]) => xs.map((x, index) => ({ x, y: ys[index] ?? 0 })));
 

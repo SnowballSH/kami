@@ -1,8 +1,6 @@
 import { readConfig } from "../config";
-import { connectDatabase } from "../db/connect";
-import { QUICKDRAW_CATEGORIES } from "./categories";
+import { indexPathsFor, loadQuickdrawCorpus } from "./corpus";
 import { DEFAULT_SAMPLES_PER_CATEGORY, ingestQuickdraw } from "./ingestion";
-import { QuickdrawSampleRepository } from "./sampleRepository";
 
 const samplesPerCategoryFromArgs = (args: readonly string[]): number => {
   const requested = Number(args[0]);
@@ -10,16 +8,16 @@ const samplesPerCategoryFromArgs = (args: readonly string[]): number => {
 };
 
 const config = readConfig();
-const connection = await connectDatabase(config.database);
-try {
-  console.log(`Ingesting Quick, Draw! into ${connection.description}`);
-  const reports = await ingestQuickdraw(
-    new QuickdrawSampleRepository(connection.db),
-    QUICKDRAW_CATEGORIES,
-    samplesPerCategoryFromArgs(process.argv.slice(2)),
-  );
-  const total = reports.reduce((sum, { samples }) => sum + samples, 0);
-  console.log(`Done: ${total} drawings across ${reports.length} categories.`);
-} finally {
-  await connection.close();
-}
+const snapshot = config.quickdrawSnapshot;
+console.log(`Ingesting Quick, Draw! into ${snapshot}`);
+const reports = await ingestQuickdraw(snapshot, {
+  samplesPerCategory: samplesPerCategoryFromArgs(process.argv.slice(2)),
+  log: console.log,
+});
+const total = reports.reduce((sum, { samples }) => sum + samples, 0);
+console.log(`Done: ${total} drawings across ${reports.length} categories.`);
+const { description } = await loadQuickdrawCorpus(
+  snapshot,
+  indexPathsFor(snapshot, config.database.embeddedDataDirectory),
+);
+console.log(description);
