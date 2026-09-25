@@ -11,7 +11,6 @@ import { PersistenceStatus } from "./persistenceStatus";
 import { paintQr } from "./qr";
 import { RoomCardView } from "./roomCard";
 import { SharePanel } from "./sharePanel";
-import { TalkButton } from "./talkButton";
 import { TextPrompt } from "./textPrompt";
 import { TidySlider } from "./tidySlider";
 import { TitleCard } from "./titleCard";
@@ -32,7 +31,6 @@ export class DomHud implements Hud {
   private readonly persistence: PersistenceStatus;
   private readonly prompt: TextPrompt;
   private readonly stick: Joystick;
-  private readonly talk: TalkButton;
   private readonly tidy: TidySlider;
   private readonly roomCard = new RoomCardView();
   private readonly share = new SharePanel(paintQr);
@@ -60,7 +58,6 @@ export class DomHud implements Hud {
     this.boards.element.append(this.persistence.element);
     this.prompt = new TextPrompt(host);
     this.stick = new Joystick(walk.source());
-    this.talk = new TalkButton(handlers);
     this.tidy = new TidySlider((tidiness) => handlers.onTidinessChanged(tidiness));
     const remoteStick = createRemoteStick(walk.source());
     this.overlay.append(
@@ -72,7 +69,6 @@ export class DomHud implements Hud {
       this.card.element,
       this.toolbar.element,
       this.stick.element,
-      this.talk.element,
       this.tidy.element,
       this.zoom.element,
       this.prompt.element,
@@ -85,7 +81,6 @@ export class DomHud implements Hud {
       new KeyboardWalk(walk.source()).attach(host),
       ...(remoteStick === null ? [] : [remoteStick.attach()]),
       this.stick.attach(host),
-      this.talk.attach(host),
       new ToolHotkeys(this.tools).attach(host),
       this.boards.attach(owner),
       this.share.attach(owner),
@@ -124,14 +119,6 @@ export class DomHud implements Hud {
 
   promptText(client: Vec): Promise<string | null> {
     return this.prompt.ask(client);
-  }
-
-  setListening(listening: boolean): void {
-    this.talk.setListening(listening);
-  }
-
-  setWaking(waking: boolean): void {
-    this.talk.setWaking(waking);
   }
 
   /** A shared page has one menu, the share affordance; the board menu stands aside for it. */
