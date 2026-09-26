@@ -1,4 +1,4 @@
-import { expandRect, type Rect, rectContains, type Stroke, type Vec } from "../core/geometry";
+import { expandRect, type Rect, type Stroke, type Vec } from "../core/geometry";
 import { INK_THICKNESS } from "../core/world";
 import type { PlacementRules, PlacementVerdict } from "./types";
 
@@ -29,11 +29,12 @@ const segmentsOf = (stroke: Stroke): readonly Segment[] => {
   return stroke.slice(1).map((end, i): Segment => [stroke[i] ?? end, end]);
 };
 
-const touchesZone = (strokes: readonly Stroke[], zones: readonly Rect[]): boolean =>
-  strokes.some((stroke) => stroke.some((point) => zones.some((zone) => rectContains(zone, point))));
-
 const crossesRect = (strokes: readonly Stroke[], rect: Rect): boolean =>
   strokes.some((stroke) => segmentsOf(stroke).some((segment) => segmentCrossesRect(segment, rect)));
+
+/** A quick flick samples few points, so the line between them is judged, not only the points. */
+const touchesZone = (strokes: readonly Stroke[], zones: readonly Rect[]): boolean =>
+  zones.some((zone) => crossesRect(strokes, zone));
 
 export const isUnderGround = (point: Vec, solids: readonly Rect[]): boolean => {
   const bottom = solids.reduce(
