@@ -4,8 +4,8 @@
 #   podman compose up -d            # the game on http://localhost:8080, reading handwriting locally
 #   podman compose --profile mongo up -d   # + MongoDB 8; set MONGODB_URI=mongodb://mongo:27017
 #
-# The kami container runs its own sidecar (handwriting, and Kami's Eye once a trained model is
-# mounted at /models/kami-eye: uncomment the volume below).
+# The kami container runs its own sidecar: handwriting, and the Kami's Eye baked into the image. To
+# serve a model of your own, uncomment the volume below and set KAMI_EYE_MODEL=/models/kami-eye.
 
 services:
   kami:

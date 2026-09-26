@@ -54,8 +54,8 @@ podman compose up -d               # the game, with its embedded MongoDB and han
 podman compose --profile mongo up -d   # + MongoDB 8 instead of the embedded one: MONGODB_URI=mongodb://mongo:27017
 ```
 
-A trained Kami's Eye needs no second service: uncomment the `/models/kami-eye` volume in
-`compose.yaml` (`KAMI_EYE_ARTIFACTS` names the directory) and the kami container's own sidecar serves it.
+Kami's Eye is in the image already (below); to serve a model you trained yourself, uncomment the
+`/models/kami-eye` volume in `compose.yaml` and set `KAMI_EYE_MODEL=/models/kami-eye`.
 
 [`.env.example`](../.env.example) lists every variable with a line of explanation. `KAMI_PUBLISH`
 chooses where compose publishes the game; `127.0.0.1:8080` keeps it behind a reverse proxy.
@@ -76,9 +76,9 @@ Any secret (`*_API_KEY`, `MONGODB_URI`, `KAMI_CREDENTIALS`, `KAMI_PASSWORD`) may
 | `KAMI_SIDECAR` | `auto` | The image starts `ml/sidecar.py` on `127.0.0.1:8790` beside the server, restarts it if it dies and stops it on shutdown. `off` does without: handwriting then needs another reader. |
 | `KAMI_HANDWRITING_URL`, `KAMI_HANDWRITING_API_KEY` | the image's sidecar | Where handwriting is read (`POST /read`, [ml/CONTRACT.md](../ml/CONTRACT.md)): another sidecar, e.g. the `kami-eye` image on another host, or `off` to leave it to the vision model. |
 | `KAMI_TRANSCRIBE_URL`, `KAMI_TRANSCRIBE_MODEL`, `KAMI_TRANSCRIBE_API_KEY` | the LLM settings | A vision-capable model that reads handwriting, used only when no sidecar reader passes its start-up check. A text-only model fails that check and is simply not used. |
-| `KAMI_EYE_MODEL` | `/models/kami-eye` | Kami's Eye for the image's sidecar ([ml/CONTRACT.md](../ml/CONTRACT.md)). Mount a trained model there and the sidecar recognises sketches and finishes drawings; without one, the built-in k-NN recognises alone. |
+| `KAMI_EYE_MODEL` | `/app/models/kami-eye` (baked in) | Kami's Eye for the image's sidecar ([ml/CONTRACT.md](../ml/CONTRACT.md)): it recognises sketches, finishes drawings and supplies the drawings Kami summons. Point it at a mounted model of your own to replace it; at a path with no model, the built-in k-NN recognises alone. |
 | `KAMI_RECOGNIZER_URL`, `KAMI_RECOGNIZER_API_KEY` | the image's sidecar, when it has an Eye | Kami's Eye elsewhere. `off`: the k-NN alone. |
-| `KAMI_SKETCHES` | Quick, Draw! | The Eye's exemplar set, whose drawings are summoned by name. |
+| `KAMI_SKETCHES` | the Eye's exemplars | The exemplar set whose drawings are summoned by name; without an Eye, Quick, Draw! itself. |
 | `KAMI_BEAUTIFY_URL`, `KAMI_BEAUTIFY_API_KEY` | off | A sketch beautifier, if you have one. |
 | `KAMI_MODEL_REQUESTS_PER_MINUTE`, `KAMI_MODEL_CONCURRENCY` | server defaults | Caps on what the game may spend at the model endpoints. |
 
@@ -179,12 +179,14 @@ recognition milliseconds, and reads go one at a time. No container needs a GPU.
 
 ## Kami's Eye and the sidecar
 
-The kami image's sidecar reads handwriting from the start and serves Kami's Eye too once trained
-artefacts, which are not in the repository, are mounted read-only at `/models/kami-eye`:
+The kami image's sidecar reads handwriting and serves Kami's Eye from the start. The image bakes in
+the release pinned by [`ml/eye-release.json`](../ml/eye-release.json), a GitHub Release asset
+checked against its SHA-256 at build time ([ml/README.md](../ml/README.md) trains and publishes
+one). To serve a model of your own, mount it and point `KAMI_EYE_MODEL` at it:
 
 ```bash
 podman run -d --name kami -p 8080:8080 -v kami-data:/data \
-  -v /srv/kami/artifacts/kami-eye:/models/kami-eye:ro \
+  -v /srv/kami/artifacts/kami-eye:/models/kami-eye:ro -e KAMI_EYE_MODEL=/models/kami-eye \
   --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
   --cap-drop=ALL --security-opt no-new-privileges \
   ghcr.io/snowballsh/kami:latest

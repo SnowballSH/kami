@@ -1,1 +1,6 @@
-{ "release": null }
+{
+  "release": {
+    "url": "https://github.com/SnowballSH/kami/releases/download/eye-kami-eye-next-2026.09.26/kami-eye-kami-eye-next-2026.09.26.tar.gz",
+    "sha256": "15e771265f54c457bee217ddf6a9d52a88f9c0ee0ff26ebce9bcc8fac34074a3"
+  }
+}

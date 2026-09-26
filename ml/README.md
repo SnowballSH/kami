@@ -6,10 +6,24 @@ files, sidecar routes); this directory is the Python that honours it: a retraini
 any machine, and the ONNX sidecar the Bun server asks. Nothing here touches the game: the server
 reaches the model through the sidecar and falls back to its k-NN when the sidecar is not there.
 
-The two models trained so far (`kami-eye`, 81.1 % top-1 on finished test drawings, and
-`kami-eye-xl`, **83.1 % / 95.2 %**) were trained at the hackathon on an NVIDIA GB10 box at
-6,800 img/s; that box and both models are gone. `docs/reports/kami-eye-results.md` keeps their
+The model the image serves is **`kami-eye-next`**, trained with this kit's `full` preset on an
+Apple M4 MacBook Air in 21 h 54 min (36.3 M image passes, one pass over up to 120,000 drawings
+per category): **83.4 % top-1 / 95.3 % top-3 on finished test drawings**, published as the GitHub
+Release `eye-kami-eye-next-2026.09.26` with its model card and pinned by `eye-release.json`. Its
+predecessors, `kami-eye` (81.1 %) and `kami-eye-xl` (83.1 % / 95.2 %), were trained at the hackathon
+on an NVIDIA GB10 at 6,800 img/s and are gone; `docs/reports/kami-eye-results.md` keeps their
 numbers, `docs/reports/kami-eye-next.md` the analysis this kit's recipe follows.
+
+| Test drawings | n | kami-eye-next | kami-eye-xl |
+|---|---|---|---|
+| finished | 379,472 | **83.4 % / 95.3 %** | 83.1 % / 95.2 % |
+| 90–100 % of the points | 54,144 | 82.8 % / 95.1 % | 82.7 % / 95.1 % |
+| 70–90 % | 108,494 | 76.6 % / 92.3 % | 76.2 % / 92.1 % |
+| 50–70 % | 108,390 | 59.8 % / 81.9 % | 60.0 % / 81.6 % |
+| 30–50 % | 108,444 | 36.1 % / 59.5 % | 36.7 % / 60.0 % |
+
+To ship a new model: `ml/retrain.sh publish --name <run>`, then put its tarball's URL and SHA-256
+(from the release's `SHA256SUMS`) in `eye-release.json`; the next image build bakes it in.
 
 ## Retrain — one command, any machine
 
@@ -85,7 +99,7 @@ off, and expect a few percent less than a cold `bench` once it is warm.
 | NVIDIA CUDA | bf16 autocast (fp16 + GradScaler on cards without bf16), `channels_last`, fused AdamW, cuDNN autotuning, TF32 | `--compile` (measure it with `bench --compile`); pinned host memory |
 | CPU | fp32 (`--precision bf16` is allowed) | only for tests and smoke runs |
 
-## The recipe, and why it should beat kami-eye-xl
+## The recipe, and why it beats kami-eye-xl
 
 kami-eye-xl pre-rendered each drawing once into a 31 GB memmap: half of the drawings existed only
 finished, half only as one fixed prefix, repeated identically for 10 epochs (68 M image passes over
