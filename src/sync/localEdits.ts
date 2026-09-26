@@ -1,6 +1,7 @@
+import { canonicalOf } from "../core/canonical";
 import { same } from "../core/same";
 import { PERSISTENCE_TIMEOUT_MS } from "../persistence/requestDeadline";
-import type { BoardChange, BoardEdit } from "./wire";
+import { type BoardChange, type BoardEdit, storedEntitySchemas } from "./wire";
 
 /**
  * How long after a write its echo is awaited. A write lands, or fails, within a few request deadlines
@@ -16,8 +17,10 @@ type Expected = (
 const keyOf = (change: Exclude<BoardEdit, { readonly type: "clear" }>): string =>
   `${change.kind}/${change.id}`;
 
-/** The entity as the server will echo it: through JSON, so `-0` and `undefined` fields compare as they will arrive. */
-const asEchoed = (entity: unknown): unknown => JSON.parse(JSON.stringify(entity));
+type Put = Extract<BoardEdit, { readonly type: "put" }>;
+
+/** The entity as the server will echo it: what it stores, not what this device holds. */
+const asEchoed = ({ kind, entity }: Put): unknown => canonicalOf(storedEntitySchemas[kind], entity);
 
 /**
  * This device's writes to a shared page that the server has yet to echo back. Until the echo of its
@@ -47,7 +50,7 @@ export class LocalEdits {
       case "put":
         this.#expected.set(keyOf(edit), {
           type: "put",
-          entity: asEchoed(edit.entity),
+          entity: asEchoed(edit),
           writtenAtMs,
         });
         return;

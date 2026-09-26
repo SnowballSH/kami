@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import { FakeEventSource } from "../../controller/testing/fakeEventSource";
 import { MemoryBoardStore } from "../../game/testing/fakes";
 import type { DrawingId } from "../../ink/types";
@@ -13,6 +14,7 @@ import {
   type PeerId,
   parseCursor,
   presenceReportSchema,
+  storedEntitySchemas,
 } from "../wire";
 
 const BOARD_ID_SEGMENT = 3;
@@ -26,7 +28,8 @@ interface Line {
 /**
  * The server as several devices see it, in memory: what one saves the others hear, numbered, and
  * where each says its Alice is reaches them all. Stands in for `server/sync` in the client's tests,
- * down to the cursor a load carries and the `since` a stream resumes from.
+ * down to the cursor a load carries, the `since` a stream resumes from, and each entity kept and
+ * relayed as the server's schema leaves it rather than as the device sent it.
  */
 export class SharedPage extends MemoryBoardStore {
   private boot = "first";
@@ -114,7 +117,8 @@ export class SharedPage extends MemoryBoardStore {
     return snapshot;
   }
 
-  override saveDrawing(boardId: string, stored: StoredDrawing): void {
+  override saveDrawing(boardId: string, sent: StoredDrawing): void {
+    const stored = asServerKeeps(storedEntitySchemas.drawings, sent);
     super.saveDrawing(boardId, stored);
     this.relay(boardId, { type: "put", kind: "drawings", id: stored.drawing.id, entity: stored });
   }
@@ -124,7 +128,8 @@ export class SharedPage extends MemoryBoardStore {
     this.relay(boardId, deletionOf("drawings", id));
   }
 
-  override saveNote(boardId: string, note: Note): void {
+  override saveNote(boardId: string, sent: Note): void {
+    const note = asServerKeeps(storedEntitySchemas.notes, sent);
     super.saveNote(boardId, note);
     this.relay(boardId, { type: "put", kind: "notes", id: note.id, entity: note });
   }
@@ -134,7 +139,8 @@ export class SharedPage extends MemoryBoardStore {
     this.relay(boardId, deletionOf("notes", id));
   }
 
-  override saveRule(boardId: string, rule: Rule): void {
+  override saveRule(boardId: string, sent: Rule): void {
+    const rule = asServerKeeps(storedEntitySchemas.rules, sent);
     super.saveRule(boardId, rule);
     this.relay(boardId, { type: "put", kind: "rules", id: rule.id, entity: rule });
   }
@@ -187,6 +193,9 @@ export class SharedPage extends MemoryBoardStore {
     return Promise.resolve(new Response(null, { status: 204 }));
   }
 }
+
+const asServerKeeps = <Entity>(schema: z.ZodType<Entity>, entity: Entity): Entity =>
+  schema.parse(JSON.parse(JSON.stringify(entity)));
 
 const promptly: Schedule = (run) => {
   let due = true;

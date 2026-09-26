@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NATURES, type Ruling, STRENGTH_RANGE, TEMPERS } from "../cat/types";
-import { strokesSchema, textSchema, vecSchema } from "../core/input";
+import { penStrokesSchema, textSchema, vecSchema } from "../core/input";
 import { type Drawing, type DrawingId, INK_PROVENANCES } from "../ink/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import { validEffect } from "../rules/effectDomains";
@@ -9,7 +9,14 @@ import type { BoardSnapshot, BoardSummary, FeedCursor, StoredDrawing } from "./t
 
 const MAX_ID_LENGTH = 200;
 
-export { strokeSchema, strokesSchema, textSchema, vecSchema } from "../core/input";
+export {
+  penPointSchema,
+  penStrokesSchema,
+  strokeSchema,
+  strokesSchema,
+  textSchema,
+  vecSchema,
+} from "../core/input";
 
 const isId = (value: unknown): boolean =>
   typeof value === "string" && value.length > 0 && value.length <= MAX_ID_LENGTH;
@@ -24,7 +31,7 @@ export const entityIdSchema = z.string().min(1).max(MAX_ID_LENGTH);
 
 export const drawingSchema = z.looseObject({
   id: brandedId<DrawingId>(),
-  strokes: strokesSchema,
+  strokes: penStrokesSchema,
   cost: z.number().nonnegative(),
 }) satisfies z.ZodType<Drawing>;
 

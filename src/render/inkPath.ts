@@ -10,8 +10,8 @@ export const NOTE_THICKNESS = 2.2;
 export const PEN_THICKNESS = INK_THICKNESS / 2;
 
 /**
- * A pen that reports pressure draws with it. Ink without pressure (a mouse, a finger, a drawing read
- * back from the store, anything Kami drew) keeps one steady width: pressure faked from speed makes a
+ * A pen that reports pressure draws with it, here, after a reload and on every other device on the
+ * page. Ink without pressure (a mouse, a finger, anything Kami drew) keeps one steady width: pressure faked from speed makes a
  * line as thin as its points are far apart — 5.5 px at 2 px apart, 2.3 px at 7 px — and thins every
  * stroke's start to nothing, so strokes that meet end to end show white notches between them.
  */
