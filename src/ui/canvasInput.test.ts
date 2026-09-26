@@ -28,6 +28,7 @@ const createSink = () =>
     tap: vi.fn(),
     panBy: vi.fn(),
     zoomAt: vi.fn(),
+    undo: vi.fn(),
   }) satisfies CanvasInputSink;
 
 const setup = (tool: Tool = "draw") => {

@@ -24,6 +24,7 @@ const createHandlers = () =>
     onClearBoard: vi.fn(),
     onRetryPersistence: vi.fn(),
     onRestartRun: vi.fn(),
+    onUndo: vi.fn(),
   }) satisfies HudHandlers;
 
 const find = <T extends Element>(root: Element, selector: string): T => {
@@ -138,6 +139,20 @@ describe("DomHud", () => {
 
       expect(handlers.onToolChanged.mock.calls).toEqual([["write"], ["erase"], ["pan"], ["draw"]]);
       expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-draw")]);
+    });
+
+    it("undoes with Ctrl+Z or ⌘Z, once per press, and never redoes", () => {
+      const { handlers } = setup();
+
+      press(window, { key: "z", ctrlKey: true });
+      press(window, { key: "Z", metaKey: true });
+      window.dispatchEvent(key("keydown", { key: "z", metaKey: true, repeat: true }));
+      press(window, { key: "z" });
+      press(window, { key: "Z", ctrlKey: true, shiftKey: true });
+      press(window, { key: "z", ctrlKey: true, altKey: true });
+
+      expect(handlers.onUndo).toHaveBeenCalledTimes(2);
+      expect(handlers.onToolChanged).not.toHaveBeenCalled();
     });
 
     it("reflects setTool without echoing it back", () => {
@@ -429,7 +444,9 @@ describe("DomHud", () => {
       press(prompt, { key: "e", code: "KeyE" });
       press(prompt, { key: " ", code: "Space" });
       press(prompt, { key: "ArrowRight", code: "ArrowRight" });
+      press(prompt, { key: "z", ctrlKey: true });
 
+      expect(handlers.onUndo).not.toHaveBeenCalled();
       expect(handlers.onToolChanged).not.toHaveBeenCalled();
       expect(handlers.onWalkIntent).not.toHaveBeenCalled();
     });
@@ -654,6 +671,25 @@ describe("DomHud", () => {
       expect(card.textContent).toContain("Sandbox");
       expect(card.textContent).toContain("Draw together.");
       expect(card.textContent).not.toContain("Go on.");
+    });
+  });
+
+  describe("Kami's voice for screen readers", () => {
+    it("reads what Kami writes into a hidden polite status region, once", () => {
+      const { root, hud } = setup();
+      const region = find<HTMLElement>(root, ".kami-visually-hidden[role='status']");
+      expect(region.getAttribute("aria-live")).toBe("polite");
+      expect(region.textContent).toBe("");
+
+      hud.announce("A lovely picture of a key.");
+      hud.announce("A lovely picture of a key.");
+      hud.announce("  ");
+      hud.announce("And what is that supposed to be?");
+
+      expect([...region.children].map((line) => line.textContent)).toEqual([
+        "A lovely picture of a key.",
+        "And what is that supposed to be?",
+      ]);
     });
   });
 });

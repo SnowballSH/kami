@@ -41,6 +41,7 @@ import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore, StoredDrawing } from "../persistence/types";
 import type { PenReader } from "../reading/types";
 import type { LiveRecognizer, Sighting } from "../recognition/types";
+import { motionAllowed } from "../render/animation/motion";
 import type { Renderer } from "../render/types";
 import { destinationOf, placeCalled } from "../rules";
 import type {
@@ -98,6 +99,7 @@ import {
 } from "./bossLines";
 import { CameraRig, framingZoom } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
+import { Handiwork, type Made } from "./handiwork";
 import { HeldInkBook } from "./heldInk";
 import { IdMint } from "./idMint";
 import { InkLedger, type InkRecord, storedOf } from "./inkLedger";
@@ -143,6 +145,7 @@ import { NOTE_STYLE, type NoteAnchor, NoteBook } from "./noteBook";
 import type { Drift } from "./noteLayout";
 import { type Hire, type Page, Party } from "./party";
 import { groupedByNote, RuleBook } from "./ruleBook";
+import { SteppedTurn } from "./steppedTurn";
 import { StuckDetector } from "./stuckDetector";
 
 const MAX_STEPS_PER_FRAME = 5;
@@ -245,6 +248,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly notes: NoteBook;
   private readonly rules: RuleBook;
   private readonly camera = new CameraRig();
+  private readonly turning = new SteppedTurn();
   private readonly party: Party;
   private readonly stuck = new StuckDetector();
   private readonly ids = new IdMint();
@@ -278,6 +282,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private recital: Recital[] = [];
   /** Settled ink the pen reader is still reading: weightless until it is known to be a drawing. */
   private readonly held = new HeldInkBook();
+  private readonly handiwork = new Handiwork();
   private glimpsing = false;
   private glimpseAgain = false;
   private glimpse: { readonly noteId: NoteId; readonly word: string } | null = null;
@@ -373,7 +378,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       renderer.viewport(),
       sim.alices().flatMap((_, who) => (who === selected ? [] : [sim.aliceBounds(who)])),
     );
-    this.camera.turnTo(sim.paperAngle());
+    this.camera.turnTo(this.turning.follow(sim.paperAngle(), nowMs, motionAllowed()));
 
     const world = sim.snapshot();
     if (this.unfollow !== null && !this.loading && world.alice !== null)
@@ -423,6 +428,33 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   penCancel(): void {
     this.ink.penCancel();
+  }
+
+  onUndo(): void {
+    this.undo();
+  }
+
+  /**
+   * Takes back the last thing this player made: ink not yet landed stroke by stroke, else their
+   * newest drawing or note still on the page, erased as the eraser would, its ink refunded.
+   */
+  undo(): void {
+    if (this.loading || this.ink.retract()) return;
+    const made = this.handiwork.takeLatest((entry) => this.stands(entry));
+    if (made === null) return;
+    if (made.kind === "note") {
+      this.eraseNote(made.id);
+      return;
+    }
+    this.ink.refund(made.cost);
+    this.discard(made.id);
+  }
+
+  private stands(made: Made): boolean {
+    if (made.kind === "drawing") return this.ledger.get(made.id) !== null;
+    return (
+      this.notes.get(made.id) !== null || this.rules.all.some((rule) => rule.noteId === made.id)
+    );
   }
 
   tap(client: Vec): void {
@@ -589,6 +621,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.ink.reset(Number.POSITIVE_INFINITY);
     this.penReader?.forget();
     this.held.clear();
+    this.handiwork.clear();
     this.tidied.clear();
     this.tidyTurns.clear();
     this.retidyDueAtMs = null;
@@ -629,7 +662,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
     if (this.director.mode.opening.freshPage) store.clear(boardId);
     if (!remember) return;
-    const loadingNote = this.kamiWrites("Loading board…", this.board.spawn);
+    const loadingNote = this.kamiWrites("Loading board…", this.board.spawn, { spoken: false });
     try {
       if (!this.director.mode.opening.freshPage) {
         const snapshot = await store.load(boardId);
@@ -1173,6 +1206,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const note = this.kamiWrites(`${seen.name}?`, guessCornerOf(strokes), {
       lifetimeMs: GLIMPSE_LIFETIME_MS,
       drift: "down",
+      spoken: false,
     });
     this.glimpse = { noteId: note.id, word: seen.word };
   }
@@ -1188,6 +1222,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.modules.sim.addDrawing(drawing);
     this.party.invalidate();
     this.ledger.add(drawing);
+    this.handiwork.record({ kind: "drawing", id: drawing.id, cost: drawing.cost });
     this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
     void this.offerGuesses(drawing);
   }
@@ -1565,7 +1600,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const under = this.notes.below(noteId);
     const pondering: NoteAnchor = { type: "note", id: noteId };
     if (under !== null)
-      this.kamiWrites(PONDERING_LINE, under, { anchor: pondering, drift: "down" });
+      this.kamiWrites(PONDERING_LINE, under, { anchor: pondering, drift: "down", spoken: false });
     try {
       return await think();
     } finally {
@@ -1784,8 +1819,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       y: this.board.spawn.y + WORDMARK_OFFSET.y,
     };
     if (this.director.mode.id !== EMBODIED_MODE_ID) return;
-    this.kamiWrites(WORDMARK, at);
-    this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP });
+    this.kamiWrites(WORDMARK, at, { spoken: false });
+    this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP }, { spoken: false });
   }
 
   private playerWrites(text: string, position: Vec): Note {
@@ -1804,6 +1839,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       drift: "down",
     });
     this.modules.store.saveNote(this.board.id, note);
+    this.handiwork.record({ kind: "note", id: note.id });
     return note;
   }
 
@@ -1817,6 +1853,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       readonly tone?: Note["tone"];
       readonly drift?: Drift;
       readonly minY?: number;
+      /** False for what is only decoration or a passing state, never worth reading aloud. */
+      readonly spoken?: boolean;
     } = {},
   ): Note {
     const {
@@ -1826,7 +1864,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       tone = "plain",
       drift = anchor === undefined ? "up" : "down",
       minY,
+      spoken = true,
     } = options;
+    if (spoken) this.hud.announce(text);
     const visible = this.visibleWorldRect();
     const notePosition =
       anchor === undefined
@@ -2013,6 +2053,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const tolerance = ERASER_TOLERANCE / this.camera.camera.zoom;
     const id = findDrawingAt(point, this.ledger.posed(sim.snapshot().drawings), tolerance);
     if (id !== null) {
+      this.ink.refund(this.handiwork.costOf(id));
       this.discard(id);
       return;
     }
