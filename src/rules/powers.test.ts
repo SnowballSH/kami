@@ -49,6 +49,12 @@ const LEFT_TO_OTHERS: readonly (readonly [says: string, governs: RuleEffect["gov
   ["the wheel spins fast", "spin"],
   ["the rock is massive", "mass"],
   ["the rock is heavier", "mass"],
+  ["the wheel spins", "spin"],
+  ["the rock floats", "wings"],
+  ["the bird glides", "wings"],
+  ["everything falls left", "gravity"],
+  ["the wind blows right", "wind"],
+  ["the dog walks away", "heed"],
 ];
 
 describe("powers a drawing can gain by law", () => {

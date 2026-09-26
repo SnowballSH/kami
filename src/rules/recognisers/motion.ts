@@ -1,5 +1,5 @@
 import { type Amount, readAmount } from "../amounts";
-import { DIRECTION_WORDS, fieldAlong, readDirection } from "../directions";
+import { DIRECTION_WORDS, type Direction, fieldAlong, readDirection } from "../directions";
 import { type BodyScalarGoverns, bodyRule, thrustRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { ALICE } from "../subjects";
@@ -24,6 +24,8 @@ interface Reading {
 interface BodyDial {
   readonly governs: BodyGoverns;
   readonly about: Vocabulary;
+  /** Words that name this dial only beside a heading: "the boat sails to the right". */
+  readonly steered?: Vocabulary;
   readonly units: Vocabulary;
   readonly readings: readonly Reading[];
   readonly implied: number | null;
@@ -43,6 +45,13 @@ const THRUST = vocabulary(`
   propelled, propel, propels, propulsion, powered, motorised, motorized, boost, boosts, boosted,
   zoom, zooms, zooming, thrusters, jetpack
 `);
+const DRIFT = vocabulary(`
+  drift, drifts, drifting, drifted, sail, sails, sailing, sailed, roll, rolls, rolling, rolled,
+  move, moves, moving, moved, go, goes, going, went, travel, travels, travelling, traveling,
+  travelled, traveled, head, heads, heading, headed, glide, glides, gliding, glided, slide, slides,
+  sliding, slid, wander, wanders, wandering, wandered, drive, drives, driving, drove, rise, rises,
+  rising, rose, sink, sinks, sinking, sank, fall, falls, falling, fell
+`);
 const WEIGHT = vocabulary(`
   heavy, heavier, heaviest, heavyweight, weight, weighs, weigh, weighty, mass, massive, dense,
   denser, light, lighter, lightest, lightweight, weightless
@@ -58,7 +67,8 @@ const GRIP = vocabulary(`
 const PACE = vocabulary(`
   fast, faster, fastest, quick, quicker, quickest, quickly, speedy, speedier, rapid, rapidly, swift,
   swifter, swiftly, slow, slower, slowest, slowly, sluggish, speed, pace, hurries, hurry, runs,
-  sprints, dashes, zippy, nimble
+  run, running, walks, walk, walking, moves, move, moving, goes, go, going, sprints, dashes, zippy,
+  nimble
 `);
 const WINGS = vocabulary(`
   fly, flies, flying, flew, flight, wings, winged, soar, soars, soaring, hover, hovers, hovering,
@@ -69,6 +79,12 @@ const STATURE = vocabulary(`
   taller, grow, grows, grown, small, smaller, smallest, tiny, little, mini, miniature, minuscule,
   wee, shrink, shrinks, shrunk, size, sized
 `);
+const HEADINGS: ReadonlyMap<string, Direction> = new Map([
+  ...["rise", "rises", "rising", "rose"].map((word) => [word, "up"] as const),
+  ...["sink", "sinks", "sinking", "sank", "fall", "falls", "falling", "fell"].map(
+    (word) => [word, "down"] as const,
+  ),
+]);
 const TURNS = vocabulary(
   "turn, turns, revolution, revolutions, rotations, per, second, seconds, rps",
 );
@@ -140,10 +156,14 @@ const knowing = (dial: BodyDial): KnownDial => ({
     LESS,
     DIRECTION_WORDS,
     dial.about,
+    dial.steered ?? [],
     dial.units,
     ...dial.readings.map((reading) => reading.words),
   ),
 });
+
+const thrustFromAmount = (amount: Amount): number | null =>
+  amount.unit === "mps2" ? null : amount.value;
 
 const DIALS: readonly KnownDial[] = [
   knowing({
@@ -162,13 +182,14 @@ const DIALS: readonly KnownDial[] = [
     governs: "thrust",
     units: NO_UNITS,
     about: THRUST,
+    steered: DRIFT,
     readings: [
       { words: HALT, value: 0 },
       { words: FAST, value: HARD_THRUST_G },
       { words: SLOW, value: GENTLE_THRUST_G },
     ],
     implied: STEADY_THRUST_G,
-    fromAmount: (amount) => (amount.unit === "mps2" ? null : amount.value),
+    fromAmount: thrustFromAmount,
   }),
   knowing({
     governs: "mass",
@@ -242,7 +263,25 @@ const DIALS: readonly KnownDial[] = [
     implied: null,
     fromAmount: multiplier,
   }),
+  knowing({
+    governs: "thrust",
+    units: NO_UNITS,
+    about: HALT,
+    steered: DRIFT,
+    readings: [],
+    implied: 0,
+    fromAmount: thrustFromAmount,
+  }),
 ];
+
+const headingOf = (words: readonly string[]): Direction | null =>
+  readDirection(words) ??
+  words.map((word) => HEADINGS.get(word)).find((heading) => heading !== undefined) ??
+  null;
+
+const isAbout = (dial: BodyDial, words: readonly string[]): boolean =>
+  mentions(words, dial.about) ||
+  (dial.steered !== undefined && mentions(words, dial.steered) && headingOf(words) !== null);
 
 const ordinary = (governs: BodyGoverns): number => (governs === "thrust" ? 0 : STILL[governs]);
 
@@ -261,7 +300,7 @@ const ruleFor = (
   words: readonly string[],
 ): CompiledRule => {
   if (dial.governs === "thrust") {
-    return thrustRule(of, fieldAlong(readDirection(words) ?? "right", value));
+    return thrustRule(of, fieldAlong(headingOf(words) ?? "right", value));
   }
   const governs: BodyScalarGoverns = dial.governs;
   const sign = governs === "spin" && mentions(words, BACKWARDS) ? -1 : 1;
@@ -278,7 +317,7 @@ export const recogniseMotion: Recogniser = (sentence) => {
   const { words } = sentence;
   if (mentions(words, ALICE)) return null;
   for (const dial of DIALS) {
-    if (!mentions(words, dial.about)) continue;
+    if (!isAbout(dial, words)) continue;
     const of = targetOf(sentence, dial.known);
     if (of === null) return null;
     const rest = besides(words, of);
