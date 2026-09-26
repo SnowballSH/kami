@@ -9,7 +9,7 @@ import {
 import { windRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { SUBJECTS } from "../subjects";
-import { INTENSIFIERS, mentions, vocabulary } from "../vocabulary";
+import { INTENSIFIERS, mentions, type Vocabulary, vocabulary } from "../vocabulary";
 
 const STANDARD_GRAVITY_MPS2 = 9.81;
 const STEADY_WIND = 0.3;
@@ -33,7 +33,7 @@ const BLOWING = vocabulary(`
 const STRONG = vocabulary("strong, stronger, heavy, hard, big, fierce, powerful, high, lots, more");
 const GENTLE = vocabulary("gentle, light, soft, weak, slight, little, mild, low, less");
 
-const KNOWN = knownWords(
+export const WIND_WORDS: Vocabulary = knownWords(
   SUBJECTS.wind,
   DIRECTION_WORDS,
   WEATHER,
@@ -66,7 +66,7 @@ const namedStrength = (words: readonly string[]): number =>
   STEADY_WIND;
 
 export const recogniseWind: Recogniser = ({ words }) => {
-  if (!understands(words, KNOWN)) return null;
+  if (!understands(words, WIND_WORDS)) return null;
   const isWeather = mentions(words, WEATHER) || mentions(words, UPDRAFTS);
   if (!isWeather && !mentions(words, SUBJECTS.wind)) return null;
   const heading = readHeading(words);

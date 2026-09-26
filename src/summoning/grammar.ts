@@ -71,6 +71,13 @@ const COUNTS: Readonly<Record<string, number>> = {
 };
 const LONGEST_PHRASE = 4;
 
+/** Every word the wish grammar reads, as it is written. */
+export const WISH_WORDS: ReadonlySet<string> = new Set(
+  [...VERBS, ...FILLERS, ...SEPARATORS, ...Object.keys(COUNTS)]
+    .flatMap((phrase) => phrase.split(/\s+/))
+    .filter((word) => /^[a-z]+$/.test(word)),
+);
+
 export interface Wish {
   readonly summons: readonly Summons[];
   /** The player asked outright ("summon", "draw me") rather than only naming things. */

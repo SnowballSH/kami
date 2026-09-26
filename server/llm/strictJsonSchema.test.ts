@@ -131,7 +131,7 @@ describe("every model client against a server as strict as OpenAI", () => {
   it("gets the handwriting reader's structured reply on the first request", async () => {
     const bodies: Body[] = [];
     const transcriber = createLlmTranscriber(CONFIG, openAiLike('{"text":"hi"}', bodies));
-    expect(await transcriber?.transcribe(HI_STROKES)).toBe("hi");
+    expect(await transcriber?.transcribe(HI_STROKES)).toEqual({ text: "hi" });
     expect(bodies).toHaveLength(1);
     expect(bodies[0]?.response_format?.type).toBe("json_schema");
   });
@@ -142,7 +142,9 @@ describe("every model client against a server as strict as OpenAI", () => {
     const server = openAiLike(reply, bodies, { schemas: false });
     await createLlmCompiler(CONFIG, server).compile("mars");
     await createLlmSceneCompiler(CONFIG, () => true, server).compile("take us to mars");
-    expect(await createLlmTranscriber(CONFIG, server)?.transcribe(HI_STROKES)).toBe("hi");
+    expect(await createLlmTranscriber(CONFIG, server)?.transcribe(HI_STROKES)).toEqual({
+      text: "hi",
+    });
     expect(bodies.map((body) => body.response_format?.type)).toEqual([
       "json_schema",
       "json_object",

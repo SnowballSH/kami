@@ -204,7 +204,7 @@ describe("shared API access", () => {
   const compile = vi.fn(async () => null);
   const recognize = vi.fn(async () => ({ ranking: [], certainAbove: null }));
   const beautify = vi.fn(async () => Response.json({ tidied: STROKES, added: [] }));
-  const transcribe = vi.fn(async () => "hello");
+  const transcribe = vi.fn(async () => ({ text: "hello", unsure: false }));
   const exemplar = vi.fn(async (word: string) => (word === "rabbit" ? RABBIT : null));
 
   beforeAll(async () => {
@@ -224,7 +224,7 @@ describe("shared API access", () => {
       compiler: { compile },
       recognizer: { read: recognize },
       beautifier: { beautify },
-      transcriber: { transcribe, ready: true, warmUp: async () => true },
+      handwriting: { read: transcribe, ready: true },
       exemplars: { categories: ["rabbit"], exemplar },
     });
     vi.clearAllMocks();

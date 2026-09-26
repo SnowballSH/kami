@@ -1,4 +1,4 @@
-export { MOST_SUMMONED, parseWish, type Wish } from "./grammar";
+export { MOST_SUMMONED, parseWish, WISH_WORDS, type Wish } from "./grammar";
 export {
   fitSketch,
   layoutBoxes,

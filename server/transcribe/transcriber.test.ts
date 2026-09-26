@@ -19,7 +19,7 @@ const scripted = (passes: boolean, says: string, warmUps: string[]): Handwriting
       ready = passes;
       return passes;
     },
-    transcribe: async () => says,
+    transcribe: async () => ({ text: says }),
   };
 };
 
@@ -36,7 +36,7 @@ describe("FirstReadyTranscriber", () => {
     expect(await chain.warmUp()).toBe(true);
     expect(chain.chosen).toBe("vision");
     expect(chain.ready).toBe(true);
-    expect(await chain.transcribe(WORDS)).toBe("vision");
+    expect(await chain.transcribe(WORDS)).toEqual({ text: "vision" });
     expect(warmUps).toEqual(["local", "vision"]);
   });
 

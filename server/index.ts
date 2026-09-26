@@ -20,7 +20,7 @@ import { createLlmSceneCompiler } from "./scene/llmSceneCompiler";
 import { SidecarSupervisor } from "./sidecar/supervisor";
 import { createSketchLibrary } from "./sketch";
 import { isStageSocket, stageSockets } from "./stage/socket";
-import { createTranscriber } from "./transcribe/transcriber";
+import { createNoteReader, createTranscriber } from "./transcribe/transcriber";
 
 const API_PREFIX = "/api";
 
@@ -50,6 +50,8 @@ const controllers = await startControllers(config.controllers, { log });
 
 const compiler = createLlmCompiler(config.llm);
 const transcriber = createTranscriber({ sidecar: config.handwriting, vision: config.transcribe });
+const handwriting =
+  transcriber === null ? null : createNoteReader(transcriber, config.handwritingRepair);
 const access = new ApiAccess(config.access, Date.now, (line) => console.log(`  ${line}`));
 const stage = stageSockets(access);
 const api = createApi({
@@ -59,7 +61,7 @@ const api = createApi({
   compiler,
   beautifier: createBeautifier(config.beautifier),
   controllers: controllers.hub,
-  transcriber,
+  handwriting,
   exemplars: createExemplarSource(sketches, quickdrawNatureTable),
   scenes: createLlmSceneCompiler(
     config.llm,
@@ -130,6 +132,11 @@ log(
 log(
   `handwriting: ${transcriber === null ? "off" : `${transcriber.candidates.join(", then ")} (checking)`}`,
 );
+if (transcriber !== null) {
+  log(
+    `handwriting repair: ${config.handwritingRepair === null ? "off" : config.handwritingRepair.model}`,
+  );
+}
 
 /**
  * One request each, in sequence: the rules model is asked "hello" so a cold local model loads before

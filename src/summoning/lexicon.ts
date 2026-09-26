@@ -209,6 +209,11 @@ export class SummoningLexicon {
     }
   }
 
+  /** Every name a thing or a scene answers to, e.g. "rabbit", "rabbits", "hot air balloon". */
+  get names(): readonly string[] {
+    return [...this.things.keys()];
+  }
+
   get isEmpty(): boolean {
     return this.things.size === 0;
   }

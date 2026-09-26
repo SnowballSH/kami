@@ -75,6 +75,7 @@ Any secret (`*_API_KEY`, `MONGODB_URI`, `KAMI_CREDENTIALS`, `KAMI_PASSWORD`) may
 | `KAMI_LLM_REASONING_EFFORT` | `none` | Sent as `reasoning_effort`: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `off` to never send it. A server that rejects the field is asked again without it. |
 | `KAMI_SIDECAR` | `auto` | The image starts `ml/sidecar.py` on `127.0.0.1:8790` beside the server, restarts it if it dies and stops it on shutdown. `off` does without: handwriting then needs another reader. |
 | `KAMI_HANDWRITING_URL`, `KAMI_HANDWRITING_API_KEY` | the image's sidecar | Where handwriting is read (`POST /read`, [ml/CONTRACT.md](../ml/CONTRACT.md)): another sidecar, e.g. the `kami-eye` image on another host, or `off` to leave it to the vision model. |
+| `KAMI_HANDWRITING_REPAIR` | on when the LLM is set | `off` stops sending the text of a finished note the reader was unsure of to the LLM for a second opinion ([server/transcribe/PROOFREADING.md](../server/transcribe/PROOFREADING.md)). At most one request per such note, 2 at once, 120 a minute, 4 s each. |
 | `KAMI_TRANSCRIBE_URL`, `KAMI_TRANSCRIBE_MODEL`, `KAMI_TRANSCRIBE_API_KEY` | the LLM settings | A vision-capable model that reads handwriting, used only when no sidecar reader passes its start-up check. A text-only model fails that check and is simply not used. |
 | `KAMI_EYE_MODEL` | `/app/models/kami-eye` (baked in) | Kami's Eye for the image's sidecar ([ml/CONTRACT.md](../ml/CONTRACT.md)): it recognises sketches, finishes drawings and supplies the drawings Kami summons. Point it at a mounted model of your own to replace it; at a path with no model, the built-in k-NN recognises alone. |
 | `KAMI_RECOGNIZER_URL`, `KAMI_RECOGNIZER_API_KEY` | the image's sidecar, when it has an Eye | Kami's Eye elsewhere. `off`: the k-NN alone. |
@@ -113,11 +114,14 @@ remembers that for the rest of the run. Set a higher effort only if laws come ba
 spend with `KAMI_MODEL_REQUESTS_PER_MINUTE` and `KAMI_MODEL_CONCURRENCY` (docs/access.md suggests
 `600` and `4` for a small public host).
 
-Handwriting is not sent to that model. The image's own sidecar reads it on the CPU, and a local
-reader always comes first: the vision model (`KAMI_TRANSCRIBE_*`, which defaults to the LLM
-settings) is only tried when no sidecar reader passes its start-up check. A text-only or
-reasoning-only model fails the vision check and is simply not used, so pointing `KAMI_LLM_URL` at a
-gateway changes how laws are read and nothing about handwriting.
+Handwriting itself — the ink — is not sent to that model. The image's own sidecar reads it on the
+CPU, and a local reader always comes first: the vision model (`KAMI_TRANSCRIBE_*`, which defaults to
+the LLM settings) is only tried when no sidecar reader passes its start-up check. A text-only or
+reasoning-only model fails the vision check and is simply not used. What the LLM does see is the
+*text* of a finished note the local reader was unsure of, once, to reconstruct what the player most
+likely wrote (a few percent of notes; each counts against the model limits above).
+`KAMI_HANDWRITING_REPAIR=off` stops that, and then pointing `KAMI_LLM_URL` at a gateway changes how
+laws are read and nothing about handwriting.
 
 ### Storage
 

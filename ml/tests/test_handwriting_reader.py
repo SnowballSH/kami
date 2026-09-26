@@ -5,7 +5,8 @@ import pytest
 
 from handwriting.engines import LineReading, ctc_collapse, undo_iam_spacing
 from handwriting.ink import Image, Strokes
-from handwriting.reader import Floors, HandwritingReader, reads_as_writing
+from handwriting.reader import Floors, HandwritingReader, Transcript, reads_as_writing
+from handwriting.sureness import SureText
 
 WORD: Strokes = [[(0.0, 0.0), (0.0, 40.0)], [(20.0, 0.0), (20.0, 40.0)]]
 TWO_LINES: Strokes = [*WORD, *[[(x, y + 100.0) for x, y in stroke] for stroke in WORD]]
@@ -35,6 +36,10 @@ def hopeless(text: str) -> LineReading:
     return LineReading(text, 0.05, 0.2)
 
 
+def text_of(transcript: Transcript | None) -> str | None:
+    return None if transcript is None else transcript.text
+
+
 def reader_of(
     screen: list[LineReading], reader: list[LineReading]
 ) -> tuple[HandwritingReader, Scripted, Scripted]:
@@ -44,42 +49,42 @@ def reader_of(
 
 def test_a_sure_screen_answers_alone() -> None:
     handwriting, _, reader = reader_of([sure("no gravity")], [])
-    assert handwriting.read(WORD) == "no gravity"
+    assert text_of(handwriting.read(WORD)) == "no gravity"
     assert reader.seen == []
 
 
 def test_an_unsure_screen_hands_the_line_to_the_reader() -> None:
     handwriting, screen, reader = reader_of([unsure("n0 grav1ty")], [sure("no gravity")])
-    assert handwriting.read(WORD) == "no gravity"
+    assert text_of(handwriting.read(WORD)) == "no gravity"
     assert np.array_equal(screen.seen[0], reader.seen[0])
 
 
 def test_ink_the_screen_cannot_read_as_text_is_a_drawing() -> None:
     handwriting, _, reader = reader_of([hopeless("lll")], [sure("ladder")])
-    assert handwriting.read(WORD) is None
+    assert text_of(handwriting.read(WORD)) is None
     assert reader.seen == []
 
 
 def test_the_reader_must_be_sure_enough_too() -> None:
     handwriting, _, _ = reader_of([unsure("a cat")], [hopeless("a cat")])
-    assert handwriting.read(WORD) is None
+    assert text_of(handwriting.read(WORD)) is None
 
 
 def test_lines_are_read_one_by_one_and_joined() -> None:
     handwriting, screen, _ = reader_of([sure("teleport us"), sure("to  the moon")], [])
-    assert handwriting.read(TWO_LINES) == "teleport us to the moon"
+    assert text_of(handwriting.read(TWO_LINES)) == "teleport us to the moon"
     assert len(screen.seen) == 2
 
 
 def test_one_unreadable_line_makes_the_whole_note_unreadable() -> None:
     handwriting, _, _ = reader_of([sure("teleport us"), hopeless("~~")], [])
-    assert handwriting.read(TWO_LINES) is None
+    assert text_of(handwriting.read(TWO_LINES)) is None
 
 
 @pytest.mark.parametrize("text", ["IIIIII", "o", "x" * 81, ""])
 def test_what_does_not_read_as_writing_is_none(text: str) -> None:
     handwriting, _, _ = reader_of([sure(text)], [])
-    assert handwriting.read(WORD) is None
+    assert text_of(handwriting.read(WORD)) is None
 
 
 @pytest.mark.parametrize(
@@ -108,7 +113,7 @@ def test_reads_as_writing(text: str, writing: bool) -> None:
     ],
 )
 def test_iam_spacing_is_undone(iam: str, note: str) -> None:
-    assert undo_iam_spacing(iam) == note
+    assert undo_iam_spacing(SureText.uniform(iam, 0.5)).text == note
 
 
 def test_ctc_merges_repeats_drops_blanks_and_keeps_each_symbols_probability() -> None:
@@ -126,3 +131,41 @@ def test_ctc_merges_repeats_drops_blanks_and_keeps_each_symbols_probability() ->
     text, sureness = ctc_collapse(steps, alphabet)
     assert text == "hi"
     assert sureness == pytest.approx([0.9, 0.7])
+
+
+def test_a_transcript_keeps_each_characters_sureness_through_tidying() -> None:
+    screen = [LineReading("no  grav", 0.9, 0.95, (0.9, 0.8, 0.5, 0.4, 0.9, 0.9, 0.9, 0.9))]
+    transcript = reader_of(screen, [])[0].read(WORD)
+    assert transcript == Transcript("no grav", (0.9, 0.8, 0.4, 0.9, 0.9, 0.9, 0.9))
+
+
+def test_where_the_reader_answered_the_screens_reading_is_an_alternative() -> None:
+    handwriting, _, _ = reader_of(
+        [sure("teleport us"), unsure("to the rnoon")], [sure("to the moon")]
+    )
+    transcript = handwriting.read(TWO_LINES)
+    assert transcript is not None
+    assert transcript.text == "teleport us to the moon"
+    assert transcript.alternatives == ("teleport us to the rnoon",)
+    assert len(transcript.sureness) == len(transcript.text)
+
+
+def test_a_screen_sure_of_everything_has_no_alternative() -> None:
+    transcript = reader_of([sure("no gravity")], [])[0].read(WORD)
+    assert transcript is not None
+    assert transcript.alternatives == ()
+    assert transcript.to_json() == {
+        "text": "no gravity",
+        "sureness": [0.98] * 10,
+        "alternatives": [],
+    }
+
+
+def test_undoing_iam_spacing_keeps_the_kept_characters_sureness() -> None:
+    iam = SureText("0. 3 .", (0.1, 0.2, 0.3, 0.4, 0.5, 0.6))
+    assert undo_iam_spacing(iam) == SureText("0.3", (0.1, 0.2, 0.4))
+
+
+def test_sure_text_refuses_misaligned_sureness() -> None:
+    with pytest.raises(ValueError, match="one sureness per character"):
+        SureText("ab", (0.5,))

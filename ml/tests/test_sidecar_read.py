@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from test_sidecar import SQUARE, call
 
+from handwriting.reader import Transcript
 from render import Point
 from sidecar import DEFAULT_HANDWRITING_DIR, MAX_STROKES, ReadsHandwriting, serve
 
@@ -21,8 +22,11 @@ class EchoReader:
 
     name = "echo"
 
-    def read(self, strokes: list[list[Point]]) -> str | None:
-        return None if len(strokes) == 1 else f"{len(strokes)} strokes"
+    def read(self, strokes: list[list[Point]]) -> Transcript | None:
+        if len(strokes) == 1:
+            return None
+        text = f"{len(strokes)} strokes"
+        return Transcript(text, (0.5,) * len(text), ("2 stroke",))
 
 
 @contextmanager
@@ -51,7 +55,10 @@ def test_health_says_which_capabilities_are_loaded() -> None:
 
 def test_read_answers_the_text_or_null() -> None:
     with reading_sidecar(EchoReader()) as url:
-        assert call(f"{url}/read", {"strokes": SQUARE * 2}) == (200, {"text": "2 strokes"})
+        assert call(f"{url}/read", {"strokes": SQUARE * 2}) == (
+            200,
+            {"text": "2 strokes", "sureness": [0.5] * 9, "alternatives": ["2 stroke"]},
+        )
         assert call(f"{url}/read", {"strokes": SQUARE}) == (200, {"text": None})
 
 
@@ -86,4 +93,7 @@ def test_the_real_reader_reads_kamis_own_pen(fixture: Path) -> None:
     assert bundle is not None
     note = json.loads(fixture.read_text())
     strokes = [[(point["x"], point["y"]) for point in stroke] for stroke in note["strokes"]]
-    assert HandwritingReader.load(bundle, threads=1).read(strokes) == note["text"]
+    transcript = HandwritingReader.load(bundle, threads=1).read(strokes)
+    assert transcript is not None
+    assert transcript.text == note["text"]
+    assert len(transcript.sureness) == len(transcript.text)

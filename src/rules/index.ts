@@ -11,6 +11,7 @@ import {
 } from "./types";
 
 export { speaksOfReferent } from "./grammarCompiler";
+export { RULE_WORDS } from "./lexicon";
 export { referentOf } from "./referents";
 export { placeCalled } from "./scenes/atlas";
 export { destinationOf } from "./scenes/travel";

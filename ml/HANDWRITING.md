@@ -27,6 +27,11 @@ Runtime, in the kami container, with no GPU and no external service. `POST /read
 5. **Reads as writing** (`reader.reads_as_writing`): at most 80 characters, at least two different
    letters or digits — the Bun server's rule — and at least one letter: the wheels of a drawn bicycle
    read as "60" far more often than anyone writes a bare number.
+6. **Sureness and the other reading** (`handwriting/sureness.py`): the transcript keeps how sure the
+   answering model was of each character (a CTC symbol's probability, or the probability of the
+   TrOCR token it came from), through every trim and join above, and — where TrOCR answered — what
+   the screen read of the same ink. The Bun server proofreads with both
+   (`server/transcribe/PROOFREADING.md`).
 
 Why two models: each is good where the other is not. The screen is fast (≈ 20 ms), reads neat
 writing and symbols (`=`, which IAM never taught TrOCR) exactly, and rarely sees text in a drawing;
@@ -125,10 +130,61 @@ adds ≈ 400 MB to the image, uncompressed: Python 102 MB, numpy + OpenCV + ONNX
 models 76 MB. Kami's Eye, when mounted, shares the
 process and adds its own model (ml/README.md).
 
+## Proofreading on the server (September 2026)
+
+What the reader answers is proofread by the Bun server (`server/transcribe/PROOFREADING.md`): a
+deterministic corrector against the game's own vocabulary, then — for a settled note still in doubt —
+a text model. Measured on an Apple M4 on these sets, read through `HandwritingReader` exactly as
+served (1 549 reads, 36 s on four processes):
+
+- **Kami's pen**: 337 phrases mined from `src/rules`, `src/rules/scenes`, `src/summoning` and
+  `src/counsel` tests and the atlas's places, in the game's handwriting.
+- **Handwriting fonts**: the same phrases, each in two of the six fonts above (slanted, turned,
+  jittered), rendered at 64 px, thinned (Zhang–Suen) and traced into pen strokes: 674.
+- **Ordinary English**: 200 two- and three-word runs from IAM validation transcriptions (names,
+  prose; nothing of Kami's) in one of the fonts each — the false-correction check.
+- **IAM lines**: 150 IAM validation lines (`Teklia/IAM-line`), scanned ink thinned and traced.
+- **Drawings**: 240 Quick, Draw! drawings of 16 writing-like categories (ladder, fence, squiggle,
+  zigzag, rain, grass, bicycle, eyeglasses…), of which 188 pass the client gate.
+
+Exact is the lower-cased text with punctuation other than `= . % + -` dropped, as above; CER is
+character edits over the truth's length. "Right words broken" counts words the reader had right that
+proofreading changed, on reads whose word count matched.
+
+| Set | Exact, as read | Exact, proofread | CER, as read → proofread | Fixed / broken phrases | Right words broken | In doubt (of the wrong ones) | Exact with a model's second opinion ¹ |
+|---|---|---|---|---|---|---|---|
+| Kami's pen | 97.0 % | **98.8 %** | 0.002 → 0.001 | 6 / 0 | 0 / 1 193 | 4 (0 of 4) | 98.8 % |
+| Handwriting fonts | 78.5 % | **82.9 %** | 0.050 → 0.045 | 30 / 0 | 0 / 2 061 | 61 (53 of 115) | 84.3 % (+11 / −2) |
+| Ordinary English | 90.0 % | 90.0 % | 0.026 → 0.026 | 0 / 0 | 1 / 466 | 20 (10 of 20) | 89.0 % (+0 / −2) |
+| IAM lines | 26.0 % | 25.3 % | 0.096 → 0.095 | 0 / 1 | 1 / 534 | 86 (73 of 112) | 28.0 % (+4 / −0) |
+| Drawings read as text | 5.9 % | 5.9 % | | | | | not asked |
+
+Most of the corrector's fixes come from the two readings disagreeing: TrOCR's English guess
+against the screen's game word ("photo" / "pluto", "Walkers" / "walks", "effect" / "eiffel"), then
+the `=` TrOCR never learned ("daylight - 0.1"), words run together ("clonealice", "nogravity"), and
+digits read as letters ("0,5x", "509b" / "50%"). The one IAM phrase broken is a sentence-initial name
+("Tom" → "Ton", which the screen read). What stays wrong is mostly TrOCR confidently reading another
+real word ("mass" for "mars", "run" for "turn", "a much" for "a rock"): only context can tell, which
+is what the second opinion is for. Doubt costs little on writing that was right: 4 of 333 of Kami's
+pen and 8 of 559 font readings that were already right would be asked about.
+
+¹ The production model (an OpenAI-compatible gateway, reasoning effort `none`) was not reachable
+from the laptop, so the second opinion was measured with a much smaller local model, `qwen3:4b-instruct`
+under Ollama (p50 0.5 s a note), on every read in doubt, through the served prompt and the
+faithfulness check: a sanity check of the prompt and the guard, not of the gateway's model. The
+small model fixed 11 font phrases (the Sumikui, "the rabbit is huge", "make the world spin",
+"gravity points left", numbers such as "0.Six" → "0.5x") and broke 2 ("the ramp" → "the camp";
+"summon a unicorn" → the screen's "unicotn", accepted because a reading saw it); on ordinary
+English it broke 2 of 20 notes in doubt ("robbie" → "rabbit", "long" → "along") — what the
+faithfulness check still lets through. The deployed model is expected to follow the prompt's
+"names stay" better; it is unmeasured live.
+
 ## Re-evaluating
 
 The evaluation harness is not part of the repository (it downloads IAM, GNHK and Quick, Draw!
-samples); rebuild it from this description. What matters: render through `handwriting.ink`, read
+samples); rebuild it from this description. For proofreading, save each read's `Transcript.to_json()`
+with its truth and score it in Bun through `VocabularyCorrector` and `doubtfulWords`
+(`server/transcribe/proofread/`), and through `LlmRepairer` against any OpenAI-compatible server. What matters: render through `handwriting.ink`, read
 through `handwriting.reader.HandwritingReader` with the pinned bundle, compare as above, and count
 drawings only after the client gate (`src/reading/gate.ts`). A new model or new floors should beat
 the served row on GNHK and IAM short without reading more drawings as text.

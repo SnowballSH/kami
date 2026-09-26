@@ -2,7 +2,7 @@ import { readAmount } from "../amounts";
 import { scalarRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { SUBJECTS } from "../subjects";
-import { INTENSIFIERS, mentions, UNIVERSAL, vocabulary } from "../vocabulary";
+import { INTENSIFIERS, mentions, UNIVERSAL, type Vocabulary, vocabulary } from "../vocabulary";
 
 const NO_FRICTION = 0;
 const LOW_FRICTION = 0.3;
@@ -16,7 +16,14 @@ const GRIPPY = vocabulary("sticky, grippy, rough, tacky, gluey");
 const LOW = vocabulary("low, lower, less, little, weak, reduced");
 const HIGH = vocabulary("high, higher, more, lots, strong, much");
 
-const KNOWN = knownWords(SUBJECTS.friction, SLIPPERY, GRIPPY, LOW, HIGH, INTENSIFIERS);
+export const FRICTION_WORDS: Vocabulary = knownWords(
+  SUBJECTS.friction,
+  SLIPPERY,
+  GRIPPY,
+  LOW,
+  HIGH,
+  INTENSIFIERS,
+);
 
 const readStatedFriction = (words: readonly string[]): number | null => {
   const amount = readAmount(words);
@@ -33,7 +40,7 @@ const readWorldTexture = (words: readonly string[]): number | null => {
 };
 
 export const recogniseFriction: Recogniser = ({ words }) => {
-  if (!understands(words, KNOWN)) return null;
+  if (!understands(words, FRICTION_WORDS)) return null;
   const friction = mentions(words, SUBJECTS.friction)
     ? readStatedFriction(words)
     : readWorldTexture(words);
