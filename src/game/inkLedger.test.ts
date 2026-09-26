@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Stroke } from "../core/geometry";
+import { ARRIVAL_MS, RETRACE_MS } from "../ink/retrace";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { DrawingPose } from "../sim/types";
 import { InkLedger } from "./inkLedger";
-import { RETRACE_MS } from "./retrace";
 
 const id = "drawing-1" as DrawingId;
 const drawn: Stroke[] = [
@@ -50,6 +50,30 @@ describe("InkLedger.retrace", () => {
     expect(ledger.sceneInks(poses)[0]?.drawing.strokes).toBe(drawn);
     ledger.retrace(id, tidied, 1000);
     expect(ledger.sceneInks(poses)[0]?.drawing.strokes).toBe(drawn);
+  });
+
+  it("says where moving ink is settling, and stops saying so once it has settled", () => {
+    const ledger = new InkLedger();
+    ledger.add(drawing);
+    ledger.retrace(id, tidied, 1000);
+    expect(ledger.views(poses, 1100)[0]?.settling).toEqual({
+      drawing: { ...drawing, strokes: tidied },
+      motion: { kind: "retrace", from: drawn, startedAtMs: 1000 },
+    });
+    expect(ledger.views(poses, 1000 + RETRACE_MS)[0]?.settling).toBeUndefined();
+  });
+
+  it("keeps inking Kami's own drawing in when it is tidied mid-stroke, and glides a later tidy", () => {
+    const ledger = new InkLedger();
+    ledger.conjure(drawing, 0);
+    ledger.retrace(id, tidied, ARRIVAL_MS / 2);
+    expect(ledger.get(id)?.motion).toEqual({ kind: "arrival", startedAtMs: 0 });
+    ledger.retrace(id, drawn, ARRIVAL_MS);
+    expect(ledger.get(id)?.motion).toEqual({
+      kind: "retrace",
+      from: tidied,
+      startedAtMs: ARRIVAL_MS,
+    });
   });
 
   it("has nothing to retrace for ink that is gone", () => {

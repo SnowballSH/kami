@@ -2,6 +2,7 @@ import type { BoardDefinition } from "../board/types";
 import type { Nature } from "../cat/types";
 import type { Pose, Stroke, Vec } from "../core/geometry";
 import type { PenScript } from "../handwriting/types";
+import type { InkMotion } from "../ink/retrace";
 import type { Drawing, DrawingId, PlacementVerdict } from "../ink/types";
 import type { NoteAuthor, NoteId, NoteTone } from "../notes/types";
 import type { AliceIndex, AliceSnapshot, SimEvent, WorldSnapshot } from "../sim/types";
@@ -23,6 +24,14 @@ export interface InkView {
   readonly lit: boolean;
   /** When the ruling landed, for the shiver-and-tint beat. Null while it is still unnamed. */
   readonly awakenedAtMs: number | null;
+  /** Set while the ink is still coming in: `drawing` is what shows now, this is where it is going. */
+  readonly settling?: InkSettling;
+}
+
+/** The drawing an ink settles into, and the motion that brings it there. */
+export interface InkSettling {
+  readonly drawing: Drawing;
+  readonly motion: InkMotion;
 }
 
 /** A drawing between the Sumikui's teeth, and how far through it is. */

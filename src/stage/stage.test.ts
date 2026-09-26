@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { BoardDefinition } from "../board/types";
+import type { Stroke } from "../core/geometry";
+import { InkLedger } from "../game/inkLedger";
+import { ARRIVAL_MS, RETRACE_MS } from "../ink/retrace";
+import type { DrawingId } from "../ink/types";
 import type { DrawnBody } from "../sim/body/types";
-import type { AliceSnapshot } from "../sim/types";
+import type { AliceSnapshot, DrawingPose } from "../sim/types";
 import type { LawListing } from "../ui/types";
 import { StageDecoder, type StagedFrame } from "./decoder";
 import { StageEncoder } from "./encoder";
@@ -85,6 +89,59 @@ describe("the wire", () => {
     expect(stageSocketUrl("main", "source", at("https://box:8443/?mode=boss"))).toBe(
       "wss://box:8443/api/stage/main?role=source",
     );
+  });
+});
+
+const wiggle = (seed: number): readonly Stroke[] =>
+  Array.from({ length: 3 }, (_, line) =>
+    Array.from({ length: 12 }, (_, at) => ({ x: seed + at * 5, y: line * 10 + (at % 3) })),
+  );
+
+const ANIMATED = "animated" as DrawingId;
+const POSES: readonly DrawingPose[] = [
+  {
+    id: ANIMATED,
+    pose: { origin: { x: 0, y: 0 }, position: { x: 3, y: 4 }, angle: 0, scale: 1 },
+    lit: false,
+  },
+];
+
+/** Every frame of `ledger`'s ink from `fromMs` to `toMs`, encoded at the source and decoded on a screen. */
+const mirrorRun = (ledger: InkLedger, fromMs: number, toMs: number) => {
+  const encoder = new StageEncoder();
+  const seen = audience();
+  const decoder = new StageDecoder(seen.house);
+  encoder.setBoard(BOARD);
+  const told: string[] = [];
+  const sources: ReturnType<typeof frameAt>[] = [];
+  for (let nowMs = fromMs; nowMs <= toMs; nowMs += 16) {
+    const frame = frameAt(nowMs, { inks: ledger.views(POSES, nowMs) });
+    sources.push(frame);
+    const messages = encoder.encode(frame, VIEWPORT);
+    told.push(...messages);
+    for (const message of shown(messages)) decoder.take(message);
+  }
+  const inkMessages = told.filter((message) => kindOf(message) === "ink");
+  return { sources, frames: seen.frames.map(({ frame }) => frame), inkMessages };
+};
+
+describe("ink still coming in", () => {
+  it("tells Kami's inking-in once, and the screen draws it in stroke for stroke on the frames' clock", () => {
+    const ledger = new InkLedger();
+    ledger.conjure({ id: ANIMATED, strokes: wiggle(0), cost: 30 }, 1000);
+    const { sources, frames, inkMessages } = mirrorRun(ledger, 1000, 1000 + ARRIVAL_MS + 100);
+    expect(inkMessages).toHaveLength(1);
+    expect(frames.map((frame) => frame.inks)).toEqual(sources.map((frame) => frame.inks));
+    expect(sources[3]?.inks[0]?.drawing.strokes).not.toEqual(wiggle(0));
+  });
+
+  it("tells a retrace once, with the strokes it leaves, and the screen glides them the same way", () => {
+    const ledger = new InkLedger();
+    ledger.add({ id: ANIMATED, strokes: wiggle(0), cost: 30 });
+    ledger.retrace(ANIMATED, [...wiggle(2), ...wiggle(40)], 1000);
+    const { sources, frames, inkMessages } = mirrorRun(ledger, 900, 1000 + RETRACE_MS + 100);
+    expect(inkMessages).toHaveLength(1);
+    expect(frames.map((frame) => frame.inks)).toEqual(sources.map((frame) => frame.inks));
   });
 });
 

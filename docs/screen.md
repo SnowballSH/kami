@@ -55,7 +55,7 @@ may drop) from a drawing (which it must deliver) without parsing either; it neve
 |---|---|---|
 | `board` | source | the `BoardDefinition` on the renderer (`src/board/types.ts`) |
 | `laws` | source | `LawListing[]`, what the laws panel lists |
-| `ink` | source | a `Drawing` — sent once, and again only when the game hands the renderer new strokes for it (a tidy, a retrace) |
+| `ink` | source | a `Drawing` (`StagedInk`) — sent once, and again only when the game hands the renderer new strokes for it (a tidy, a retrace). While the ink is still coming in it carries its final strokes and a `motion` (below) |
 | `body` | source | `{ ref, body }`, a body the player drew for Alice (boss and spirit modes), sent once; her `look` in the frames then carries `bodyRef` |
 | `note` | source | `{ id, script }`, a note's pen script, sent once |
 | `frame` | source | the `RenderFrame` without strokes, scripts or drawn bodies (`LeanFrame`: inks by `id`, notes without `script`, drawn looks by `bodyRef`), the ink still under the pen rounded to a tenth of a pixel, plus the source canvas's `viewport` in CSS px and the events of any frames skipped since the last one sent |
@@ -68,6 +68,15 @@ socket; the server drops a frame for a screen with more than 1 MB waiting, and a
 512 KB or other message over 4 MB (UTF-8 bytes; the socket itself takes nothing larger). Drawings, notes, boards and laws are never dropped. The screen
 fits the source's camera to its own canvas (`fittedCamera`): same centre, all of what the player
 sees, as large as it goes.
+
+**Ink in motion.** Kami's own drawings are inked in over `ARRIVAL_MS` and a tidied drawing glides
+from the player's strokes into Kami's over `RETRACE_MS`; each frame of that shows different strokes.
+Rather than send them every frame, the source sends the final drawing once with its `motion` —
+`{ kind: "arrival", startedAtMs }` or `{ kind: "retrace", from, startedAtMs }` (`InkMotion`,
+`src/ink/retrace.ts`) — and the screen replays it with the same `strokesInMotion` on each frame's
+`nowMs`, the source's own clock, so it shows what the player sees at that moment. The field is
+optional: a screen that ignores it shows the final strokes at once. A new motion for the same
+drawing (a second tidy) is a new `ink`; a motion that has played out is not re-sent.
 
 The bodies are the client's own render types, not a second schema: what a source says is trusted
 the way its `POST`s of drawings are in demo mode, a screen only ever paints it, and a message that

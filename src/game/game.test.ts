@@ -9,6 +9,7 @@ import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { FIXED_STEP_MS } from "../core/world";
 import { BRIDGE_LINE, DROP_LINE, IDEAS, LADDER_LINE } from "../counsel";
 import { createInkSession, findDrawingAt } from "../ink";
+import { ARRIVAL_MS } from "../ink/retrace";
 import type { InkSession } from "../ink/types";
 import {
   BOSS_MODE,
@@ -66,7 +67,6 @@ import {
   WORDMARK,
 } from "./lines";
 import { NOTE_STYLE, type NoteBook } from "./noteBook";
-import { ARRIVAL_MS } from "./retrace";
 import {
   FakeHandwriting,
   FakeHud,

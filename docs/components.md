@@ -90,7 +90,7 @@ main.ts → game/index.ts:startGame(canvas, options)
 | Hit test | `src/ink/hitTest.ts` | built | erasing and tapping find drawings by their original strokes under the current pose |
 | Ink ledger | `src/game/inkLedger.ts` | built | the authoritative list of drawings (strokes never mutated), rulings, art overlays |
 | Held ink | `src/game/heldInk.ts` | built | a drawing picked up by the pencil rides with it until dropped |
-| Retrace | `src/game/retrace.ts` | built | the tidy animation: per-point tween from the player's strokes toward Claude's `complete()` (`tidied` + `added`), body rebuilt after |
+| Retrace | `src/ink/retrace.ts` | built | the tidy animation: per-point tween from the player's strokes toward Claude's `complete()` (`tidied` + `added`), body rebuilt after |
 | Ids | `src/ink/ids.ts` | built | branded `DrawingId` |
 
 ## 6. Naming: the Cat
@@ -211,7 +211,7 @@ repeals what it enacted.
 |---|---|---|---|
 | Recognizer client | `src/recognition/httpRecognizer.ts`, `sightings.ts`, `types.ts` | external | `sight(strokes, { partial })` → `Sighting[]` (word, confidence, name, nature, strength, line, `certain`) |
 | Live guessing | `game.ts` + `cat/sight.ts` | built | partial sight after each stroke (empty = keep last guess); certain → auto-name with born temper; else three guesses |
-| Completion (tidy) | `src/recognition/completion.ts`, `game/retrace.ts` | built | `complete(strokes, name)` → `{ tidied, added }` → morph |
+| Completion (tidy) | `src/recognition/completion.ts`, `ink/retrace.ts` | built | `complete(strokes, name)` → `{ tidied, added }` → morph |
 | Eye (server) | `server/quickdraw/*`, `server/recognition/*`, `server/natures/*`, `ml/` | external | k-NN + the trained Eye sidecar; 345 categories ruled server-side |
 | Beautify art layer | `src/art/types.ts` | contract | model image over the player's ink, physics stays the strokes — planned |
 

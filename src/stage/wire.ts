@@ -1,5 +1,6 @@
 import type { BoardDefinition } from "../board/types";
 import type { PenScript } from "../handwriting/types";
+import type { InkMotion } from "../ink/retrace";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { NoteId } from "../notes/types";
 import type { InkView, NoteView, RenderFrame } from "../render/types";
@@ -37,7 +38,13 @@ export interface Viewport {
 }
 
 /** An ink without its strokes, which travel once in an `ink` message and again only when they change. */
-export type LeanInk = Omit<InkView, "drawing"> & { readonly id: DrawingId };
+export type LeanInk = Omit<InkView, "drawing" | "settling"> & { readonly id: DrawingId };
+
+/**
+ * A drawing as it settles: its final strokes, and while it is still coming in the motion that
+ * brings it there, which the screen plays on the frames' own clock rather than being sent it.
+ */
+export type StagedInk = Drawing & { readonly motion?: InkMotion };
 /** A note without its script, which travels once in a `note` message. */
 export type LeanNote = Omit<NoteView, "script">;
 
@@ -62,7 +69,7 @@ export interface LeanFrame extends Omit<RenderFrame, "inks" | "notes" | "world" 
 
 export interface StageBodies {
   readonly board: BoardDefinition;
-  readonly ink: Drawing;
+  readonly ink: StagedInk;
   readonly note: { readonly id: NoteId; readonly script: PenScript };
   readonly body: { readonly ref: number; readonly body: DrawnBody };
   readonly laws: readonly LawListing[];
