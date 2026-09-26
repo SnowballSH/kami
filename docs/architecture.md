@@ -386,7 +386,7 @@ independent sources. See [controllers.md](controllers.md).
 
 The cabinet firmware's `S,dir,ink,cat,px,py` frames are read by `server/controllers/cabinet.ts`;
 the firmware's debounce and framing are tested natively and its compilation is pinned
-(`scripts/checkCabinet.sh`). The supported integration is movement relay and the CAT button (as `x`).
+(`scripts/checkHardware.sh`). The supported integration is movement relay and the CAT button (as `x`).
 Knob drawing, INK gestures, game-driven LED feedback and a visible reconnect UI are
 deferred. The browser Web Serial example and full-panel
 behavior in [hardware.md](hardware.md) are historical design, not the current browser path; #41
