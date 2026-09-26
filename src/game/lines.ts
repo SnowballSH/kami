@@ -59,6 +59,7 @@ export const SUMIKUI_PAPER_BITTEN_LINES: readonly string[] = [
   "A hole where she stood. Paper heals; slowly.",
   "It eats the floor out from under her now. Draw her a way across.",
 ];
+export const DEVOURED_ROOM_RESTARTS_LINE = "It had her. I will open the room again.";
 export const SUMIKUI_ALICE_DEVOURED_LINES: readonly string[] = [
   "It had her. She is ink like the rest, and I have set her down again.",
   "Gone in one swallow. It is gorged now, and slow. Run while it is.",
