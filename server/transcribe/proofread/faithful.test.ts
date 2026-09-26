@@ -23,10 +23,12 @@ describe("isFaithful", () => {
   it("accepts a word another reading saw", () => {
     const seen = proofreadOf(
       [wordOf("gravity"), wordOf("like"), wordOf("photo", 0.3)],
-      ["gravity like rnars"],
+      ["gravity like pluto"],
     );
-    expect(isFaithful(seen, "gravity like rnars", TEST_LEXICON)).toBe(true);
-    expect(isFaithful(seen, "gravity like mars", TEST_LEXICON)).toBe(true);
+    expect(isFaithful(seen, "gravity like pluto", TEST_LEXICON)).toBe(true);
+    expect(isFaithful(seen, "gravity like mars", TEST_LEXICON)).toBe(false);
+    const unknown = proofreadOf([wordOf("gravity"), wordOf("like"), wordOf("rnarz", 0.3)]);
+    expect(isFaithful(unknown, "gravity like mars", TEST_LEXICON)).toBe(true);
   });
 
   it("refuses added or dropped words and rewrites", () => {
@@ -34,6 +36,12 @@ describe("isFaithful", () => {
     expect(isFaithful(note, "summon", TEST_LEXICON)).toBe(false);
     const long = proofreadOf([wordOf("alice"), wordOf("is"), wordOf("xqzvwj", 0.2)]);
     expect(isFaithful(long, "alice is a rabbit", TEST_LEXICON)).toBe(false);
+  });
+
+  it("turns an English word into another only by a misreading's worth of edits", () => {
+    const english = proofreadOf([wordOf("gravity"), wordOf("like"), wordOf("mass", 0.5, "common")]);
+    expect(isFaithful(english, "gravity like mars", TEST_LEXICON)).toBe(true);
+    expect(isFaithful(english, "gravity like moon", TEST_LEXICON)).toBe(false);
   });
 
   it("keeps every number the note was sure of", () => {
