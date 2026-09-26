@@ -2029,6 +2029,46 @@ describe("Game's voice for screen readers", () => {
   });
 });
 
+describe("Game under reduced motion", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const anglesWhileSpinning = async (): Promise<readonly number[]> => {
+    const player = new Player("wonderland");
+    await player.arrive();
+    await player.write("the world spins slowly", { x: 200, y: 200 });
+    const angles: number[] = [];
+    for (let frame = 0; frame < 240; frame++) {
+      await player.wait(FIXED_STEP_MS);
+      angles.push(player.renderer.lastFrame?.camera.angle ?? 0);
+    }
+    return angles;
+  };
+
+  const turnsBetweenFrames = (angles: readonly number[]): readonly number[] =>
+    angles.flatMap((angle, frame) => {
+      const before = angles[frame - 1];
+      return before === undefined || before === angle ? [] : [Math.abs(angle - before)];
+    });
+
+  it("turns the camera with the spinning page every frame", async () => {
+    const turns = turnsBetweenFrames(await anglesWhileSpinning());
+    expect(turns.length).toBeGreaterThan(100);
+    expect(Math.max(...turns)).toBeLessThan(1);
+  });
+
+  it("turns the camera in steps of 15° or more when the player asks for less motion", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true })),
+    );
+    const turns = turnsBetweenFrames(await anglesWhileSpinning());
+    expect(turns.length).toBeGreaterThan(0);
+    for (const turn of turns) expect(turn).toBeGreaterThanOrEqual(15);
+  });
+});
+
 describe("Game on a blank board", () => {
   it("makes a new game out of sketches and notes", async () => {
     const player = new Player("my-first-game");

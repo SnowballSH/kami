@@ -41,6 +41,7 @@ import type { Note, NoteAction, NoteId } from "../notes/types";
 import type { BoardSnapshot, BoardStore, StoredDrawing } from "../persistence/types";
 import type { PenReader } from "../reading/types";
 import type { LiveRecognizer, Sighting } from "../recognition/types";
+import { motionAllowed } from "../render/animation/motion";
 import type { Renderer } from "../render/types";
 import { destinationOf, placeCalled } from "../rules";
 import type {
@@ -143,6 +144,7 @@ import { NOTE_STYLE, type NoteAnchor, NoteBook } from "./noteBook";
 import type { Drift } from "./noteLayout";
 import { type Hire, type Page, Party } from "./party";
 import { groupedByNote, RuleBook } from "./ruleBook";
+import { SteppedTurn } from "./steppedTurn";
 import { StuckDetector } from "./stuckDetector";
 
 const MAX_STEPS_PER_FRAME = 5;
@@ -243,6 +245,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly notes: NoteBook;
   private readonly rules: RuleBook;
   private readonly camera = new CameraRig();
+  private readonly turning = new SteppedTurn();
   private readonly party: Party;
   private readonly stuck = new StuckDetector();
   private readonly ids = new IdMint();
@@ -371,7 +374,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       renderer.viewport(),
       sim.alices().flatMap((_, who) => (who === selected ? [] : [sim.aliceBounds(who)])),
     );
-    this.camera.turnTo(sim.paperAngle());
+    this.camera.turnTo(this.turning.follow(sim.paperAngle(), nowMs, motionAllowed()));
 
     const world = sim.snapshot();
     if (this.unfollow !== null && !this.loading && world.alice !== null)
