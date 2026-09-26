@@ -247,7 +247,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly ids = new IdMint();
   private readonly introduced = new Set<string>();
   private readonly director: ModeDirector;
-  private sceneLawIds: RuleId[] = [];
 
   private board: BoardDefinition;
   private epoch = 0;
@@ -593,7 +592,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.labelsByKami.clear();
     this.glimpse = null;
     this.rules.replaceAll([]);
-    this.sceneLawIds = [];
     this.showLaws();
     this.applyLaws({ silently: true });
     this.introduced.clear();
@@ -1476,14 +1474,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    * the place with props of his own, one after another. A place the mode forbids is refused whole.
    */
   private async travel(scene: Destination, note: Note, stillHere: () => boolean): Promise<void> {
-    const rules = scene.laws.map((law) => this.ruleFrom(law, note));
+    const rules = scene.laws.map((law) => ({ ...this.ruleFrom(law, note), scene: scene.place }));
     const forbidden = rules.find((rule) => !this.allowsRule(rule));
     if (forbidden !== undefined) {
       this.refuseLaw(note.id, forbidden.effect.governs);
       return;
     }
-    for (const id of this.sceneLawIds) this.onRepealLaw(id);
-    this.sceneLawIds = [];
+    for (const { id } of this.rules.all.filter((rule) => rule.scene !== undefined)) {
+      this.onRepealLaw(id);
+    }
     this.enactAll(
       rules,
       note.id,
@@ -1492,7 +1491,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         rules.map((rule) => rule.explanation),
       ),
     );
-    this.sceneLawIds = rules.map((rule) => rule.id);
     this.remark(scene.line);
     await this.dress(scene, note, stillHere);
   }

@@ -157,6 +157,7 @@ export const ruleSchema = z.looseObject({
   noteId: brandedId<NoteId>(),
   position: vecSchema,
   createdAt: z.number(),
+  scene: text.exactOptional(),
 }) satisfies z.ZodType<Rule>;
 
 const uniqueIds = (ids: readonly string[]): boolean => new Set(ids).size === ids.length;

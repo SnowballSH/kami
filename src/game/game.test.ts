@@ -1628,6 +1628,27 @@ describe("Game with a Kami who takes everyone places", () => {
     expect(player.renderer.lastFrame?.daylight).toBe(1);
   });
 
+  it("replaces a scene written before a reload, not only one written this session", async () => {
+    const player = new Player("wonderland", { eyes: traveller() });
+    await player.arrive();
+    await player.write("teleport us to the moon", { x: 300, y: 500 });
+    expect(
+      (await player.store.load("wonderland")).rules.every(({ scene }) => scene === "the Moon"),
+    ).toBe(true);
+
+    const reloaded = new Player("wonderland", { store: player.store, eyes: traveller() });
+    await reloaded.arrive();
+    await reloaded.write("take us home", { x: 300, y: 600 });
+
+    expect(reloaded.laws.laws.map((law) => law.text)).toEqual(["take us home"]);
+    expect(
+      (await reloaded.store.load("wonderland")).rules.every(
+        (rule) => rule.sourceText === "take us home",
+      ),
+    ).toBe(true);
+    expect(reloaded.renderer.lastFrame?.daylight).toBe(1);
+  });
+
   it("asks the model for a place the atlas has never heard of, and refuses none it knows", async () => {
     const eyes = traveller();
     const chocolate: Scene = {
