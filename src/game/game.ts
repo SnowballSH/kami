@@ -1,7 +1,7 @@
 import type { Scene } from "../autopilot/types";
 import { arenaBoard, arenaHeight, endlessBoard, groundSolids } from "../board";
 import type { BoardDefinition, Zone } from "../board/types";
-import type { Cat, Ruling } from "../cat/types";
+import type { Cat, Nature, Ruling } from "../cat/types";
 import {
   boundsOf,
   clamp,
@@ -118,6 +118,7 @@ import {
   LAW_OUTSIDE_MODE_LINE,
   NOWHERE_LINE,
   OFFER_HELP_HINT,
+  PERISHED_LINES,
   PONDERING_LINE,
   PORTAL_LONELY_LINE,
   REJECTION_LINES,
@@ -176,6 +177,8 @@ const PROP_STAGGER_MS = 450;
 const HUD_WRITING_GAP = 12;
 /** Long enough to read that the heart was taken before the room opens over. */
 const RESTART_AFTER_MS = 2_800;
+/** A heatwave takes drawings by the handful; Kami mourns them once in a while, not one by one. */
+const PERISHED_REMARK_GAP_MS = 8_000;
 
 interface Recital {
   readonly at: number;
@@ -270,6 +273,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private bites = 0;
   private swallows = 0;
   private warps = 0;
+  private perishings = 0;
+  private lastPerishedRemarkMs = Number.NEGATIVE_INFINITY;
   private nextRoom: { readonly boardId: string; readonly atMs: number } | null = null;
   private recital: Recital[] = [];
   /** Settled ink the pen reader is still reading: weightless until it is known to be a drawing. */
@@ -929,6 +934,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       case "perished":
         this.discard(event.drawingId);
         this.party.invalidate();
+        this.mourn(event.nature);
         return;
       case "grow-blocked":
         this.remark(GROW_BLOCKED_LINE);
@@ -1901,6 +1907,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       epoch,
       ...(position === undefined ? {} : { position }),
     }));
+  }
+
+  private mourn(nature: Nature): void {
+    const lines = PERISHED_LINES[nature];
+    if (lines === undefined || this.nowMs - this.lastPerishedRemarkMs < PERISHED_REMARK_GAP_MS)
+      return;
+    this.lastPerishedRemarkMs = this.nowMs;
+    this.remark(lines[this.perishings++ % lines.length] ?? "");
   }
 
   private speakDueRecital(): void {
