@@ -88,15 +88,17 @@ export class SharedPage extends MemoryBoardStore {
     return release;
   }
 
-  /** Streams carry nothing until `deliver`: the latency between a write and its echo. */
+  /** Streams carry no change until `deliver`: the latency between a write and its echo. Presence still flows. */
   holdMessages(): void {
     this.heldMessages ??= [];
   }
 
-  deliver(): void {
+  /** Delivers the first `count` held messages (all of them by default); the rest stay held. */
+  deliver(count = Number.POSITIVE_INFINITY): void {
     const held = this.heldMessages ?? [];
-    this.heldMessages = null;
-    for (const { source, data } of held) if (!source.closed) source.send(data);
+    const due = held.splice(0, count);
+    if (held.length === 0) this.heldMessages = null;
+    for (const { source, data } of due) if (!source.closed) source.send(data);
   }
 
   tell(boardId: string, message: FeedMessage): void {
@@ -156,7 +158,8 @@ export class SharedPage extends MemoryBoardStore {
 
   private send(source: FakeEventSource, message: FeedMessage): void {
     const data = JSON.stringify(message);
-    if (this.heldMessages === null) source.send(data);
+    const change = message.type === "put" || message.type === "delete" || message.type === "clear";
+    if (this.heldMessages === null || !change) source.send(data);
     else this.heldMessages.push({ source, data });
   }
 

@@ -64,7 +64,13 @@ import {
   type WalkIntent,
 } from "../sim/types";
 import { placeProp, type Summoner, type Wish } from "../summoning";
-import type { BoardChange, BoardLink, Ghost, PeerId } from "../sync";
+import {
+  type BoardChange,
+  type BoardLink,
+  EditTrackingStore,
+  type Ghost,
+  type PeerId,
+} from "../sync";
 import { roomCardShownMs } from "../ui/roomCard";
 import { titleCardShownMs } from "../ui/titleCard";
 import type {
@@ -307,6 +313,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly tidyTurns = new Map<DrawingId, number>();
   private retidyDueAtMs: number | null = null;
   private restartDueAtMs: number | null = null;
+  /** Where the board is kept; on a shared page, it also tells the link what this device wrote. */
+  private readonly store: BoardStore;
   private unfollow: Detach | null = null;
   private readonly ghosts = new Map<PeerId, Ghost>();
   private readonly ghostsHeardAtMs = new Map<PeerId, number>();
@@ -322,6 +330,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.selfDriving = (modules.selfDriving ?? true) && this.walksHerself();
     this.tidiness = clamp(modules.tidiness ?? DEFAULT_TIDINESS, 0, 1);
     this.notes = new NoteBook(modules.handwriting);
+    this.store =
+      modules.link === undefined || modules.link === null
+        ? modules.store
+        : new EditTrackingStore(modules.store, modules.link);
     this.rules = new RuleBook((rules) =>
       modules.resolvePhysics(
         rules.filter((rule) => this.allowsRule(rule)),
@@ -358,7 +370,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   frame(nowMs: number): void {
-    const { sim, renderer, store } = this.modules;
+    const { sim, renderer } = this.modules;
+    const { store } = this;
     this.hud.setPersistence(store.keepsBoards ? store.state(this.board.id) : null);
     const steps = this.loop.advance(nowMs - this.lastFrameMs);
     this.nowMs = nowMs;
@@ -593,7 +606,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   onClearBoard(): void {
-    this.modules.store.clear(this.board.id);
+    this.store.clear(this.board.id);
     void this.open(this.board.id, { blank: true });
   }
 
@@ -603,7 +616,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   async onRetryPersistence(): Promise<void> {
-    const { store } = this.modules;
+    const { store } = this;
     const state = store.state(this.board.id);
     if (this.retryingPersistence || state.loading || state.saving) return;
     this.retryingPersistence = true;
@@ -624,7 +637,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    * as after a clear or a restart: nothing is loaded, and a shared page goes on being followed.
    */
   private async open(boardId: string, { blank = false } = {}): Promise<void> {
-    const { sim, cat, renderer, store, onBoardOpened } = this.modules;
+    const { sim, cat, renderer, onBoardOpened } = this.modules;
+    const { store } = this;
     this.epoch += 1;
     const epoch = this.epoch;
     if (!blank) this.leavePage();
@@ -801,7 +815,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const epoch = this.epoch;
     let snapshot: BoardSnapshot | null = null;
     try {
-      snapshot = await this.modules.store.load(boardId);
+      snapshot = await this.store.load(boardId);
     } catch {
       // The store exposes the failure; the page is followed from where the feed stands now.
     }
@@ -989,7 +1003,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.knownBoards.add(this.board.id);
     this.showBoards();
     try {
-      const remembered = await this.modules.store.listBoards();
+      const remembered = await this.store.listBoards();
       if (epoch !== this.epoch) return;
       for (const summary of remembered) this.knownBoards.add(summary.id);
       this.showBoards();
@@ -1152,7 +1166,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         if (cluster === null) return;
         if (!sim.incarnate(drawingId, name, cluster.strokes)) return;
         this.ledger.remove(drawingId);
-        this.modules.store.deleteDrawing(this.board.id, drawingId);
+        this.store.deleteDrawing(this.board.id, drawingId);
         this.forget(this.notes.removeAnchoredTo({ type: "drawing", id: drawingId }));
         cluster.members
           .filter(({ id }) => id !== drawingId)
@@ -1298,7 +1312,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.party.invalidate();
     this.ledger.add(drawing);
     this.handiwork.record({ kind: "drawing", id: drawing.id, cost: drawing.cost });
-    this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
+    this.store.saveDrawing(this.board.id, { drawing, ruling: null });
     void this.offerGuesses(drawing);
   }
 
@@ -1601,7 +1615,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.party.invalidate();
     const record = this.ledger.conjure(drawing, fromMs, provenance);
     this.tidied.add(drawing.id);
-    this.modules.store.saveDrawing(this.board.id, storedOf(record));
+    this.store.saveDrawing(this.board.id, storedOf(record));
     return drawing;
   }
 
@@ -1749,7 +1763,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private enactAll(rules: readonly Rule[], noteId: NoteId, gloss: string): void {
     for (const rule of rules) {
       this.rules.enact(rule);
-      this.modules.store.saveRule(this.board.id, rule);
+      this.store.saveRule(this.board.id, rule);
     }
     this.showLaws();
     this.applyLaws({ silently: false });
@@ -1778,12 +1792,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
     this.modules.sim.applyRuling(id, ruling);
     this.party.invalidate();
-    this.modules.store.saveDrawing(this.board.id, storedOf(awake));
+    this.store.saveDrawing(this.board.id, storedOf(awake));
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
     const attached = this.notes.attachToDrawing(label.id, id);
     this.notes.release(label.id, this.nowMs, NOTE_LINGER_MS);
     if (ruling.nature !== "ink") this.understood(label.id);
-    else if (attached !== null) this.modules.store.saveNote(this.board.id, attached);
+    else if (attached !== null) this.store.saveNote(this.board.id, attached);
     const under = quietly ? null : this.notes.below(label.id);
     if (under !== null) {
       this.kamiWrites(ruling.line, under, { lifetimeMs: REMARK_LIFETIME_MS, drift: "down" });
@@ -1833,7 +1847,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     const retraced = this.ledger.retrace(id, strokes, this.nowMs);
     if (retraced === null) return;
-    this.modules.store.saveDrawing(this.board.id, storedOf(retraced));
+    this.store.saveDrawing(this.board.id, storedOf(retraced));
   }
 
   /** The slider came to rest: what is already named is tidied again at the new firmness. */
@@ -1864,7 +1878,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private understood(noteId: NoteId): void {
     const note = this.notes.restyle(noteId, "understood");
-    if (note !== null) this.modules.store.saveNote(this.board.id, note);
+    if (note !== null) this.store.saveNote(this.board.id, note);
   }
 
   /** One entry per note: a scene's laws share their words and are repealed together. */
@@ -1935,7 +1949,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       nowMs: this.nowMs,
       drift: "down",
     });
-    this.modules.store.saveNote(this.board.id, note);
+    this.store.saveNote(this.board.id, note);
     this.ownNotes.add(note.id);
     this.handiwork.record({ kind: "note", id: note.id });
     return note;
@@ -2164,7 +2178,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const repealed = this.rules.repealByNote(id);
     if (repealed.length === 0) return;
     this.showLaws();
-    for (const rule of repealed) this.modules.store.deleteRule(this.board.id, rule.id);
+    for (const rule of repealed) this.store.deleteRule(this.board.id, rule.id);
     const sealed = this.applyLaws({ silently: false });
     this.party.invalidate();
     if (!sealed) this.remark(RULE_REPEALED_LINE);
@@ -2174,7 +2188,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     if (this.ledger.remove(id) === null) return;
     this.modules.sim.removeDrawing(id);
     this.party.invalidate();
-    this.modules.store.deleteDrawing(this.board.id, id);
+    this.store.deleteDrawing(this.board.id, id);
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
   }
 
@@ -2182,7 +2196,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private forget(removed: readonly Note[]): void {
     for (const note of removed) {
       this.ownNotes.delete(note.id);
-      if (this.isStored(note)) this.modules.store.deleteNote(this.board.id, note.id);
+      if (this.isStored(note)) this.store.deleteNote(this.board.id, note.id);
       this.labelsByKami.delete(note.id);
     }
   }

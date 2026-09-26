@@ -2,7 +2,15 @@ import { BoardLink } from "./boardLink";
 import { mintPeerId } from "./peer";
 
 export type { BoardLinkOptions, PageListener } from "./boardLink";
-export { BoardLink, boardEventsPath, PRESENCE_INTERVAL_MS, presencePath } from "./boardLink";
+export {
+  BoardLink,
+  boardEventsPath,
+  PRESENCE_INTERVAL_MS,
+  presencePath,
+  RECONNECT_BACKOFF_MS,
+} from "./boardLink";
+export { EditTrackingStore } from "./editTrackingStore";
+export { LocalEdits } from "./localEdits";
 export { mintPeerId } from "./peer";
 export {
   type BoardChange,

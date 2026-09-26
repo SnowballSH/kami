@@ -2762,6 +2762,35 @@ describe("Game on a shared page", () => {
     expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
   });
 
+  it("does not bring back what it erased when the late echo of drawing it arrives", async () => {
+    const { page, mine } = await together();
+    page.holdMessages();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await eraseTheInk(mine, 0);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(0);
+    page.deliver(1);
+    await mine.wait(50);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(0);
+    page.deliver();
+    await mine.wait(50);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  it("keeps what it drew after clearing when the late echo of the clear arrives", async () => {
+    const { page, mine, theirs } = await together();
+    page.holdMessages();
+    mine.game.onClearBoard();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    page.deliver(1);
+    await mine.wait(50);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(1);
+    page.deliver();
+    await mine.wait(50);
+    await theirs.wait(50);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
+  });
+
   it("catches up after the server restarts without starting Alice over", async () => {
     const { page, mine, theirs } = await together();
     await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
