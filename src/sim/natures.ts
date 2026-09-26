@@ -21,6 +21,7 @@ import { type Feelers, fly, hop, walk } from "./creatures";
 import type { InkEntity } from "./inkEntity";
 import type { AliceSize, SimEvent, WalkIntent } from "./types";
 import { drive } from "./vehicles";
+import { floatLiftAt } from "./weather";
 import { type BodyMaterial, cancelGravity } from "./worldPhysics";
 
 /**
@@ -31,6 +32,8 @@ export interface NatureWorld {
   readonly alice: AliceController;
   readonly alices: readonly AliceController[];
   readonly gravity: Vec;
+  /** The air's temperature in °C. */
+  readonly temperature: number;
   readonly feelers: Feelers;
   intentOf(alice: AliceController): WalkIntent;
   emit(event: SimEvent): void;
@@ -103,7 +106,7 @@ const rise: InkHook = (ink, world) => {
   const { body } = ink;
   const velocity = {
     x: Matter.Body.getVelocity(body).x * FLOAT_DRIFT_DAMPING,
-    y: -FLOAT_SPEED * ink.strength,
+    y: -FLOAT_SPEED * ink.strength * floatLiftAt(world.temperature),
   };
   cancelGravity(body, world.gravity);
   Matter.Body.setVelocity(body, velocity);

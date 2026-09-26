@@ -42,7 +42,7 @@ If it is anything else (a name for a drawing, a remark, a question) reply {"effe
 {"governs":"airDrag","value":number}  multiplier on air resistance, ${airDrag.min} to ${airDrag.max}. 1 is normal, 0 is a vacuum.
 {"governs":"friction","value":number}  multiplier on surface friction, ${friction.min} to ${friction.max}. 1 is normal, 0 is ice.
 {"governs":"bounciness","value":number}  how much everything rebounds, ${bounciness.min} to ${bounciness.max}. 0 is normal, 0.8 is very bouncy.
-{"governs":"temperature","value":number}  the air in °C, ${temperature.min} to ${temperature.max}. 20 is normal; above 30 ice melts, above 60 clouds burn off.
+{"governs":"temperature","value":number}  the air in °C, ${temperature.min} to ${temperature.max}. 20 is normal; above 30 ice melts, above 60 clouds burn off; balloons and clouds rise faster when warm, hover at -10 and sink below.
 {"governs":"daylight","value":number}  how bright it is, ${daylight.min} to ${daylight.max}. 1 is day, 0 is night lit only by lanterns.
 {"governs":"flight","value":number}  whether Alice can fly, ${flight.min} to ${flight.max}. 0 is walking, 1 is flying.
 {"governs":"walkSpeed","value":number}  multiplier on Alice's walking pace, ${walkSpeed.min} to ${walkSpeed.max}. 1 is normal.

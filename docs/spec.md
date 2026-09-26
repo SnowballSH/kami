@@ -57,7 +57,7 @@ One per drawing. The player never sees this list — they see the ink change tin
 | *plain ink* | anything else | Solid. The default, and always useful. |
 | **bouncy** | mushroom, spring, trampoline, jelly | Launches Alice when she lands on it |
 | **climbable** | ladder, vine, rope, stairs | Alice can go up and down it |
-| **floaty** | balloon, cloud, bubble | Rises |
+| **floaty** | balloon, cloud, bubble | Rises — faster in hot air (until it burns off), hovering at −10 °C and sinking gently in the freezing cold |
 | **heavy** | rock, anvil, safe | Very dense — tips seesaws, holds things down, presses levers |
 | **light** | feather, leaf, paper | Drifts, barely weighs anything |
 | **buoyant** | boat, raft, lily pad, cork | Floats on water and carries her |
