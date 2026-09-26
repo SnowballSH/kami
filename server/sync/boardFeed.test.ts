@@ -120,7 +120,8 @@ describe("BoardFeed", () => {
     for (let i = 1; i <= changes; i++) feed.record("a", note(`n${i}`, text));
     expect(heard(feed, "a", 0).messages).toEqual([{ type: "resync", seq: changes, boot: BOOT }]);
     expect(heard(feed, "a", 2).messages).toEqual([{ type: "resync", seq: changes, boot: BOOT }]);
-    expect(seqs(heard(feed, "a", changes - 20).messages)).toHaveLength(20);
+    const replayable = Math.floor(KEPT_BYTES / text.length) - 1;
+    expect(seqs(heard(feed, "a", changes - replayable).messages)).toHaveLength(replayable);
   });
 
   it("forgets an idle page with no listeners or peers, and numbers it on from where it stood", () => {

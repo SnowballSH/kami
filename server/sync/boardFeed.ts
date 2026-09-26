@@ -11,9 +11,13 @@ export type Publish = (message: FeedMessage) => void;
 
 export type Unsubscribe = () => void;
 
-/** How many changes, and how many bytes of them, a board keeps for clients that reconnect with a `since` cursor. */
+/**
+ * How many changes, and how many bytes of them, a board keeps for clients that reconnect with a `since`
+ * cursor. A catch-up replays at most this log in one go, so the event stream's backlog limit is set well
+ * above it: a reconnecting reader is never dropped for the size of its own catch-up.
+ */
 export const KEPT_CHANGES = 2_000;
-export const KEPT_BYTES = 8 * 1024 * 1024;
+export const KEPT_BYTES = 2 * 1024 * 1024;
 
 /** A page nobody has listened to, announced on or changed for this long is forgotten. */
 export const PAGE_IDLE_MS = 10 * 60_000;

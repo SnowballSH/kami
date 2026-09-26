@@ -59,6 +59,26 @@ describe("boardEventStream", () => {
     await reader?.cancel();
     expect(leave).toHaveBeenCalledOnce();
   });
+
+  it("catches up an old cursor over the whole kept log without dropping the reader", async () => {
+    const feed = new BoardFeed({ boot: "life" });
+    const changes = Math.ceil((1.5 * MAX_BACKLOG_BYTES) / CHANGE_BYTES);
+    for (let i = 0; i < changes; i++) feed.record("board", bulkyNote(`n${i}`));
+    const response = boardEventStream(feed, "board", {
+      since: { boot: "life", seq: 0 },
+      keepAliveMs: 60_000,
+    });
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let text = "";
+    while (!text.includes(`id: life:${changes}\n`)) {
+      const { value, done } = (await reader?.read()) ?? { done: true };
+      if (done) break;
+      text += decoder.decode(value);
+    }
+    await reader?.cancel();
+    expect(text).toContain('"type":"resync"');
+  });
 });
 
 describe("sinceOf", () => {
