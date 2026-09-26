@@ -29,7 +29,7 @@ import { type Contact, contactsAt, contactsWith, toContact } from "./contacts";
 import type { Feelers } from "./creatures";
 import { EMPTY_BOARD } from "./emptyBoard";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "./flight";
-import { LastFooting } from "./footing";
+import { Footings, type LastFooting } from "./footing";
 import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
 import { moveOfItself } from "./motion";
@@ -83,7 +83,7 @@ interface BoardWorld {
   tear: Tear | null;
   readonly twins: Twins;
   readonly checkpoints: Checkpoints;
-  readonly footing: LastFooting;
+  readonly footings: Footings;
   readonly activePairs: Matter.Pair[];
   readonly growthRefusedAt: Map<DrawingId, number>;
   readonly portals: Map<AliceController, Portals>;
@@ -128,7 +128,7 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
     tear: null,
     twins,
     checkpoints: new Checkpoints(board),
-    footing: new LastFooting(board.spawn),
+    footings: new Footings(board.spawn),
     activePairs,
     growthRefusedAt: new Map(),
     portals: new Map(),
@@ -328,6 +328,7 @@ export class MatterSimulation implements Simulation {
    */
   private rosterChanged(): void {
     this.roster = null;
+    this.world.footings.keep(this.everyAlice().length);
     const { props, alice } = this.world;
     if (props.keyTaken && !this.everyAlice().some((each) => each.hasKey)) alice.hasKey = true;
   }
@@ -722,15 +723,16 @@ export class MatterSimulation implements Simulation {
   }
 
   private resolveWhereabouts(): void {
-    const { alice, twins, checkpoints, inks, lost, footing } = this.world;
+    const { alice, twins, checkpoints, inks, lost, footings } = this.world;
     const alices = this.bodied();
     if (alices.length === 0) return;
-    const stood = alice.footingPoint();
-    if (stood !== null) footing.stood(stood);
     for (const [who, each] of alices.entries()) {
-      if (lost.has(each) || this.isOffTheBoard(each)) {
+      const footing = footings.of(who);
+      const stood = each.footingPoint();
+      if (stood !== null) footing.stood(stood);
+      if (lost.has(each) || this.isOffTheBoard(each, footing)) {
         const ride = each.snapshot().ride ?? this.rides.get(each);
-        const respawn = this.respawnPoint();
+        const respawn = this.respawnPoint(footing);
         lost.delete(each);
         this.events.push({ type: "fell", who });
         each.placeAt(respawn);
@@ -762,8 +764,8 @@ export class MatterSimulation implements Simulation {
     this.events.push({ type: "goal-reached", who: this.everyAlice().indexOf(alice) });
   }
 
-  private isOffTheBoard(alice: AliceController): boolean {
-    const { board, inks, props, footing } = this.world;
+  private isOffTheBoard(alice: AliceController, footing: LastFooting): boolean {
+    const { board, inks, props } = this.world;
     const { position } = alice.body;
     if (position.y > board.killY) return true;
     if (board.page === "endless" && footing.fallen(position)) return true;
@@ -771,8 +773,8 @@ export class MatterSimulation implements Simulation {
     return !props.solidRects.some(isNear) && !inks.heldBounds.some(isNear);
   }
 
-  private respawnPoint(): Vec {
-    const { board, checkpoints, footing, inks } = this.world;
+  private respawnPoint(footing: LastFooting): Vec {
+    const { board, checkpoints, inks } = this.world;
     const marker = inks.spawnMarker;
     if (marker === undefined) {
       return board.page === "endless" ? footing.respawn() : checkpoints.respawn;
