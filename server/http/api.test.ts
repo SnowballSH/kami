@@ -910,8 +910,30 @@ describe("shared pages", () => {
     await reconnected.cancel();
 
     const lost = readEvents(await call("GET", "/api/boards/resumed/events?since=99"));
-    expect(await lost.nextEvent()).toEqual({ type: "resync", seq: 3 });
+    expect(await lost.nextBlock()).toBe("retry: 1000");
+    expect(await lost.nextBlock()).toBe(
+      `id: 3\ndata: ${JSON.stringify({ type: "resync", seq: 3 })}`,
+    );
     await lost.cancel();
+  });
+
+  it("numbers the opening cursor, so a reconnect before any change still resumes from it", async () => {
+    await call("PUT", "/api/boards/quiet/notes/n1", note("n1", "one", 1));
+    const opened = readEvents(await call("GET", "/api/boards/quiet/events"));
+    expect(await opened.nextBlock()).toBe("retry: 1000");
+    expect(await opened.nextBlock()).toBe(
+      `id: 1\ndata: ${JSON.stringify({ type: "cursor", seq: 1 })}`,
+    );
+    await opened.cancel();
+
+    await call("PUT", "/api/boards/quiet/notes/n2", note("n2", "two", 2));
+    const reconnected = readEvents(
+      await api.handle(
+        new Request(`${ORIGIN}/api/boards/quiet/events`, { headers: { "last-event-id": "1" } }),
+      ),
+    );
+    expect(await reconnected.nextEvent()).toMatchObject({ type: "put", seq: 2, id: "n2" });
+    await reconnected.cancel();
   });
 
   it("relays where each device's Alice is, and takes her off the page when its stream ends", async () => {

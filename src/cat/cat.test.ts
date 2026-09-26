@@ -204,11 +204,29 @@ describe("ScriptedCat", () => {
       ["remove the wall", REFUSALS.room],
       ["It's a key", REFUSALS.key],
       ["a sword", REFUSALS.weapon],
+      ["Alice can fly", REFUSALS.alice],
+      ["she flies a kite", REFUSALS.alice],
+      ["a jetpack cake for Alice", REFUSALS.alice],
+      ["a rock that makes Alice bouncy", REFUSALS.alice],
     ] as const)("rules %j plain ink with the authored line", async (utterance, line) => {
       cat.enterRoom({ ...shelves, allowedNatures: "all" });
       const ruling = await cat.name(utterance, SKETCH);
       expect(ruling.nature).toBe("ink");
       expect(ruling.line).toBe(line);
+    });
+
+    it.each([
+      ["a cake that makes Alice grow", "grow"],
+      ["a potion that makes Alice small", "shrink"],
+      ["a balloon Alice can ride", "floaty"],
+      ["a car Alice can drive", "vehicle"],
+      ["a cloud she can stand on", "floaty"],
+      ["a spring to help Alice jump", "bouncy"],
+    ] as const)("hears %j as a thing named for what it does for her", async (utterance, nature) => {
+      cat.enterRoom({ ...shelves, allowedNatures: "all" });
+      const ruling = await cat.name(utterance, SKETCH);
+      expect(ruling.nature).toBe(nature);
+      expect(ruling.line).not.toBe(REFUSALS.alice);
     });
 
     it("sends a helicopter up as the nearest honest nature", async () => {
@@ -231,9 +249,9 @@ describe("ScriptedCat", () => {
     });
 
     it("shrugs at the unknown, the same way every time", async () => {
-      const first = await cat.name("my uncle's hat", SKETCH);
-      const second = await cat.name("my uncle's hat", SKETCH);
-      expect(first).toMatchObject({ nature: "ink", name: "my uncle's hat" });
+      const first = await cat.name("my uncle's snuffbox", SKETCH);
+      const second = await cat.name("my uncle's snuffbox", SKETCH);
+      expect(first).toMatchObject({ nature: "ink", name: "my uncle's snuffbox" });
       expect(second.line).toBe(first.line);
     });
   });
@@ -444,7 +462,8 @@ describe("ScriptedCat", () => {
         { name: "an aircraft carrier", nature: "heavy", strength: 1.8 },
       ]);
       for (const offered of look.rulings) expect(cat.accept(offered)).toEqual(offered);
-      expect((await cat.name("a baseball bat", ROUND)).nature).toBe("flier");
+      expect((await cat.name("a baseball bat", ROUND)).nature).toBe("ink");
+      expect((await cat.name("a flying baseball bat", ROUND)).nature).toBe("flier");
       expect((await cat.name("a bouncy aircraft carrier", ROUND)).nature).toBe("bouncy");
       expect((await cat.name("a very heavy aircraft carrier", ROUND)).strength).toBe(1.5);
     });

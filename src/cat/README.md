@@ -8,7 +8,7 @@
 
 1. **Nothing said** → plain ink, and he asks what it is again.
 2. **Scripted refusals** (`scriptedRefusals.ts`), always plain ink with the authored line from `spec.md` §4:
-   - *Aimed at Alice* — a gadget for her (jetpack, superpowers), a verb acting on her ("make Alice fly", "let her jump"), Alice doing something ("she can fly"), or any mention of her that names nothing real. "A cake for Alice" is still a cake.
+   - *Aimed at Alice* — a gadget for her (jetpack, superpowers), a verb acting on her ("make Alice fly", "let her jump"), Alice doing something ("she can fly"), or any mention of her that names nothing real. "A cake for Alice" is still a cake. When the thing is named *before* Alice is first mentioned, the rest only says what it is for — "a cake that makes Alice grow", "a car Alice can drive", "a cloud she can stand on" are a cake, a car and a cloud — and only a gadget is refused. A law dressed as a name ("a rock that makes Alice bouncy") still is: its nature comes from the words after her.
    - *Aimed at the room* — a verb acting on a piece of the page ("make the door bigger", "remove the wall"). "A door" on its own is just a drawing of a door.
    - *A key*, then *weapons and violence*.
 3. **No nature found** → plain ink, with a tag line if the name carries a tag (`rose`, `tart`, `queen`), else a shrug.
@@ -22,6 +22,10 @@
 - The player's own **description** ("bouncy", "sticky", "eat me") overrules any **thing** ("balloon"): a *bouncy balloon* bounces. Their word is law.
 - Within a kind, the **longest keyword wins** ("bowling ball" over "ball"); ties go to the later word, the head of an English noun phrase.
 - When a description decides the nature and a thing of the same nature was also named, the thing is reported as the keyword so the Cat's lines can mention it.
+- A word that is only part of a longer name says nothing on its own. A description inside a longer thing is part of its name, not an adjective: *a traffic light* and *a light bulb* are lanterns, *a gummy bear* is a sweet. `PLAIN_THINGS` are names the Cat knows to be plain ink, so the keywords inside them are silenced: *a baseball bat* is not a bat, *a fire hydrant* is not fire. The player's own words outside the name still count (*a flying baseball bat* flies).
+- The match reports where it was heard (`at`, `end`), so refusals can tell a violent word inside a name (*fruit punch*, *a cannon ball*) from one said about it.
+
+`server/natures/typedParity.test.ts` keeps typed names in step with the Eye: every Quick, Draw! category the reviewed table gives a nature must resolve to one when typed, and to the same one, except for the listed and justified differences.
 
 All vocabulary lives in `lexicon.ts`; `lexicon.test.ts` checks that no keyword belongs to two natures and that every guess chip resolves to the nature it promises.
 

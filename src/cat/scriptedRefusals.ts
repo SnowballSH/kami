@@ -10,7 +10,8 @@ import {
   WEAPON_WORDS,
 } from "./lexicon";
 import { REFUSALS } from "./lines";
-import { mentions, type Phrase, vocabulary } from "./phrase";
+import type { WordSpan } from "./natureResolver";
+import { indexOfSequence, type Phrase, stemsOf, vocabulary } from "./phrase";
 
 const anyOf = (words: readonly string[]): string => `(?:${words.join("|")})`;
 
@@ -28,16 +29,42 @@ const REWRITES_ROOM = new RegExp(
 const KEY_VOCAB = vocabulary(KEY_WORDS);
 const WEAPON_VOCAB = vocabulary(WEAPON_WORDS);
 
-const aimedAtAlice = ({ text }: Phrase, namesSomethingReal: boolean): boolean =>
-  WEARS_GADGET.test(text) ||
-  REWRITES_ALICE.test(text) ||
-  ALICE_ACTS.test(text) ||
-  (MENTIONS_ALICE.test(text) && !namesSomethingReal);
+const ALICE_STEMS = ALICE_NAMES.map(stemsOf);
 
-export const findRefusal = (phrase: Phrase, namesSomethingReal: boolean): string | null => {
-  if (aimedAtAlice(phrase, namesSomethingReal)) return REFUSALS.alice;
+const firstMentionOfAlice = ({ stems }: Phrase): number =>
+  Math.min(
+    ...ALICE_STEMS.map((name) => indexOfSequence(stems, name)).filter((at) => at >= 0),
+    Number.POSITIVE_INFINITY,
+  );
+
+/** "A cake that makes Alice grow" names the cake first; what follows only says what it is for. */
+const namedBeforeAlice = (phrase: Phrase, named: WordSpan | null): boolean =>
+  named !== null && named.at < firstMentionOfAlice(phrase);
+
+const aimedAtAlice = (phrase: Phrase, named: WordSpan | null): boolean => {
+  const { text } = phrase;
+  if (WEARS_GADGET.test(text)) return true;
+  if (namedBeforeAlice(phrase, named)) return false;
+  return (
+    REWRITES_ALICE.test(text) ||
+    ALICE_ACTS.test(text) ||
+    (MENTIONS_ALICE.test(text) && named === null)
+  );
+};
+
+/** Whether a word from `vocab` is said outside the thing named: "fruit punch" is only a drink. */
+const mentionsBesides = (
+  { stems }: Phrase,
+  vocab: ReadonlySet<string>,
+  named: WordSpan | null,
+): boolean =>
+  stems.some((stem, i) => vocab.has(stem) && (named === null || i < named.at || i >= named.end));
+
+/** The authored refusal the phrase earns, if any; `named` is where it names something real. */
+export const findRefusal = (phrase: Phrase, named: WordSpan | null): string | null => {
+  if (aimedAtAlice(phrase, named)) return REFUSALS.alice;
   if (REWRITES_ROOM.test(phrase.text)) return REFUSALS.room;
-  if (mentions(phrase, KEY_VOCAB)) return REFUSALS.key;
-  if (mentions(phrase, WEAPON_VOCAB)) return REFUSALS.weapon;
+  if (mentionsBesides(phrase, KEY_VOCAB, named)) return REFUSALS.key;
+  if (mentionsBesides(phrase, WEAPON_VOCAB, named)) return REFUSALS.weapon;
   return null;
 };

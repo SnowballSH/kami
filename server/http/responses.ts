@@ -56,19 +56,35 @@ export const parseJsonBody = async <Schema extends z.ZodType>(
   }
 };
 
+export class BodyTimeoutError extends Error {
+  constructor(deadlineMs: number) {
+    super(`Body did not arrive within ${deadlineMs} ms.`);
+    this.name = "BodyTimeoutError";
+  }
+}
+
+/** With a `deadlineMs`, a body still arriving when it passes is cancelled and answered with `408`. */
 export const parseTextBody = async (
   request: Request,
   maxBytes: number,
+  deadlineMs?: number,
 ): Promise<Parsed<string>> => {
+  const deadline = new AbortController();
+  const timer =
+    deadlineMs === undefined
+      ? undefined
+      : setTimeout(() => deadline.abort(new BodyTimeoutError(deadlineMs)), deadlineMs);
   try {
-    return { ok: true, value: await readBoundedText(request, maxBytes) };
+    return { ok: true, value: await readBoundedText(request, maxBytes, deadline.signal) };
   } catch (error) {
-    return {
-      ok: false,
-      response:
-        error instanceof BodyTooLargeError
-          ? json({ error: error.message }, 413)
-          : badRequest("body could not be read"),
-    };
+    return { ok: false, response: bodyFailure(error) };
+  } finally {
+    clearTimeout(timer);
   }
+};
+
+const bodyFailure = (error: unknown): Response => {
+  if (error instanceof BodyTooLargeError) return json({ error: error.message }, 413);
+  if (error instanceof BodyTimeoutError) return json({ error: error.message }, 408);
+  return badRequest("body could not be read");
 };

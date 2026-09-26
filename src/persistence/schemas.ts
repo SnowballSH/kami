@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { NATURES, type Ruling, STRENGTH_RANGE, TEMPERS } from "../cat/types";
 import { strokesSchema, textSchema, vecSchema } from "../core/input";
-import type { Drawing, DrawingId } from "../ink/types";
+import { type Drawing, type DrawingId, INK_PROVENANCES } from "../ink/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import { validEffect } from "../rules/effectDomains";
 import type { CompiledRule, MotionEdit, Rule, RuleEffect, RuleId, Target } from "../rules/types";
@@ -53,6 +53,7 @@ export const rulingSchema = z.looseObject({
 export const storedDrawingSchema = z.looseObject({
   drawing: drawingSchema,
   ruling: rulingSchema.nullable(),
+  provenance: z.enum(INK_PROVENANCES).exactOptional(),
 }) satisfies z.ZodType<StoredDrawing>;
 
 const noteActionSchema = z.looseObject({
@@ -156,6 +157,7 @@ export const ruleSchema = z.looseObject({
   noteId: brandedId<NoteId>(),
   position: vecSchema,
   createdAt: z.number(),
+  scene: text.exactOptional(),
 }) satisfies z.ZodType<Rule>;
 
 const uniqueIds = (ids: readonly string[]): boolean => new Set(ids).size === ids.length;

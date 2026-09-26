@@ -184,8 +184,9 @@ export type SimEvent =
   | { readonly type: "heart-swallowed" }
   | { readonly type: "part-restored"; readonly parts: readonly BodyPartKind[] };
 
-/** Whose ink a drawing is: drawn by a hand (the player's or Kami's), or a prop Kami dressed a scene with. */
-export type InkProvenance = "drawn" | "scenery";
+import type { InkProvenance } from "../ink/types";
+
+export type { InkProvenance };
 
 export interface Simulation {
   /** Discards the whole world and rebuilds it with Alice standing at `board.spawn`. */
