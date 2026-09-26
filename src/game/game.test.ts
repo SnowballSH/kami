@@ -1470,7 +1470,7 @@ describe("Game with a Kami who draws", () => {
     expect(eyes.summoned).toEqual(["house", "tree", "cloud", "cloud"]);
     await player.wait(ARRIVAL_MS);
     const inks = player.renderer.lastFrame?.inks ?? [];
-    expect(inks.map((ink) => ink.nature)).toEqual(["ink", "climbable", "floaty", "floaty"]);
+    expect(inks.map((ink) => ink.nature)).toEqual(["heavy", "climbable", "floaty", "floaty"]);
     const boxes = inks.map((ink) => boundsOf(ink.drawing.strokes.flat()));
     const lefts = boxes.map((box) => box.x);
     expect([...lefts].sort((a, b) => a - b)).toEqual(lefts);
