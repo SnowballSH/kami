@@ -76,6 +76,12 @@ export class FakeHud implements Hud {
     this.cards.push(card);
   }
 
+  readonly announced: string[] = [];
+
+  announce(line: string): void {
+    this.announced.push(line);
+  }
+
   setTool(tool: Tool): void {
     this.tool = tool;
   }

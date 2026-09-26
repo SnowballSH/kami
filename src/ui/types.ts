@@ -72,6 +72,8 @@ export interface Hud {
   setShare(share: ShareInfo | null): void;
   /** The mode's name and one line over the page for a moment. */
   showTitleCard(card: ModeCard): void;
+  /** Reads a line Kami wrote to assistive technology; on the page it is only canvas handwriting. */
+  announce(line: string): void;
 }
 
 export interface LawListing {

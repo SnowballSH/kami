@@ -59,6 +59,8 @@ import {
   SUMIKUI_LORE_LINE_DELAY_MS,
   SUMIKUI_SEALED_LINE,
   SUMIKUI_SUMMONED_LINES,
+  TAGLINE,
+  WORDMARK,
 } from "./lines";
 import { NOTE_STYLE, type NoteBook } from "./noteBook";
 import { ARRIVAL_MS } from "./retrace";
@@ -2009,6 +2011,21 @@ describe("Game's undo", () => {
     expect(retract).not.toHaveBeenCalled();
     pending.resolve({ drawings: [], notes: [], rules: [] });
     await arrival;
+  });
+});
+
+describe("Game's voice for screen readers", () => {
+  it("reads out what Kami says, but not his wordmark or a board loading", async () => {
+    const player = new Player("wonderland");
+    await player.arrive();
+    await player.write("it is night", { x: 200, y: 200 });
+    const { announced } = player.hud;
+    expect(announced).not.toContain(WORDMARK);
+    expect(announced).not.toContain(TAGLINE);
+    expect(announced).not.toContain("Loading board…");
+    expect(announced.some((line) => line.startsWith("kami:"))).toBe(true);
+    await player.erase({ x: 210, y: 215 });
+    expect(announced).toContain(RULE_REPEALED_LINE);
   });
 });
 

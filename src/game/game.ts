@@ -656,7 +656,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
     if (this.director.mode.opening.freshPage) store.clear(boardId);
     if (!remember) return;
-    const loadingNote = this.kamiWrites("Loading board…", this.board.spawn);
+    const loadingNote = this.kamiWrites("Loading board…", this.board.spawn, { spoken: false });
     try {
       if (!this.director.mode.opening.freshPage) {
         const snapshot = await store.load(boardId);
@@ -1199,6 +1199,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const note = this.kamiWrites(`${seen.name}?`, guessCornerOf(strokes), {
       lifetimeMs: GLIMPSE_LIFETIME_MS,
       drift: "down",
+      spoken: false,
     });
     this.glimpse = { noteId: note.id, word: seen.word };
   }
@@ -1592,7 +1593,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const under = this.notes.below(noteId);
     const pondering: NoteAnchor = { type: "note", id: noteId };
     if (under !== null)
-      this.kamiWrites(PONDERING_LINE, under, { anchor: pondering, drift: "down" });
+      this.kamiWrites(PONDERING_LINE, under, { anchor: pondering, drift: "down", spoken: false });
     try {
       return await think();
     } finally {
@@ -1811,8 +1812,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       y: this.board.spawn.y + WORDMARK_OFFSET.y,
     };
     if (this.director.mode.id !== EMBODIED_MODE_ID) return;
-    this.kamiWrites(WORDMARK, at);
-    this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP });
+    this.kamiWrites(WORDMARK, at, { spoken: false });
+    this.kamiWrites(TAGLINE, { x: at.x, y: at.y + TAGLINE_DROP }, { spoken: false });
   }
 
   private playerWrites(text: string, position: Vec): Note {
@@ -1845,6 +1846,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       readonly tone?: Note["tone"];
       readonly drift?: Drift;
       readonly minY?: number;
+      /** False for what is only decoration or a passing state, never worth reading aloud. */
+      readonly spoken?: boolean;
     } = {},
   ): Note {
     const {
@@ -1854,7 +1857,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       tone = "plain",
       drift = anchor === undefined ? "up" : "down",
       minY,
+      spoken = true,
     } = options;
+    if (spoken) this.hud.announce(text);
     const visible = this.visibleWorldRect();
     const notePosition =
       anchor === undefined

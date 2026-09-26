@@ -221,7 +221,13 @@ menu; a store with `keepsBoards: false` (Puzzle's rooms, or play without a serve
 stays hidden; on a shared server its `signOut` becomes a button beside home. A mode whose `menu` is
 `run` (Puzzle) shows no board menu: beside home sits *start the run over*, which, like clear-page,
 acts on the second tap and opens the run's first room (`Game.onRestartRun`).
-The standing laws panel is DOM; board notes are canvas handwriting.
+The standing laws panel is DOM; board notes are canvas handwriting. So that a screen reader hears
+Kami too, every note he writes passes through `Game.kamiWrites`, which hands its text to
+`Hud.announce`: a visually hidden `role="status"` `aria-live="polite"` region (`ui/spokenLines.ts`)
+that appends each line and keeps the last three. A line already read within `REPEAT_QUIET_MS` (10 s)
+is not read again. Decoration and passing states are written with `spoken: false` and never read: the
+wordmark and tagline, *Loading board…*, *hmm...* while he ponders, and the live guess that flickers
+under the pen while it is still drawing.
 
 Layout: the top-left cluster (home, board menu or share), the toolbar top-centre, the laws panel
 top-right under the toolbar's row and the room mark under the toolbar; the thumbstick bottom-left, the

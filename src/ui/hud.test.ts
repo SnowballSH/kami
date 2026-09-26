@@ -673,4 +673,23 @@ describe("DomHud", () => {
       expect(card.textContent).not.toContain("Go on.");
     });
   });
+
+  describe("Kami's voice for screen readers", () => {
+    it("reads what Kami writes into a hidden polite status region, once", () => {
+      const { root, hud } = setup();
+      const region = find<HTMLElement>(root, ".kami-visually-hidden[role='status']");
+      expect(region.getAttribute("aria-live")).toBe("polite");
+      expect(region.textContent).toBe("");
+
+      hud.announce("A lovely picture of a key.");
+      hud.announce("A lovely picture of a key.");
+      hud.announce("  ");
+      hud.announce("And what is that supposed to be?");
+
+      expect([...region.children].map((line) => line.textContent)).toEqual([
+        "A lovely picture of a key.",
+        "And what is that supposed to be?",
+      ]);
+    });
+  });
 });

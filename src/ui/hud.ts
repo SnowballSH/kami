@@ -11,6 +11,7 @@ import { PersistenceStatus } from "./persistenceStatus";
 import { paintQr } from "./qr";
 import { RoomCardView } from "./roomCard";
 import { SharePanel } from "./sharePanel";
+import { SpokenLines } from "./spokenLines";
 import { TextPrompt } from "./textPrompt";
 import { TidySlider } from "./tidySlider";
 import { TitleCard } from "./titleCard";
@@ -46,6 +47,7 @@ export class DomHud implements Hud {
   private readonly share = new SharePanel(paintQr);
   private readonly page: PageActions;
   private readonly card = new TitleCard();
+  private readonly spoken: SpokenLines;
   private readonly detachers: readonly Detach[];
   private menu: MenuKind = "boards";
   private shared = false;
@@ -54,6 +56,7 @@ export class DomHud implements Hud {
     this.zoom = new ZoomControls(handlers);
     const owner = root.ownerDocument;
     const host = owner.defaultView ?? window;
+    this.spoken = new SpokenLines(() => host.performance.now());
     const walk = new WalkIntentMerger((intent) => handlers.onWalkIntent(intent));
     this.tools = new ToolSelection((tool, source) => {
       this.toolbar.show(tool);
@@ -94,6 +97,7 @@ export class DomHud implements Hud {
       this.prompt.feedback,
       this.roomCard.mark,
       this.roomCard.card,
+      this.spoken.element,
     );
     root.append(this.overlay);
     this.detachers = [
@@ -164,6 +168,10 @@ export class DomHud implements Hud {
 
   showTitleCard(card: ModeCard): void {
     this.card.show(card);
+  }
+
+  announce(line: string): void {
+    this.spoken.say(line);
   }
 
   dispose(): void {
