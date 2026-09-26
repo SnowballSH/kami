@@ -51,6 +51,11 @@ export interface InkSession {
   penUp(): void;
   /** Abandons the stroke in progress (a second finger landed: it was a pinch, not a line). */
   penCancel(): void;
+  /**
+   * Takes back the newest stroke of the drawing not yet committed — the one under the pen, else
+   * the last one lifted — and refunds it. False when nothing is pending.
+   */
+  retract(): boolean;
   /** Called every frame. Advances the commit timer and refreshes `activeVerdict`. */
   update(nowMs: number, rules: PlacementRules): void;
   refund(cost: number): void;

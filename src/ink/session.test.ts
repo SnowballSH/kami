@@ -284,6 +284,34 @@ describe("PenInkSession", () => {
       expect(session.budget.remaining).toBe(500);
     });
 
+    it("retracts the last lifted stroke of a pending drawing and keeps the rest pending", () => {
+      drawLine(session, { x: 0, y: 0 }, { x: 100, y: 0 });
+      drawLine(session, { x: 0, y: 50 }, { x: 50, y: 50 });
+      expect(session.budget.remaining).toBe(450);
+
+      expect(session.retract()).toBe(true);
+      expect(session.activeStrokes).toHaveLength(1);
+      expect(session.budget.remaining).toBe(500);
+      expect(session.isDrawing).toBe(true);
+
+      expect(session.retract()).toBe(true);
+      expect(session.isDrawing).toBe(false);
+      expect(session.budget.remaining).toBe(600);
+      session.update(0, OPEN_PAGE);
+      session.update(900, OPEN_PAGE);
+      expect(listener.commits).toHaveLength(0);
+      expect(session.retract()).toBe(false);
+    });
+
+    it("retracts the stroke still under the pen", () => {
+      session.penDown({ x: 0, y: 0 });
+      session.penMove({ x: 200, y: 0 });
+      expect(session.retract()).toBe(true);
+      expect(session.isDrawing).toBe(false);
+      session.penMove({ x: 300, y: 0 });
+      expect(session.activeStrokes).toHaveLength(0);
+    });
+
     it("lets the pen come straight back down", () => {
       session.penDown({ x: 0, y: 0 });
       session.penCancel();

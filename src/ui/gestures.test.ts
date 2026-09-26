@@ -3,6 +3,7 @@ import type { Vec } from "../core/geometry";
 import {
   GestureMachine,
   type PointerKind,
+  TWO_FINGER_TAP_MS,
   WHEEL_ZOOM_MAX_DELTA,
   WHEEL_ZOOM_RATE,
 } from "./gestures";
@@ -22,9 +23,14 @@ const setup = (initialTool: Tool = "draw") => {
     tap: (client) => calls.push(["tap", client]),
     panBy: (delta) => calls.push(["panBy", delta]),
     zoomAt: (client, factor) => calls.push(["zoomAt", client, factor]),
+    undo: () => calls.push(["undo"]),
   };
-  const state = { tool: initialTool };
-  const machine = new GestureMachine(() => state.tool, sink);
+  const state = { tool: initialTool, nowMs: 0 };
+  const machine = new GestureMachine(
+    () => state.tool,
+    sink,
+    () => state.nowMs,
+  );
   const press = (id: number, kind: PointerKind, client: Vec, button = 0): void =>
     machine.press({ id, kind, client, button });
   const names = (): readonly string[] => calls.map(([name]) => name);
@@ -215,6 +221,80 @@ describe("GestureMachine", () => {
         ["panBy", at(5, 0)],
         ["zoomAt", at(55, 150), Math.hypot(110, 300) / Math.hypot(100, 300)],
       ]);
+    });
+  });
+
+  describe("two-finger tap", () => {
+    it("undoes when two fingers land and lift together without travelling", () => {
+      const { machine, names, press, state } = setup("draw");
+
+      press(1, "touch", at(100, 100));
+      press(2, "touch", at(200, 100));
+      machine.move(2, [at(202, 101)]);
+      state.nowMs = TWO_FINGER_TAP_MS;
+      machine.release(1);
+      machine.release(2);
+
+      expect(names().filter((name) => name !== "panBy" && name !== "zoomAt")).toEqual([
+        "penDown",
+        "penCancel",
+        "undo",
+      ]);
+    });
+
+    it.each([
+      ["held too long", { heldMs: TWO_FINGER_TAP_MS + 1, travel: 0, fingers: 2 }],
+      ["a pinch", { heldMs: 100, travel: 40, fingers: 2 }],
+      ["three fingers", { heldMs: 100, travel: 0, fingers: 3 }],
+    ])("does not undo when %s", (_, { heldMs, travel, fingers }) => {
+      const { machine, names, press, state } = setup("pan");
+
+      for (let id = 1; id <= fingers; id++) press(id, "touch", at(id * 100, 100));
+      machine.move(2, [at(200 + travel, 100)]);
+      state.nowMs = heldMs;
+      for (let id = 1; id <= fingers; id++) machine.release(id);
+
+      expect(names()).not.toContain("undo");
+    });
+
+    it("does not undo after the first finger already drew", () => {
+      const { machine, names, press } = setup("draw");
+
+      press(1, "touch", at(0, 0));
+      machine.move(1, [at(30, 0)]);
+      press(2, "touch", at(100, 100));
+      machine.release(1);
+      machine.release(2);
+
+      expect(names()).not.toContain("undo");
+    });
+
+    it("does not undo when a finger is cancelled or a pencil joins", () => {
+      const { machine, names, press } = setup("draw");
+
+      press(1, "touch", at(0, 0));
+      press(2, "touch", at(100, 0));
+      machine.cancel(1);
+      machine.release(2);
+      press(3, "touch", at(0, 0));
+      press(4, "touch", at(100, 0));
+      press(5, "pen", at(50, 50));
+      machine.release(3);
+      machine.release(4);
+
+      expect(names()).not.toContain("undo");
+    });
+
+    it("does not undo when fingers land while the pencil draws", () => {
+      const { machine, names, press } = setup("draw");
+
+      press(1, "pen", at(0, 0));
+      press(2, "touch", at(300, 300));
+      press(3, "touch", at(400, 300));
+      machine.release(2);
+      machine.release(3);
+
+      expect(names()).not.toContain("undo");
     });
   });
 

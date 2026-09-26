@@ -92,7 +92,7 @@ browser-safe contracts from `src/`; the browser does not import server implement
 
 ## ink/
 
-As before (3 px point filter, one drawing per 900 ms pause, placement verdicts, 8 px minimum), plus `penCancel()` which drops the stroke in progress and refunds it. `reset(Infinity)` is an endless marker: `budget.remaining` stays `Infinity`. `no-ink-zone` and `overlaps-alice` still reject.
+As before (3 px point filter, one drawing per 900 ms pause, placement verdicts, 8 px minimum), plus `penCancel()` which drops the stroke in progress and refunds it, and `retract()`, which drops the newest stroke of the drawing not yet committed (under the pen or already lifted) and refunds it. `reset(Infinity)` is an endless marker: `budget.remaining` stays `Infinity`. `no-ink-zone` and `overlaps-alice` still reject.
 
 ## sim/
 
@@ -209,7 +209,7 @@ Canvas 2D at device pixel ratio (cap 2). `toWorld(client, camera)` and `viewport
 
 The canvas uses `touch-action: none`. The floating toolbar picks draw/write/erase/pan
 (`aria-pressed`, keys `D`/`T`/`E`/`H`; holding Space pans until it is let go, unless a control has
-focus) and ends in the clear-page button, which clears only on a second tap within three seconds
+focus; Ctrl/⌘+Z undoes, once per press, never inside a text field — `ui/undoHotkey.ts`) and ends in the clear-page button, which clears only on a second tap within three seconds
 (`ArmedTap`, shared with the board menu's clear). A thumbstick, arrow keys and the remote controller feed independent
 sources into `WalkIntentMerger`; manual input overrides enabled autopilot. The HUD also owns the view
 island bottom-right (self-driving switch — hidden in modes whose `autopilot` is `forbidden` — zoom and
@@ -233,7 +233,7 @@ Every control activates on `pointerup` (`activateOnTap`), so Apple Pencil, finge
 
 `promptText(client)`: an absolutely positioned single-line input at the tap, handwriting-style CSS font, ≥16 px, transparent with a marker underline, `enterkeyhint="done"`; Enter commits, Escape or blur with no text abandons; works with Apple Pencil Scribble since it is a real text field. While it is open, keys never walk Alice or switch tools.
 
-`attachCanvasInput`: one primary pointer → pen events for draw/erase, `panBy` for pan, nothing for write; a press that never travels 6 px ends as `penCancel` + `tap`; a second touch cancels the stroke and starts pan + pinch (`zoomAt` about the midpoint) until all fingers lift; wheel pans, ctrl/meta-wheel (trackpad pinch) zooms about the cursor; `getCoalescedEvents`; a pen's `pressure` rides along on each point (`PenPoint`) and a mouse or finger leaves it out; pointer capture; `Detach` removes everything.
+`attachCanvasInput`: one primary pointer → pen events for draw/erase, `panBy` for pan, nothing for write; a press that never travels 6 px ends as `penCancel` + `tap`; a second touch cancels the stroke and starts pan + pinch (`zoomAt` about the midpoint) until all fingers lift; exactly two fingers that land and lift within `TWO_FINGER_TAP_MS` (350 ms, first down to last up) without any of them travelling 6 px are a two-finger tap, `undo` (a third finger, a cancel, a pencil, or a first finger that already drew rules it out); wheel pans, ctrl/meta-wheel (trackpad pinch) zooms about the cursor; `getCoalescedEvents`; a pen's `pressure` rides along on each point (`PenPoint`) and a mouse or finger leaves it out; pointer capture; `Detach` removes everything.
 
 ## server/
 
@@ -313,7 +313,8 @@ The player writes with the pen like they draw with it; nothing is selected first
   An empty answer retains the current guess. Prefixes only display a suggestion; automatic naming
   requires the finished `cat.look`. A certain first sighting is accepted directly; otherwise Kami
   offers tappable structured rulings, removed on naming/erasure or after about 20 seconds.
-- **Eraser** removes drawings (and their guesses) and notes; erasing a rule's note repeals the rule. The standing laws are also listed top-right (`ui/lawsPanel`) long after their notes fade; tapping a law twice repeals it through the same path.
+- **Eraser** removes drawings (and their guesses) and notes; erasing a rule's note repeals the rule. The standing laws are also listed top-right (`ui/lawsPanel`) long after their notes fade; tapping a law twice repeals it through the same path. Erasing a drawing this player made refunds its ink.
+- **Undo** (`Game.undo`: Ctrl/⌘+Z, or a two-finger tap on the board). First it takes back ink not yet landed, one stroke at a time (`InkSession.retract`). Otherwise it erases the newest thing this player made that still stands, through the eraser's own paths (`discard`, refunding the drawing's cost; `eraseNote`, which repeals the note's laws even after the note has faded). `Handiwork` records it: drawings as they `land`, notes as the player writes them (`playerWrites`, which includes the label a tapped guess writes; undoing it removes the label as the eraser would, and the drawing keeps its nature). A peer's ink and notes arrive through `placeDrawing`/`placeNote`, and Kami's through `conjure`/`kamiWrites`, so neither is ever recorded. What was already erased, eaten or cut is skipped. A graft (a stroke that joined a drawn body) is part of Alice and not recorded; the sim has no way to ungraft. Opening or clearing a board forgets the history, and undo, like every other edit, waits while a board loads. There is no redo.
 - **Layout.** No note is written on top of another. `NoteBook.write` measures the script where it was asked for and, if that overlaps existing writing, slides it whole line-heights clear (`noteLayout.settle`): Kami's remarks above Alice drift up, replies beneath a note and guess chips drift down, and the player's own notes drift down off Kami's glosses. The placed position is what gets persisted.
 - **Camera** follows the selected Alice loosely when she walks outside a central dead-zone, leaning `COMPANY_LEAN` of the way toward any other Alice within half a screen so close company stays in frame; any manual pan or zoom suspends following until she walks again or ⌖ is pressed. Zoom 0.25–4. Its angle is the simulation's paper angle (tilt and world-spin laws); pans are taken along the screen, so dragging still moves the page the way the finger goes.
 - **Walking.** Before each sim step `Party.drive` sets every Alice's intent: the selected one takes

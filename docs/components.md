@@ -177,7 +177,7 @@ matter-js under `src/sim/`; `createSimulation` is the only entry.
 | Canvas input | `src/ui/canvasInput.ts`, `gestures.ts`, `tap.ts`, `touchGuards.ts`, `render/pointerTracker.ts` | built | pencil cursor, touch-safe canvas, pencil = ink/erase/tap; fingers = pan/zoom; pointer mapping honours the paper's angle |
 | Toolbar & tools | `src/ui/toolbar.ts`, `toolSelection.ts`, `toolHotkeys.ts`, `armedTap.ts`, `zoomControls.ts`, `tidySlider.ts`, `boardMenu.ts` | built | pen, eraser, hand, text, clear page (two taps, `ArmedTap`), view island (self-walking switch, hidden where the mode forbids it; zoom; recentre), board switch, tidy amount |
 | Text prompt | `src/ui/textPrompt.ts` | built | typed text → the same funnel |
-| Keyboard | `src/ui/keyboard.ts`, `toolHotkeys.ts` | built | arrow keys walk the selected Alice (↑ jumps or climbs); `D` `T` `E` `H` pick a tool; hold Space to pan (a focused control keeps its Space) |
+| Keyboard | `src/ui/keyboard.ts`, `toolHotkeys.ts` | built | arrow keys walk the selected Alice (↑ jumps or climbs); `D` `T` `E` `H` pick a tool; hold Space to pan (a focused control keeps its Space); Ctrl/⌘+Z undoes (`undoHotkey.ts`), as does a two-finger tap on the board |
 | Virtual thumbstick | `src/ui/joystick.ts` | built | bottom-left stick, manual override |
 | Walk intent merger | `src/ui/walkIntent.ts` | built | keyboard + stick + controller → one `intent`, steering the selected Alice (`Party.steer`) |
 | Arduino / cabinet | `src/controller/*`, `server/controllers/*` | external | `kami arcade <x> <y> [buttons]` over UDP/serial/HTTP → SSE → `createRemoteStick` ([controllers.md](controllers.md), [hardware.md](hardware.md)) |

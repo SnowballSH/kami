@@ -98,6 +98,7 @@ import {
 } from "./bossLines";
 import { CameraRig, framingZoom } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
+import { Handiwork, type Made } from "./handiwork";
 import { HeldInkBook } from "./heldInk";
 import { IdMint } from "./idMint";
 import { InkLedger, type InkRecord, storedOf } from "./inkLedger";
@@ -274,6 +275,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private recital: Recital[] = [];
   /** Settled ink the pen reader is still reading: weightless until it is known to be a drawing. */
   private readonly held = new HeldInkBook();
+  private readonly handiwork = new Handiwork();
   private glimpsing = false;
   private glimpseAgain = false;
   private glimpse: { readonly noteId: NoteId; readonly word: string } | null = null;
@@ -419,6 +421,33 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   penCancel(): void {
     this.ink.penCancel();
+  }
+
+  onUndo(): void {
+    this.undo();
+  }
+
+  /**
+   * Takes back the last thing this player made: ink not yet landed stroke by stroke, else their
+   * newest drawing or note still on the page, erased as the eraser would, its ink refunded.
+   */
+  undo(): void {
+    if (this.loading || this.ink.retract()) return;
+    const made = this.handiwork.takeLatest((entry) => this.stands(entry));
+    if (made === null) return;
+    if (made.kind === "note") {
+      this.eraseNote(made.id);
+      return;
+    }
+    this.ink.refund(made.cost);
+    this.discard(made.id);
+  }
+
+  private stands(made: Made): boolean {
+    if (made.kind === "drawing") return this.ledger.get(made.id) !== null;
+    return (
+      this.notes.get(made.id) !== null || this.rules.all.some((rule) => rule.noteId === made.id)
+    );
   }
 
   tap(client: Vec): void {
@@ -585,6 +614,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.ink.reset(Number.POSITIVE_INFINITY);
     this.penReader?.forget();
     this.held.clear();
+    this.handiwork.clear();
     this.tidied.clear();
     this.tidyTurns.clear();
     this.retidyDueAtMs = null;
@@ -1184,6 +1214,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.modules.sim.addDrawing(drawing);
     this.party.invalidate();
     this.ledger.add(drawing);
+    this.handiwork.record({ kind: "drawing", id: drawing.id, cost: drawing.cost });
     this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
     void this.offerGuesses(drawing);
   }
@@ -1800,6 +1831,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       drift: "down",
     });
     this.modules.store.saveNote(this.board.id, note);
+    this.handiwork.record({ kind: "note", id: note.id });
     return note;
   }
 
@@ -2001,6 +2033,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const tolerance = ERASER_TOLERANCE / this.camera.camera.zoom;
     const id = findDrawingAt(point, this.ledger.posed(sim.snapshot().drawings), tolerance);
     if (id !== null) {
+      this.ink.refund(this.handiwork.costOf(id));
       this.discard(id);
       return;
     }

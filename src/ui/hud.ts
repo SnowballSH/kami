@@ -28,6 +28,7 @@ import type {
   ShareInfo,
   Tool,
 } from "./types";
+import { UndoHotkey } from "./undoHotkey";
 import { WalkIntentMerger } from "./walkIntent";
 import { ZoomControls } from "./zoomControls";
 
@@ -100,6 +101,7 @@ export class DomHud implements Hud {
       ...(remoteStick === null ? [] : [remoteStick.attach()]),
       this.stick.attach(host),
       new ToolHotkeys(this.tools).attach(host),
+      new UndoHotkey(() => handlers.onUndo()).attach(host),
       this.boards.attach(owner),
       this.share.attach(owner),
       this.prompt.attach(),

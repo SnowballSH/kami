@@ -93,9 +93,21 @@ export class PenInkSession implements InkSession {
   penCancel(): void {
     if (!this.#penIsDown) return;
     this.#penIsDown = false;
-    const cancelled = this.#strokes.pop() ?? [];
-    this.#points -= cancelled.length;
-    this.#ledger.undraw(strokeLength(cancelled));
+    this.#dropLatestStroke();
+  }
+
+  retract(): boolean {
+    if (this.#strokes.length === 0) return false;
+    this.#penIsDown = false;
+    this.#dropLatestStroke();
+    if (this.#strokes.length === 0) this.#dropPending();
+    return true;
+  }
+
+  #dropLatestStroke(): void {
+    const dropped = this.#strokes.pop() ?? [];
+    this.#points -= dropped.length;
+    this.#ledger.undraw(strokeLength(dropped));
   }
 
   update(nowMs: number, rules: PlacementRules): void {

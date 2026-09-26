@@ -9,6 +9,7 @@ import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { FIXED_STEP_MS } from "../core/world";
 import { BRIDGE_LINE, DROP_LINE, IDEAS, LADDER_LINE } from "../counsel";
 import { createInkSession, findDrawingAt } from "../ink";
+import type { InkSession } from "../ink/types";
 import {
   BOSS_MODE,
   EMBODIED_MODE,
@@ -246,6 +247,7 @@ class Player {
   readonly store: BoardStore;
   readonly game: Game;
   private hudRef: FakeHud | null = null;
+  private inkRef: InkSession | null = null;
   private lawsRef: FakeLawsPanel | null = null;
   private nowMs = 0;
 
@@ -293,7 +295,10 @@ class Player {
         resolvePhysics,
         boardFor,
         endlessPageFor: (id) => endlessPage(id, [ENDLESS_GROUND]),
-        createInkSession,
+        createInkSession: (listener) => {
+          this.inkRef = createInkSession(listener);
+          return this.inkRef;
+        },
         createHud: (handlers) => {
           this.hudRef = new FakeHud(handlers);
           return this.hudRef;
@@ -313,6 +318,11 @@ class Player {
   get hud(): FakeHud {
     if (this.hudRef === null) throw new Error("HUD was never created");
     return this.hudRef;
+  }
+
+  get ink(): InkSession {
+    if (this.inkRef === null) throw new Error("Ink session was never created");
+    return this.inkRef;
   }
 
   get laws(): FakeLawsPanel {
@@ -1920,6 +1930,88 @@ describe("Game while a board is loading", () => {
   });
 });
 
+describe("Game's undo", () => {
+  it("takes back the player's own law, then drawing, and refunds the ink", async () => {
+    const player = new Player("wonderland");
+    await player.arrive();
+    const refund = vi.spyOn(player.ink, "refund");
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("it is night", { x: 200, y: 200 });
+    const [drawn] = (await player.store.load("wonderland")).drawings;
+    expect(player.laws.laws).toHaveLength(1);
+    expect(player.renderer.lastFrame?.daylight).toBeLessThan(1);
+
+    player.game.onUndo();
+    await player.wait(50);
+    expect(player.laws.laws).toHaveLength(0);
+    expect(player.renderer.lastFrame?.daylight).toBe(1);
+    expect(player.written).not.toContain("it is night");
+    expect((await player.store.load("wonderland")).rules).toHaveLength(0);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+
+    player.game.undo();
+    await player.wait(50);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
+    expect(refund).toHaveBeenCalledWith(drawn?.drawing.cost);
+    expect(drawn?.drawing.cost).toBeGreaterThan(0);
+
+    player.game.undo();
+    await player.wait(50);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  it("takes back ink still under the pen before anything already on the page", async () => {
+    const player = new Player("wonderland");
+    await player.arrive();
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    const landed = (await player.store.load("wonderland")).drawings.map(
+      ({ drawing }) => drawing.id,
+    );
+    player.game.penDown({ x: 500, y: 400 });
+    player.game.penMove({ x: 600, y: 400 });
+    player.game.penUp();
+    player.game.undo();
+    await player.wait(COMMIT_WAIT_MS);
+    const kept = (await player.store.load("wonderland")).drawings.map(({ drawing }) => drawing.id);
+    expect(kept).toEqual(landed);
+    expect(landed).toHaveLength(1);
+  });
+
+  it("skips what was already erased and forgets everything when another board opens", async () => {
+    const player = new Player("wonderland");
+    await player.arrive();
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("it is night", { x: 200, y: 200 });
+    await player.erase({ x: 210, y: 215 });
+    player.game.undo();
+    await player.wait(50);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    player.game.onOpenBoard("elsewhere");
+    await player.wait(50);
+    player.game.onOpenBoard("wonderland");
+    await player.wait(50);
+    player.game.undo();
+    await player.wait(50);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+  });
+
+  it("is ignored while the board loads", async () => {
+    const store = new MemoryBoardStore();
+    const pending = Promise.withResolvers<BoardSnapshot>();
+    vi.spyOn(store, "load").mockReturnValueOnce(pending.promise);
+    const player = new Player("wonderland", { store });
+    const arrival = player.arrive();
+    const retract = vi.spyOn(player.ink, "retract");
+    player.game.undo();
+    expect(retract).not.toHaveBeenCalled();
+    pending.resolve({ drawings: [], notes: [], rules: [] });
+    await arrival;
+  });
+});
+
 describe("Game on a blank board", () => {
   it("makes a new game out of sketches and notes", async () => {
     const player = new Player("my-first-game");
@@ -2325,6 +2417,20 @@ describe("Game on a shared page", () => {
     await theirs.wait(50);
     expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
     expect(theirs.written).not.toContain("ground");
+  });
+
+  it("never undoes what another device made", async () => {
+    const { mine, theirs } = await together();
+    await theirs.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await theirs.write("it is night", { x: 200, y: -200 });
+    await mine.wait(50);
+    mine.game.undo();
+    mine.game.undo();
+    await mine.wait(50);
+    await theirs.wait(50);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(mine.laws.laws).toHaveLength(1);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
   });
 
   it("folds another device's laws into its own world, and refolds when they are erased", async () => {

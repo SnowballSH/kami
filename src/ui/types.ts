@@ -39,6 +39,8 @@ export interface HudHandlers {
   onRetryPersistence(): void;
   /** Back to the first room of a staged run, everything drawn since forgotten. */
   onRestartRun(): void;
+  /** Take back the last thing this player drew or wrote. */
+  onUndo(): void;
 }
 
 /** What the page offers beside the game's own handlers. */
@@ -104,6 +106,8 @@ export interface CanvasInputSink {
   tap(client: Vec): void;
   panBy(deltaClient: Vec): void;
   zoomAt(client: Vec, factor: number): void;
+  /** Two fingers tapped the board together without travelling: take back the last thing made. */
+  undo(): void;
 }
 
 export type Detach = () => void;
