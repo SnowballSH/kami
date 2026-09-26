@@ -369,7 +369,7 @@ export class MatterSimulation implements Simulation {
       alice.control(this.intentSheCanFollow(alice), surroundings, timeScale);
     }
     for (const ink of inks.all) stepOf(ink)?.(ink, this.natureWorld(this.nearestAliceTo(ink)));
-    moveOfItself(inks.all);
+    moveOfItself(inks.all, timeScale);
     this.blowWind();
     this.tumbleLooseInk();
     for (const alice of alices) {

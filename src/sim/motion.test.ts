@@ -48,6 +48,18 @@ describe("motion laws on drawings", () => {
     expect(angleOf(sim, "bridge")).toBeCloseTo(turned, 1);
   });
 
+  it("slows a held spinning drawing in slow motion", () => {
+    const sim = enter(board);
+    sim.addDrawing(
+      drawingOf("windmill", line({ x: -100, y: GROUND }, { x: 100, y: GROUND })),
+    );
+    ruled(sim, "windmill");
+    sim.setPhysics({ ...EARTH, bodies: [law(named("windmill"), { spin: 1 })] });
+    sim.setTimeScale(0.2);
+    runSteps(sim, 60);
+    expect(angleOf(sim, "windmill")).toBeCloseTo(0.2 * 2 * Math.PI, 2);
+  });
+
   it("spins everything under a law on all, later laws winning", () => {
     const sim = enter(board);
     dropPebble(sim, "wheel", 200);
