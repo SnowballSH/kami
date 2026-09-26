@@ -4,7 +4,7 @@ import type { DrawingId } from "../../ink/types";
 import type { Note, NoteId } from "../../notes/types";
 import type { BoardSnapshot, FeedCursor, StoredDrawing } from "../../persistence/types";
 import type { Rule, RuleId } from "../../rules/types";
-import { BoardLink } from "../boardLink";
+import { BoardLink, type Schedule } from "../boardLink";
 import {
   type BoardChange,
   type BoardEdit,
@@ -37,11 +37,13 @@ export class SharedPage extends MemoryBoardStore {
   private heldMessages: { readonly source: FakeEventSource; readonly data: string }[] | null = null;
   readonly presences: { readonly boardId: string; readonly peer: PeerId }[] = [];
 
+  /** A device's link to the page. It follows a closed stream again at once rather than after a wait. */
   link(peer: PeerId, presenceIntervalMs?: number): BoardLink {
     return new BoardLink({
       peer,
       openEventSource: (url) => this.open(url, peer),
       fetch: (url, init) => this.post(url, init),
+      schedule: promptly,
       ...(presenceIntervalMs === undefined ? {} : { presenceIntervalMs }),
     });
   }
@@ -66,9 +68,9 @@ export class SharedPage extends MemoryBoardStore {
     }
   }
 
-  /** The server starting over: a new life, numbered from zero, remembering what it stored. */
+  /** The server starting over: every stream ends, and a new life numbers from zero, remembering what it stored. */
   restart(boot: string): void {
-    for (const line of this.lines) line.source.close();
+    for (const line of this.lines) if (!line.source.closed) line.source.die();
     this.boot = boot;
     this.seq = 0;
     this.log = [];
@@ -182,6 +184,16 @@ export class SharedPage extends MemoryBoardStore {
     return Promise.resolve(new Response(null, { status: 204 }));
   }
 }
+
+const promptly: Schedule = (run) => {
+  let due = true;
+  queueMicrotask(() => {
+    if (due) run();
+  });
+  return () => {
+    due = false;
+  };
+};
 
 const boardIdIn = (url: string): string => {
   const segment = new URL(url, "http://kami.test").pathname.split("/")[BOARD_ID_SEGMENT];

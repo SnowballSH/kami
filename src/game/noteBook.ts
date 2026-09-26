@@ -111,6 +111,10 @@ export class NoteBook {
     this.entries.set(id, { ...entry, expiresAtMs });
   }
 
+  get all(): readonly Note[] {
+    return [...this.entries.values()].map(({ note }) => note);
+  }
+
   get(id: NoteId): Note | null {
     return this.entries.get(id)?.note ?? null;
   }

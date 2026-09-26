@@ -786,11 +786,42 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         },
         resync: () => {
           this.unfollow = null;
-          void this.open(boardId);
+          void this.catchUp(boardId);
         },
       },
       since,
     );
+  }
+
+  /**
+   * After a `resync`: the page as the server has it now is folded into the board without opening it
+   * afresh, so Alice, the stroke under the pen and the undo history stay where they are.
+   */
+  private async catchUp(boardId: string): Promise<void> {
+    const epoch = this.epoch;
+    let snapshot: BoardSnapshot | null = null;
+    try {
+      snapshot = await this.modules.store.load(boardId);
+    } catch {
+      // The store exposes the failure; the page is followed from where the feed stands now.
+    }
+    if (epoch !== this.epoch) return;
+    if (snapshot !== null) this.reconcile(snapshot);
+    this.followPage(boardId, snapshot?.cursor ?? null);
+  }
+
+  /** Takes off the board what the page no longer holds, then places what it does. */
+  private reconcile({ drawings, notes, rules }: BoardSnapshot): void {
+    const drawingIds = new Set<DrawingId>(drawings.map(({ drawing }) => drawing.id));
+    const noteIds = new Set(notes.map(({ id }) => id));
+    const ruleIds = new Set(rules.map(({ id }) => id));
+    for (const id of this.ledger.ids()) if (!drawingIds.has(id)) this.dropDrawing(id);
+    for (const note of this.notes.all)
+      if (this.isStored(note) && !noteIds.has(note.id)) this.dropNote(note.id);
+    for (const rule of this.rules.all) if (!ruleIds.has(rule.id)) this.dropLaw(rule.id);
+    for (const stored of drawings) this.placeDrawing(stored);
+    for (const note of notes) this.placeNote(note, "received");
+    for (const rule of rules) this.placeLaw(rule);
   }
 
   /** A change another device made (or this one's, echoed back): it lands the way a local one does. */
@@ -2151,9 +2182,14 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private forget(removed: readonly Note[]): void {
     for (const note of removed) {
       this.ownNotes.delete(note.id);
-      if (isPlayers(note) || this.labelsByKami.delete(note.id))
-        this.modules.store.deleteNote(this.board.id, note.id);
+      if (this.isStored(note)) this.modules.store.deleteNote(this.board.id, note.id);
+      this.labelsByKami.delete(note.id);
     }
+  }
+
+  /** The notes the page keeps: the player's words, and the labels Kami hangs on drawings. */
+  private isStored(note: Note): boolean {
+    return isPlayers(note) || this.labelsByKami.has(note.id);
   }
 
   /** Notes whose time is up: the page forgets those this device answers for; the rest only leave the screen. */

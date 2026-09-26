@@ -71,6 +71,10 @@ export class InkLedger {
     return [...this.records.values()].filter(({ ruling }) => ruling !== null);
   }
 
+  ids(): readonly DrawingId[] {
+    return [...this.records.keys()];
+  }
+
   get(id: DrawingId): InkRecord | null {
     return this.records.get(id) ?? null;
   }

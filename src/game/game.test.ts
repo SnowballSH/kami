@@ -2762,6 +2762,33 @@ describe("Game on a shared page", () => {
     expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
   });
 
+  it("catches up after the server restarts without starting Alice over", async () => {
+    const { page, mine, theirs } = await together();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await theirs.wait(50);
+    const [gone] = theirs.renderer.lastFrame?.inks ?? [];
+    if (gone === undefined) throw new Error("the first ink never arrived");
+    const spawnX = theirs.alice.center.x;
+    theirs.walk(1);
+    await theirs.wait(600);
+    theirs.walk(0);
+    await theirs.wait(300);
+    const stoodAt = theirs.alice.center.x;
+    expect(stoodAt - spawnX).toBeGreaterThan(20);
+    page.restart("second");
+    page.deleteDrawing("together", gone.drawing.id);
+    page.saveDrawing("together", {
+      drawing: drawingOf("after-restart", line({ x: 620, y: -300 }, { x: 900, y: -300 })),
+      ruling: null,
+    });
+    await theirs.wait(100);
+    expect(theirs.renderer.lastFrame?.inks.map((ink) => ink.drawing.id)).toEqual(["after-restart"]);
+    expect(theirs.alice.center.x - spawnX).toBeGreaterThan((stoodAt - spawnX) / 2);
+    await mine.draw(line({ x: 620, y: -500 }, { x: 900, y: -500 }));
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(2);
+  });
+
   const faraway = (id: string, createdAt = Date.now()): Note => ({
     id: id as NoteId,
     author: "player",
