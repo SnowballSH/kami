@@ -1,6 +1,7 @@
 import { distance, type Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 import type { AliceSize, Axis, WalkIntent } from "../sim/types";
+import { UNHURRIED } from "./cadence";
 import { boundsOfInk, Chart, WINDOW_PX } from "./chart";
 import { afterTheMeal, chewedIn, dreadIn, SAFE_PX } from "./dread";
 import {
@@ -194,8 +195,13 @@ export class Pilot implements Autopilot {
     this.ticksSincePlan++;
     const airborne = this.inFlight(scene);
     const due = !airborne && this.ticksSincePlan >= this.replanInterval();
-    if (this.stale || due || this.sceneChanged(scene)) this.replan(scene);
+    const urgent = this.stale || this.sceneChanged(scene) || (due && this.fleeing);
+    if (urgent || (due && (this.options.cadence ?? UNHURRIED).mayReplan())) this.replan(scene);
     return this.steer(scene, airborne);
+  }
+
+  private get fleeing(): boolean {
+    return this.plan?.errand.kind === "flee";
   }
 
   private inFlight(scene: Scene): boolean {

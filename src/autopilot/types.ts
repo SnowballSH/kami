@@ -65,12 +65,19 @@ export interface PilotStatus {
 /** How a pilot reads the board; shared between pilots so several Alices chart the page once. */
 export type Charter = (scene: Scene) => Chart | null;
 
+/** When a pilot may take a routine re-plan; urgent ones (a changed board, a flight) never ask. */
+export interface Cadence {
+  mayReplan(): boolean;
+}
+
 export interface PilotOptions {
   /** Tells clones apart deterministically: which way each one first wanders, for one. */
   readonly seed: number;
   /** Clones stroll when the board has nothing to reach for; Alice herself waits for the player. */
   readonly wanders: boolean;
   readonly charter: Charter;
+  /** Shared by a party so its pilots do not all re-read the board on the same tick; alone, unhurried. */
+  readonly cadence?: Cadence;
 }
 
 /**
