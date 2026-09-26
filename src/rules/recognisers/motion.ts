@@ -369,6 +369,8 @@ const ruleFor = (
   return bodyRule(governs, of, sign * value);
 };
 
+export const MOTION_WORDS: Vocabulary = union(...DIALS.map(({ known }) => known));
+
 /**
  * Laws about the bodies on the board rather than the world: "the wheel spins", "every rock is
  * twice as heavy", "the cart accelerates to the left", and the powers a named creature can gain —

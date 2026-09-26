@@ -3,7 +3,12 @@ import type { AuthenticatedEndpoint } from "../http/endpoint";
 import type { FetchLike } from "../recognition/types";
 import { FirstReadyTranscriber, type NamedTranscriber } from "./chain";
 import { LlmTranscriber } from "./llmTranscriber";
+import { VocabularyCorrector } from "./proofread/corrector";
+import { createKamiLexicon } from "./proofread/lexicon";
+import { LlmRepairer } from "./proofread/repairer";
+import { ProofreadingReader } from "./proofreadingReader";
 import { SidecarTranscriber } from "./sidecarTranscriber";
+import type { HandwritingTranscriber } from "./types";
 
 export interface HandwritingReaders {
   /** The sidecar's local reader (`POST /read`): first choice whenever one is configured. */
@@ -36,4 +41,21 @@ export const createTranscriber = (
         ]),
   ];
   return candidates.length === 0 ? null : new FirstReadyTranscriber(candidates);
+};
+
+/**
+ * What `/api/transcribe` reads with: the transcriber's words proofread against the game's
+ * vocabulary, and a second opinion from `repair` (a text model) on settled notes it was unsure of.
+ */
+export const createNoteReader = (
+  transcriber: HandwritingTranscriber,
+  repair: LlmConfig | null,
+  fetchFn: FetchLike = fetch,
+): ProofreadingReader => {
+  const lexicon = createKamiLexicon();
+  return new ProofreadingReader(
+    transcriber,
+    new VocabularyCorrector(lexicon),
+    repair === null ? null : new LlmRepairer(repair, lexicon, fetchFn),
+  );
 };

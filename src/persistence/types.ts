@@ -69,6 +69,15 @@ export interface BoardStore {
 export interface ReadOptions {
   /** The strokes were drawn over or the board changed: the answer is no longer wanted. */
   readonly signal?: AbortSignal;
+  /** The ink is final: the server may take a moment longer to read it well. */
+  readonly settled?: boolean;
+}
+
+/** Words read from the pen. */
+export interface Handwriting {
+  readonly text: string;
+  /** The reader was unsure: reading the same strokes again as `settled` may read them better. */
+  readonly unsure: boolean;
 }
 
 /**
@@ -76,7 +85,7 @@ export interface ReadOptions {
  * drawing rather than writing — or the server has no reader, or did not answer in time.
  */
 export interface HandwritingReader {
-  read(strokes: readonly Stroke[], options?: ReadOptions): Promise<string | null>;
+  read(strokes: readonly Stroke[], options?: ReadOptions): Promise<Handwriting | null>;
 }
 
 /** The Quick, Draw! words the server has pictures of; empty when it did not answer. */

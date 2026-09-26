@@ -98,7 +98,7 @@ describe("createLlmTranscriber", () => {
   it("shows the model the strokes as a PNG and asks for no chain of thought", async () => {
     const seen: SeenRequest[] = [];
     const transcriber = createLlmTranscriber(CONFIG, modelSaying('{"text":"hi there"}', seen));
-    expect(await transcriber?.transcribe(WORD)).toBe("hi there");
+    expect(await transcriber?.transcribe(WORD)).toEqual({ text: "hi there" });
     const [request] = seen;
     expect(request?.body.model).toBe("qwen3.8:latest");
     expect(request?.body.reasoning_effort).toBe("none");

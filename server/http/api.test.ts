@@ -133,10 +133,12 @@ beforeAll(async () => {
   const scenes = {
     compile: async (text: string) => (text.includes("mars") ? MARS_SCENE : null),
   };
-  const transcriber = {
+  const handwriting = {
     ready: true,
-    transcribe: async (strokes: readonly Stroke[]) => (strokes.length > 1 ? "no gravity" : null),
-    warmUp: async () => true,
+    read: async (strokes: readonly Stroke[]) => ({
+      text: strokes.length > 1 ? "no gravity" : null,
+      unsure: false,
+    }),
   };
   beautifier = createBeautifier({ url: "http://beautifier.test/beautify" }, async (_url, init) => {
     const { name } = JSON.parse(String(init?.body)) as { name: string };
@@ -152,7 +154,7 @@ beforeAll(async () => {
     compiler,
     scenes,
     controllers,
-    transcriber,
+    handwriting,
     feed: new BoardFeed({ boot: BOOT }),
   });
   api = createApi({ ...apiParts(), beautifier });
@@ -174,12 +176,12 @@ describe("input budgets", () => {
   it("rejects aggregate excess before recognition, transcription or beautification", async () => {
     const read = vi.fn(async () => ({ ranking: [], certainAbove: null }));
     const beautify = vi.fn(async () => null);
-    const transcribe = vi.fn(async () => null);
+    const readWords = vi.fn(async () => ({ text: null, unsure: false }));
     api = createApi({
       ...apiParts(),
       recognizer: { read },
       beautifier: { beautify },
-      transcriber: { ready: true, transcribe, warmUp: async () => true },
+      handwriting: { ready: true, read: readWords },
     });
     for (const route of ["recognize", "transcribe", "beautify"]) {
       const response = await call("POST", `/api/${route}`, { strokes: excess });
@@ -188,7 +190,7 @@ describe("input budgets", () => {
     }
     expect(read).not.toHaveBeenCalled();
     expect(beautify).not.toHaveBeenCalled();
-    expect(transcribe).not.toHaveBeenCalled();
+    expect(readWords).not.toHaveBeenCalled();
     api = createApi({ ...apiParts(), beautifier });
   });
 
@@ -516,15 +518,14 @@ describe("transcribe", () => {
 
   it("fails closed before the configured reader passes its image check", async () => {
     let reads = 0;
-    const transcriber = {
+    const handwriting = {
       ready: false,
-      warmUp: async () => false,
-      transcribe: async () => {
+      read: async () => {
         reads += 1;
-        return "hi";
+        return { text: "hi", unsure: false };
       },
     };
-    const guarded = createApi({ ...apiParts(), beautifier, transcriber });
+    const guarded = createApi({ ...apiParts(), beautifier, handwriting });
     const request = () =>
       new Request("http://kami.test/api/transcribe", {
         method: "POST",
@@ -532,7 +533,7 @@ describe("transcribe", () => {
       });
     expect((await guarded.handle(request())).status).toBe(501);
     expect(reads).toBe(0);
-    transcriber.ready = true;
+    handwriting.ready = true;
     expect((await guarded.handle(request())).status).toBe(200);
     expect(reads).toBe(1);
   });
@@ -545,10 +546,35 @@ describe("transcribe", () => {
     expect(await drawn.json()).toEqual({ text: null });
   });
 
+  it("passes a settled read on, and says when the reader was unsure", async () => {
+    const asked: boolean[] = [];
+    const handwriting = {
+      ready: true,
+      read: async (_strokes: readonly Stroke[], options?: { readonly settled?: boolean }) => {
+        const settled = options?.settled ?? false;
+        asked.push(settled);
+        return settled ? { text: "sumikui", unsure: false } : { text: "sunikui", unsure: true };
+      },
+    };
+    const unsure = createApi({ ...apiParts(), beautifier, handwriting });
+    const ask = async (body: unknown): Promise<unknown> =>
+      (
+        await unsure.handle(
+          new Request("http://kami.test/api/transcribe", {
+            method: "POST",
+            body: JSON.stringify(body),
+          }),
+        )
+      ).json();
+    expect(await ask({ strokes: words })).toEqual({ text: "sunikui", unsure: true });
+    expect(await ask({ strokes: words, settled: true })).toEqual({ text: "sumikui" });
+    expect(asked).toEqual([false, true]);
+  });
+
   it("rejects no strokes, and says so when no reader is attached", async () => {
     expect((await call("POST", "/api/transcribe", { strokes: [] })).status).toBe(400);
     expect((await call("POST", "/api/transcribe", { text: "hi" })).status).toBe(400);
-    const bare = createApi({ ...apiParts(), beautifier, transcriber: null });
+    const bare = createApi({ ...apiParts(), beautifier, handwriting: null });
     const response = await bare.handle(
       new Request("http://kami.test/api/transcribe", {
         method: "POST",

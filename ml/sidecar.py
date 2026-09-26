@@ -20,7 +20,7 @@ from typing import Protocol
 from artifacts import validate_bundle
 from completion import SketchCompleter
 from exemplar_set import load_exemplars_of_model
-from handwriting.reader import HandwritingReader
+from handwriting.reader import HandwritingReader, Transcript
 from morph import DEFAULT_FIRMNESS
 from recognizer import DEFAULT_TOP, SketchRecognizer
 from render import Point
@@ -66,7 +66,7 @@ class BadRequest(ValueError):
 class ReadsHandwriting(Protocol):
     name: str
 
-    def read(self, strokes: list[list[Point]]) -> str | None: ...
+    def read(self, strokes: list[list[Point]]) -> Transcript | None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,7 +250,8 @@ def make_handler(
         def _read(self) -> Answer:
             if reader is None:
                 return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "no handwriting model is loaded"}
-            return HTTPStatus.OK, {"text": reader.read(parse_strokes(self._read_json()))}
+            transcript = reader.read(parse_strokes(self._read_json()))
+            return HTTPStatus.OK, {"text": None} if transcript is None else transcript.to_json()
 
         def _complete(
             self, eye: Eye, strokes: list[list[Point]], name: str | None, strength: float

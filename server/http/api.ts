@@ -32,7 +32,7 @@ import {
 } from "../schemas";
 import { boardEventStream, sinceOf } from "../sync/boardEventStream";
 import { BoardFeed } from "../sync/boardFeed";
-import type { HandwritingTranscriber } from "../transcribe/types";
+import type { NoteReader } from "../transcribe/proofreadingReader";
 import { ApiAccess, HEALTH_PATH } from "./access";
 import {
   badRequest,
@@ -81,8 +81,8 @@ export interface ApiDependencies {
   readonly compiler: RuleCompiler;
   readonly beautifier: Beautifier;
   readonly controllers: ControllerHub;
-  /** Reads the player's handwriting; null when no vision-capable model is configured. */
-  readonly transcriber?: HandwritingTranscriber | null;
+  /** Reads the player's handwriting; null when no handwriting reader is configured. */
+  readonly handwriting?: NoteReader | null;
   readonly natures?: NatureTable;
   /** Drawings for Kami to ink himself ("summon a rabbit"); without one, every summons is 404. */
   readonly exemplars?: ExemplarSource;
@@ -148,7 +148,7 @@ export const createApi = ({
   compiler,
   beautifier,
   controllers,
-  transcriber = null,
+  handwriting = null,
   natures = quickdrawNatureTable,
   exemplars = NO_EXEMPLARS,
   scenes = NO_SCENES,
@@ -269,10 +269,11 @@ export const createApi = ({
         : badRequest(INVALID_CONTROLLER_ID),
     )
     .on("POST", "/api/transcribe", async ({ request }) => {
-      if (transcriber === null || !transcriber.ready)
+      if (handwriting === null || !handwriting.ready)
         return notImplemented("no verified handwriting reader is available");
       const body = await parseJsonBody(request, transcribeRequestSchema);
       if (!body.ok) return body.response;
-      const text = await transcriber.transcribe(body.value.strokes, { signal: request.signal });
-      return json({ text });
+      const { strokes, settled = false } = body.value;
+      const { text, unsure } = await handwriting.read(strokes, { signal: request.signal, settled });
+      return json(unsure ? { text, unsure } : { text });
     });

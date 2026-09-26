@@ -2,7 +2,7 @@ import { readAmount } from "../amounts";
 import { scalarRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { SUBJECTS } from "../subjects";
-import { mentions, UNIVERSAL, vocabulary } from "../vocabulary";
+import { mentions, UNIVERSAL, type Vocabulary, vocabulary } from "../vocabulary";
 
 const SLOW_TIME = 0.5;
 const FAST_TIME = 2;
@@ -23,7 +23,14 @@ const PASSING = vocabulary(`
   down, up, motion, game, playback, rate
 `);
 
-const KNOWN = knownWords(SUBJECTS.timeScale, PACE_NAMES, SLOW, FAST, STOPPED, PASSING);
+export const TIME_WORDS: Vocabulary = knownWords(
+  SUBJECTS.timeScale,
+  PACE_NAMES,
+  SLOW,
+  FAST,
+  STOPPED,
+  PASSING,
+);
 
 const speedsUp = (words: readonly string[]): boolean =>
   mentions(words, FAST) || (words.includes("speed") && words.includes("up"));
@@ -42,7 +49,7 @@ const isAboutTime = (words: readonly string[], pace: number | null): boolean =>
   (pace !== null && mentions(words, UNIVERSAL));
 
 export const recogniseTime: Recogniser = ({ words }) => {
-  if (!understands(words, KNOWN)) return null;
+  if (!understands(words, TIME_WORDS)) return null;
   const pace = readPace(words);
   if (!isAboutTime(words, pace)) return null;
   const amount = readAmount(words);

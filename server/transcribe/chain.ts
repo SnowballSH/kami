@@ -1,5 +1,5 @@
 import type { Stroke } from "../../src/core/geometry";
-import type { HandwritingTranscriber, TranscribeOptions } from "./types";
+import type { HandwritingTranscriber, TranscribeOptions, Transcript } from "./types";
 
 export interface NamedTranscriber {
   /** What the start-up log calls it, e.g. "local reader (http://127.0.0.1:8790)". */
@@ -43,7 +43,7 @@ export class FirstReadyTranscriber implements HandwritingTranscriber {
     return false;
   }
 
-  transcribe(strokes: readonly Stroke[], options?: TranscribeOptions): Promise<string | null> {
+  transcribe(strokes: readonly Stroke[], options?: TranscribeOptions): Promise<Transcript | null> {
     return this.#chosen?.transcriber.transcribe(strokes, options) ?? Promise.resolve(null);
   }
 }

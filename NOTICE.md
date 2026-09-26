@@ -41,6 +41,17 @@ container image carries them.
   <https://huggingface.co/Xenova/trocr-small-handwritten>. It was fine-tuned on the IAM Handwriting
   Database; Kami distributes none of IAM's data.
 
+## SCOWL word lists
+
+Kami's handwriting proofreader tells ordinary English from misreadings with the SCOWL word lists
+(sizes 10–40) by Kevin Atkinson and contributors, installed from npm as `wordlist-english` (MIT):
+"Copyright 2000-2016 by Kevin Atkinson. Permission to use, copy, modify, distribute and sell these
+word lists, the associated scripts, the output created from the scripts, and its documentation for
+any purpose is hereby granted without fee, provided that the above copyright notice appears in all
+copies and that both that copyright notice and this permission notice appear in supporting
+documentation." The package's `Copyright` file lists the lists SCOWL is built from and their terms;
+none of them is vendored here.
+
 ## Libraries
 
 Dependencies are listed in `package.json` and `ml/pyproject.toml` and are installed from their registries

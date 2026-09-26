@@ -34,8 +34,21 @@ describe("HttpHandwritingReader", () => {
       seen.push({ path, method: init?.method, body: JSON.parse(String(init?.body)) });
       return Response.json({ text: "no gravity" });
     });
-    expect(await reader.read(STROKES)).toBe("no gravity");
+    expect(await reader.read(STROKES)).toEqual({ text: "no gravity", unsure: false });
     expect(seen).toEqual([{ path: "/api/transcribe", method: "POST", body: { strokes: STROKES } }]);
+  });
+
+  it("asks for a settled read, and passes on that the server was unsure", async () => {
+    const bodies: unknown[] = [];
+    const reader = new HttpHandwritingReader(async (_path, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return Response.json({ text: "sunikui", unsure: true });
+    });
+    expect(await reader.read(STROKES, { settled: true })).toEqual({
+      text: "sunikui",
+      unsure: true,
+    });
+    expect(bodies).toEqual([{ strokes: STROKES, settled: true }]);
   });
 
   it("hands the caller's abort signal on to the request", async () => {

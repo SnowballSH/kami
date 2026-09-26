@@ -1,22 +1,29 @@
 import { describe, expect, it } from "vitest";
 import type { Stroke } from "../core/geometry";
-import type { HandwritingReader, ReadOptions } from "../persistence/types";
+import type { Handwriting, HandwritingReader, ReadOptions } from "../persistence/types";
 import { couldBeWriting } from "./gate";
 import { PrefixPenReader } from "./penReader";
 
 interface Asked {
   readonly strokes: readonly Stroke[];
   readonly signal: AbortSignal | undefined;
-  answer(text: string | null): void;
+  readonly settled: boolean;
+  answer(said: string | Handwriting | null): void;
 }
+
+const handwritingOf = (said: string | Handwriting | null): Handwriting | null =>
+  typeof said === "string" ? { text: said, unsure: false } : said;
 
 /** A reader that answers only when the test says so. */
 class SlowReader implements HandwritingReader {
   readonly asked: Asked[] = [];
 
-  read(strokes: readonly Stroke[], { signal }: ReadOptions = {}): Promise<string | null> {
+  read(
+    strokes: readonly Stroke[],
+    { signal, settled = false }: ReadOptions = {},
+  ): Promise<Handwriting | null> {
     return new Promise((resolve) => {
-      this.asked.push({ strokes, signal, answer: resolve });
+      this.asked.push({ strokes, signal, settled, answer: (said) => resolve(handwritingOf(said)) });
       signal?.addEventListener("abort", () => resolve(null));
     });
   }
@@ -90,6 +97,32 @@ describe("PrefixPenReader", () => {
     reader.asked[1]?.answer("hi again");
     expect(await reading).toBe("hi again");
     expect(reader.asked).toHaveLength(2);
+  });
+
+  it("reads unsure final strokes once more, as settled", async () => {
+    const reader = new SlowReader();
+    const pen = new PrefixPenReader(reader);
+    pen.glimpse([H, I]);
+    reader.asked[0]?.answer({ text: "sunikui", unsure: true });
+    await flush();
+    expect(pen.recall([H, I])).toBeUndefined();
+    const reading = pen.settle([H, I]);
+    await flush();
+    expect(reader.asked.map(({ settled }) => settled)).toEqual([false, true]);
+    reader.asked[1]?.answer("sumikui");
+    expect(await reading).toBe("sumikui");
+  });
+
+  it("asks again as settled when the read in flight comes back unsure", async () => {
+    const reader = new SlowReader();
+    const pen = new PrefixPenReader(reader);
+    pen.glimpse([H, BAR]);
+    const reading = pen.settle([H, BAR]);
+    reader.asked[0]?.answer({ text: "alise", unsure: true });
+    await flush();
+    expect(reader.asked[1]?.settled).toBe(true);
+    reader.asked[1]?.answer(null);
+    expect(await reading).toBeNull();
   });
 
   it("never trusts a reading of different strokes", async () => {

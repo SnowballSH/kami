@@ -2,7 +2,9 @@
 
 Each line of writing is read twice at most (ml/HANDWRITING.md has the measurements behind this):
 the CTC screen decides whether it reads as text at all and answers alone when it is sure of every
-symbol; otherwise TrOCR reads it, and its answer stands only if it is sure enough on average.
+symbol; otherwise TrOCR reads it, and its answer stands only if it is sure enough on average. A
+transcript keeps how sure the models were of each character, and what the screen read wherever
+TrOCR answered instead: the Bun server proofreads with both.
 """
 
 from __future__ import annotations
@@ -14,11 +16,13 @@ from pathlib import Path
 from handwriting.bundle import verify_bundle
 from handwriting.engines import CtcLineRecogniser, LineRecogniser, TrOcrLineRecogniser
 from handwriting.ink import Strokes, render_line, split_lines
+from handwriting.sureness import SureText, joined
 
 MODEL_NAME = "ppocrv5-en-mobile+trocr-small-handwritten-int8"
 MAX_TEXT_LENGTH = 80
 MIN_DISTINCT_SYMBOLS = 2
 WHITESPACE = re.compile(r"\s+")
+LINE_SEPARATOR = " "
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +36,31 @@ class Floors:
 
 
 DEFAULT_FLOORS = Floors()
+
+
+@dataclass(frozen=True, slots=True)
+class LineRead:
+    """One line as answered, and what the screen read of it when TrOCR answered instead."""
+
+    answer: SureText
+    screened: str
+
+
+@dataclass(frozen=True, slots=True)
+class Transcript:
+    """The words, how sure the models were of each character of them, and other readings of the
+    whole note that differ from it (the screen's, where TrOCR answered), best first."""
+
+    text: str
+    sureness: tuple[float, ...]
+    alternatives: tuple[str, ...] = ()
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "text": self.text,
+            "sureness": [round(value, 3) for value in self.sureness],
+            "alternatives": list(self.alternatives),
+        }
 
 
 def reads_as_writing(text: str) -> bool:
@@ -63,24 +92,29 @@ class HandwritingReader:
         directory = verify_bundle(directory)
         return cls(CtcLineRecogniser(directory, threads), TrOcrLineRecogniser(directory, threads))
 
-    def read(self, strokes: Strokes) -> str | None:
-        lines: list[str] = []
+    def read(self, strokes: Strokes) -> Transcript | None:
+        lines: list[LineRead] = []
         for line in split_lines(strokes):
-            text = self._read_line(line)
-            if text is None:
+            read = self._read_line(line)
+            if read is None:
                 return None
-            lines.append(text)
-        text = tidy(" ".join(lines))
-        return text if reads_as_writing(text) else None
+            lines.append(read)
+        answer = joined((line.answer for line in lines), LINE_SEPARATOR).collapse_whitespace()
+        if not reads_as_writing(answer.text):
+            return None
+        screened = tidy(LINE_SEPARATOR.join(line.screened for line in lines))
+        alternatives = (screened,) if screened != answer.text and reads_as_writing(screened) else ()
+        return Transcript(answer.text, answer.sureness, alternatives)
 
-    def _read_line(self, strokes: Strokes) -> str | None:
+    def _read_line(self, strokes: Strokes) -> LineRead | None:
         image = render_line(strokes)
         screened = self._screen.read(image)
-        if screened.typical < self._floors.screen or not reads_as_writing(tidy(screened.text)):
+        screened_text = tidy(screened.text)
+        if screened.typical < self._floors.screen or not reads_as_writing(screened_text):
             return None
         if screened.weakest >= self._floors.trusted:
-            return tidy(screened.text)
+            return LineRead(screened.sure_text().collapse_whitespace(), screened_text)
         reading = self._reader.read(image)
         if reading.typical < self._floors.reader:
             return None
-        return tidy(reading.text)
+        return LineRead(reading.sure_text().collapse_whitespace(), screened_text)
