@@ -13,8 +13,19 @@ const BODY_NOUNS = vocabulary(
   beast animal cat dog fox wolf bear rabbit bunny mouse bird owl dragon dinosaur lizard frog fish
   octopus spider bug bee butterfly stickman snowman scarecrow alien demon devil vampire zombie
   skeleton mermaid unicorn pony horse deer lion tiger monkey ape penguin duck chicken pig cow sheep
-  goat catgirl`.split(/\s+/),
+  goat catgirl teddy`.split(/\s+/),
 );
+
+/** Compounds the lexicon reads as things, but which are figures a spirit can wear, like a doll. */
+const BODY_COMPOUNDS: ReadonlySet<string> = new Set([
+  "teddy bear",
+  "rag doll",
+  "toy soldier",
+  "tin man",
+  "gingerbread man",
+  "action figure",
+  "stick figure",
+]);
 
 const PLAYER_WORDS = vocabulary(
   "me myself her him them you us i she he they herself himself themselves".split(" "),
@@ -51,6 +62,7 @@ const thingEndingAt = (words: readonly string[], head: number): NatureMatch | nu
 const isBodyNoun = (words: readonly string[], head: number): boolean => {
   const thing = thingEndingAt(words, head);
   if (thing !== null && isCreature(thing.nature)) return true;
+  if (BODY_COMPOUNDS.has(words.slice(Math.max(0, head - 1), head + 1).join(" "))) return true;
   const compound = thing !== null && thing.end - thing.at > 1;
   const stem = words[head];
   return !compound && stem !== undefined && BODY_NOUNS.has(stemWord(stem));
