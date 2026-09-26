@@ -1,9 +1,8 @@
 import type { MotionEdit } from "../rules/types";
 import { FLEEING_WORDS, FLEERS, FOLLOWERS, FOLLOWING_WORDS } from "./lexicon";
+import { isCreature } from "./natures";
 import { indexOfSequence, type Phrase, stemsOf } from "./phrase";
 import type { Nature, Temper } from "./types";
-
-const CREATURES: ReadonlySet<Nature> = new Set<Nature>(["walker", "hopper", "flier"]);
 
 interface Leaning {
   readonly temper: Temper;
@@ -31,7 +30,7 @@ const longestSaid = (phrase: Phrase, table: readonly Leaning[]): Temper | undefi
  * have one — a loyal rock is still a rock.
  */
 export const temperOf = (phrase: Phrase, nature: Nature): Temper | undefined =>
-  CREATURES.has(nature) ? (longestSaid(phrase, TOLD) ?? longestSaid(phrase, BORN)) : undefined;
+  isCreature(nature) ? (longestSaid(phrase, TOLD) ?? longestSaid(phrase, BORN)) : undefined;
 
 const HEED_OF: Readonly<Record<Temper, number>> = { follows: 1, flees: -1 };
 

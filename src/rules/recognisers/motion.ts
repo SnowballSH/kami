@@ -79,6 +79,11 @@ const STATURE = vocabulary(`
   taller, grow, grows, grown, small, smaller, smallest, tiny, little, mini, miniature, minuscule,
   wee, shrink, shrinks, shrunk, size, sized
 `);
+const GLOW = vocabulary(`
+  glow, glows, glowing, glowed, shine, shines, shining, shone, luminous, radiant, gleam, gleams,
+  gleaming, lit, illuminated, glimmer, glimmers, glimmering, bioluminescent, phosphorescent
+`);
+const GLOWING_MANNER = vocabulary("bright, brightly, softly, gently, faintly, dimly, warmly");
 const HEADINGS: ReadonlyMap<string, Direction> = new Map([
   ...["rise", "rises", "rising", "rose"].map((word) => [word, "up"] as const),
   ...["sink", "sinks", "sinking", "sank", "fall", "falls", "falling", "fell"].map(
@@ -138,6 +143,7 @@ const SLUGGISH = 0.5;
 const CAN_FLY = 1;
 const HUGE = 2;
 const TINY = 0.5;
+const GLOWS = 1;
 
 const multiplier = (amount: Amount): number | null =>
   amount.unit === "plain" || amount.unit === "multiple" ? amount.value : null;
@@ -264,6 +270,17 @@ const DIALS: readonly KnownDial[] = [
     fromAmount: multiplier,
   }),
   knowing({
+    governs: "glow",
+    units: NO_UNITS,
+    about: GLOW,
+    readings: [
+      { words: HALT, value: 0 },
+      { words: GLOWING_MANNER, value: GLOWS },
+    ],
+    implied: GLOWS,
+    fromAmount: ({ value }) => (value === 0 ? 0 : GLOWS),
+  }),
+  knowing({
     governs: "thrust",
     units: NO_UNITS,
     about: HALT,
@@ -310,7 +327,7 @@ const ruleFor = (
 /**
  * Laws about the bodies on the board rather than the world: "the wheel spins", "every rock is
  * twice as heavy", "the cart accelerates to the left", and the powers a named creature can gain —
- * "the dog can fly", "the cat is twice as fast", "the rabbit is huge". Runs after the world's own
+ * "the dog can fly", "the cat is twice as fast", "the rabbit is huge", "the firefly glows". Runs after the world's own
  * recognisers, so "everything is bouncy" stays a world law; here a sentence must point at something.
  */
 export const recogniseMotion: Recogniser = (sentence) => {

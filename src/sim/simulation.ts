@@ -584,6 +584,7 @@ export class MatterSimulation implements Simulation {
       alice,
       alices: this.everyAlice(),
       gravity: accelerationOf(this.physics.gravity),
+      temperature: this.physics.temperature,
       intentOf: (each) => this.intentOf(each),
       feelers: this.feelers(),
       emit: (event) => this.events.push(event),

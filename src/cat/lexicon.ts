@@ -89,7 +89,7 @@ export const NATURE_THINGS: WordTable = {
     lion, tiger, wolf, fox, deer, monkey, robot, soldier, knight, person, man, woman, boy, child,
     baby, girl, kid, hero, heroine, character, player, princess, prince, queen, king, wizard,
     witch, pirate, cheshire cat, creature, monster, animal, pet, beast, worm, slug, lobster, crocodile,
-    alligator, camel, zebra, giraffe, gorilla, panda, koala,
+    alligator, camel, zebra, giraffe, gorilla, panda, koala, glowworm, glow worm,
     duckling, squirrel, raccoon, rhinoceros, cockroach, sidekick, companion, bodyguard,
     hatter, mad hatter, dormouse, duchess, tweedledum, tweedledee, bandersnatch, knave,
     humpty dumpty, unicorn, badger, beaver, otter, skunk, llama, alpaca, lamb, ostrich, peacock,
@@ -105,7 +105,7 @@ export const NATURE_THINGS: WordTable = {
     bird, butterfly, bee, bumblebee, wasp, bat, moth, owl, eagle, pigeon, dove, seagull, gull,
     parrot, firefly, dragonfly, fly, mosquito, hummingbird, sparrow, robin, crow, raven, swan,
     goose, flamingo, pelican, stork, hawk, falcon, vulture, ghost, angel, fairy, dragon, pegasus,
-    phoenix, griffin, bluebird, ladybird, ladybug, jubjub bird, flier,
+    phoenix, griffin, bluebird, ladybird, ladybug, jubjub bird, lightning bug, flier,
     jabberwock, jabberwocky, canary, finch, toucan, heron, albatross, hornet, gnat,
     pterodactyl, wyvern
   `),
@@ -123,7 +123,7 @@ export const NATURE_THINGS: WordTable = {
   `),
   lantern: list(`
     lantern, lamp, candle, torch, lightbulb, light bulb, bulb, streetlight, street lamp, lamppost,
-    flashlight, star, campfire light, glowworm, nightlight, night light,
+    flashlight, star, campfire light, nightlight, night light,
     floor lamp, traffic light
   `),
   portal: list(`
@@ -184,6 +184,9 @@ export const NEAR_ENOUGH_THINGS: Readonly<Partial<WordTable>> = {
     elevator, lift, satellite
   `),
 };
+
+/** Creatures that carry their own light by name: a firefly glows without being told to. */
+export const GLOWING_CREATURES = list("firefly, glowworm, glow worm, lightning bug");
 
 /** Names the Cat knows to be plain ink, so the words inside them mean nothing on their own. */
 export const PLAIN_THINGS = list("baseball bat, cricket bat, fire hydrant");

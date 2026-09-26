@@ -42,6 +42,11 @@ export const BOUNCE_MAX_RISING_SPEED = 1;
 export const FLOAT_SPEED = 1.1;
 export const FLOAT_SPIN_DAMPING = 0.5;
 export const FLOAT_DRIFT_DAMPING = 0.9;
+/** Floaty lift scales with the air's warmth: none at this temperature (°C), sinking below it. */
+export const FLOAT_HOVERS_AT_C = -10;
+/** Degrees above `FLOAT_HOVERS_AT_C` that give full lift, so lift is exactly 1 at Earth's 20 °C. */
+export const FLOAT_FULL_LIFT_SPAN_C = 30;
+export const FLOAT_LIFT_RANGE = { min: -0.5, max: 1.5 } as const;
 export const HEAVY_DENSITY_FACTOR = 12;
 export const LIGHT_DENSITY_FACTOR = 0.08;
 export const LIGHT_AIR_FRICTION = 0.08;

@@ -18,6 +18,7 @@ import {
   UP,
 } from "./testSupport";
 import { ALICE_BASE, type Simulation } from "./types";
+import { floatLiftAt } from "./weather";
 
 const board = blankBoard("sketchbook");
 const GROUND = board.spawn.y;
@@ -164,6 +165,31 @@ describe("laws about the world", () => {
     );
     expect(happeningsOf(events).filter((type) => type === "perished")).toHaveLength(2);
     expect(sim.snapshot().drawings.map(({ id }) => id)).toEqual([idOf("rock")]);
+  });
+
+  it.each([
+    [-30, "sinks gently", -0.5],
+    [-10, "hovers", 0],
+    [20, "rises as ever", 1],
+    [50, "rises faster in hot air", 1.5],
+  ])("lifts a cloud by the air's warmth: at %i °C it %s", (temperature, _, lift) => {
+    const climbAfter = (air: number): number => {
+      const sim = enter(board);
+      sim.setPhysics({ ...EARTH, temperature: air });
+      sim.addDrawing(drawingOf("cloud", blob(0, GROUND - 400, 60, 30)));
+      sim.applyRuling(idOf("cloud"), rulingOf("floaty"));
+      runSteps(sim, 5);
+      const from = poseOf(sim, "cloud")?.position.y ?? Number.NaN;
+      runSteps(sim, 20);
+      return from - (poseOf(sim, "cloud")?.position.y ?? Number.NaN);
+    };
+    const onEarth = climbAfter(EARTH.temperature);
+    expect(onEarth).toBeGreaterThan(0);
+    expect(climbAfter(temperature) / onEarth).toBeCloseTo(lift, 2);
+  });
+
+  it("leaves floaty lift exactly as it was at Earth's own temperature", () => {
+    expect(floatLiftAt(EARTH.temperature)).toBe(1);
   });
 
   it("keeps ice at room temperature", () => {

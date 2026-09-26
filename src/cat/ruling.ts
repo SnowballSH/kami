@@ -32,7 +32,7 @@ const tagsIn = (phrase: Phrase): readonly Tag[] =>
   TAG_WORDS.filter((tag) => phrase.stems.includes(stemWord(tag)));
 
 const withMotion = (ruling: Ruling, phrase: Phrase): Ruling => {
-  const motion = motionOf(phrase, strengthOf(phrase));
+  const motion = motionOf(phrase, strengthOf(phrase), ruling.nature);
   if (motion === undefined) return ruling;
   const line = ruling.nature === "ink" ? pickLine(MOVING_INK, phrase.text) : ruling.line;
   return { ...ruling, motion, line };
