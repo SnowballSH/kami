@@ -109,6 +109,7 @@ import {
   aboutAlice,
   BLANK_BOARD_BRIEF,
   CANNOT_DRAW_LINE,
+  DEVOURED_ROOM_RESTARTS_LINE,
   DOOR_OPENED_LINE,
   FELL_OFF_PAGE_LINE,
   GOAL_LINE,
@@ -180,6 +181,11 @@ const PROP_STAGGER_MS = 450;
 const HUD_WRITING_GAP = 12;
 /** Long enough to read that the heart was taken before the room opens over. */
 const RESTART_AFTER_MS = 2_800;
+const ROOM_RESTARTS_LINES: Readonly<Record<"fell" | "devoured" | "swallowed", string>> = {
+  fell: UNMADE_LINE,
+  devoured: DEVOURED_ROOM_RESTARTS_LINE,
+  swallowed: HEART_SWALLOWED_LINE,
+};
 /** A heatwave takes drawings by the handful; Kami mourns them once in a while, not one by one. */
 const PERISHED_REMARK_GAP_MS = 8_000;
 
@@ -935,7 +941,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private handle(event: SimEvent): void {
     if (this.director.won(event)) this.celebrate(event);
-    for (const transition of this.director.witness(event)) this.embody(transition);
+    const transitions = this.director.witness(event);
+    for (const transition of transitions) this.embody(transition);
+    const unmade = transitions.some((transition) => transition.kind === "unmade");
     switch (event.type) {
       case "goal-reached":
         return;
@@ -988,6 +996,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         return;
       case "alice-devoured":
         this.party.invalidate();
+        if (unmade) return;
         this.remark(
           aboutAlice(
             event.who,
@@ -1121,7 +1130,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         this.remark(UNMADE_LINE, HINT_LIFETIME_MS);
         return;
       case "board-restarts":
-        this.remark(cause === "swallowed" ? HEART_SWALLOWED_LINE : UNMADE_LINE, HINT_LIFETIME_MS);
+        this.remark(ROOM_RESTARTS_LINES[cause], HINT_LIFETIME_MS);
         this.restartDueAtMs = this.nowMs + RESTART_AFTER_MS;
         return;
     }

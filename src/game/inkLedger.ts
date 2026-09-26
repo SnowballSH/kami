@@ -1,43 +1,21 @@
 import type { SceneInk } from "../autopilot/types";
 import type { Ruling } from "../cat/types";
+import { drawingInMotion, type InkMotion, stillMoving } from "../ink/retrace";
 import type { Drawing, DrawingId, InkProvenance, PosedDrawing } from "../ink/types";
 import type { StoredDrawing } from "../persistence/types";
 import type { InkView } from "../render/types";
 import type { DrawingPose } from "../sim/types";
-import {
-  type Arrival,
-  arrivalProgress,
-  drawnIn,
-  type Retrace,
-  retracedStrokes,
-  retraceProgress,
-} from "./retrace";
 
 export interface InkRecord extends StoredDrawing {
   readonly provenance: InkProvenance;
   /** The strokes as they landed: what the sim built its body from, and what every tidying starts from. */
   readonly drawn: Drawing["strokes"];
   readonly awakenedAtMs: number | null;
-  /** Set while the ink is still gliding into the tidied strokes `drawing` already holds. */
-  readonly retrace: Retrace | null;
-  /** Set while Kami is still inking a drawing of his own; the body is whole from the start. */
-  readonly arrival: Arrival | null;
+  /** Set while the ink is still coming into the strokes `drawing` already holds: Kami inking it, or a tidy. */
+  readonly motion: InkMotion | null;
 }
 
-const shownAt = (record: InkRecord, nowMs: number): Drawing => {
-  if (record.arrival !== null) {
-    const progress = arrivalProgress(record.arrival, nowMs);
-    if (progress >= 1) return record.drawing;
-    return { ...record.drawing, strokes: drawnIn(record.drawing.strokes, progress) };
-  }
-  if (record.retrace === null) return record.drawing;
-  const progress = retraceProgress(record.retrace, nowMs);
-  if (progress >= 1) return record.drawing;
-  const strokes = retracedStrokes(record.retrace.from, record.drawing.strokes, progress);
-  return { ...record.drawing, strokes };
-};
-
-const FRESH = { ruling: null, awakenedAtMs: null, retrace: null, arrival: null } as const;
+const FRESH = { ruling: null, awakenedAtMs: null, motion: null } as const;
 
 /** What is saved of a record: provenance only when it is not the default, so drawn ink stores as before. */
 export const storedOf = ({ drawing, ruling, provenance }: InkRecord): StoredDrawing =>
@@ -58,7 +36,7 @@ export class InkLedger {
       drawing,
       drawn: drawing.strokes,
       provenance,
-      arrival: { startedAtMs: atMs },
+      motion: { kind: "arrival", startedAtMs: atMs },
     };
     this.records.set(drawing.id, record);
     return record;
@@ -72,14 +50,17 @@ export class InkLedger {
     return awake;
   }
 
-  /** The same drawing with tidied strokes; what is shown glides there from the old ones. */
+  /** The same drawing with tidied strokes; what is shown glides there from the old ones, or keeps being inked in if Kami is still at it. */
   retrace(id: DrawingId, strokes: Drawing["strokes"], atMs: number): InkRecord | null {
     const record = this.records.get(id);
     if (record === undefined) return null;
     const retraced: InkRecord = {
       ...record,
       drawing: { ...record.drawing, strokes },
-      retrace: { from: record.drawing.strokes, startedAtMs: atMs },
+      motion:
+        record.motion?.kind === "arrival" && stillMoving(record.motion, atMs)
+          ? record.motion
+          : { kind: "retrace", from: record.drawing.strokes, startedAtMs: atMs },
     };
     this.records.set(id, retraced);
     return retraced;
@@ -110,7 +91,7 @@ export class InkLedger {
 
   views(poses: readonly DrawingPose[], nowMs: number): readonly InkView[] {
     return this.join(poses, (record, pose, lit) => ({
-      drawing: shownAt(record, nowMs),
+      ...drawingInMotion(record.drawing, record.motion, nowMs),
       pose,
       nature: record.ruling?.nature ?? "ink",
       lit,

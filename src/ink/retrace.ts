@@ -1,4 +1,5 @@
 import type { PenPoint, Stroke } from "../core/geometry";
+import type { Drawing } from "./types";
 
 /** A drawing on its way from the player's ink to Kami's tidied version of it. */
 export interface Retrace {
@@ -72,3 +73,46 @@ export const ARRIVAL_MS = 1800;
 
 export const arrivalProgress = (arrival: Arrival, nowMs: number): number =>
   Math.min(1, Math.max(0, (nowMs - arrival.startedAtMs) / ARRIVAL_MS));
+
+/**
+ * How a drawing is still coming into its strokes: Kami inking one of his own in (`arrival`), or the
+ * player's ink gliding into the tidied strokes (`retrace`, from the strokes as they were).
+ */
+export type InkMotion =
+  | ({ readonly kind: "arrival" } & Arrival)
+  | ({ readonly kind: "retrace" } & Retrace);
+
+export const motionProgress = (motion: InkMotion, nowMs: number): number =>
+  motion.kind === "arrival" ? arrivalProgress(motion, nowMs) : retraceProgress(motion, nowMs);
+
+/** What of `strokes` shows at `nowMs` while `motion` brings them in: `strokes` themselves once it is over. */
+export const strokesInMotion = (
+  strokes: readonly Stroke[],
+  motion: InkMotion,
+  nowMs: number,
+): readonly Stroke[] => {
+  const progress = motionProgress(motion, nowMs);
+  if (progress >= 1) return strokes;
+  return motion.kind === "arrival"
+    ? drawnIn(strokes, progress)
+    : retracedStrokes(motion.from, strokes, progress);
+};
+
+export const stillMoving = (
+  motion: InkMotion | null | undefined,
+  nowMs: number,
+): motion is InkMotion =>
+  motion !== null && motion !== undefined && motionProgress(motion, nowMs) < 1;
+
+/** A drawing as it shows at `nowMs`, and while `motion` is still bringing it in, where it is settling. */
+export const drawingInMotion = (
+  drawing: Drawing,
+  motion: InkMotion | null | undefined,
+  nowMs: number,
+): { readonly drawing: Drawing; readonly settling?: { drawing: Drawing; motion: InkMotion } } =>
+  stillMoving(motion, nowMs)
+    ? {
+        drawing: { ...drawing, strokes: strokesInMotion(drawing.strokes, motion, nowMs) },
+        settling: { drawing, motion },
+      }
+    : { drawing };

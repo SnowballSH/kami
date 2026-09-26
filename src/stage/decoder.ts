@@ -1,12 +1,25 @@
 import type { BoardDefinition } from "../board/types";
 import type { PenScript } from "../handwriting/types";
+import type { InkMotion } from "../ink/retrace";
+import { drawingInMotion } from "../ink/retrace";
 import type { Drawing, DrawingId } from "../ink/types";
 import type { NoteId } from "../notes/types";
-import type { RenderFrame } from "../render/types";
+import type { InkView, RenderFrame } from "../render/types";
 import type { DrawnBody } from "../sim/body/types";
 import type { AliceSnapshot } from "../sim/types";
 import type { LawListing } from "../ui/types";
-import type { LeanAlice, LeanFrame, ShownMessage, Viewport } from "./wire";
+import type { LeanAlice, LeanFrame, LeanInk, ShownMessage, Viewport } from "./wire";
+
+interface KeptInk {
+  readonly drawing: Drawing;
+  readonly motion: InkMotion | undefined;
+}
+
+/** The ink as the source showed it at `nowMs`: its motion played on the source's own clock. */
+const shownAt = ({ id: _id, ...lean }: LeanInk, kept: KeptInk, nowMs: number): InkView => ({
+  ...lean,
+  ...drawingInMotion(kept.drawing, kept.motion, nowMs),
+});
 
 /** What a screen shows next: the source's frame made whole again, and the canvas it was made for. */
 export interface StagedFrame {
@@ -22,7 +35,7 @@ export interface StageAudience {
 
 /** The screen's half of `StageEncoder`: keeps the strokes and scripts frames leave out. */
 export class StageDecoder {
-  #inks = new Map<DrawingId, Drawing>();
+  #inks = new Map<DrawingId, KeptInk>();
   #scripts = new Map<NoteId, PenScript>();
   #bodies = new Map<number, DrawnBody>();
 
@@ -44,9 +57,11 @@ export class StageDecoder {
       case "laws":
         this.audience.lawsChanged(message.body);
         return;
-      case "ink":
-        this.#inks.set(message.body.id, message.body);
+      case "ink": {
+        const { motion, ...drawing } = message.body;
+        this.#inks.set(drawing.id, { drawing, motion });
         return;
+      }
       case "note":
         this.#scripts.set(message.body.id, message.body.script);
         return;
@@ -69,9 +84,9 @@ export class StageDecoder {
 
   /** Inks and notes whose strokes never arrived (a dropped connection mid-tell) are left out. */
   #whole({ viewport, inks, notes, world, ghosts, ...rest }: LeanFrame): StagedFrame {
-    const drawn = inks.flatMap(({ id, ...ink }) => {
-      const drawing = this.#inks.get(id);
-      return drawing === undefined ? [] : [{ ...ink, drawing }];
+    const drawn = inks.flatMap((ink) => {
+      const kept = this.#inks.get(ink.id);
+      return kept === undefined ? [] : [shownAt(ink, kept, rest.nowMs)];
     });
     const written = notes.flatMap((note) => {
       const script = this.#scripts.get(note.id);

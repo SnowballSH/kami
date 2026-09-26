@@ -1,7 +1,7 @@
 import type { BoardDefinition } from "../board/types";
 import type { Ruling } from "../cat/types";
 import type { DrawingId } from "../ink/types";
-import type { SimEvent } from "../sim/types";
+import { ALICE_HERSELF, type SimEvent } from "../sim/types";
 import { wonBy } from "./policy";
 import { SpiritDirector } from "./spiritDirector";
 import type {
@@ -14,7 +14,11 @@ import type {
 
 const BODY: PlayerState = { kind: "body" };
 
-/** The referee for any mode that opens with a body: she is there from the first frame and the sim's own respawn is the loss rule. */
+/**
+ * The referee for any mode that opens with a body: she is there from the first frame. A fall is
+ * always the sim's own respawn; being devoured is too, unless the mode's `LossRule` says otherwise,
+ * in which case she is unmade and the game enacts that rule.
+ */
 export class EmbodiedDirector implements ModeDirector {
   state: PlayerState = BODY;
   room: RoomStaging | null = null;
@@ -27,8 +31,12 @@ export class EmbodiedDirector implements ModeDirector {
     return this.state;
   }
 
-  witness(_event: SimEvent): readonly EmbodimentTransition[] {
-    return [];
+  witness(event: SimEvent): readonly EmbodimentTransition[] {
+    const devouredForGood =
+      event.type === "alice-devoured" &&
+      event.who === ALICE_HERSELF &&
+      this.mode.loss.kind !== "respawn";
+    return devouredForGood ? [{ kind: "unmade", cause: "devoured" }] : [];
   }
 
   named(_drawingId: DrawingId, _ruling: Ruling): readonly EmbodimentTransition[] {

@@ -84,6 +84,15 @@ describe("the embodied director", () => {
     expect(director.state).toEqual({ kind: "body" });
   });
 
+  it("unmakes her when she is devoured only where the mode's loss is not a respawn, and never for a fall", () => {
+    const devoured = { type: "alice-devoured", who: 0 } as const;
+    const restarting = new EmbodiedDirector({ ...EMBODIED_MODE, loss: { kind: "board-restarts" } });
+    expect(new EmbodiedDirector(EMBODIED_MODE).witness(devoured)).toEqual([]);
+    expect(restarting.witness(devoured)).toEqual([{ kind: "unmade", cause: "devoured" }]);
+    expect(restarting.witness({ type: "alice-devoured", who: 1 })).toEqual([]);
+    expect(restarting.witness({ type: "fell", who: 0 })).toEqual([]);
+  });
+
   it("does not call an endless game won at the rabbit hole", () => {
     const sandbox = new EmbodiedDirector({ ...EMBODIED_MODE, win: { kind: "endless" } });
     expect(sandbox.won({ type: "goal-reached", who: 0 })).toBe(false);

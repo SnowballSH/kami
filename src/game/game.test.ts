@@ -9,6 +9,7 @@ import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { FIXED_STEP_MS } from "../core/world";
 import { BRIDGE_LINE, DROP_LINE, IDEAS, LADDER_LINE } from "../counsel";
 import { createInkSession, findDrawingAt } from "../ink";
+import { ARRIVAL_MS } from "../ink/retrace";
 import type { InkSession } from "../ink/types";
 import {
   BOSS_MODE,
@@ -29,6 +30,7 @@ import type { CompiledRule, Scene } from "../rules/types";
 import { createSimulation } from "../sim";
 import { figureAround, legsBelow, ringAround } from "../sim/boss/figure.testSupport";
 import { drawingOf } from "../sim/testSupport";
+import type { SimEvent, Simulation } from "../sim/types";
 import { type SketchCatalogue, SUMMONED_SIZE, Summoner } from "../summoning";
 import type { BoardLink } from "../sync/boardLink";
 import { SharedPage } from "../sync/testing/sharedPage";
@@ -51,6 +53,7 @@ import { Game, MAX_REMARKS } from "./game";
 import { HELD_INK_FADE_MS } from "./heldInk";
 import {
   CANNOT_DRAW_LINE,
+  DEVOURED_ROOM_RESTARTS_LINE,
   FELL_OFF_PAGE_LINE,
   LAW_OUTSIDE_MODE_LINE,
   NOWHERE_LINE,
@@ -64,7 +67,6 @@ import {
   WORDMARK,
 } from "./lines";
 import { NOTE_STYLE, type NoteBook } from "./noteBook";
-import { ARRIVAL_MS } from "./retrace";
 import {
   FakeHandwriting,
   FakeHud,
@@ -2355,16 +2357,49 @@ describe("Game in puzzle mode", () => {
     });
   });
 
-  it("shows a Lost card when the ink eater restarts the room", async () => {
+  const befallHerOnce = (sim: Simulation, befalls: readonly SimEvent[]): void => {
+    const step = sim.step.bind(sim);
+    let befallen = false;
+    vi.spyOn(sim, "step").mockImplementation(() => {
+      const events = step();
+      if (befallen) return events;
+      befallen = true;
+      return [...events, ...befalls];
+    });
+  };
+
+  it("shows a Lost card and restarts the room when the ink eater catches her", async () => {
     const player = new Player(FIRST_PUZZLE_BOARD_ID, { mode: PUZZLE_MODE });
     await player.arrive();
-    (player.game as unknown as { lose: (cause: "devoured") => void }).lose("devoured");
-    await player.wait(3_000);
+    await player.draw(blob({ x: 400, y: 530 }, 30, 20));
+    await player.wait(COMMIT_WAIT_MS);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+    befallHerOnce(player.sim, [
+      { type: "alice-devoured", who: 0 },
+      { type: "fell", who: 0 },
+    ]);
+    expect(await player.until(() => player.written.includes(DEVOURED_ROOM_RESTARTS_LINE))).toBe(
+      true,
+    );
+    expect(await player.until(() => player.hud.cards.at(-1)?.title === "Lost", 5_000)).toBe(true);
     expect(player.hud.cards.at(-1)).toMatchObject({
       title: "Lost",
       tagline: "The ink eater got her. Again, this room.",
     });
     expect(player.hud.roomCard?.title).toBe("The Wall");
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  it("puts her back at the checkpoint, room and ink intact, when she only falls", async () => {
+    const player = new Player(FIRST_PUZZLE_BOARD_ID, { mode: PUZZLE_MODE });
+    await player.arrive();
+    await player.draw(blob({ x: 400, y: 530 }, 30, 20));
+    await player.wait(COMMIT_WAIT_MS);
+    const cardsBefore = player.hud.cards.length;
+    befallHerOnce(player.sim, [{ type: "fell", who: 0 }]);
+    await player.wait(5_000);
+    expect(player.hud.cards).toHaveLength(cardsBefore);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
   });
 });
 
