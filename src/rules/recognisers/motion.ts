@@ -1,5 +1,5 @@
 import { type Amount, readAmount } from "../amounts";
-import { weakened } from "../comparatives";
+import { type Comparatives, compare, weakened } from "../comparatives";
 import { DIRECTION_WORDS, type Direction, fieldAlong, readDirection } from "../directions";
 import { type BodyScalarGoverns, bodyRule, thrustRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
@@ -34,6 +34,8 @@ interface BodyDial {
   readonly implied: number | null;
   /** Whether it takes values between its readings ("slightly faster"), or is only on or off. */
   readonly graded: boolean;
+  /** What "more" and "less" alone set it to; a dial without them halves or inverts its reading. */
+  readonly compared: Comparatives | null;
   readonly fromAmount: (amount: Amount) => number | null;
 }
 
@@ -189,6 +191,7 @@ const DIALS: readonly KnownDial[] = [
       { words: SLOW, value: SLOW_SPIN },
     ],
     graded: true,
+    compared: null,
     implied: ONE_TURN_PER_SECOND,
     fromAmount: multiplier,
   }),
@@ -203,6 +206,7 @@ const DIALS: readonly KnownDial[] = [
       { words: SLOW, value: GENTLE_THRUST_G },
     ],
     graded: true,
+    compared: null,
     implied: STEADY_THRUST_G,
     fromAmount: thrustFromAmount,
   }),
@@ -214,10 +218,9 @@ const DIALS: readonly KnownDial[] = [
       { words: WEIGHTLESS, value: NEAR_WEIGHTLESS },
       { words: HEAVY, value: HEAVIER },
       { words: LIGHT, value: LIGHTER },
-      { words: MORE, value: HEAVIER },
-      { words: LESS, value: LIGHTER },
     ],
     graded: true,
+    compared: { more: HEAVIER, less: LIGHTER },
     implied: null,
     fromAmount: multiplier,
   }),
@@ -230,6 +233,7 @@ const DIALS: readonly KnownDial[] = [
       { words: INTENSIFIERS, value: VERY_BOUNCY },
     ],
     graded: true,
+    compared: null,
     implied: BOUNCY,
     fromAmount: multiplier,
   }),
@@ -240,10 +244,9 @@ const DIALS: readonly KnownDial[] = [
     readings: [
       { words: SLIPPERY, value: NO_GRIP },
       { words: GRIPPY, value: STICKY_GRIP },
-      { words: MORE, value: MORE_GRIP },
-      { words: LESS, value: LESS_GRIP },
     ],
     graded: true,
+    compared: { more: MORE_GRIP, less: LESS_GRIP },
     implied: null,
     fromAmount: multiplier,
   }),
@@ -254,10 +257,9 @@ const DIALS: readonly KnownDial[] = [
     readings: [
       { words: FAST, value: QUICK },
       { words: SLOW, value: SLUGGISH },
-      { words: MORE, value: QUICK },
-      { words: LESS, value: SLUGGISH },
     ],
     graded: true,
+    compared: { more: QUICK, less: SLUGGISH },
     implied: null,
     fromAmount: multiplier,
   }),
@@ -267,6 +269,7 @@ const DIALS: readonly KnownDial[] = [
     about: WINGS,
     readings: [{ words: HALT, value: 0 }],
     graded: false,
+    compared: null,
     implied: CAN_FLY,
     fromAmount: ({ value }) => (value === 0 ? 0 : CAN_FLY),
   }),
@@ -277,10 +280,9 @@ const DIALS: readonly KnownDial[] = [
     readings: [
       { words: BIG, value: HUGE },
       { words: SMALL, value: TINY },
-      { words: MORE, value: HUGE },
-      { words: LESS, value: TINY },
     ],
     graded: true,
+    compared: { more: HUGE, less: TINY },
     implied: null,
     fromAmount: multiplier,
   }),
@@ -293,6 +295,7 @@ const DIALS: readonly KnownDial[] = [
       { words: GLOWING_MANNER, value: GLOWS },
     ],
     graded: false,
+    compared: null,
     implied: GLOWS,
     fromAmount: ({ value }) => (value === 0 ? 0 : GLOWS),
   }),
@@ -303,6 +306,7 @@ const DIALS: readonly KnownDial[] = [
     steered: DRIFT,
     readings: [],
     graded: false,
+    compared: null,
     implied: 0,
     fromAmount: thrustFromAmount,
   }),
@@ -320,16 +324,25 @@ const isAbout = (dial: BodyDial, words: readonly string[]): boolean =>
 const ordinary = (governs: BodyGoverns): number => (governs === "thrust" ? 0 : STILL[governs]);
 
 /** "a bit faster" is halfway from what the dial plainly does to what "faster" asks. */
-const slightly = (value: number | null, plain: number, words: readonly string[]): number | null =>
-  value !== null && mentions(words, SLIGHTLY) ? weakened(value, plain) : value;
+const graded = (
+  dial: BodyDial,
+  value: number | null,
+  plain: number,
+  words: readonly string[],
+): number | null => {
+  if (!dial.graded) return value;
+  const said = { more: mentions(words, MORE), less: mentions(words, LESS) };
+  const compared = compare(value, plain, dial.compared, said);
+  return compared !== null && mentions(words, SLIGHTLY) ? weakened(compared, plain) : compared;
+};
 
 const readDial = (dial: BodyDial, words: readonly string[]): number | null => {
   if (mentions(words, UNDOING)) return ordinary(dial.governs);
   const amount = readAmount(words);
   if (amount !== null) return dial.fromAmount(amount);
   const reading = dial.readings.find(({ words: said }) => mentions(words, said));
-  if (reading === undefined) return slightly(dial.implied, ordinary(dial.governs), words);
-  return slightly(reading.value, dial.implied ?? ordinary(dial.governs), words);
+  if (reading === undefined) return graded(dial, dial.implied, ordinary(dial.governs), words);
+  return graded(dial, reading.value, dial.implied ?? ordinary(dial.governs), words);
 };
 
 const ruleFor = (
