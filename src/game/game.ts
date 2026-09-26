@@ -170,6 +170,13 @@ const HINT_LIFETIME_MS = 10_000;
 export const MAX_REMARKS = 2;
 /** How long the player's words, and the labels Kami hangs on drawings, stay once answered. */
 const NOTE_LINGER_MS = 12_000;
+/**
+ * Another device's note leaves when its writer lets it go. One whose writer vanished first leaves
+ * this screen after this long, without being deleted: it is not this device's to delete.
+ */
+const PEER_NOTE_LIFETIME_MS = 120_000;
+/** A note on a shared page this old has outlived any writer's answer: whoever opens the page tidies it. */
+const ORPHANED_NOTE_AGE_MS = 10 * 60_000;
 /** Long enough to read the closing line where she stands before the next room opens over it. */
 const NEXT_ROOM_DELAY_MS = 4_000;
 const ABOVE_ALICE = { x: -90, y: -120 } as const;
@@ -294,6 +301,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private glimpse: { readonly noteId: NoteId; readonly word: string } | null = null;
   /** Labels Kami wrote for drawings he was sure of: the one kind of note of his that is kept. */
   private readonly labelsByKami = new Set<NoteId>();
+  /** Notes this device answers for: when one fades, the page forgets it. Any other note only leaves the screen. */
+  private readonly ownNotes = new Set<NoteId>();
   private readonly tidied = new Set<DrawingId>();
   private readonly tidyTurns = new Map<DrawingId, number>();
   private retidyDueAtMs: number | null = null;
@@ -370,7 +379,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       aliceBounds: this.inkKeepsOff(),
     });
     if (!this.ink.isDrawing) this.forgetGlimpse();
-    this.forget(this.notes.expire(nowMs));
+    this.letGo(this.notes.expire(nowMs));
     this.speakDueRecital();
     if (this.retidyDueAtMs !== null && nowMs >= this.retidyDueAtMs) this.retidyTheBoard();
     if (this.restartDueAtMs !== null && nowMs >= this.restartDueAtMs) this.restart();
@@ -634,6 +643,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.ledger.clear();
     this.notes.clear();
     this.labelsByKami.clear();
+    this.ownNotes.clear();
     this.glimpse = null;
     this.rules.replaceAll([]);
     this.showLaws();
@@ -686,7 +696,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private restore({ drawings, notes, rules }: BoardSnapshot): void {
     for (const stored of drawings) this.placeDrawing(stored);
-    for (const note of notes) this.placeNote(note);
+    for (const note of notes) this.placeNote(note, "restored");
     const placed = rules.filter((rule) => this.rules.place(rule));
     this.showLaws();
     for (const [noteId, ofNote] of groupedByNote(placed)) this.glossLaws(noteId, ofNote);
@@ -733,6 +743,10 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
   }
 
+  private get sharesLive(): boolean {
+    return this.director.mode.sharing === "live" && (this.modules.link ?? null) !== null;
+  }
+
   /** On a shared page, hears what other devices do to it and tells them where Alice is. */
   private followPage(boardId: string): void {
     this.unfollow?.();
@@ -740,7 +754,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.ghosts.clear();
     this.ghostsHeardAtMs.clear();
     const { link } = this.modules;
-    if (this.director.mode.sharing !== "live" || link === undefined || link === null) return;
+    if (!this.sharesLive || link === undefined || link === null) return;
     const epoch = this.epoch;
     this.unfollow = link.follow(boardId, {
       changed: (change) => {
@@ -769,7 +783,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
             this.placeDrawing(change.entity);
             return;
           case "notes":
-            this.placeNote(change.entity);
+            this.placeNote(change.entity, "received");
             return;
           case "rules":
             this.placeLaw(change.entity);
@@ -818,16 +832,18 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.party.invalidate();
   }
 
-  private placeNote(note: Note): void {
+  /**
+   * A saved note takes its place where it was written. A note from a previous session fades after
+   * `NOTE_LINGER_MS`, and the page forgets it with it, unless another device may still be answering
+   * it; a note arriving from another device stays until its writer lets it go.
+   */
+  private placeNote(note: Note, from: "restored" | "received"): void {
     this.lastSubmittedAt = Math.max(this.lastSubmittedAt, note.createdAt);
     if (same(this.notes.get(note.id), note)) return;
-    this.notes.restore(
-      note,
-      this.nowMs,
-      NOTE_LINGER_MS,
-      this.visibleWorldRect(),
-      this.noteGroundBottom(note.position),
-    );
+    const restored = from === "restored";
+    this.notes.restore(note, this.nowMs, restored ? NOTE_LINGER_MS : PEER_NOTE_LIFETIME_MS);
+    if (restored && (!this.sharesLive || Date.now() - note.createdAt > ORPHANED_NOTE_AGE_MS))
+      this.ownNotes.add(note.id);
     if (!isPlayers(note)) this.labelsByKami.add(note.id);
   }
 
@@ -1603,6 +1619,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private hangLabel(name: string, corner: Vec): Note {
     const label = this.kamiWrites(name, corner, { drift: "down" });
     this.labelsByKami.add(label.id);
+    this.ownNotes.add(label.id);
     return label;
   }
 
@@ -1869,6 +1886,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       drift: "down",
     });
     this.modules.store.saveNote(this.board.id, note);
+    this.ownNotes.add(note.id);
     this.handiwork.record({ kind: "note", id: note.id });
     return note;
   }
@@ -2110,11 +2128,19 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
   }
 
+  /** Notes taken off the page on purpose: an erase, a repeal, a name that replaced a guess. */
   private forget(removed: readonly Note[]): void {
     for (const note of removed) {
+      this.ownNotes.delete(note.id);
       if (isPlayers(note) || this.labelsByKami.delete(note.id))
         this.modules.store.deleteNote(this.board.id, note.id);
     }
+  }
+
+  /** Notes whose time is up: the page forgets those this device answers for; the rest only leave the screen. */
+  private letGo(faded: readonly Note[]): void {
+    this.forget(faded.filter((note) => this.ownNotes.has(note.id)));
+    for (const note of faded) this.labelsByKami.delete(note.id);
   }
 
   private drawingNear(noteId: NoteId): InkRecord | null {

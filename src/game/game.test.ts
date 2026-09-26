@@ -21,6 +21,7 @@ import {
   SANDBOX_MODE,
 } from "../modes";
 import type { GameMode } from "../modes/types";
+import type { Note, NoteId } from "../notes/types";
 import { HttpBoardStore } from "../persistence/httpBoardStore";
 import type { BoardSnapshot, BoardStore, HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
@@ -2714,6 +2715,59 @@ describe("Game on a shared page", () => {
     mine.game.onClearBoard();
     await theirs.wait(200);
     expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  const faraway = (id: string, createdAt = Date.now()): Note => ({
+    id: id as NoteId,
+    author: "player",
+    text: "far away",
+    position: { x: 6_000, y: -100 },
+    tone: "plain",
+    createdAt,
+    fleeting: false,
+  });
+
+  const writtenAt = (player: Player, text: string): Vec | undefined => {
+    const bounds = player.renderer.lastFrame?.notes.find((note) => note.script.text === text)
+      ?.script.bounds;
+    return bounds === undefined ? undefined : { x: bounds.x, y: bounds.y };
+  };
+
+  it("keeps another device's note where it was written, and never deletes it for its author", async () => {
+    const { page, theirs } = await together();
+    page.saveNote("together", faraway("n-far"));
+    await theirs.wait(50);
+    expect(writtenAt(theirs, "far away")?.x).toBeCloseTo(6_000, -1);
+    await theirs.wait(14_000);
+    expect((await page.load("together")).notes.map((note) => note.id)).toEqual(["n-far"]);
+  });
+
+  it("restores a note at its own place on a shared page, and leaves a fresh one to its writer", async () => {
+    const page = new SharedPage();
+    page.saveNote("together", faraway("n-far"));
+    const late = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(BOB, 0),
+    });
+    await late.arrive();
+    expect(writtenAt(late, "far away")?.x).toBeCloseTo(6_000, -1);
+    await late.wait(14_000);
+    expect(late.written).not.toContain("far away");
+    expect((await page.load("together")).notes).toHaveLength(1);
+  });
+
+  it("tidies away a note on a shared page whose writer is long gone", async () => {
+    const page = new SharedPage();
+    page.saveNote("together", faraway("n-old", Date.now() - 60 * 60_000));
+    const late = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(BOB, 0),
+    });
+    await late.arrive();
+    await late.wait(14_000);
+    expect((await page.load("together")).notes).toHaveLength(0);
   });
 
   it("plays alone, with no share affordance, in a room", async () => {
