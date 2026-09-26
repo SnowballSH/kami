@@ -120,7 +120,8 @@ describe("BoardFeed", () => {
     for (let i = 1; i <= changes; i++) feed.record("a", note(`n${i}`, text));
     expect(heard(feed, "a", 0).messages).toEqual([{ type: "resync", seq: changes, boot: BOOT }]);
     expect(heard(feed, "a", 2).messages).toEqual([{ type: "resync", seq: changes, boot: BOOT }]);
-    expect(seqs(heard(feed, "a", changes - 20).messages)).toHaveLength(20);
+    const replayable = Math.floor(KEPT_BYTES / text.length) - 1;
+    expect(seqs(heard(feed, "a", changes - replayable).messages)).toHaveLength(replayable);
   });
 
   it("forgets an idle page with no listeners or peers, and numbers it on from where it stood", () => {
@@ -144,6 +145,21 @@ describe("BoardFeed", () => {
     now += 2 * PAGE_IDLE_MS;
     expect(feed.record("fresh", note("n1")).seq).toBe(5);
     expect(feed.pageCount).toBe(1);
+  });
+
+  it("answers where an unseen board stands without keeping a page for it", () => {
+    let now = 0;
+    const feed = feedAt(() => now);
+    for (let i = 1; i <= 3; i++) feed.record("a", note(`n${i}`));
+    now += 2 * PAGE_IDLE_MS;
+    expect(feed.peers("a")).toEqual([]);
+    expect(feed.record("sweeps", note("n1")).seq).toBe(4);
+    for (let i = 0; i < 100; i++)
+      expect(feed.cursorOf(`unseen-${i}`)).toEqual({ boot: BOOT, seq: 3 });
+    expect(feed.pageCount).toBe(1);
+    const cursor = feed.cursorOf("later");
+    feed.record("later", note("n1"));
+    expect(seqs(heard(feed, "later", cursor).messages)).toEqual([4]);
   });
 
   it("stops telling a listener that left", () => {

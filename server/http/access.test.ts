@@ -9,7 +9,7 @@ import { startMemoryDatabase } from "../testing/memoryDatabase";
 import { ApiAccess } from "./access";
 import { type AccessConfig, type Credential, DEMO_ACCESS, readAccessConfig } from "./accessConfig";
 import { createApi } from "./api";
-import { SESSION_SECONDS } from "./sessions";
+import { MAX_SESSIONS, SESSION_SECONDS } from "./sessions";
 
 const ORIGIN = "https://kami.test";
 const ALICE: Credential = {
@@ -681,6 +681,20 @@ describe("shared API access", () => {
       ).toBe(200);
     });
 
+    it("never lets a scoped token signing in end the password's sessions", async () => {
+      const signInAsBob = () =>
+        gated.handle(request("session", { method: "POST", headers: bearer(BOB) }), "203.0.113.7");
+      const first = await signIn(PASSWORD);
+      for (let i = 1; i < MAX_SESSIONS; i++) {
+        if (i % 30 === 0) now += 60_000;
+        expect((await signIn(PASSWORD)).status).toBe(200);
+      }
+      now += 60_000;
+      expect((await signInAsBob()).status).toBe(429);
+      const cookie = (first.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+      expect(await session(cookie)).toMatchObject({ authenticated: true, unrestricted: true });
+    });
+
     it("makes one client wait out its window after ten wrong passwords, and no one else", async () => {
       for (let i = 0; i < 10; i++) expect((await signIn("guess")).status).toBe(401);
       const throttled = await signIn(PASSWORD);
@@ -689,6 +703,13 @@ describe("shared API access", () => {
       expect((await signIn(PASSWORD, "198.51.100.2")).status).toBe(200);
       now += 15 * 60_000;
       expect((await signIn(PASSWORD)).status).toBe(200);
+    });
+
+    it("evaluates no more wrong passwords than the allowance when a burst arrives at once", async () => {
+      const burst = await Promise.all(Array.from({ length: 30 }, () => signIn("guess")));
+      const statuses = burst.map(({ status }) => status);
+      expect(statuses.filter((status) => status === 401)).toHaveLength(10);
+      expect(statuses.filter((status) => status === 429)).toHaveLength(20);
     });
 
     it("throttles the client a trusted proxy names, and ignores what an untrusted peer claims", async () => {

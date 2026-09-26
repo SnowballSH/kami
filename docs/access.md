@@ -69,7 +69,8 @@ KAMI_ALLOWED_ORIGINS=https://kami.example.org
 **Guessing.** The password is compared in constant time (as a SHA-256 digest). Sign-in attempts are
 limited to 30 a minute for the whole server, and each client may fail 10 times in 15 minutes before
 it is told to wait (`429` with `Retry-After`) — other clients are unaffected, and a correct password
-clears the count. A client is the connecting address; behind a reverse proxy it is the last
+clears the count. The count is checked again once a sign-in's body has arrived, right before the
+password is compared, so a burst of parallel attempts is held to the same 10. A client is the connecting address; behind a reverse proxy it is the last
 `X-Forwarded-For` entry, which is believed only from `KAMI_TRUSTED_PROXIES` (default the loopback
 addresses, where a proxy on the same host connects from). When Kami runs in a container behind the
 host's proxy, add the address the proxy's connections arrive from, or every visitor shares one
@@ -158,8 +159,13 @@ slot is taken, so a slow sender holds none; a slot stays occupied while the mode
 8 MiB ceiling and 30-second read deadline. Upstream inference/request deadlines remain those of
 the individual adapters. Restart resets the counters. Board/controller traffic is not charged
 against the model budget. The login endpoint allows 30 attempts per minute, 10 failures per client in 15
-minutes ("One password" above), and at most 128 active sessions per process: a sign-in beyond that
-ends the oldest session (that device signs in again) rather than refusing new ones. These limits bound work; they do not replace proxy connection/body limits
+minutes ("One password" above), and at most 128 active sessions per process. A sign-in beyond that
+ends the oldest session of the same credential (that device signs in again), or, when that
+credential holds none, the oldest session of a credential it covers — every board, controller and
+model the ended session reached, the new one reaches too (the password covers every token). A
+sign-in never ends a session wider than or unrelated to its own grant: a narrowly scoped token cannot
+sign the password's users out. When every session is of such a grant, the sign-in is refused with
+`429` until one expires or signs out. These limits bound work; they do not replace proxy connection/body limits
 or a firewall.
 
 | Request | Shared-mode result |

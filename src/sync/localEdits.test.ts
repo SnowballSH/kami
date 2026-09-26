@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Note, NoteId } from "../notes/types";
-import { LocalEdits } from "./localEdits";
+import { ECHO_AWAITED_MS, LocalEdits } from "./localEdits";
 import { type BoardChange, type BoardEdit, deletionOf } from "./wire";
 
 const note = (text: string, x = 0): Note => ({
@@ -74,5 +74,31 @@ describe("LocalEdits", () => {
     expect(edits.admits(relayed(CLEAR))).toBe(true);
     expect(edits.pending).toBe(0);
     expect(edits.admits(relayed(put(note("mine"))))).toBe(true);
+  });
+
+  it("stops waiting for the echo of a write that never reached the server", () => {
+    let nowMs = 0;
+    const edits = new LocalEdits(() => nowMs);
+    edits.wrote(put(note("lost")));
+    edits.wrote(CLEAR);
+    edits.wrote(put(note("lost too")));
+    nowMs += ECHO_AWAITED_MS - 1;
+    expect(edits.admits(relayed(put(note("theirs, too soon"))))).toBe(false);
+    nowMs += 1;
+    expect(edits.admits(relayed(put(note("theirs, later"))))).toBe(true);
+    expect(edits.admits(relayed(CLEAR))).toBe(true);
+    expect(edits.pending).toBe(0);
+  });
+
+  it("waits afresh from each write, however long ago the entity was first written", () => {
+    let nowMs = 0;
+    const edits = new LocalEdits(() => nowMs);
+    edits.wrote(put(note("first")));
+    nowMs += ECHO_AWAITED_MS - 1;
+    edits.wrote(put(note("second")));
+    nowMs += ECHO_AWAITED_MS - 1;
+    expect(edits.admits(relayed(put(note("first"))))).toBe(false);
+    expect(edits.admits(relayed(put(note("second"))))).toBe(false);
+    expect(edits.pending).toBe(0);
   });
 });

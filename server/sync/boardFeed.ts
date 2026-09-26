@@ -11,9 +11,13 @@ export type Publish = (message: FeedMessage) => void;
 
 export type Unsubscribe = () => void;
 
-/** How many changes, and how many bytes of them, a board keeps for clients that reconnect with a `since` cursor. */
+/**
+ * How many changes, and how many bytes of them, a board keeps for clients that reconnect with a `since`
+ * cursor. A catch-up replays at most this log in one go, so the event stream's backlog limit is set well
+ * above it: a reconnecting reader is never dropped for the size of its own catch-up.
+ */
 export const KEPT_CHANGES = 2_000;
-export const KEPT_BYTES = 8 * 1024 * 1024;
+export const KEPT_BYTES = 2 * 1024 * 1024;
 
 /** A page nobody has listened to, announced on or changed for this long is forgotten. */
 export const PAGE_IDLE_MS = 10 * 60_000;
@@ -97,9 +101,12 @@ export class BoardFeed {
     this.#tell(page, { type: "presence", peer, alice: null });
   }
 
-  /** Where the board's feed stands now: a snapshot read after this misses nothing a follower would. */
+  /**
+   * Where the board's feed stands now: a snapshot read after this misses nothing a follower would. A
+   * board with no page stands where a new page would start, so reading one keeps nothing in memory.
+   */
   cursorOf(boardId: string): FeedCursor {
-    return { boot: this.boot, seq: this.#page(boardId).seq };
+    return { boot: this.boot, seq: this.#pages.get(boardId)?.seq ?? this.#forgottenSeq };
   }
 
   peers(boardId: string): readonly PeerId[] {

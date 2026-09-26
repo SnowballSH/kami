@@ -5,14 +5,17 @@ import {
   type PeerId,
   parseCursor,
 } from "../../src/sync/wire";
-import type { BoardFeed } from "./boardFeed";
+import { type BoardFeed, KEPT_BYTES } from "./boardFeed";
 
 /** Bun.serve's default `idleTimeout` is 10 s; the keep-alive comment comes well inside that. */
 export const KEEP_ALIVE_MS = 5_000;
 const RECONNECT_AFTER_MS = 1_000;
 const HIGH_WATER_BYTES = 64 * 1024;
-/** A reader this far behind has stalled; it is dropped and catches up from its cursor on reconnect. */
-export const MAX_BACKLOG_BYTES = 4 * 1024 * 1024;
+/**
+ * A reader this far behind has stalled; it is dropped and catches up from its cursor on reconnect. Twice
+ * the most a catch-up replays, so that catch-up (with its events' framing) always fits.
+ */
+export const MAX_BACKLOG_BYTES = 2 * KEPT_BYTES;
 
 const EVENT_STREAM_HEADERS = {
   "content-type": "text/event-stream",
