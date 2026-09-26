@@ -123,6 +123,8 @@ The offline grammar (`src/rules/grammarCompiler.ts`) is a chain of **recognisers
 
 `recognisers/motion.ts` does the same for body effects, plus the target: `normalise` keeps the nouns that followed a determiner (“the *wheel*”, “every *rock*”), and the first of those that is neither a dial word nor a number is the `named` target; “everything” / “all drawings” is `all`; a sentence about Alice is passed on so her dials keep their own grammar. The world dial recognisers run first, so “everything is bouncy” stays the world's `bounciness` and only sentences the world has no dial for (spin, thrust, mass, grip) fall through to `all`.
 
+**Negation is the ordinary value.** A sentence that takes a quality back — “the rock is *not* heavy”, “the dog *isn't* fast anymore”, “the rabbit is *no longer* huge”, “Alice *isn't* big” — or asks for the ordinary one — “the dog is *normal* size”, “Alice walks *normally*” — sets the dial to its neutral value: `STILL[d]` for a drawing (weight 1x, pace 1x, grip 1x, size 1x; spin, thrust, bounce and wings 0), `EARTH[d]` for Alice and the world. It is never the opposite quality: “not heavy” is ordinary weight, not light. “No longer” and a closing “no more” mean “anymore”; a bare “no” before a noun is still the amount zero (“the ramp has no grip” is grip 0, “no more wind” is wind off).
+
 The model-backed compiler on the server is asked to emit the same shape. `server/schemas.ts` and `server/compile/effectRanges.ts` are the shared contract; the server typecheck fails if the two ends drift. A remote answer that does not validate is dropped, not repaired — the model may pick values, never a shape.
 
 ### 4.1 Scenes: one sentence, many edits

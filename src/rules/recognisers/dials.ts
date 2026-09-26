@@ -2,7 +2,16 @@ import { type Amount, readAmount } from "../amounts";
 import { type ScalarGoverns, scalarRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { ALICE, SUBJECTS } from "../subjects";
-import { INTENSIFIERS, mentions, union, type Vocabulary, vocabulary } from "../vocabulary";
+import { EARTH } from "../types";
+import {
+  INTENSIFIERS,
+  mentions,
+  NEGATION,
+  NORMAL,
+  union,
+  type Vocabulary,
+  vocabulary,
+} from "../vocabulary";
 
 interface Reading {
   readonly words: Vocabulary;
@@ -24,6 +33,7 @@ interface Dial {
   readonly fromAmount: (amount: Amount, words: readonly string[]) => number | null;
 }
 
+const UNDOING = union(NEGATION, NORMAL);
 const OFF = vocabulary(`
   cannot, cant, stop, stops, stopped, anymore, longer, grounded, unable, forget, forgets, lose,
   loses, lost
@@ -178,6 +188,7 @@ const knownTo = (dial: Dial): Vocabulary =>
   knownWords(
     ALICE,
     INTENSIFIERS,
+    UNDOING,
     OFF,
     MORE,
     LESS,
@@ -188,6 +199,7 @@ const knownTo = (dial: Dial): Vocabulary =>
 const KNOWN: ReadonlyMap<Dial, Vocabulary> = new Map(DIALS.map((dial) => [dial, knownTo(dial)]));
 
 const readDial = (dial: Dial, words: readonly string[]): number | null => {
+  if (mentions(words, UNDOING)) return EARTH[dial.governs];
   const amount = readAmount(words);
   if (amount !== null) return dial.fromAmount(amount, words);
   const reading = dial.readings.find(({ words: said }) => mentions(words, said));

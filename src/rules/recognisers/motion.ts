@@ -4,8 +4,16 @@ import { type BodyScalarGoverns, bodyRule, thrustRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { ALICE } from "../subjects";
 import { besides, targetOf } from "../targets";
-import type { BodyGoverns, CompiledRule, Target } from "../types";
-import { INTENSIFIERS, mentions, type Vocabulary, vocabulary } from "../vocabulary";
+import { type BodyGoverns, type CompiledRule, STILL, type Target } from "../types";
+import {
+  INTENSIFIERS,
+  mentions,
+  NEGATION,
+  NORMAL,
+  union,
+  type Vocabulary,
+  vocabulary,
+} from "../vocabulary";
 
 interface Reading {
   readonly words: Vocabulary;
@@ -66,10 +74,8 @@ const TURNS = vocabulary(
 );
 const NO_UNITS = vocabulary("");
 
-const STOP = vocabulary(`
-  stop, stops, stopped, still, stills, freeze, frozen, halt, halts, not, never, dont, doesnt,
-  cannot, cant, anymore, longer, no, none, off, without
-`);
+const HALT = vocabulary("stop, stops, stopped, still, stills, freeze, frozen, halt, halts");
+const UNDOING = union(NEGATION, NORMAL);
 const BACKWARDS = vocabulary(`
   counterclockwise, anticlockwise, widdershins, backwards, backward, reverse, reversed
 `);
@@ -124,7 +130,8 @@ const knowing = (dial: BodyDial): KnownDial => ({
   ...dial,
   known: knownWords(
     INTENSIFIERS,
-    STOP,
+    HALT,
+    UNDOING,
     BACKWARDS,
     CLOCKWISE,
     FAST,
@@ -144,7 +151,7 @@ const DIALS: readonly KnownDial[] = [
     about: SPIN,
     units: TURNS,
     readings: [
-      { words: STOP, value: 0 },
+      { words: HALT, value: 0 },
       { words: FAST, value: FAST_SPIN },
       { words: SLOW, value: SLOW_SPIN },
     ],
@@ -156,7 +163,7 @@ const DIALS: readonly KnownDial[] = [
     units: NO_UNITS,
     about: THRUST,
     readings: [
-      { words: STOP, value: 0 },
+      { words: HALT, value: 0 },
       { words: FAST, value: HARD_THRUST_G },
       { words: SLOW, value: GENTLE_THRUST_G },
     ],
@@ -182,7 +189,7 @@ const DIALS: readonly KnownDial[] = [
     units: NO_UNITS,
     about: BOUNCE,
     readings: [
-      { words: STOP, value: 0 },
+      { words: HALT, value: 0 },
       { words: INTENSIFIERS, value: VERY_BOUNCY },
     ],
     implied: BOUNCY,
@@ -218,7 +225,7 @@ const DIALS: readonly KnownDial[] = [
     governs: "wings",
     units: NO_UNITS,
     about: WINGS,
-    readings: [{ words: STOP, value: 0 }],
+    readings: [{ words: HALT, value: 0 }],
     implied: CAN_FLY,
     fromAmount: ({ value }) => (value === 0 ? 0 : CAN_FLY),
   }),
@@ -237,7 +244,10 @@ const DIALS: readonly KnownDial[] = [
   }),
 ];
 
+const ordinary = (governs: BodyGoverns): number => (governs === "thrust" ? 0 : STILL[governs]);
+
 const readDial = (dial: BodyDial, words: readonly string[]): number | null => {
+  if (mentions(words, UNDOING)) return ordinary(dial.governs);
   const amount = readAmount(words);
   if (amount !== null) return dial.fromAmount(amount);
   const reading = dial.readings.find(({ words: said }) => mentions(words, said));

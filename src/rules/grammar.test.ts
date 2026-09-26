@@ -38,6 +38,9 @@ const thrust = (of: Target, x: number, y: number): RuleEffect => ({ governs: "th
 const mass = (of: Target, value: number): RuleEffect => ({ governs: "mass", of, value });
 const bounce = (of: Target, value: number): RuleEffect => ({ governs: "bounce", of, value });
 const grip = (of: Target, value: number): RuleEffect => ({ governs: "grip", of, value });
+const pace = (of: Target, value: number): RuleEffect => ({ governs: "pace", of, value });
+const size = (of: Target, value: number): RuleEffect => ({ governs: "size", of, value });
+const wings = (of: Target, value: number): RuleEffect => ({ governs: "wings", of, value });
 
 const UNDERSTOOD: readonly Understood[] = [
   ["g = moon", gravity(0, 0.165), "gravity = 0.17 g (the Moon)"],
@@ -150,6 +153,39 @@ const UNDERSTOOD: readonly Understood[] = [
   ["the ball is bouncy", bounce(named("ball"), 0.8), "the ball: bounce = 0.8"],
   ["the ramp is slippery", grip(named("ramp"), 0), "the ramp: grip off, slick as ice"],
   ["the ramp is sticky", grip(named("ramp"), 3), "the ramp: grip = 3x"],
+  ["the rock is not heavy", mass(named("rock"), 1), "the rock: weight = 1x"],
+  ["the rock isn't heavy", mass(named("rock"), 1), "the rock: weight = 1x"],
+  ["the rock is no longer heavy", mass(named("rock"), 1), "the rock: weight = 1x"],
+  ["the rock is heavy no more", mass(named("rock"), 1), "the rock: weight = 1x"],
+  ["the rock is not light", mass(named("rock"), 1), "the rock: weight = 1x"],
+  ["the rock is normal weight", mass(named("rock"), 1), "the rock: weight = 1x"],
+  ["the rock has no weight", mass(named("rock"), 0.1), "the rock: weight = 0.1x (capped)"],
+  ["the dog is not fast", pace(named("dog"), 1), "the dog: pace = 1x"],
+  ["the dog isn't fast anymore", pace(named("dog"), 1), "the dog: pace = 1x"],
+  ["the dog is normal speed", pace(named("dog"), 1), "the dog: pace = 1x"],
+  ["the rabbit is not big", size(named("rabbit"), 1), "the rabbit: size = 1x"],
+  ["the rabbit is not huge anymore", size(named("rabbit"), 1), "the rabbit: size = 1x"],
+  ["the dog is normal size", size(named("dog"), 1), "the dog: size = 1x"],
+  ["the rabbit is normal sized", size(named("rabbit"), 1), "the rabbit: size = 1x"],
+  ["the ramp is not slippery", grip(named("ramp"), 1), "the ramp: grip = 1x"],
+  ["the ramp isn't sticky", grip(named("ramp"), 1), "the ramp: grip = 1x"],
+  ["the ramp has no grip", grip(named("ramp"), 0), "the ramp: grip off, slick as ice"],
+  ["the ball isn't bouncy", bounce(named("ball"), 0), "the ball: bounce off"],
+  ["the wheel isn't spinning", spin(named("wheel"), 0), "the wheel: spin off"],
+  ["the dog isn't flying", wings(named("dog"), 0), "the dog: grounded"],
+  ["the dog can't fly", wings(named("dog"), 0), "the dog: grounded"],
+  ["the cart doesn't accelerate", thrust(named("cart"), 0, 0), "the cart: thrust off"],
+  ["alice is not fast", walkSpeed(1), "Alice walks at 1x"],
+  ["alice isn't slow anymore", walkSpeed(1), "Alice walks at 1x"],
+  ["alice walks normally", walkSpeed(1), "Alice walks at 1x"],
+  ["alice isn't big", aliceSize(1), "Alice is 1x her size"],
+  ["alice is no longer huge", aliceSize(1), "Alice is 1x her size"],
+  ["alice is normal sized", aliceSize(1), "Alice is 1x her size"],
+  ["alice can't fly anymore", flight(0), "Alice walks"],
+  ["alice no longer attracts things", attraction(0), "Alice pulls nothing"],
+  ["it's not hot anymore", temperature(20), "temperature = 20 °C"],
+  ["no more wind", wind(0, 0), "wind off"],
+  ["no more gravity", gravity(0, 0), "gravity off"],
   ["ink eater", inkEater(1), "the Sumikui, the ink eater, is loose"],
   ["summon the ink eater", inkEater(1), "the Sumikui, the ink eater, is loose"],
   ["summon the Sumikui", inkEater(1), "the Sumikui, the ink eater, is loose"],

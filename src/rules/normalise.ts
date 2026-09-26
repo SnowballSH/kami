@@ -49,6 +49,7 @@ const NAMED_ALICE: readonly (readonly [RegExp, string])[] = [
 ];
 
 const PHRASES: readonly (readonly [RegExp, string])[] = [
+  [/\bno longer\b|\bany longer$|\bno more$/g, "anymore"],
   [/\bupside down\b/g, "flipped"],
   [/\banti gravity\b/g, "antigravity"],
   [/\bslow mo(?:tion)?\b/g, "slowmo"],
