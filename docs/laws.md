@@ -77,7 +77,7 @@ A sentence about a drawing — “the wheel spins”, “the rock is twice as he
 Target = all | named(word)
 ```
 
-`all` speaks of every drawing on the board; `named(w)` speaks of every drawing whose name shares a word with `w` (“the wheels” finds “a spinning wheel”). A body effect denotes a **partial edit** `MotionEdit = Partial<Motion>` aimed at a target; the fold (§3) keeps these as `bodies: [BodyLaw = { of, edit }]` in `createdAt` order rather than applying them, because *which* bodies a target names is only known at tick time (drawings are named after the law may have been written).
+`all` speaks of every drawing on the board; `named(p)` speaks of every drawing whose name contains every word of the phrase `p`, ignoring case and plurals (“the wheels” finds “a spinning wheel”, “the buses” finds “a bus”, “the lily pads” finds “a lily pad” but not “a lily”, and a model's “Black Hole” finds “a black hole”). An empty phrase speaks of nothing. A body effect denotes a **partial edit** `MotionEdit = Partial<Motion>` aimed at a target; the fold (§3) keeps these as `bodies: [BodyLaw = { of, edit }]` in `createdAt` order rather than applying them, because *which* bodies a target names is only known at tick time (drawings are named after the law may have been written).
 
 The motion of one drawing with name `n` and own motion `own` (what its *name* asked for — “a spinning wheel” is `{ spin: 1 }`, given by the Cat) is then
 

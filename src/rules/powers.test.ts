@@ -76,6 +76,16 @@ describe("powers a drawing can gain by law", () => {
     expect(inEffectDomain("size", 5)).toBe(false);
   });
 
+  it("reaches the drawing a plural or a model's capitalised phrase names", async () => {
+    const buses = await compiler.compile("the buses are fast");
+    const hole = pace({ kind: "named", name: "Black Hole" }, 3);
+    const rules = [rule("a", 1, buses?.effect ?? pace(ALL, 1)), rule("b", 2, hole)];
+    const { bodies } = resolvePhysics(rules);
+    expect(motionOf({}, bodies, "a bus").pace).toBe(2);
+    expect(motionOf({}, bodies, "a black hole").pace).toBe(3);
+    expect(motionOf({}, bodies, "a hole").pace).toBe(1);
+  });
+
   it("folds powers as body laws, later wins per drawing, and refolds without a repealed one", () => {
     const rules = [
       rule("a", 1, wings(named("dog"), 1)),

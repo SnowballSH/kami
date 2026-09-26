@@ -17,6 +17,33 @@ describe("speaksOf", () => {
     expect(speaksOf(named("wheel"), "")).toBe(false);
   });
 
+  it("ignores the case of a target the model named", () => {
+    expect(speaksOf(named("Wheel"), "a spinning wheel")).toBe(true);
+    expect(speaksOf(named("WHEELS"), "The Wheel")).toBe(true);
+  });
+
+  it("matches a phrase only when every one of its words is in the name", () => {
+    expect(speaksOf(named("black hole"), "a black hole")).toBe(true);
+    expect(speaksOf(named("lily pads"), "a lily pad")).toBe(true);
+    expect(speaksOf(named("lily pads"), "a lily")).toBe(false);
+    expect(speaksOf(named("black hole"), "a hole")).toBe(false);
+  });
+
+  it("never speaks of anything through an empty name", () => {
+    expect(speaksOf(named(""), "a rock")).toBe(false);
+    expect(speaksOf(named("  "), "a rock")).toBe(false);
+  });
+
+  it("knows the plurals that add -es or turn -y into -ies", () => {
+    expect(speaksOf(named("buses"), "a bus")).toBe(true);
+    expect(speaksOf(named("bus"), "two buses")).toBe(true);
+    expect(speaksOf(named("glasses"), "a glass")).toBe(true);
+    expect(speaksOf(named("houses"), "a house")).toBe(true);
+    expect(speaksOf(named("puppies"), "a puppy")).toBe(true);
+    expect(speaksOf(named("gas"), "a bus")).toBe(false);
+    expect(speaksOf(named("bus"), "a bush")).toBe(false);
+  });
+
   it("speaks of everything, named or not, with `all`", () => {
     expect(speaksOf(ALL, "")).toBe(true);
     expect(speaksOf(ALL, "a rock")).toBe(true);
