@@ -11,8 +11,16 @@ const HER_OR_ME = union(ALICE, vocabulary("me, myself, us"));
 /** Words after which a name goes on about something else: "a bag *of* cats" is a bag. */
 const QUALIFIERS = vocabulary(`
   of, with, in, on, from, for, by, wearing, holding, carrying, riding, driving, driven, ridden,
-  pulling, pulled, made, who, that, which, named, called
+  pulling, pulled, who, that, which, named, called
 `);
+
+/** "made" qualifies only what it is made of or by: "a robot made of tin", not "a home made robot". */
+const MADE_OF = vocabulary("of, by, from, in, out, with");
+
+const qualifies = (words: readonly string[], at: number): boolean => {
+  const word = words[at] ?? "";
+  return QUALIFIERS.has(word) || (word === "made" && MADE_OF.has(words[at + 1] ?? ""));
+};
 
 const LEADING = vocabulary("a, an, the, some, my, our, your, this, that, these, those");
 
@@ -28,7 +36,7 @@ export const refersBack = (spoken: readonly string[]): boolean => {
 
 /** Where the head noun stands: the last word before any qualifier, or -1 for no words. */
 export const headIndexOf = (words: readonly string[]): number => {
-  const qualified = words.findIndex((word, at) => at > 0 && QUALIFIERS.has(word));
+  const qualified = words.findIndex((_, at) => at > 0 && qualifies(words, at));
   return (qualified < 0 ? words.length : qualified) - 1;
 };
 

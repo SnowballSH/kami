@@ -1,5 +1,5 @@
 import { type Amount, readAmount } from "../amounts";
-import { type Comparatives, compare, weakened } from "../comparatives";
+import { type Comparatives, compare, FEWER, type Turning, weakened } from "../comparatives";
 import { DIRECTION_WORDS, type Direction, fieldAlong, readDirection } from "../directions";
 import { type BodyScalarGoverns, bodyRule, thrustRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
@@ -127,8 +127,10 @@ const BIG = vocabulary(`
 const SMALL = vocabulary(`
   small, smaller, smallest, tiny, little, mini, miniature, minuscule, wee, shrink, shrinks, shrunk
 `);
-const MORE = vocabulary("more, higher, increase, increases, increased, doubled");
-const LESS = vocabulary("less, lower, decrease, decreases, decreased, halved");
+const TURNING: Turning = {
+  up: vocabulary("more, higher, increase, increases, increased, doubled"),
+  down: vocabulary("lower"),
+};
 
 const ONE_TURN_PER_SECOND = 1;
 const FAST_SPIN = 2;
@@ -167,8 +169,9 @@ const knowing = (dial: BodyDial): KnownDial => ({
     CLOCKWISE,
     FAST,
     SLOW,
-    MORE,
-    LESS,
+    FEWER,
+    TURNING.up,
+    TURNING.down,
     DIRECTION_WORDS,
     dial.about,
     dial.steered ?? [],
@@ -331,13 +334,20 @@ const graded = (
   words: readonly string[],
 ): number | null => {
   if (!dial.graded) return value;
-  const said = { more: mentions(words, MORE), less: mentions(words, LESS) };
-  const compared = compare(value, plain, dial.compared, said);
+  const compared = compare(value, plain, dial.compared, words, TURNING);
   return compared !== null && mentions(words, SLIGHTLY) ? weakened(compared, plain) : compared;
 };
 
+/**
+ * "not" turns a dial back to ordinary, and so does "normal" for a dial with degrees ("the dog is
+ * normal size"). A power a body has or lacks has no ordinary degree: "the lamp glows normally"
+ * says how it glows, not that it stops.
+ */
+const unsays = (dial: BodyDial, words: readonly string[]): boolean =>
+  mentions(words, NEGATION) || (dial.graded && mentions(words, NORMAL));
+
 const readDial = (dial: BodyDial, words: readonly string[]): number | null => {
-  if (mentions(words, UNDOING)) return ordinary(dial.governs);
+  if (unsays(dial, words)) return ordinary(dial.governs);
   const amount = readAmount(words);
   if (amount !== null) return dial.fromAmount(amount);
   const reading = dial.readings.find(({ words: said }) => mentions(words, said));

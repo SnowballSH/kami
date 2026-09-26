@@ -30,13 +30,11 @@ export class HeldInkBook {
     return this.held.get(id)?.fadingSinceMs === null;
   }
 
-  /** Drops the newest ink still being read, so its reading comes to nothing, and hands it back. */
-  retractNewest(): Drawing | null {
-    const reading = [...this.held.values()].filter(({ fadingSinceMs }) => fadingSinceMs === null);
-    const newest = reading.at(-1);
-    if (newest === undefined) return null;
-    this.held.delete(newest.drawing.id);
-    return newest.drawing;
+  /** Drops this ink if it is still being read, so its reading comes to nothing. */
+  retract(id: DrawingId): boolean {
+    if (!this.isReading(id)) return false;
+    this.held.delete(id);
+    return true;
   }
 
   release(id: DrawingId): void {

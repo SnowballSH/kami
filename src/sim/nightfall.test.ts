@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { blankBoard } from "../board/boards/blank";
-import { EARTH } from "../rules/types";
+import type { NoteId } from "../notes/types";
+import { createRuleCompiler } from "../rules";
+import { foldOver } from "../rules/resolvePhysics";
+import { EARTH, type Rule, type RuleId } from "../rules/types";
 import { LANTERN_LIGHT_PX } from "./constants";
 import {
   blob,
@@ -102,5 +105,27 @@ describe("pitch dark", () => {
       bodies: [{ of: { kind: "named", name: "rock" }, edit: { glow: 0 } }],
     });
     expect(sim.snapshot().drawings.find(({ id }) => id === idOf("lamp"))?.lit).toBe(true);
+  });
+
+  it.each([
+    ["the lamp glows normally", true],
+    ["the lamp glows as usual", true],
+    ["the lamp stops glowing", false],
+  ])("under the law %j, a lantern is lit: %s", async (says, lit) => {
+    const compiled = await createRuleCompiler().compile(says);
+    if (compiled === null) throw new Error(`not a law: ${says}`);
+    const law: Rule = {
+      ...compiled,
+      id: "law" as RuleId,
+      sourceText: says,
+      noteId: "note" as NoteId,
+      position: { x: 0, y: 0 },
+      createdAt: 0,
+    };
+    const sim = enter(board);
+    sim.addDrawing(drawingOf("lamp", blob(0, -120, 40, 40)));
+    sim.applyRuling(idOf("lamp"), { ...rulingOf("lantern"), name: "a lamp" });
+    sim.setPhysics(foldOver(PITCH_DARK, [law]));
+    expect(sim.snapshot().drawings.find(({ id }) => id === idOf("lamp"))?.lit).toBe(lit);
   });
 });

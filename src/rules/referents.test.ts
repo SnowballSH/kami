@@ -68,6 +68,10 @@ describe("referentOf", () => {
     ["a bed for a cat", "bed"],
     ["a car driven by a dog", "car"],
     ["a cart pulled by a horse", "cart"],
+    ["a home made robot", "robot"],
+    ["a hand made doll", "doll"],
+    ["a robot made of tin", "robot"],
+    ["a boat made from wood", "boat"],
     ["the", null],
     ["", null],
   ])("takes %j to stand for %j", (name, referent) => {
