@@ -11,7 +11,7 @@ import {
 } from "./lexicon";
 import { REFUSALS } from "./lines";
 import type { WordSpan } from "./natureResolver";
-import { type Phrase, vocabulary } from "./phrase";
+import { indexOfSequence, type Phrase, stemsOf, vocabulary } from "./phrase";
 
 const anyOf = (words: readonly string[]): string => `(?:${words.join("|")})`;
 
@@ -29,11 +29,28 @@ const REWRITES_ROOM = new RegExp(
 const KEY_VOCAB = vocabulary(KEY_WORDS);
 const WEAPON_VOCAB = vocabulary(WEAPON_WORDS);
 
-const aimedAtAlice = ({ text }: Phrase, named: WordSpan | null): boolean =>
-  WEARS_GADGET.test(text) ||
-  REWRITES_ALICE.test(text) ||
-  ALICE_ACTS.test(text) ||
-  (MENTIONS_ALICE.test(text) && named === null);
+const ALICE_STEMS = ALICE_NAMES.map(stemsOf);
+
+const firstMentionOfAlice = ({ stems }: Phrase): number =>
+  Math.min(
+    ...ALICE_STEMS.map((name) => indexOfSequence(stems, name)).filter((at) => at >= 0),
+    Number.POSITIVE_INFINITY,
+  );
+
+/** "A cake that makes Alice grow" names the cake first; what follows only says what it is for. */
+const namedBeforeAlice = (phrase: Phrase, named: WordSpan | null): boolean =>
+  named !== null && named.at < firstMentionOfAlice(phrase);
+
+const aimedAtAlice = (phrase: Phrase, named: WordSpan | null): boolean => {
+  const { text } = phrase;
+  if (WEARS_GADGET.test(text)) return true;
+  if (namedBeforeAlice(phrase, named)) return false;
+  return (
+    REWRITES_ALICE.test(text) ||
+    ALICE_ACTS.test(text) ||
+    (MENTIONS_ALICE.test(text) && named === null)
+  );
+};
 
 /** Whether a word from `vocab` is said outside the thing named: "fruit punch" is only a drink. */
 const mentionsBesides = (

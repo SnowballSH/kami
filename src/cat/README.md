@@ -8,7 +8,7 @@
 
 1. **Nothing said** → plain ink, and he asks what it is again.
 2. **Scripted refusals** (`scriptedRefusals.ts`), always plain ink with the authored line from `spec.md` §4:
-   - *Aimed at Alice* — a gadget for her (jetpack, superpowers), a verb acting on her ("make Alice fly", "let her jump"), Alice doing something ("she can fly"), or any mention of her that names nothing real. "A cake for Alice" is still a cake.
+   - *Aimed at Alice* — a gadget for her (jetpack, superpowers), a verb acting on her ("make Alice fly", "let her jump"), Alice doing something ("she can fly"), or any mention of her that names nothing real. "A cake for Alice" is still a cake. When the thing is named *before* Alice is first mentioned, the rest only says what it is for — "a cake that makes Alice grow", "a car Alice can drive", "a cloud she can stand on" are a cake, a car and a cloud — and only a gadget is refused. A law dressed as a name ("a rock that makes Alice bouncy") still is: its nature comes from the words after her.
    - *Aimed at the room* — a verb acting on a piece of the page ("make the door bigger", "remove the wall"). "A door" on its own is just a drawing of a door.
    - *A key*, then *weapons and violence*.
 3. **No nature found** → plain ink, with a tag line if the name carries a tag (`rose`, `tart`, `queen`), else a shrug.
