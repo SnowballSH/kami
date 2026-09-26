@@ -24,6 +24,8 @@ const alice = (x: number): AliceSnapshot => ({
   height: 60,
   size: "normal",
   sizeMultiplier: 1,
+  innateScale: 1,
+  scale: 1,
   headingScale: 1,
   facing: 1,
   walking: false,

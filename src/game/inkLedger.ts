@@ -1,6 +1,6 @@
 import type { SceneInk } from "../autopilot/types";
 import type { Ruling } from "../cat/types";
-import type { Drawing, DrawingId, PosedDrawing } from "../ink/types";
+import type { Drawing, DrawingId, InkProvenance, PosedDrawing } from "../ink/types";
 import type { StoredDrawing } from "../persistence/types";
 import type { InkView } from "../render/types";
 import type { DrawingPose } from "../sim/types";
@@ -14,6 +14,7 @@ import {
 } from "./retrace";
 
 export interface InkRecord extends StoredDrawing {
+  readonly provenance: InkProvenance;
   /** The strokes as they landed: what the sim built its body from, and what every tidying starts from. */
   readonly drawn: Drawing["strokes"];
   readonly awakenedAtMs: number | null;
@@ -38,20 +39,25 @@ const shownAt = (record: InkRecord, nowMs: number): Drawing => {
 
 const FRESH = { ruling: null, awakenedAtMs: null, retrace: null, arrival: null } as const;
 
+/** What is saved of a record: provenance only when it is not the default, so drawn ink stores as before. */
+export const storedOf = ({ drawing, ruling, provenance }: InkRecord): StoredDrawing =>
+  provenance === "drawn" ? { drawing, ruling } : { drawing, ruling, provenance };
+
 /** Everything the player has drawn on the current board that is still there. */
 export class InkLedger {
   private readonly records = new Map<DrawingId, InkRecord>();
 
-  add(drawing: Drawing): void {
-    this.records.set(drawing.id, { ...FRESH, drawing, drawn: drawing.strokes });
+  add(drawing: Drawing, provenance: InkProvenance = "drawn"): void {
+    this.records.set(drawing.id, { ...FRESH, drawing, drawn: drawing.strokes, provenance });
   }
 
   /** A drawing Kami made himself: it is all there at once, but is shown being inked from `atMs`. */
-  conjure(drawing: Drawing, atMs: number): InkRecord {
+  conjure(drawing: Drawing, atMs: number, provenance: InkProvenance = "drawn"): InkRecord {
     const record: InkRecord = {
       ...FRESH,
       drawing,
       drawn: drawing.strokes,
+      provenance,
       arrival: { startedAtMs: atMs },
     };
     this.records.set(drawing.id, record);

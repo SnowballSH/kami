@@ -19,6 +19,8 @@ export interface WheelTurn {
 export const TAP_SLOP_PX = 6;
 export const WHEEL_ZOOM_RATE = 0.01;
 export const WHEEL_ZOOM_MAX_DELTA = 40;
+/** Longest a two-finger tap may last, first finger down to last finger up. */
+export const TWO_FINGER_TAP_MS = 350;
 
 const PRIMARY_BUTTON = 0;
 const MIDDLE_BUTTON = 1;
@@ -46,6 +48,14 @@ type Phase =
   | { readonly kind: "pinch"; anchor: PinchAnchor }
   | { readonly kind: "settling" };
 
+/** Fingers that might yet turn out to be a two-finger tap: where each landed, and when the first did. */
+interface TapCandidate {
+  readonly startedAtMs: number;
+  readonly landings: Map<number, Vec>;
+}
+
+const TAP_FINGERS = 2;
+
 const IDLE: Phase = { kind: "idle" };
 const SETTLING: Phase = { kind: "settling" };
 
@@ -71,18 +81,22 @@ const pinchAnchorOf = (touches: ReadonlyMap<number, Vec>): PinchAnchor | null =>
 
 /**
  * Decides what pointers on the board mean. One pointer is a stroke, a pan or a tap depending on
- * the tool when it landed; two fingers pan and pinch until every finger has lifted; a pencil
- * outranks fingers, so a resting palm never draws and never blocks the pencil.
+ * the tool when it landed; two fingers pan and pinch until every finger has lifted, unless they
+ * land and lift together without travelling, which is a two-finger tap (undo); a pencil outranks
+ * fingers, so a resting palm never draws and never blocks the pencil.
  */
 export class GestureMachine {
   private readonly currentTool: () => Tool;
   private readonly sink: CanvasInputSink;
+  private readonly now: () => number;
   private readonly touches = new Map<number, Vec>();
   private phase: Phase = IDLE;
+  private tapCandidate: TapCandidate | null = null;
 
-  constructor(currentTool: () => Tool, sink: CanvasInputSink) {
+  constructor(currentTool: () => Tool, sink: CanvasInputSink, now = () => performance.now()) {
     this.currentTool = currentTool;
     this.sink = sink;
+    this.now = now;
   }
 
   press(pointer: PointerPress): void {
@@ -95,6 +109,7 @@ export class GestureMachine {
     const latest = samples.at(-1);
     if (latest === undefined) return;
     if (this.touches.has(pointerId)) this.touches.set(pointerId, latest);
+    this.watchTapTravel(pointerId, samples);
     if (this.phase.kind === "drag" && this.phase.drag.pointerId === pointerId) {
       this.advanceDrag(this.phase.drag, samples, latest);
     } else if (this.phase.kind === "pinch" && this.touches.has(pointerId)) {
@@ -123,6 +138,7 @@ export class GestureMachine {
     if (this.phase.kind === "drag") this.endDrag(this.phase.drag, false);
     this.touches.clear();
     this.phase = IDLE;
+    this.tapCandidate = null;
   }
 
   private pressMouse(pointer: PointerPress): void {
@@ -132,6 +148,7 @@ export class GestureMachine {
   }
 
   private pressPen(pointer: PointerPress): void {
+    this.tapCandidate = null;
     if (this.phase.kind === "drag") {
       if (this.phase.drag.kind === "pen") return;
       this.abandonDrag(this.phase.drag);
@@ -141,11 +158,13 @@ export class GestureMachine {
 
   private pressTouch(pointer: PointerPress): void {
     this.touches.set(pointer.id, pointer.client);
+    this.noteTapLanding(pointer);
     if (this.phase.kind === "idle") {
       this.beginDrag(pointer, this.toolMode());
       return;
     }
     if (this.phase.kind !== "drag" || this.phase.drag.kind !== "touch") return;
+    if (this.phase.drag.travelled) this.tapCandidate = null;
     this.abandonDrag(this.phase.drag);
     const anchor = pinchAnchorOf(this.touches);
     this.phase = anchor === null ? SETTLING : { kind: "pinch", anchor };
@@ -188,7 +207,9 @@ export class GestureMachine {
   }
 
   private lift(pointerId: number, deliberate: boolean): void {
-    this.touches.delete(pointerId);
+    const wasTouch = this.touches.delete(pointerId);
+    if (!deliberate) this.tapCandidate = null;
+    if (wasTouch && this.touches.size === 0) this.settleTap();
     if (this.phase.kind === "drag") {
       if (this.phase.drag.pointerId !== pointerId) return;
       this.endDrag(this.phase.drag, deliberate);
@@ -214,5 +235,31 @@ export class GestureMachine {
 
   private abandonDrag(drag: Drag): void {
     if (drag.mode === "ink") this.sink.penCancel();
+  }
+
+  private noteTapLanding(pointer: PointerPress): void {
+    if (this.touches.size === 1 && this.phase.kind === "idle") {
+      this.tapCandidate = {
+        startedAtMs: this.now(),
+        landings: new Map([[pointer.id, pointer.client]]),
+      };
+    } else if (this.tapCandidate !== null && this.touches.size <= TAP_FINGERS) {
+      this.tapCandidate.landings.set(pointer.id, pointer.client);
+    } else {
+      this.tapCandidate = null;
+    }
+  }
+
+  private watchTapTravel(pointerId: number, samples: readonly PenPoint[]): void {
+    const landed = this.tapCandidate?.landings.get(pointerId);
+    if (landed === undefined) return;
+    if (samples.some((sample) => distance(landed, sample) >= TAP_SLOP_PX)) this.tapCandidate = null;
+  }
+
+  private settleTap(): void {
+    const candidate = this.tapCandidate;
+    this.tapCandidate = null;
+    if (candidate === null || candidate.landings.size !== TAP_FINGERS) return;
+    if (this.now() - candidate.startedAtMs <= TWO_FINGER_TAP_MS) this.sink.undo();
   }
 }

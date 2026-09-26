@@ -42,6 +42,8 @@ export const ghostSchema: z.ZodType<Ghost> = z.object({
   height: z.number().positive(),
   size: z.enum(["small", "normal", "big"]),
   sizeMultiplier: z.number().positive(),
+  innateScale: z.number().positive().default(1),
+  scale: z.number().positive().default(1),
   headingScale: z.number(),
   facing: z.union([z.literal(-1), z.literal(1)]),
   walking: z.boolean(),

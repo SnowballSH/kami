@@ -1,5 +1,5 @@
 import { readFile, stat } from "node:fs/promises";
-import { extname, join, normalize, sep } from "node:path";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
 
 const INDEX_DOCUMENT = "index.html";
@@ -82,7 +82,7 @@ export const acceptedEncodings = (acceptEncoding: string | null): readonly Encod
  * with an ETag and answers 304 when the browser already has it.
  */
 export const createStaticSite = (directory: string): SiteHandler => {
-  const root = normalize(directory);
+  const root = resolve(directory);
   const cache = new Map<string, CachedFile>();
 
   const remember = (path: string, file: CachedFile): CachedFile => {

@@ -62,7 +62,8 @@ bun run dev                # the game on :5173, the API and MongoDB on :8787
 ```
 
 Open the printed **Network** address on an iPad on the same Wi-Fi, or play on the laptop: the mouse draws,
-arrow keys walk, `D` `T` `E` `H` pick draw, write, erase and pan, and holding Space pans. With nothing configured the game still
+arrow keys walk, `D` `T` `E` `H` pick draw, write, erase and pan, holding Space pans, and Ctrl/⌘+Z
+(or a two-finger tap on the iPad) takes back the last thing you drew or wrote. With nothing configured the game still
 plays: drawings are recognised by a nearest-neighbour fallback and laws by an offline grammar. The rest is
 optional and set by environment variables ([server/README.md](server/README.md)): a recognition sidecar
 (`KAMI_RECOGNIZER_URL`), any OpenAI-compatible model for the laws the grammar cannot read (`KAMI_LLM_URL`),

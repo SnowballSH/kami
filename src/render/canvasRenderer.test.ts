@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Vec } from "../core/geometry";
 import type { Handwriting } from "../handwriting/types";
 import type { AliceSnapshot } from "../sim/types";
@@ -34,6 +34,8 @@ const ALICE: AliceSnapshot = {
   height: 80,
   size: "normal",
   sizeMultiplier: 1,
+  innateScale: 1,
+  scale: 1,
   headingScale: 1,
   facing: 1,
   walking: false,
@@ -113,7 +115,7 @@ const setup = () => {
       }),
     );
   };
-  return { renderer, calls, rings, touch };
+  return { renderer, canvas, calls, rings, touch };
 };
 
 describe("CanvasRenderer eraser cursor", () => {
@@ -193,5 +195,23 @@ describe("CanvasRenderer spirit opening", () => {
     ).length;
 
     expect(embodiedPaint).toBeGreaterThan(spiritPaint);
+  });
+});
+
+describe("CanvasRenderer's backing store", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("refits when the device pixel ratio changes, as on a move to another monitor", () => {
+    vi.stubGlobal("devicePixelRatio", 1);
+    const { renderer, canvas } = setup();
+    Object.defineProperty(canvas, "clientWidth", { value: 400 });
+    Object.defineProperty(canvas, "clientHeight", { value: 300 });
+    renderer.viewport();
+    expect(canvas.width).toBe(400);
+
+    vi.stubGlobal("devicePixelRatio", 2);
+    renderer.viewport();
+    expect(canvas.width).toBe(800);
+    expect(canvas.height).toBe(600);
   });
 });

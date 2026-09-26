@@ -13,54 +13,74 @@ export const NATURE_THINGS: WordTable = {
     mushroom, toadstool, spring, trampoline, jelly, jello, bed, mattress, ball, rubber,
     rubber ball, bouncy ball, beach ball, basketball, bouncy castle, pogo stick, pogo, slinky,
     cushion, pillow, sofa, couch, drum, springboard, diving board, marshmallow, flubber, jump pad,
-    launch pad, bumper, coil, bounce, boing
+    launch pad, bumper, coil, bounce, boing,
+    eraser, bean bag, beanbag, sleeping bag, teddy bear, teddy, tennis racquet, tennis racket,
+    baseball
   `),
   climbable: list(`
     ladder, stepladder, step ladder, vine, rope, stairs, staircase, stairway, steps, tree, net,
     beanstalk, ivy, chain, pole, trellis, scaffold, scaffolding, rung, climbing wall,
     climbing frame, monkey bars, cobweb, web, spider web, escalator, lattice, fence, fire escape,
-    braid, cable, cord, stalk, trunk, branch, bamboo, handhold, foothold, creeper, rigging, climb
+    braid, cable, cord, stalk, trunk, branch, bamboo, handhold, foothold, creeper, rigging, climb,
+    tower, lighthouse, skyscraper, swing set, jungle gym, hose, garden hose, house plant,
+    flagpole, flag pole, mast, drainpipe
   `),
   floaty: list(`
     balloon, hot air balloon, cloud, bubble, kite, airship, blimp, zeppelin, parachute, smoke,
-    steam, helium, sky lantern, magic carpet, flying carpet, broomstick, float
+    steam, helium, sky lantern, magic carpet, flying carpet, broomstick, float,
+    moon, umbrella, broom
   `),
   heavy: list(`
     rock, anvil, safe, boulder, stone, weight, dumbbell, barbell, kettlebell, iron, lead,
     whale, piano, cannonball, bowling ball, anchor, mountain, meteor, asteroid, statue,
     gold, gold bar, ingot, steel, metal, concrete, cement,
-    hammer, fridge, paperweight, log, vault, pebble, planet, ton, tonne, lump, sandbag
+    hammer, fridge, paperweight, log, vault, pebble, planet, ton, tonne, lump, sandbag,
+    iron ball, cannon ball, ball and chain, house, barn, castle, church, hospital, oven,
+    stove, dishwasher, washing machine, dresser, chandelier, suitcase
   `),
   light: list(`
     feather, leaf, leaves, paper, paper plane, paper airplane, paper aeroplane, paper bag,
     plastic bag, tissue, tissue paper, petal, fluff, dust, cotton, cotton wool, cotton ball,
     snowflake, foam, styrofoam, polystyrene, confetti, ash, straw, hay, dandelion, lint, napkin,
-    ribbon, silk, plume, ping pong ball, cork, tumbleweed, pollen, sponge, origami, wisp
+    ribbon, silk, plume, ping pong ball, cork, tumbleweed, pollen, sponge, origami, wisp,
+    hat, baseball cap, bowtie, bow tie, envelope, postcard, card, playing card, map, flower,
+    sock, shirt, t shirt, tshirt, jacket, coat, sweater, pants, trousers, shorts, underwear,
+    flip flop, tent
   `),
   slippery: list(`
     ice, ice cube, ice rink, icicle, glacier, soap, bar of soap, butter, oil, olive oil, grease,
     banana, banana peel, banana skin, slide, water slide, slime, eel, fish, wax, margarine, lard,
-    puddle, frozen lake, sled, sledge, sleigh, ski, skate, teflon, slip, block of ice
+    puddle, frozen lake, sled, sledge, sleigh, ski, skate, teflon, slip, block of ice,
+    bathtub, bath, hot tub, frying pan, hockey puck, pond, pool, river, ocean, rain,
+    popsicle, ice lolly, roller skate, rollerskate, snowman, waterslide, dolphin, mermaid, snake
   `),
   sticky: list(`
     glue, superglue, super glue, nail, tape, duct tape, sellotape, scotch tape, honey, gum,
     chewing gum, bubblegum, bubble gum, velcro, magnet, syrup, jam, tar, sap, resin, staple, pin,
     screw, bolt, rivet, hook, sticker, sticky note, post it, plaster, bandage, band aid, paste,
     toffee, caramel, treacle, molasses, peanut butter, burr, suction cup, sucker, limpet, barnacle,
-    mud, clay, putty, blu tack, thumbtack, tack, peg, adhesive, marmalade, nutella
+    mud, clay, putty, blu tack, thumbtack, tack, peg, adhesive, marmalade, nutella,
+    paper clip, octopus, wet paint, paint can, paintbrush, paint brush, screwdriver, stitches,
+    toothpaste
   `),
   grow: list(`
     cake, cupcake, biscuit, cookie, bread, loaf, pie, muffin, pastry, scone, sandwich, toast,
     pizza, burger, hamburger, donut, doughnut, brownie, candy, chocolate, apple, fruit, cheese,
     snack, food, meal, dinner, lunch, breakfast, crumpet, pancake, waffle, croissant, bun,
     pudding, ice cream, lollipop, carrot, tart, crumb, cracker, egg, pasta, noodle, fries, chips,
-    crisps, bean, growth potion, growing potion, grow potion
+    crisps, bean, growth potion, growing potion, grow potion,
+    hot dog, chicken leg, jelly bean, gummy bear, sausage, steak, bacon, sushi, taco,
+    bagel, pretzel, cheesecake, gingerbread, strawberry, raspberry, blackberry, blueberry, grape,
+    pear, peach, plum, mango, melon, watermelon, pineapple, coconut, lemon, asparagus, broccoli,
+    onion, potato, pea, peanut, tomato, acorn
   `),
   shrink: list(`
     bottle, potion, shrinking potion, shrink potion, shrink ray, drink, tea, cup of tea, teacup,
     teapot, cup, mug, glass, flask, vial, phial, elixir, juice, water, milk, soda, cola, lemonade,
     wine, beer, coffee, medicine, tonic, brew, soup, jug, pitcher, kettle, smoothie, milkshake,
-    cocktail, pill, fan, soda can, tin can
+    cocktail, pill, fan, soda can, tin can,
+    hot chocolate, cocoa, chocolate milk, bubble tea, fruit punch, cider, latte,
+    espresso
   `),
   walker: list(`
     cat, kitten, dog, puppy, caterpillar, turtle, tortoise, snail, mouse, rat, hamster, pig,
@@ -69,24 +89,33 @@ export const NATURE_THINGS: WordTable = {
     lion, tiger, wolf, fox, deer, monkey, robot, soldier, knight, person, man, woman, boy, child,
     baby, girl, kid, hero, heroine, character, player, princess, prince, queen, king, wizard,
     witch, pirate, cheshire cat, creature, monster, animal, pet, beast, worm, slug, lobster, crocodile,
-    alligator, camel, zebra, giraffe, gorilla, panda, koala, glowworm, glow worm
+    alligator, camel, zebra, giraffe, gorilla, panda, koala, glowworm, glow worm,
+    duckling, squirrel, raccoon, rhinoceros, cockroach, sidekick, companion, bodyguard,
+    hatter, mad hatter, dormouse, duchess, tweedledum, tweedledee, bandersnatch, knave,
+    humpty dumpty, unicorn, badger, beaver, otter, skunk, llama, alpaca, lamb, ostrich, peacock,
+    turkey, leopard, cheetah, hyena, porcupine, armadillo, chipmunk, ferret, gerbil, centipede,
+    troll, ogre, goblin, gnome, elf, zombie, skeleton, centaur, yeti
   `),
   hopper: list(`
     rabbit, bunny, hare, white rabbit, march hare, frog, toad, kangaroo, grasshopper, cricket,
-    flea, wallaby, jackrabbit, springbok, gazelle, impala, jumping bean, hopper
+    flea, wallaby, jackrabbit, springbok, gazelle, impala, jumping bean, hopper,
+    locust
   `),
   flier: list(`
     bird, butterfly, bee, bumblebee, wasp, bat, moth, owl, eagle, pigeon, dove, seagull, gull,
     parrot, firefly, dragonfly, fly, mosquito, hummingbird, sparrow, robin, crow, raven, swan,
     goose, flamingo, pelican, stork, hawk, falcon, vulture, ghost, angel, fairy, dragon, pegasus,
-    phoenix, griffin, bluebird, ladybird, ladybug, jubjub bird, lightning bug, flier
+    phoenix, griffin, bluebird, ladybird, ladybug, jubjub bird, lightning bug, flier,
+    jabberwock, jabberwocky, canary, finch, toucan, heron, albatross, hornet, gnat,
+    pterodactyl, wyvern
   `),
   vehicle: list(`
     car, cart, wagon, truck, lorry, bus, van, train, tram, trolley, boat, ship, raft, canoe,
     bicycle, bike, tricycle, scooter, skateboard, motorbike, motorcycle, tractor, bulldozer,
     kart, go kart, jeep, taxi, cab, carriage, chariot, wheelbarrow, pram, buggy, tank, vehicle,
     minecart, mine cart, rickshaw, ambulance, fire truck, firetruck, police car, race car,
-    racecar, sports car, limo, limousine, pickup, pickup truck, rocket sled, hoverboard
+    racecar, sports car, limo, limousine, pickup, pickup truck, rocket sled, hoverboard,
+    sailboat, sail boat, speedboat, submarine, yacht, aircraft carrier
   `),
   attractor: list(`
     black hole, blackhole, sun, vortex, whirlpool, singularity, gravity well,
@@ -94,7 +123,8 @@ export const NATURE_THINGS: WordTable = {
   `),
   lantern: list(`
     lantern, lamp, candle, torch, lightbulb, light bulb, bulb, streetlight, street lamp, lamppost,
-    flashlight, star, campfire light, nightlight, night light
+    flashlight, star, campfire light, nightlight, night light,
+    floor lamp, traffic light
   `),
   portal: list(`
     portal, wormhole, warp, warp gate, warp pad, gateway, gate, teleporter, teleport pad, rift,
@@ -103,14 +133,17 @@ export const NATURE_THINGS: WordTable = {
   `),
   solid: list(`
     ground, floor, wall, platform, block, brick, shelf, ledge, pavement, road, terrain, island,
-    cliff, hill
+    cliff, hill,
+    table, grass, beach, rainbow
   `),
   goal: list(`
-    goal, finish, finish line, flag, exit, rabbit hole, home, win, trophy, destination
+    goal, finish, finish line, flag, exit, rabbit hole, home, win, trophy, crown, destination
   `),
   hazard: list(`
     lava, magma, spike, fire, campfire, bonfire, flame, danger, acid, trap, poison, thorn, skull,
-    floor is lava, lava floor
+    floor is lava, lava floor,
+    cactus, shark, scorpion, fireplace, matches, lightning, hurricane, tornado,
+    power outlet
   `),
   spawn: list(`
     start, spawn, alice starts here, start here, start point, starting point, spawn point,
@@ -154,6 +187,9 @@ export const NEAR_ENOUGH_THINGS: Readonly<Partial<WordTable>> = {
 
 /** Creatures that carry their own light by name: a firefly glows without being told to. */
 export const GLOWING_CREATURES = list("firefly, glowworm, glow worm, lightning bug");
+
+/** Names the Cat knows to be plain ink, so the words inside them mean nothing on their own. */
+export const PLAIN_THINGS = list("baseball bat, cricket bat, fire hydrant");
 
 export const TAG_WORDS = ["rose", "tart", "queen"] as const;
 export type Tag = (typeof TAG_WORDS)[number];

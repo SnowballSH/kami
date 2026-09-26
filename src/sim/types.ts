@@ -13,10 +13,9 @@ export const ALICE_SCALE: Readonly<Record<AliceSize, number>> = { small: 0.5, no
 
 export const ALICE_BASE = { width: 28, height: 60 } as const;
 
-export const aliceDimensions = (size: AliceSize, multiplier: number) => ({
-  width: ALICE_BASE.width * ALICE_SCALE[size] * multiplier,
-  height: ALICE_BASE.height * ALICE_SCALE[size] * multiplier,
-});
+/** The scale an Alice drawn `innate` times Kami's Alice's height takes at `size` under a size law of `multiplier`. */
+export const aliceScaleFor = (innate: number, size: AliceSize, multiplier: number): number =>
+  innate * ALICE_SCALE[size] * multiplier;
 
 /** She takes the key when it lies within `radius` of her body grown by `reachRatio` of her height. */
 export const KEY_PICKUP = { reachRatio: 0.5, radius: 18 } as const;
@@ -52,6 +51,11 @@ export interface AliceSnapshot {
   readonly height: number;
   readonly size: AliceSize;
   readonly sizeMultiplier: number;
+  /** How much bigger than Kami's Alice she was drawn; 1 for Alice herself. */
+  readonly innateScale: number;
+  /** Her scale now, mid-tween while resizing; `width` and `height` are her body at this scale. */
+  readonly scale: number;
+  /** The scale she is resizing towards, or `scale` when she is not. */
   readonly headingScale: number;
   readonly facing: -1 | 1;
   readonly walking: boolean;
@@ -182,8 +186,9 @@ export type SimEvent =
   | { readonly type: "heart-swallowed" }
   | { readonly type: "part-restored"; readonly parts: readonly BodyPartKind[] };
 
-/** Whose ink a drawing is: drawn by a hand (the player's or Kami's), or a prop Kami dressed a scene with. */
-export type InkProvenance = "drawn" | "scenery";
+import type { InkProvenance } from "../ink/types";
+
+export type { InkProvenance };
 
 export interface Simulation {
   /** Discards the whole world and rebuilds it with Alice standing at `board.spawn`. */

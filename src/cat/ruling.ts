@@ -69,7 +69,7 @@ const acceptanceLine = (phrase: Phrase, match: NatureMatch, drawingIsDot: boolea
 export const isUnknownName = (utterance: string): boolean => {
   const phrase = parsePhrase(utterance);
   const match = resolveNature(phrase);
-  return phrase.words.length > 0 && match === null && findRefusal(phrase, false) === null;
+  return phrase.words.length > 0 && match === null && findRefusal(phrase, null) === null;
 };
 
 export const ruleOn = (utterance: string, { allowed, drawingIsDot }: RulingContext): Ruling => {
@@ -79,7 +79,7 @@ export const ruleOn = (utterance: string, { allowed, drawingIsDot }: RulingConte
 
   const tags = tagsIn(phrase);
   const match = resolveNature(phrase);
-  const refusal = findRefusal(phrase, match !== null);
+  const refusal = findRefusal(phrase, match);
   if (refusal !== null) return plainInk(name, tags, refusal);
   if (match === null) return withMotion(plainInk(name, tags, plainLine(phrase, tags)), phrase);
   if (!isAllowed(match.nature, allowed)) return plainInk(name, tags, forbiddenLine(match));

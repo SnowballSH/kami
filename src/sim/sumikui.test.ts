@@ -5,6 +5,7 @@ import { FIXED_STEP_MS } from "../core/world";
 import { EARTH } from "../rules/types";
 import {
   SUMIKUI_BASE_SPEED,
+  SUMIKUI_CATCH_MS,
   SUMIKUI_DOUBLES_EVERY_MS,
   SUMIKUI_MAX_SPEED,
   SUMIKUI_MEAL_MAX_MS,
@@ -305,6 +306,25 @@ describe("everything on the paper is ink to it", () => {
     expect(events).toContainEqual({ type: "fell", who: 1 });
     expect(events.filter((event) => event.type === "fell")).toHaveLength(1);
     expect(feetOf(sim).x).toBeCloseTo(herself, 0);
+  });
+
+  it("lets go of a twin a law dismisses mid-bite, and devours no one in her place", () => {
+    const sim = summonOver([]);
+    const cloned = { ...LOOSE, flight: 1, clones: 1 };
+    sim.setPhysics(cloned);
+    sim.addDrawing(drawingOf("a ledge", blob(400, GROUND - 40, 200, 24)));
+    sim.applyRuling(idOf("a ledge"), rulingOf("solid"));
+    runSteps(sim, 30);
+    sim.setWalkIntent({ x: 1, y: -1 }, 1);
+    runUntil(sim, () => sim.aliceBounds(1).x > 380, A_MINUTE);
+    sim.setWalkIntent(STAY, 1);
+    runSteps(sim, stepsFor(SUMIKUI_STALKS_HER_AFTER_MS));
+    runUntil(sim, () => sumikuiOf(sim).prey === 1 && sumikuiOf(sim).bite > 0, A_MINUTE);
+    expect(sumikuiOf(sim).phase).toBe("feeding");
+    sim.setPhysics({ ...cloned, clones: 0 });
+    const events = runSteps(sim, stepsFor(SUMIKUI_CATCH_MS) * 2);
+    expect(typesOf(events)).not.toContain("alice-devoured");
+    expect(typesOf(events)).not.toContain("fell");
   });
 
   it("hunts a drawing before Alice during its first twenty seconds awake", () => {

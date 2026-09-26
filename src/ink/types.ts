@@ -2,6 +2,10 @@ import type { PenPoint, Pose, Rect, Stroke } from "../core/geometry";
 
 export type DrawingId = string & { readonly __brand: "DrawingId" };
 
+/** Whose ink a drawing is: drawn by a hand (the player's or Kami's), or a prop Kami dressed a scene with. */
+export const INK_PROVENANCES = ["drawn", "scenery"] as const;
+export type InkProvenance = (typeof INK_PROVENANCES)[number];
+
 export interface Drawing {
   readonly id: DrawingId;
   readonly strokes: readonly Stroke[];
@@ -47,6 +51,11 @@ export interface InkSession {
   penUp(): void;
   /** Abandons the stroke in progress (a second finger landed: it was a pinch, not a line). */
   penCancel(): void;
+  /**
+   * Takes back the newest stroke of the drawing not yet committed — the one under the pen, else
+   * the last one lifted — and refunds it. False when nothing is pending.
+   */
+  retract(): boolean;
   /** Called every frame. Advances the commit timer and refreshes `activeVerdict`. */
   update(nowMs: number, rules: PlacementRules): void;
   refund(cost: number): void;

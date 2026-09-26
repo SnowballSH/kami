@@ -10,7 +10,7 @@ import type { DrawingId } from "../ink/types";
 import {
   type AliceSize,
   type AliceSnapshot,
-  aliceDimensions,
+  aliceScaleFor,
   type BounceArc,
   KEY_PICKUP,
 } from "../sim/types";
@@ -70,14 +70,25 @@ const WARP_COST = 6;
 /** Nodes a single search may open before it gives up: the board is endless, her patience is not. */
 const SEARCH_BUDGET = 200_000;
 
+/** Resizing leaves rounding dust on her bounds; it must not cost her a whole extra cell. */
+const SPAN_TOLERANCE_PX = 1e-6;
+
+const cellsSpanning = (px: number): number => Math.ceil((px - SPAN_TOLERANCE_PX) / CELL_PX);
+
+/**
+ * Her body at `size`, scaled from the body she has now exactly as the simulation resizes it, so a
+ * drawn body keeps its own height and proportions. At her current size she keeps the larger of the
+ * body she has and the one she is resizing towards.
+ */
 export const footprintFor = (alice: AliceSnapshot, size: AliceSize = alice.size): Footprint => {
-  const target =
-    size === alice.size
-      ? aliceDimensions("normal", alice.headingScale)
-      : aliceDimensions(size, alice.sizeMultiplier);
-  const width = size === alice.size ? Math.max(alice.width, target.width) : target.width;
-  const height = size === alice.size ? Math.max(alice.height, target.height) : target.height;
-  return { cols: Math.ceil(width / CELL_PX), rows: Math.ceil(height / CELL_PX) };
+  const settling = size === alice.size;
+  const target = settling
+    ? alice.headingScale
+    : aliceScaleFor(alice.innateScale, size, alice.sizeMultiplier);
+  const factor = target / alice.scale;
+  const width = alice.width * (settling ? Math.max(1, factor) : factor);
+  const height = alice.height * (settling ? Math.max(1, factor) : factor);
+  return { cols: cellsSpanning(width), rows: cellsSpanning(height) };
 };
 
 export const nodeOfFeet = (feet: Vec, footprint: Footprint): Node => ({
