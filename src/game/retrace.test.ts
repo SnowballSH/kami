@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Stroke } from "../core/geometry";
-import { RETRACE_MS, retracedStrokes, retraceProgress } from "./retrace";
+import { drawnIn, RETRACE_MS, retracedStrokes, retraceProgress } from "./retrace";
 
 const drawn: Stroke[] = [
   [
@@ -55,6 +55,22 @@ describe("retracedStrokes", () => {
   it("jumps straight to the tidied drawing if it is not point for point the player's", () => {
     const other: Stroke[] = [[{ x: 1, y: 1 }]];
     expect(retracedStrokes(drawn, other, 0.2)).toBe(other);
+  });
+});
+
+describe("stroke identity while ink is shown arriving", () => {
+  it("hands back each finished stroke itself, so its outline is reused", () => {
+    const strokes = [...tidied, added];
+    const [finished, growing] = drawnIn(strokes, 0.75);
+    expect(finished).toBe(tidied[0]);
+    expect(growing).not.toBe(added);
+  });
+
+  it("keeps a fully tidied stroke the same array while the added ones are drawn in", () => {
+    const early = retracedStrokes(drawn, [...tidied, added], 0.7);
+    const later = retracedStrokes(drawn, [...tidied, added], 0.9);
+    expect(later[0]).toBe(early[0]);
+    expect(later[0]).toEqual(tidied[0]);
   });
 });
 
