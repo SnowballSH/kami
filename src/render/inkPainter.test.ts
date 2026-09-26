@@ -34,6 +34,7 @@ const inkOf = (id: string, pose = POSE): InkView => ({
   pose,
   nature: "ink",
   awakenedAtMs: null,
+  lit: false,
 });
 
 const paintFrame = (painter: InkPainter, inks: readonly InkView[], nowMs: number): void => {
