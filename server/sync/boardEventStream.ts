@@ -1,4 +1,10 @@
-import type { FeedMessage, PeerId } from "../../src/sync/wire";
+import {
+  type FeedCursor,
+  type FeedMessage,
+  formatCursor,
+  type PeerId,
+  parseCursor,
+} from "../../src/sync/wire";
 import type { BoardFeed } from "./boardFeed";
 
 /** Bun.serve's default `idleTimeout` is 10 s; the keep-alive comment comes well inside that. */
@@ -18,10 +24,11 @@ const KEEP_ALIVE_COMMENT = ": keep-alive\n\n";
 const reconnectField = `retry: ${RECONNECT_AFTER_MS}\n\n`;
 
 /**
- * Numbered changes, and the `cursor` or `resync` a stream opens with, carry their `seq` as the event id,
- * so a browser that reconnects before any change arrived still sends back where it was as `Last-Event-ID`.
+ * Numbered changes, and the `cursor` or `resync` a stream opens with, carry `<boot>:<seq>` as the event
+ * id, so a browser that reconnects — even before any change arrived — sends back where it was, and in
+ * which life of the server, as `Last-Event-ID`.
  */
-const eventOf = (message: FeedMessage): string => {
+const eventOf = (message: FeedMessage, boot: string): string => {
   const data = `data: ${JSON.stringify(message)}\n\n`;
   switch (message.type) {
     case "put":
@@ -29,14 +36,14 @@ const eventOf = (message: FeedMessage): string => {
     case "clear":
     case "cursor":
     case "resync":
-      return `id: ${message.seq}\n${data}`;
+      return `id: ${formatCursor({ boot, seq: message.seq })}\n${data}`;
     case "presence":
       return data;
   }
 };
 
 export interface BoardStreamSettings {
-  readonly since: number | null;
+  readonly since: FeedCursor | null;
   /** The device listening; its own Alice is taken off the board when the stream ends. */
   readonly peer: PeerId | null;
   readonly keepAliveMs: number;
@@ -104,7 +111,9 @@ export const boardEventStream = (
         };
         send(reconnectField);
         if (closed) return;
-        unsubscribe = feed.subscribe(boardId, since, (message) => send(eventOf(message)));
+        unsubscribe = feed.subscribe(boardId, since, (message) =>
+          send(eventOf(message, feed.boot)),
+        );
         if (closed) {
           unsubscribe();
           return;
@@ -119,11 +128,12 @@ export const boardEventStream = (
   return new Response(body, { headers: EVENT_STREAM_HEADERS });
 };
 
-/** The cursor a client resumes from: `?since=` or, on a browser's own reconnect, `Last-Event-ID`. */
-export const sinceOf = (request: Request): number | null => {
-  const url = new URL(request.url);
-  const raw = url.searchParams.get("since") ?? request.headers.get("last-event-id");
-  if (raw === null) return null;
-  const since = Number(raw);
-  return Number.isInteger(since) && since >= 0 ? since : null;
+/**
+ * The cursor a client resumes from: on a browser's own reconnect its `Last-Event-ID`, which is always
+ * newer than the `?since=` the stream was first opened with; otherwise that `since`.
+ */
+export const sinceOf = (request: Request): FeedCursor | null => {
+  const raw =
+    request.headers.get("last-event-id") ?? new URL(request.url).searchParams.get("since");
+  return raw === null ? null : parseCursor(raw);
 };

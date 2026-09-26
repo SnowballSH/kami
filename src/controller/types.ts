@@ -22,8 +22,12 @@ export interface StreamMessage {
   readonly data: unknown;
 }
 
-/** The part of the browser's `EventSource` the remote stick relies on. */
+/** `EventSource.readyState`: after an error it is `connecting` while the browser retries, `closed` once it gave up. */
+export const STREAM_STATE = { connecting: 0, open: 1, closed: 2 } as const;
+
+/** The part of the browser's `EventSource` the remote stick and shared pages rely on. */
 export interface EventSourceLike {
+  readonly readyState: number;
   addEventListener(type: "message", listener: (message: StreamMessage) => void): void;
   addEventListener(type: "error", listener: () => void): void;
   close(): void;

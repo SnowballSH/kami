@@ -21,6 +21,7 @@ import {
   SANDBOX_MODE,
 } from "../modes";
 import type { GameMode } from "../modes/types";
+import type { Note, NoteId } from "../notes/types";
 import { HttpBoardStore } from "../persistence/httpBoardStore";
 import type { BoardSnapshot, BoardStore, HandwritingReader } from "../persistence/types";
 import { createPenReader } from "../reading";
@@ -2714,6 +2715,160 @@ describe("Game on a shared page", () => {
     mine.game.onClearBoard();
     await theirs.wait(200);
     expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  const eraseTheInk = async (player: Player, index: number): Promise<void> => {
+    const ink = player.renderer.lastFrame?.inks[index];
+    const pose = player.renderer.lastFrame?.world.drawings.find((d) => d.id === ink?.drawing.id);
+    const point = ink?.drawing.strokes[0]?.[4];
+    if (pose === undefined || point === undefined) throw new Error("no drawing to erase");
+    await player.erase(poseToWorld(point, pose.pose));
+  };
+
+  it("misses nothing another device does while the page loads, nor lets the load undo it", async () => {
+    const page = new SharedPage();
+    const mine = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(ALICE, 0),
+    });
+    await mine.arrive();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    const release = page.holdLoads();
+    const theirs = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(BOB, 0),
+    });
+    const arriving = theirs.arrive();
+    await eraseTheInk(mine, 0);
+    await mine.draw(line({ x: 620, y: -200 }, { x: 900, y: -200 }));
+    release();
+    await arriving;
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks.map((ink) => ink.drawing.id)).toEqual(
+      mine.renderer.lastFrame?.inks.map((ink) => ink.drawing.id),
+    );
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
+  });
+
+  it("carries on from another device's clear without opening a new stream", async () => {
+    const { page, mine, theirs } = await together();
+    const streams = page.streamsOf(BOB).length;
+    mine.game.onClearBoard();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await theirs.wait(50);
+    expect(page.streamsOf(BOB)).toHaveLength(streams);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
+  });
+
+  it("does not bring back what it erased when the late echo of drawing it arrives", async () => {
+    const { page, mine } = await together();
+    page.holdMessages();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await eraseTheInk(mine, 0);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(0);
+    page.deliver(1);
+    await mine.wait(50);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(0);
+    page.deliver();
+    await mine.wait(50);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  it("keeps what it drew after clearing when the late echo of the clear arrives", async () => {
+    const { page, mine, theirs } = await together();
+    page.holdMessages();
+    mine.game.onClearBoard();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    page.deliver(1);
+    await mine.wait(50);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(1);
+    page.deliver();
+    await mine.wait(50);
+    await theirs.wait(50);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
+  });
+
+  it("catches up after the server restarts without starting Alice over", async () => {
+    const { page, mine, theirs } = await together();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await theirs.wait(50);
+    const [gone] = theirs.renderer.lastFrame?.inks ?? [];
+    if (gone === undefined) throw new Error("the first ink never arrived");
+    const spawnX = theirs.alice.center.x;
+    theirs.walk(1);
+    await theirs.wait(600);
+    theirs.walk(0);
+    await theirs.wait(300);
+    const stoodAt = theirs.alice.center.x;
+    expect(stoodAt - spawnX).toBeGreaterThan(20);
+    page.restart("second");
+    page.deleteDrawing("together", gone.drawing.id);
+    page.saveDrawing("together", {
+      drawing: drawingOf("after-restart", line({ x: 620, y: -300 }, { x: 900, y: -300 })),
+      ruling: null,
+    });
+    await theirs.wait(100);
+    expect(theirs.renderer.lastFrame?.inks.map((ink) => ink.drawing.id)).toEqual(["after-restart"]);
+    expect(theirs.alice.center.x - spawnX).toBeGreaterThan((stoodAt - spawnX) / 2);
+    await mine.draw(line({ x: 620, y: -500 }, { x: 900, y: -500 }));
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(2);
+  });
+
+  const faraway = (id: string, createdAt = Date.now()): Note => ({
+    id: id as NoteId,
+    author: "player",
+    text: "far away",
+    position: { x: 6_000, y: -100 },
+    tone: "plain",
+    createdAt,
+    fleeting: false,
+  });
+
+  const writtenAt = (player: Player, text: string): Vec | undefined => {
+    const bounds = player.renderer.lastFrame?.notes.find((note) => note.script.text === text)
+      ?.script.bounds;
+    return bounds === undefined ? undefined : { x: bounds.x, y: bounds.y };
+  };
+
+  it("keeps another device's note where it was written, and never deletes it for its author", async () => {
+    const { page, theirs } = await together();
+    page.saveNote("together", faraway("n-far"));
+    await theirs.wait(50);
+    expect(writtenAt(theirs, "far away")?.x).toBeCloseTo(6_000, -1);
+    await theirs.wait(14_000);
+    expect((await page.load("together")).notes.map((note) => note.id)).toEqual(["n-far"]);
+  });
+
+  it("restores a note at its own place on a shared page, and leaves a fresh one to its writer", async () => {
+    const page = new SharedPage();
+    page.saveNote("together", faraway("n-far"));
+    const late = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(BOB, 0),
+    });
+    await late.arrive();
+    expect(writtenAt(late, "far away")?.x).toBeCloseTo(6_000, -1);
+    await late.wait(14_000);
+    expect(late.written).not.toContain("far away");
+    expect((await page.load("together")).notes).toHaveLength(1);
+  });
+
+  it("tidies away a note on a shared page whose writer is long gone", async () => {
+    const page = new SharedPage();
+    page.saveNote("together", faraway("n-old", Date.now() - 60 * 60_000));
+    const late = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(BOB, 0),
+    });
+    await late.arrive();
+    await late.wait(14_000);
+    expect((await page.load("together")).notes).toHaveLength(0);
   });
 
   it("plays alone, with no share affordance, in a room", async () => {

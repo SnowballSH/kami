@@ -5,7 +5,7 @@ import { type Drawing, type DrawingId, INK_PROVENANCES } from "../ink/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import { validEffect } from "../rules/effectDomains";
 import type { CompiledRule, MotionEdit, Rule, RuleEffect, RuleId, Target } from "../rules/types";
-import type { BoardSnapshot, BoardSummary, StoredDrawing } from "./types";
+import type { BoardSnapshot, BoardSummary, FeedCursor, StoredDrawing } from "./types";
 
 const MAX_ID_LENGTH = 200;
 
@@ -162,6 +162,13 @@ export const ruleSchema = z.looseObject({
   scene: text.exactOptional(),
 }) satisfies z.ZodType<Rule>;
 
+export const FEED_BOOT_PATTERN = /^[a-z0-9]{1,32}$/;
+
+export const feedCursorSchema = z.object({
+  boot: z.string().regex(FEED_BOOT_PATTERN).nullable(),
+  seq: z.number().int().nonnegative(),
+}) satisfies z.ZodType<FeedCursor>;
+
 const uniqueIds = (ids: readonly string[]): boolean => new Set(ids).size === ids.length;
 
 export const boardSnapshotSchema = z.object({
@@ -177,6 +184,7 @@ export const boardSnapshotSchema = z.object({
   rules: z
     .array(ruleSchema)
     .refine((entries) => uniqueIds(entries.map(({ id }) => id)), "duplicate rule id"),
+  cursor: feedCursorSchema.exactOptional(),
 }) satisfies z.ZodType<BoardSnapshot>;
 
 export const boardSummarySchema = z.object({

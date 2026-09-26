@@ -73,13 +73,15 @@ export class NoteBook {
     ).note;
   }
 
-  /** A note from a previous session: already on the board, fully written, and soon to fade. */
-  restore(note: Note, nowMs: number, lifetimeMs: number, within?: Rect, maxY?: number): void {
+  /**
+   * A note written elsewhere, by a previous session or another device: already on the board, fully
+   * written, exactly where it was written, and gone after `lifetimeMs`.
+   */
+  restore(note: Note, nowMs: number, lifetimeMs: number): void {
     const anchor: NoteAnchor | null =
       note.drawingId === undefined ? null : { type: "drawing", id: note.drawingId };
-    const placed = this.clampToWithin(note, within, maxY);
-    this.inscribe(placed, nowMs - ALREADY_WRITTEN_MS, anchor, undefined, within);
-    this.release(placed.id, nowMs, lifetimeMs);
+    this.inscribe(note, nowMs - ALREADY_WRITTEN_MS, anchor);
+    this.release(note.id, nowMs, lifetimeMs);
   }
 
   /** Lets a note that was written to stay go after `lifetimeMs`, unless it was already leaving sooner. */
@@ -107,6 +109,10 @@ export class NoteBook {
       nowMs + NOTE_FADE_MS,
     );
     this.entries.set(id, { ...entry, expiresAtMs });
+  }
+
+  get all(): readonly Note[] {
+    return [...this.entries.values()].map(({ note }) => note);
   }
 
   get(id: NoteId): Note | null {
