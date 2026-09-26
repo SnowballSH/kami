@@ -1,5 +1,7 @@
 import { EFFECT_RANGES } from "./effectRanges";
 
+export const BESIDE_PREFIX = "Beside:";
+
 const {
   gravity,
   wind,
@@ -54,7 +56,7 @@ If it is anything else (a name for a drawing, a remark, a question) reply {"effe
 {"governs":"worldSpin","value":number}  how fast the whole page keeps turning, in degrees per second, ${worldSpin.min} to ${worldSpin.max}. 0 holds still; "the world spins slowly" is 5, "spins" is 15, "spins fast" is 45; negative is counterclockwise.
 
 
-The last ten are dials on drawings, not on the world. <target> is {"kind":"all"} when the line speaks of everything or every drawing, or {"kind":"named","name":"<one word>"} when it points at a drawing by name ("the wheel", "every rock"): the noun, singular, lowercase. Never use them for Alice.
+The last ten are dials on drawings, not on the world. <target> is {"kind":"all"} when the line speaks of everything or every drawing, or {"kind":"named","name":"<one word>"} when it points at a drawing by name ("the wheel", "every rock"): the noun, singular, lowercase. Never use them for Alice. A line "${BESIDE_PREFIX} <noun>" after the note names the drawing it was written beside; a pronoun doing the thing ("it spins", "make them heavy", "this glows") means that drawing: {"kind":"named","name":"<noun>"}.
 {"governs":"spin","of":<target>,"value":number}  turns per second, ${spin.min} to ${spin.max}. Positive is clockwise. "The wheel spins" is 1; "spins backwards" is -1; "stops spinning" is 0.
 {"governs":"thrust","of":<target>,"x":number,"y":number}  a steady push the drawing gives itself, in g. +x is right, +y is down. Each axis ${thrust.min} to ${thrust.max}. "The cart accelerates" is x 0.5; "the rocket lifts off" is y -1.
 {"governs":"mass","of":<target>,"value":number}  multiplier on its weight, ${mass.min} to ${mass.max}. "Heavier" is 2, "lighter" is 0.5, "weightless" is 0.1.

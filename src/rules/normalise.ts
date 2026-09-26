@@ -1,12 +1,16 @@
+import { refersBack } from "./referents";
+import type { CompileContext } from "./types";
 import { vocabulary } from "./vocabulary";
 
 /**
  * What a note says once spelling, punctuation and politeness are out of the way. `subjects` are
- * the words the player pointed at with a determiner ("the wheel", "every cloud"), in order.
+ * the words the player pointed at with a determiner ("the wheel", "every cloud"), in order;
+ * `referent` is what its pronoun stands for ("it spins" beside a boat), when it has one.
  */
 export interface Sentence {
   readonly words: readonly string[];
   readonly subjects: readonly string[];
+  readonly referent: string | null;
 }
 
 export const METRES_PER_SECOND_SQUARED = "mpss";
@@ -17,7 +21,8 @@ const FILLER = vocabulary(`
   at, as, of, it, its, this, that, now, just, kami, hey, can, could, would, should, will, shall,
   you, i, we, im, my, our, want, need, like, same, there, here, in, for, by, so, and, then, with,
   feel, feels, act, acts, behave, behaves, work, works, turn, turns, change, changes, switch, put,
-  have, has, give, get, gets, become, becomes, do, does, also, too, some, value, amount, level
+  have, has, give, get, gets, become, becomes, do, does, also, too, some, value, amount, level,
+  itself, these, those, they, them, their, themselves
 `);
 
 const SYMBOLS: readonly (readonly [RegExp, string])[] = [
@@ -47,6 +52,8 @@ const DETERMINERS = vocabulary("the, this, that, these, those, every, each, all,
 const NAMED_ALICE: readonly (readonly [RegExp, string])[] = [
   [/\b(?:the|this|our|my) (?:girl|character|player|hero|heroine|protagonist)\b/g, "alice"],
 ];
+
+const POINTING: readonly (readonly [RegExp, string])[] = [[/\b(?:this|that) one\b/g, "it"]];
 
 const PHRASES: readonly (readonly [RegExp, string])[] = [
   [/\bno longer\b|\bany longer$|\bno more$/g, "anymore"],
@@ -79,11 +86,14 @@ const pointedAt = (words: readonly string[]): readonly string[] =>
     return DETERMINERS.has(word) && next !== undefined && !FILLER.has(next) ? [next] : [];
   });
 
-export const normalise = (text: string): Sentence => {
-  const spoken = wordsOf(rewrite(rewrite(text.toLowerCase(), SYMBOLS), NAMED_ALICE));
+export const normalise = (text: string, context?: CompileContext): Sentence => {
+  const spoken = wordsOf(
+    rewrite(rewrite(rewrite(text.toLowerCase(), SYMBOLS), NAMED_ALICE), POINTING),
+  );
   const meaningful = spoken.filter((word) => !FILLER.has(word));
   return {
     words: wordsOf(rewrite(meaningful.join(" "), PHRASES)),
     subjects: pointedAt(spoken),
+    referent: context !== undefined && refersBack(spoken) ? context.referent : null,
   };
 };

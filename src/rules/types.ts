@@ -104,9 +104,18 @@ export interface Rule extends CompiledRule {
   readonly scene?: string;
 }
 
+/**
+ * Where a note was written, as far as reading it goes: the named drawing it sits beside, which a
+ * pronoun in it ("it drifts to the right", "they float") stands for. See docs/laws.md §2.1.
+ */
+export interface CompileContext {
+  /** One lowercase noun, the head of the drawing's name: "boat" for "a little red boat". */
+  readonly referent: string;
+}
+
 /** Null means "this text is not a rule" — never an error. */
 export interface RuleCompiler {
-  compile(text: string): Promise<CompiledRule | null>;
+  compile(text: string, context?: CompileContext): Promise<CompiledRule | null>;
 }
 
 /** Something Kami draws to dress a place: a word he has a picture of, and where it goes. */

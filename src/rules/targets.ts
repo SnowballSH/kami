@@ -14,11 +14,19 @@ const phraseFrom = (words: readonly string[], head: string, known: Vocabulary): 
   return [head, ...(end < 0 ? after : after.slice(0, end))];
 };
 
-/** The drawing the sentence points at with "the"/"every"; failing that, everything, if it says so. */
-export const targetOf = ({ words, subjects }: Sentence, known: Vocabulary): Target | null => {
+/**
+ * The drawing the sentence points at with "the"/"every"; failing that, everything, if it says so;
+ * failing that, the drawing its pronoun stands for ("it spins" written beside a boat) — unless the
+ * sentence says that noun itself, as "it is a heavy boat" does in naming it.
+ */
+export const targetOf = (
+  { words, subjects, referent }: Sentence,
+  known: Vocabulary,
+): Target | null => {
   const head = subjects.find((subject) => isNamingWord(subject, known));
   if (head !== undefined) return { kind: "named", name: phraseFrom(words, head, known).join(" ") };
-  return mentions(words, UNIVERSAL) ? { kind: "all" } : null;
+  if (mentions(words, UNIVERSAL)) return { kind: "all" };
+  return referent === null || words.includes(referent) ? null : { kind: "named", name: referent };
 };
 
 export const wordsNaming = (of: Target): readonly string[] =>

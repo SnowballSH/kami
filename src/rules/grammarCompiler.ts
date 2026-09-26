@@ -12,7 +12,7 @@ import { recognisePaper } from "./recognisers/paper";
 import { recogniseReset } from "./recognisers/resets";
 import { recogniseTime } from "./recognisers/time";
 import { recogniseWind } from "./recognisers/wind";
-import type { CompiledRule, RuleCompiler } from "./types";
+import type { CompileContext, CompiledRule, RuleCompiler } from "./types";
 
 const RECOGNISERS: readonly Recogniser[] = [
   recogniseReset,
@@ -37,12 +37,12 @@ export class GrammarRuleCompiler implements RuleCompiler {
     this.#recognisers = recognisers;
   }
 
-  compile(text: string): Promise<CompiledRule | null> {
-    return Promise.resolve(this.#read(text));
+  compile(text: string, context?: CompileContext): Promise<CompiledRule | null> {
+    return Promise.resolve(this.read(text, context));
   }
 
-  #read(text: string): CompiledRule | null {
-    const sentence = normalise(text);
+  read(text: string, context?: CompileContext): CompiledRule | null {
+    const sentence = normalise(text, context);
     if (countNumbers(sentence.words) > MAX_NUMBERS) return null;
     for (const recognise of this.#recognisers) {
       const rule = recognise(sentence);
@@ -51,3 +51,13 @@ export class GrammarRuleCompiler implements RuleCompiler {
     return null;
   }
 }
+
+const GRAMMAR = new GrammarRuleCompiler();
+const ANY_REFERENT: CompileContext = { referent: "thing" };
+
+/**
+ * Whether the grammar would read `text` as a law about the drawing beside it, were that drawing
+ * named — "it spins" does, "it is cold" and "it is a boat" do not.
+ */
+export const speaksOfReferent = (text: string): boolean =>
+  GRAMMAR.read(text) === null && GRAMMAR.read(text, ANY_REFERENT) !== null;

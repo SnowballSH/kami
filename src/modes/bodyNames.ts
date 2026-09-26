@@ -1,4 +1,5 @@
 import { parsePhrase, vocabulary } from "../cat/phrase";
+import { headOf } from "../rules/referents";
 
 const ARTICLES = /^(?:a|an|the|my|our|this|that|little|small|big|tall|tiny|brave|new)\s+/;
 
@@ -12,21 +13,6 @@ const BODY_NOUNS = vocabulary(
   goat catgirl`.split(/\s+/),
 );
 
-/** Words after which a name goes on about something else: "a bag *of* cats" is a bag. */
-const QUALIFIERS: ReadonlySet<string> = new Set([
-  "of",
-  "with",
-  "in",
-  "on",
-  "from",
-  "wearing",
-  "holding",
-  "who",
-  "that",
-  "named",
-  "called",
-]);
-
 const PRONOUN =
   /^(?:(?:this|that|it) ?i?s )?(?:me|myself|her|him|them|you|us|i|she|he|they|herself|himself|themselves)$/;
 
@@ -38,13 +24,6 @@ const tidy = (text: string): string =>
     .trim();
 
 const stripped = (text: string): string => tidy(text).replace(ARTICLES, "");
-
-/** The noun a name is about: the last word before any qualifier, so "rabbit hole" is a hole and "a king of the hill" a king. */
-const headStem = (name: string): string | undefined => {
-  const { stems } = parsePhrase(name);
-  const qualified = stems.findIndex((stem, at) => at > 0 && QUALIFIERS.has(stem));
-  return stems.slice(0, qualified < 0 ? stems.length : qualified).at(-1);
-};
 
 /**
  * Whether a name given to a drawing means "this is her body": one of the mode's own names, a
@@ -58,6 +37,6 @@ export const namesABody = (name: string, names: readonly string[]): boolean => {
   if (plain === "") return false;
   if (names.some((known) => tidy(known) === plain)) return true;
   if (PRONOUN.test(whole) || PRONOUN.test(plain)) return true;
-  const head = headStem(plain);
+  const head = headOf(parsePhrase(plain).stems);
   return head !== undefined && BODY_NOUNS.has(head);
 };

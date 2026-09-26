@@ -1,10 +1,10 @@
 import { z } from "zod";
-import type { CompiledRule, RuleCompiler } from "../../src/rules/types";
+import type { CompileContext, CompiledRule, RuleCompiler } from "../../src/rules/types";
 import { ChatClient, type FetchLike, type LlmConfig, lastJsonObject } from "../llm/chatClient";
 import { strictJsonSchema } from "../llm/strictJsonSchema";
 import { rawRuleEffectSchema } from "../schemas";
 import { clampEffect, describeEffect } from "./effectRanges";
-import { COMPILER_SYSTEM_PROMPT } from "./prompt";
+import { BESIDE_PREFIX, COMPILER_SYSTEM_PROMPT } from "./prompt";
 
 export { chatCompletionsUrl, type FetchLike, type LlmConfig } from "../llm/chatClient";
 
@@ -28,6 +28,9 @@ const parseModelReply = (content: string): CompiledRule | null => {
   return { effect, explanation: explanation || describeEffect(effect) };
 };
 
+const besideLine = (text: string, { referent }: CompileContext): string =>
+  `${text}\n${BESIDE_PREFIX} ${referent}`;
+
 export class LlmRuleCompiler implements RuleCompiler {
   readonly #chat: ChatClient;
 
@@ -39,8 +42,8 @@ export class LlmRuleCompiler implements RuleCompiler {
     return (await this.#ask(WARM_UP_LINE, WARM_UP_TIMEOUT_MS)) !== null;
   }
 
-  async compile(text: string): Promise<CompiledRule | null> {
-    const content = await this.#ask(text);
+  async compile(text: string, context?: CompileContext): Promise<CompiledRule | null> {
+    const content = await this.#ask(context === undefined ? text : besideLine(text, context));
     return content === null ? null : parseModelReply(content);
   }
 

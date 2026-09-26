@@ -1,8 +1,12 @@
-import type { CompiledRule, RuleCompiler } from "./types";
+import type { CompileContext, CompiledRule, RuleCompiler } from "./types";
 
-const attempt = async (compiler: RuleCompiler, text: string): Promise<CompiledRule | null> => {
+const attempt = async (
+  compiler: RuleCompiler,
+  text: string,
+  context?: CompileContext,
+): Promise<CompiledRule | null> => {
   try {
-    return await compiler.compile(text);
+    return await compiler.compile(text, context);
   } catch {
     return null;
   }
@@ -15,9 +19,9 @@ export class ChainedRuleCompiler implements RuleCompiler {
     this.#compilers = [...compilers];
   }
 
-  async compile(text: string): Promise<CompiledRule | null> {
+  async compile(text: string, context?: CompileContext): Promise<CompiledRule | null> {
     for (const compiler of this.#compilers) {
-      const rule = await attempt(compiler, text);
+      const rule = await attempt(compiler, text, context);
       if (rule !== null) return rule;
     }
     return null;
