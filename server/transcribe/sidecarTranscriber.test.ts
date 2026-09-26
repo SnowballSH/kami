@@ -69,7 +69,8 @@ describe("SidecarTranscriber", () => {
       if (url.endsWith("/health") && looks < 3) throw new TypeError("not yet");
       return sidecar(READS, () => Response.json({ text: "hi" }))(url, init);
     };
-    expect(await new SidecarTranscriber({ url: SIDECAR }, starting, FAST).warmUp()).toBe(true);
+    const patient = { ...FAST, warmUpTimeoutMs: 10_000 };
+    expect(await new SidecarTranscriber({ url: SIDECAR }, starting, patient).warmUp()).toBe(true);
     expect(looks).toBe(3);
   });
 
