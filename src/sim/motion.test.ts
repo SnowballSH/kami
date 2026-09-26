@@ -50,9 +50,7 @@ describe("motion laws on drawings", () => {
 
   it("slows a held spinning drawing in slow motion", () => {
     const sim = enter(board);
-    sim.addDrawing(
-      drawingOf("windmill", line({ x: -100, y: GROUND }, { x: 100, y: GROUND })),
-    );
+    sim.addDrawing(drawingOf("windmill", line({ x: -100, y: GROUND }, { x: 100, y: GROUND })));
     ruled(sim, "windmill");
     sim.setPhysics({ ...EARTH, bodies: [law(named("windmill"), { spin: 1 })] });
     sim.setTimeScale(0.2);
