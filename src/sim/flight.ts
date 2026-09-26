@@ -7,8 +7,8 @@ import { accelerationOf, airFrictionUnder } from "./worldPhysics";
 
 const ARC_TICK_LIMIT = 100_000;
 
-const pullPerTick = (gravity: Vec): number =>
-  Math.hypot(gravity.x, gravity.y) * FIXED_STEP_MS * FIXED_STEP_MS;
+/** Only gravity along the paper's down slows a jump straight up; its sideways part is drift, not pull. */
+const pullPerTick = (gravity: Vec): number => gravity.y * FIXED_STEP_MS * FIXED_STEP_MS;
 
 /** Replays matter-js's per-tick velocity update for a body thrown straight up, so the planner sees the same arc Alice will fly. */
 export const traceArc = (speed: number, pull: number, drag: number): BounceArc => {

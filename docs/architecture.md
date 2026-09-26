@@ -157,7 +157,11 @@ Alice is manually controlled by default. `?autopilot=on|off` overrides the devic
 HUD choice; only `"on"` enables self-driving, and a mode can forbid it. When enabled and no manual
 intent is held, `game/` hands the pilot a `Scene` — the board, Alice's snapshot, drawings with live
 poses, key/door progress, the Sumikui's snapshot if it is loose, and the sim's `walkSpeed`,
-`bounceArc(strength)` and `jumpArc` — and gets back a `WalkIntent`.
+`bounceArc(strength)` and `jumpArc` — and gets back a `WalkIntent`. The pilot plans in the paper's
+frame, as Alice walks in it: `tilt` and `worldSpin` turn the page on screen, never her down. The
+arcs (`sim/flight.ts`) replay a throw straight up against gravity's component along the paper's
+down (`gravity.y`), so a sideways component does not shorten a jump and gravity pointing up the
+paper makes the arc endless (no jump is planned).
 
 - **One pilot per Alice** (`game/party.ts`, see `docs/agency.md`). `Party` hires a `Pilot` for every body the sim reports (`sim.alices()`), keeps them matched to the `clones` fold, and each frame gives every pilot her own `Scene` — `alice` is that body, `others` are the rest — and sets that body's intent. The chart is built once per frame per set of inks and shared (`Charter` in `PilotOptions`); plans, stuck detectors and route memory are per pilot. Alice bodies are never stamped solid: `others` widen the chart's extent and any creature ink overlapping an Alice is skipped, so no Alice walls another in. A twin's pilot `wanders` when there is no errand — a deterministic stroll seeded by her index, turning about every `WANDER_PX` — so clones spread out rather than idle in a stack; Alice herself waits as before.
 
