@@ -1,5 +1,5 @@
 import { type Amount, readAmount } from "../amounts";
-import { type Comparatives, compare } from "../comparatives";
+import { type Comparatives, compare, FEWER, type Turning } from "../comparatives";
 import { type ScalarGoverns, scalarRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { ALICE, SUBJECTS } from "../subjects";
@@ -78,8 +78,10 @@ const HOT = vocabulary(`
   melting, burning, tropical
 `);
 const COLD = vocabulary("cold, colder, freezing, chilly, arctic, antarctic, frozen");
-const MORE = vocabulary("increase, increases, raise, raises, higher, up, more");
-const LESS = vocabulary("decrease, decreases, lower, lowers, down, less, drop");
+const TURNING: Turning = {
+  up: vocabulary("increase, increases, raise, raises, higher, up, more"),
+  down: vocabulary("lower, lowers, down, drop"),
+};
 const WEATHER = union(SUBJECTS.temperature, HOT, COLD);
 const NIGHT = vocabulary("night, nighttime, dark, darkness, midnight, dusk, evening, nightfall");
 const DAY = vocabulary("day, dawn, morning, noon, midday, bright, sunrise, sunshine, sunny");
@@ -199,8 +201,9 @@ const knownTo = (dial: Dial): Vocabulary =>
     INTENSIFIERS,
     UNDOING,
     OFF,
-    MORE,
-    LESS,
+    FEWER,
+    TURNING.up,
+    TURNING.down,
     ...dial.about,
     ...dial.readings.map((r) => r.words),
   );
@@ -214,8 +217,7 @@ const readDial = (dial: Dial, words: readonly string[]): number | null => {
   const reading = dial.readings.find(({ words: said }) => mentions(words, said));
   const value = reading === undefined ? dial.implied : reading.value;
   if (dial.compared === null) return value;
-  const said = { more: mentions(words, MORE), less: mentions(words, LESS) };
-  return compare(value, EARTH[dial.governs], dial.compared, said);
+  return compare(value, EARTH[dial.governs], dial.compared, words, TURNING);
 };
 
 /** The dials on Alice and on the weather; the older dials keep their own recognisers. */

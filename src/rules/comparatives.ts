@@ -1,3 +1,5 @@
+import { mentions, type Vocabulary, vocabulary } from "./vocabulary";
+
 /** What a dial reads for "more" and "less" said of it alone: "the rock weighs less". */
 export interface Comparatives {
   readonly more: number;
@@ -18,15 +20,33 @@ export const lessened = (value: number, plain: number, compared: Comparatives | 
   return plain !== 0 && value !== 0 ? (plain * plain) / value : weakened(value, plain);
 };
 
-/** A reading said with "more" or "less": "more" only says which way, "less" turns it around. */
+/** Words that compare a quality to its plain self, so they turn a reading around: "less heavy". */
+export const FEWER = vocabulary(`
+  less, fewer, lesser, decrease, decreases, decreased, reduce, reduces, reduced, lessen, lessens,
+  lessened, halve, halves, halved
+`);
+
+/**
+ * Words that turn a dial one way or the other when no reading says how: "temperature down",
+ * "the rock's weight is lower". Beside a reading they say where, not how much: "alice shrinks down".
+ */
+export interface Turning {
+  readonly up: Vocabulary;
+  readonly down: Vocabulary;
+}
+
+/** A reading said with a comparative: "less" turns it around, a turning word only sets an unread dial. */
 export const compare = (
   value: number | null,
   plain: number,
   compared: Comparatives | null,
-  said: { readonly more: boolean; readonly less: boolean },
+  words: readonly string[],
+  turning: Turning,
 ): number | null => {
-  if (said.less)
+  if (mentions(words, FEWER))
     return value === null ? (compared?.less ?? null) : lessened(value, plain, compared);
-  if (said.more && value === null) return compared?.more ?? null;
-  return value;
+  if (value !== null) return value;
+  if (mentions(words, turning.down)) return compared?.less ?? null;
+  if (mentions(words, turning.up)) return compared?.more ?? null;
+  return null;
 };
