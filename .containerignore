@@ -13,6 +13,7 @@ ml
 !ml/pyproject.toml
 !ml/uv.lock
 !ml/*.py
+!ml/eye-release.json
 !ml/handwriting
 scripts/local
 **/__pycache__

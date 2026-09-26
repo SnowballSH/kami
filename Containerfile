@@ -58,7 +58,8 @@ RUN uv python install "${PYTHON_VERSION}" \
     && uv sync --locked --no-default-groups --no-install-project --python "${PYTHON_VERSION}"
 COPY ml/handwriting ./handwriting
 RUN .venv/bin/python -m handwriting.fetch /app/models/handwriting
-COPY ml/*.py ./
+COPY ml/*.py ml/eye-release.json ./
+RUN .venv/bin/python eye_release.py /app/models/kami-eye
 RUN .venv/bin/python -m compileall -q -x '/\.venv/' . \
     && .venv/bin/python -c "import sidecar"
 
@@ -98,7 +99,7 @@ ENV NODE_ENV=production \
     KAMI_SIDECAR=auto \
     KAMI_SIDECAR_PYTHON=/app/ml/.venv/bin/python \
     KAMI_HANDWRITING_MODEL=/app/models/handwriting \
-    KAMI_EYE_MODEL=/models/kami-eye \
+    KAMI_EYE_MODEL=/app/models/kami-eye \
     KAMI_EYE_THREADS=1 \
     MONGOMS_SYSTEM_BINARY=/app/mongod/mongod \
     MONGOMS_VERSION=${MONGOD_VERSION} \

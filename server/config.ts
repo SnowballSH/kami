@@ -20,6 +20,7 @@ import { sidecarUrl } from "./recognition/sidecarUrl";
 import { type ManagedSidecarConfig, managedSidecarUrl } from "./sidecar/managed";
 
 const DEFAULT_PORT = 8787;
+const EYE_EXEMPLARS_DIRECTORY = "exemplars";
 const DEFAULT_CONTROLLER_UDP_PORT = 8788;
 const DEFAULT_RECOGNIZER_THREADS = 1;
 const DEFAULT_SIDECAR_PORT = 8790;
@@ -227,6 +228,13 @@ const beautifierFrom = (
   return endpointOf(sidecarUrl(recognizer.url, "complete"), apiKey ?? recognizer.apiKey);
 };
 
+/** The managed sidecar's Eye brings its own exemplar set, which covers every category. */
+const eyeExemplarsOf = (sidecar: ManagedSidecarConfig | null): string | null => {
+  if (sidecar === null) return null;
+  const exemplars = join(sidecar.eyeModel, EYE_EXEMPLARS_DIRECTORY);
+  return existsSync(exemplars) ? exemplars : null;
+};
+
 export const readConfig = (
   rawEnv: Env = process.env,
   readSecretFile?: FileReader,
@@ -260,7 +268,7 @@ export const readConfig = (
     ),
     quickdrawSnapshot:
       nonEmpty(env.KAMI_QUICKDRAW_SNAPSHOT) ?? join(embeddedDataDirectory, QUICKDRAW_SNAPSHOT_NAME),
-    sketchesDirectory: nonEmpty(env.KAMI_SKETCHES) ?? null,
+    sketchesDirectory: nonEmpty(env.KAMI_SKETCHES) ?? eyeExemplarsOf(sidecar),
     controllers: controllersFrom(env, access),
   };
 };

@@ -1,4 +1,7 @@
 // @vitest-environment node
+import { mkdirSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { readConfig } from "./config";
 
@@ -10,6 +13,19 @@ describe("readConfig", () => {
     expect(readConfig({ KAMI_SKETCHES: " /srv/exemplars " }).sketchesDirectory).toBe(
       "/srv/exemplars",
     );
+  });
+
+  it("summons from its own sidecar's Eye when that Eye has an exemplar set", () => {
+    const model = mkdtempSync(join(tmpdir(), "kami-eye-"));
+    mkdirSync(join(model, "exemplars"));
+    const eye = { KAMI_SIDECAR: "auto", KAMI_EYE_MODEL: model };
+    expect(readConfig(eye).sketchesDirectory).toBe(join(model, "exemplars"));
+    expect(readConfig({ ...eye, KAMI_SKETCHES: "/srv/exemplars" }).sketchesDirectory).toBe(
+      "/srv/exemplars",
+    );
+    expect(
+      readConfig({ KAMI_SIDECAR: "auto", KAMI_EYE_MODEL: "/nowhere" }).sketchesDirectory,
+    ).toBeNull();
   });
 
   it("uses a dedicated transcription model without changing the compiler", () => {
