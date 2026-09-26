@@ -1,4 +1,4 @@
-import type { PersistenceState } from "../persistence/types";
+import type { PersistenceFailure, PersistenceState } from "../persistence/types";
 import { el } from "./dom";
 import { activateOnTap } from "./tap";
 
@@ -22,6 +22,19 @@ const messageFor = (state: PersistenceState): string => {
     .join(" ");
 };
 
+const sameFailure = (a: PersistenceFailure, b: PersistenceFailure | undefined): boolean =>
+  a.operation === b?.operation && a.reason === b.reason && a.status === b.status;
+
+const sameState = (a: PersistenceState | null, b: PersistenceState | null): boolean =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    a.loading === b.loading &&
+    a.saving === b.saving &&
+    a.unsaved === b.unsaved &&
+    a.errors.length === b.errors.length &&
+    a.errors.every((error, index) => sameFailure(error, b.errors[index])));
+
 /** Whether the page is saved: a quiet line under the top-left cluster, with Retry when saving failed. */
 export class PersistenceStatus {
   private readonly label = el("span", {
@@ -34,6 +47,7 @@ export class PersistenceStatus {
     attrs: { type: "button", "aria-label": "Retry board persistence" },
   });
   readonly element = el("div", { className: "kami-persistence" }, [this.label, this.retry]);
+  private shown: PersistenceState | null | undefined;
 
   constructor(onRetry: () => void) {
     this.retry.hidden = true;
@@ -43,6 +57,8 @@ export class PersistenceStatus {
   }
 
   show(state: PersistenceState | null): void {
+    if (this.shown !== undefined && sameState(this.shown, state)) return;
+    this.shown = state;
     const message = state === null ? NOTHING_KEPT : messageFor(state);
     if (this.label.textContent !== message) {
       this.label.textContent = message;
