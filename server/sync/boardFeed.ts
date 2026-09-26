@@ -101,9 +101,12 @@ export class BoardFeed {
     this.#tell(page, { type: "presence", peer, alice: null });
   }
 
-  /** Where the board's feed stands now: a snapshot read after this misses nothing a follower would. */
+  /**
+   * Where the board's feed stands now: a snapshot read after this misses nothing a follower would. A
+   * board with no page stands where a new page would start, so reading one keeps nothing in memory.
+   */
   cursorOf(boardId: string): FeedCursor {
-    return { boot: this.boot, seq: this.#page(boardId).seq };
+    return { boot: this.boot, seq: this.#pages.get(boardId)?.seq ?? this.#forgottenSeq };
   }
 
   peers(boardId: string): readonly PeerId[] {

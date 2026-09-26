@@ -147,6 +147,21 @@ describe("BoardFeed", () => {
     expect(feed.pageCount).toBe(1);
   });
 
+  it("answers where an unseen board stands without keeping a page for it", () => {
+    let now = 0;
+    const feed = feedAt(() => now);
+    for (let i = 1; i <= 3; i++) feed.record("a", note(`n${i}`));
+    now += 2 * PAGE_IDLE_MS;
+    expect(feed.peers("a")).toEqual([]);
+    expect(feed.record("sweeps", note("n1")).seq).toBe(4);
+    for (let i = 0; i < 100; i++)
+      expect(feed.cursorOf(`unseen-${i}`)).toEqual({ boot: BOOT, seq: 3 });
+    expect(feed.pageCount).toBe(1);
+    const cursor = feed.cursorOf("later");
+    feed.record("later", note("n1"));
+    expect(seqs(heard(feed, "later", cursor).messages)).toEqual([4]);
+  });
+
   it("stops telling a listener that left", () => {
     const feed = feedAt();
     const { messages, stop } = heard(feed, "a", null);
