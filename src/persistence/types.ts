@@ -11,10 +11,21 @@ export interface StoredDrawing {
   readonly provenance?: InkProvenance;
 }
 
+/**
+ * Where a board's change feed stood: the server process's life (`boot`, null from a server that
+ * predates it) and the number of the last change it relayed. A device follows on from here.
+ */
+export interface FeedCursor {
+  readonly boot: string | null;
+  readonly seq: number;
+}
+
 export interface BoardSnapshot {
   readonly drawings: readonly StoredDrawing[];
   readonly notes: readonly Note[];
   readonly rules: readonly Rule[];
+  /** Where the feed stood when the board was read; absent from a store that relays nothing. */
+  readonly cursor?: FeedCursor;
 }
 
 export interface BoardSummary {

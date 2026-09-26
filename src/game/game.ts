@@ -38,7 +38,7 @@ import {
 } from "../modes";
 import type { EmbodimentTransition, GameMode, ModeDirector } from "../modes/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
-import type { BoardSnapshot, BoardStore, StoredDrawing } from "../persistence/types";
+import type { BoardSnapshot, BoardStore, FeedCursor, StoredDrawing } from "../persistence/types";
 import type { PenReader } from "../reading/types";
 import type { LiveRecognizer, Sighting } from "../recognition/types";
 import { motionAllowed } from "../render/animation/motion";
@@ -594,7 +594,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   onClearBoard(): void {
     this.modules.store.clear(this.board.id);
-    void this.open(this.board.id, { remember: false });
+    void this.open(this.board.id, { blank: true });
   }
 
   onRestartRun(): void {
@@ -619,11 +619,16 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
   }
 
-  private async open(boardId: string, { remember = true } = {}): Promise<void> {
+  /**
+   * Opens a board: loads it, then follows it when shared. `blank` opens the same page again emptied,
+   * as after a clear or a restart: nothing is loaded, and a shared page goes on being followed.
+   */
+  private async open(boardId: string, { blank = false } = {}): Promise<void> {
     const { sim, cat, renderer, store, onBoardOpened } = this.modules;
     this.epoch += 1;
     const epoch = this.epoch;
-    this.loading = remember;
+    if (!blank) this.leavePage();
+    this.loading = !blank;
     this.board = this.sketch(boardId);
     this.nextRoom = null;
 
@@ -653,7 +658,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.stuck.reset(this.nowMs);
     if (this.board.page === "arena") this.pinArena(renderer.viewport());
     else this.camera.frame(this.board.spawn, renderer.viewport());
-    this.followPage(boardId);
     this.writeWordmark();
     const [firstZone] = this.board.zones;
     if (firstZone === undefined) cat.enterRoom(BLANK_BOARD_BRIEF);
@@ -677,12 +681,18 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     void this.listBoards(epoch);
 
     if (this.director.mode.opening.freshPage) store.clear(boardId);
-    if (!remember) return;
+    if (blank || this.director.mode.opening.freshPage) {
+      if (this.unfollow === null) this.followPage(boardId, null);
+      this.loading = false;
+      return;
+    }
     const loadingNote = this.kamiWrites("Loading board…", this.board.spawn, { spoken: false });
+    let cursor: FeedCursor | null = null;
     try {
-      if (!this.director.mode.opening.freshPage) {
-        const snapshot = await store.load(boardId);
-        if (epoch === this.epoch) this.restore(snapshot);
+      const snapshot = await store.load(boardId);
+      if (epoch === this.epoch) {
+        this.restore(snapshot);
+        cursor = snapshot.cursor ?? null;
       }
     } catch {
       // The store exposes the failure; drawing remains available.
@@ -690,6 +700,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       if (epoch === this.epoch) {
         this.notes.remove(loadingNote.id);
         this.loading = false;
+        this.followPage(boardId, cursor);
       }
     }
   }
@@ -747,31 +758,39 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     return this.director.mode.sharing === "live" && (this.modules.link ?? null) !== null;
   }
 
-  /** On a shared page, hears what other devices do to it and tells them where Alice is. */
-  private followPage(boardId: string): void {
+  private leavePage(): void {
     this.unfollow?.();
     this.unfollow = null;
     this.ghosts.clear();
     this.ghostsHeardAtMs.clear();
+  }
+
+  /**
+   * On a shared page, hears what other devices do to it — from `since`, where its snapshot was
+   * read — and tells them where Alice is. Leaving the page (`leavePage`) silences the old stream.
+   */
+  private followPage(boardId: string, since: FeedCursor | null): void {
+    this.leavePage();
     const { link } = this.modules;
     if (!this.sharesLive || link === undefined || link === null) return;
-    const epoch = this.epoch;
-    this.unfollow = link.follow(boardId, {
-      changed: (change) => {
-        if (epoch === this.epoch) this.receive(change);
+    this.unfollow = link.follow(
+      boardId,
+      {
+        changed: (change) => this.receive(change),
+        seen: (peer, alice) => {
+          if (alice === null) this.forgetGhost(peer);
+          else {
+            this.ghosts.set(peer, alice);
+            this.ghostsHeardAtMs.set(peer, this.nowMs);
+          }
+        },
+        resync: () => {
+          this.unfollow = null;
+          void this.open(boardId);
+        },
       },
-      seen: (peer, alice) => {
-        if (epoch !== this.epoch) return;
-        if (alice === null) this.forgetGhost(peer);
-        else {
-          this.ghosts.set(peer, alice);
-          this.ghostsHeardAtMs.set(peer, this.nowMs);
-        }
-      },
-      resync: () => {
-        if (epoch === this.epoch) void this.open(boardId);
-      },
-    });
+      since,
+    );
   }
 
   /** A change another device made (or this one's, echoed back): it lands the way a local one does. */
@@ -804,7 +823,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         }
         return;
       case "clear":
-        void this.open(this.board.id, { remember: false });
+        void this.open(this.board.id, { blank: true });
         return;
     }
   }
@@ -1154,7 +1173,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
   private restart(): void {
     this.restartDueAtMs = null;
-    void this.open(this.board.id, { remember: false });
+    void this.open(this.board.id, { blank: true });
     const { again } = this.director.mode.card;
     if (again !== undefined) this.hud.showTitleCard({ ...this.director.mode.card, ...again });
   }

@@ -13,6 +13,8 @@ export class FakeEventSource implements EventSourceLike {
     message: [],
     error: [],
   };
+  /** Like a real stream, nothing sent before anyone listens is lost: it waits for the first listener. */
+  private readonly unheard: unknown[] = [];
 
   constructor(url: string) {
     this.url = url;
@@ -29,6 +31,7 @@ export class FakeEventSource implements EventSourceLike {
   addEventListener(type: "error", listener: () => void): void;
   addEventListener(type: StreamEventType, listener: StreamListener): void {
     this.listeners[type].push(listener);
+    if (type === "message") for (const data of this.unheard.splice(0)) listener({ data });
   }
 
   close(): void {
@@ -36,7 +39,8 @@ export class FakeEventSource implements EventSourceLike {
   }
 
   send(data: unknown): void {
-    this.dispatch("message", data);
+    if (this.listeners.message.length === 0) this.unheard.push(data);
+    else this.dispatch("message", data);
   }
 
   sendState(state: Partial<ControllerState>): void {

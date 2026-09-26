@@ -16,12 +16,14 @@ import type { DatabaseConnection } from "../db/connect";
 import { computeFeature } from "../quickdraw/feature";
 import { QuickdrawRecognizer } from "../quickdraw/recognizer";
 import type { Reading } from "../recognition/types";
+import { BoardFeed } from "../sync/boardFeed";
 import { startMemoryDatabase } from "../testing/memoryDatabase";
 import { circleSketch, lineSketch } from "../testing/sketches";
 import { type ApiDependencies, createApi, type RankOptions, type SketchRecognizer } from "./api";
 import type { Router } from "./router";
 
 const ORIGIN = "http://kami.test";
+const BOOT = "life";
 
 const MUSHROOM_RULING: Ruling = {
   name: "a bouncy mushroom",
@@ -100,8 +102,13 @@ const call = (method: string, path: string, body?: unknown): Promise<Response> =
     }),
   );
 
-const loadBoard = async (boardId: string): Promise<BoardSnapshot> =>
+const readBoard = async (boardId: string): Promise<BoardSnapshot> =>
   (await call("GET", `/api/boards/${boardId}`)).json() as Promise<BoardSnapshot>;
+
+const loadBoard = async (boardId: string): Promise<Omit<BoardSnapshot, "cursor">> => {
+  const { drawings, notes, rules } = await readBoard(boardId);
+  return { drawings, notes, rules };
+};
 
 beforeAll(async () => {
   connection = await startMemoryDatabase();
@@ -138,7 +145,15 @@ beforeAll(async () => {
   });
   clock = new ManualClock();
   controllers = new InMemoryControllerHub(clock);
-  apiParts = () => ({ boards, recognizer, compiler, scenes, controllers, transcriber });
+  apiParts = () => ({
+    boards,
+    recognizer,
+    compiler,
+    scenes,
+    controllers,
+    transcriber,
+    feed: new BoardFeed({ boot: BOOT }),
+  });
   api = createApi({ ...apiParts(), beautifier });
 }, 120_000);
 
@@ -858,7 +873,7 @@ describe("shared pages", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/event-stream");
     const events = readEvents(response);
-    expect(await events.nextEvent()).toEqual({ type: "cursor", seq: 0 });
+    expect(await events.nextEvent()).toEqual({ type: "cursor", seq: 0, boot: BOOT });
 
     await call("PUT", "/api/boards/together/drawings/d1", storedDrawing("d1"));
     await call("PUT", "/api/boards/elsewhere/drawings/d9", storedDrawing("d9"));
@@ -896,7 +911,7 @@ describe("shared pages", () => {
     const stream = readEvents(await call("GET", "/api/boards/resumed/events?since=1"));
     expect(await stream.nextBlock()).toBe("retry: 1000");
     expect(await stream.nextBlock()).toBe(
-      `id: 2\ndata: ${JSON.stringify({ type: "put", kind: "notes", id: "n2", entity: note("n2", "two", 2), seq: 2 })}`,
+      `id: ${BOOT}:2\ndata: ${JSON.stringify({ type: "put", kind: "notes", id: "n2", entity: note("n2", "two", 2), seq: 2 })}`,
     );
     await stream.cancel();
 
@@ -912,7 +927,7 @@ describe("shared pages", () => {
     const lost = readEvents(await call("GET", "/api/boards/resumed/events?since=99"));
     expect(await lost.nextBlock()).toBe("retry: 1000");
     expect(await lost.nextBlock()).toBe(
-      `id: 3\ndata: ${JSON.stringify({ type: "resync", seq: 3 })}`,
+      `id: ${BOOT}:3\ndata: ${JSON.stringify({ type: "resync", seq: 3, boot: BOOT })}`,
     );
     await lost.cancel();
   });
@@ -922,23 +937,51 @@ describe("shared pages", () => {
     const opened = readEvents(await call("GET", "/api/boards/quiet/events"));
     expect(await opened.nextBlock()).toBe("retry: 1000");
     expect(await opened.nextBlock()).toBe(
-      `id: 1\ndata: ${JSON.stringify({ type: "cursor", seq: 1 })}`,
+      `id: ${BOOT}:1\ndata: ${JSON.stringify({ type: "cursor", seq: 1, boot: BOOT })}`,
     );
     await opened.cancel();
 
     await call("PUT", "/api/boards/quiet/notes/n2", note("n2", "two", 2));
     const reconnected = readEvents(
       await api.handle(
-        new Request(`${ORIGIN}/api/boards/quiet/events`, { headers: { "last-event-id": "1" } }),
+        new Request(`${ORIGIN}/api/boards/quiet/events`, {
+          headers: { "last-event-id": `${BOOT}:1` },
+        }),
       ),
     );
     expect(await reconnected.nextEvent()).toMatchObject({ type: "put", seq: 2, id: "n2" });
     await reconnected.cancel();
   });
 
+  it("says with the board where its feed stood, so a device follows on from there", async () => {
+    expect((await readBoard("cursored")).cursor).toEqual({ boot: BOOT, seq: 0 });
+    await call("PUT", "/api/boards/cursored/notes/n1", note("n1", "one", 1));
+    const { cursor, notes } = await readBoard("cursored");
+    expect(cursor).toEqual({ boot: BOOT, seq: 1 });
+    expect(notes).toHaveLength(1);
+    await call("PUT", "/api/boards/cursored/notes/n2", note("n2", "two", 2));
+    const resumed = readEvents(await call("GET", `/api/boards/cursored/events?since=${BOOT}:1`));
+    expect(await resumed.nextEvent()).toMatchObject({ type: "put", seq: 2, id: "n2" });
+    await resumed.cancel();
+  });
+
+  it("asks a device resuming from another life of the server to reload", async () => {
+    await call("PUT", "/api/boards/reborn/notes/n1", note("n1", "one", 1));
+    await call("PUT", "/api/boards/reborn/notes/n2", note("n2", "two", 2));
+    const stale = readEvents(
+      await api.handle(
+        new Request(`${ORIGIN}/api/boards/reborn/events`, {
+          headers: { "last-event-id": "longgone:1" },
+        }),
+      ),
+    );
+    expect(await stale.nextEvent()).toEqual({ type: "resync", seq: 2, boot: BOOT });
+    await stale.cancel();
+  });
+
   it("relays where each device's Alice is, and takes her off the page when its stream ends", async () => {
     const laptop = readEvents(await call("GET", "/api/boards/presence/events?peer=laptop"));
-    expect(await laptop.nextEvent()).toEqual({ type: "cursor", seq: 0 });
+    expect(await laptop.nextEvent()).toEqual({ type: "cursor", seq: 0, boot: BOOT });
 
     const controller = new AbortController();
     const ipad = readEvents(
@@ -948,7 +991,7 @@ describe("shared pages", () => {
         }),
       ),
     );
-    expect(await ipad.nextEvent()).toEqual({ type: "cursor", seq: 0 });
+    expect(await ipad.nextEvent()).toEqual({ type: "cursor", seq: 0, boot: BOOT });
 
     const reported = await call("POST", "/api/boards/presence/presence", {
       peer: "ipad",
@@ -958,7 +1001,7 @@ describe("shared pages", () => {
     expect(await laptop.nextEvent()).toEqual({ type: "presence", peer: "ipad", alice: GHOST });
 
     const late = readEvents(await call("GET", "/api/boards/presence/events"));
-    expect(await late.nextEvent()).toEqual({ type: "cursor", seq: 0 });
+    expect(await late.nextEvent()).toEqual({ type: "cursor", seq: 0, boot: BOOT });
     expect(await late.nextEvent()).toEqual({ type: "presence", peer: "ipad", alice: GHOST });
 
     controller.abort();

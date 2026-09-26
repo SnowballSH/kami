@@ -83,6 +83,18 @@ describe("HttpBoardStore reads", () => {
     expect(seen).toEqual(["/api/boards/my%20game"]);
   });
 
+  it("keeps where the page's feed stood when it was read, over any unsaved change", async () => {
+    const cursor = { boot: "life", seq: 12 };
+    const store = new HttpBoardStore(async (_path, init) =>
+      init?.method === "PUT"
+        ? new Response(null, { status: 503 })
+        : Response.json({ drawings: [], notes: [], rules: [], cursor }),
+    );
+    store.saveNote("my game", note);
+    await store.whenIdle();
+    expect(await store.load("my game")).toEqual({ drawings: [], notes: [note], rules: [], cursor });
+  });
+
   it("lists boards", async () => {
     const boards = [{ id: "wonderland", drawings: 2, rules: 1 }];
     const store = new HttpBoardStore(async () => Response.json({ boards }));

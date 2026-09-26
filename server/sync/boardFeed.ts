@@ -1,4 +1,11 @@
-import type { BoardChange, BoardEdit, FeedMessage, Ghost, PeerId } from "../../src/sync/wire";
+import type {
+  BoardChange,
+  BoardEdit,
+  FeedCursor,
+  FeedMessage,
+  Ghost,
+  PeerId,
+} from "../../src/sync/wire";
 
 export type Publish = (message: FeedMessage) => void;
 
@@ -19,6 +26,16 @@ const SWEEP_EVERY_MS = 60_000;
  */
 export const PRESENCE_GONE_AFTER_MS = 5_000;
 
+const BOOT_LENGTH = 12;
+
+/** A name for this process's life, so a cursor from before a restart is never read in the new numbering. */
+export const mintBoot = (): string => crypto.randomUUID().replaceAll("-", "").slice(0, BOOT_LENGTH);
+
+export interface BoardFeedOptions {
+  readonly now?: () => number;
+  readonly boot?: string;
+}
+
 interface Page {
   seq: number;
   touchedAtMs: number;
@@ -33,6 +50,8 @@ interface Page {
  * live side of the board repository. In memory on purpose — the repository remembers, this relays.
  */
 export class BoardFeed {
+  readonly boot: string;
+  readonly #now: () => number;
   readonly #pages = new Map<string, Page>();
   /**
    * The highest number any forgotten board had reached. A new page counts on from here, so a cursor a
@@ -41,7 +60,9 @@ export class BoardFeed {
   #forgottenSeq = 0;
   #sweptAtMs: number;
 
-  constructor(private readonly now: () => number = Date.now) {
+  constructor({ now = Date.now, boot = mintBoot() }: BoardFeedOptions = {}) {
+    this.boot = boot;
+    this.#now = now;
     this.#sweptAtMs = now();
   }
 
@@ -65,7 +86,7 @@ export class BoardFeed {
 
   announce(boardId: string, peer: PeerId, alice: Ghost): void {
     const page = this.#page(boardId);
-    page.peers.set(peer, { alice, heardAtMs: this.now() });
+    page.peers.set(peer, { alice, heardAtMs: this.#now() });
     this.#tell(page, { type: "presence", peer, alice });
     this.#forgetTheSilent(page);
   }
@@ -74,6 +95,11 @@ export class BoardFeed {
     const page = this.#pages.get(boardId);
     if (page === undefined || !page.peers.delete(peer)) return;
     this.#tell(page, { type: "presence", peer, alice: null });
+  }
+
+  /** Where the board's feed stands now: a snapshot read after this misses nothing a follower would. */
+  cursorOf(boardId: string): FeedCursor {
+    return { boot: this.boot, seq: this.#page(boardId).seq };
   }
 
   peers(boardId: string): readonly PeerId[] {
@@ -86,25 +112,26 @@ export class BoardFeed {
   /**
    * Catches the listener up, then keeps it posted. With no `since` it hears where the log stands
    * (`cursor`) and the board is expected to be loaded afresh; with one, every change after it — or
-   * `resync` when that is further back than the log reaches, or from before a restart.
+   * `resync` when that is further back than the log reaches, or from another life of the server. A
+   * cursor without a boot is taken to be from this one.
    */
-  subscribe(boardId: string, since: number | null, listener: Publish): Unsubscribe {
+  subscribe(boardId: string, since: FeedCursor | null, listener: Publish): Unsubscribe {
     const page = this.#page(boardId);
-    if (since === null) listener({ type: "cursor", seq: page.seq });
-    else if (since > page.seq || (since < page.seq && !this.#reaches(page, since))) {
-      listener({ type: "resync", seq: page.seq });
-    } else for (const { change } of page.log) if (change.seq > since) listener(change);
+    if (since === null) listener({ type: "cursor", seq: page.seq, boot: this.boot });
+    else if (!this.#follows(page, since))
+      listener({ type: "resync", seq: page.seq, boot: this.boot });
+    else for (const { change } of page.log) if (change.seq > since.seq) listener(change);
     this.#forgetTheSilent(page);
     for (const [peer, { alice }] of page.peers) listener({ type: "presence", peer, alice });
     page.listeners.add(listener);
     return () => {
       page.listeners.delete(listener);
-      page.touchedAtMs = this.now();
+      page.touchedAtMs = this.#now();
     };
   }
 
   #forgetTheSilent(page: Page): void {
-    const nowMs = this.now();
+    const nowMs = this.#now();
     for (const [peer, { heardAtMs }] of page.peers) {
       if (nowMs - heardAtMs <= PRESENCE_GONE_AFTER_MS) continue;
       page.peers.delete(peer);
@@ -112,9 +139,11 @@ export class BoardFeed {
     }
   }
 
-  #reaches(page: Page, since: number): boolean {
+  #follows(page: Page, { boot, seq }: FeedCursor): boolean {
+    if (boot !== null && boot !== this.boot) return false;
+    if (seq === page.seq) return true;
     const oldest = page.log[0];
-    return oldest !== undefined && oldest.change.seq <= since + 1;
+    return seq < page.seq && oldest !== undefined && oldest.change.seq <= seq + 1;
   }
 
   #tell(page: Page, message: FeedMessage): void {
@@ -122,7 +151,7 @@ export class BoardFeed {
   }
 
   #page(boardId: string): Page {
-    const nowMs = this.now();
+    const nowMs = this.#now();
     if (nowMs - this.#sweptAtMs >= SWEEP_EVERY_MS) this.#sweep(nowMs);
     const existing = this.#pages.get(boardId);
     if (existing !== undefined) {

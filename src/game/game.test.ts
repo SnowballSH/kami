@@ -2717,6 +2717,51 @@ describe("Game on a shared page", () => {
     expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
   });
 
+  const eraseTheInk = async (player: Player, index: number): Promise<void> => {
+    const ink = player.renderer.lastFrame?.inks[index];
+    const pose = player.renderer.lastFrame?.world.drawings.find((d) => d.id === ink?.drawing.id);
+    const point = ink?.drawing.strokes[0]?.[4];
+    if (pose === undefined || point === undefined) throw new Error("no drawing to erase");
+    await player.erase(poseToWorld(point, pose.pose));
+  };
+
+  it("misses nothing another device does while the page loads, nor lets the load undo it", async () => {
+    const page = new SharedPage();
+    const mine = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(ALICE, 0),
+    });
+    await mine.arrive();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    const release = page.holdLoads();
+    const theirs = new Player("together", {
+      mode: SANDBOX_MODE,
+      store: page,
+      link: page.link(BOB, 0),
+    });
+    const arriving = theirs.arrive();
+    await eraseTheInk(mine, 0);
+    await mine.draw(line({ x: 620, y: -200 }, { x: 900, y: -200 }));
+    release();
+    await arriving;
+    await theirs.wait(50);
+    expect(theirs.renderer.lastFrame?.inks.map((ink) => ink.drawing.id)).toEqual(
+      mine.renderer.lastFrame?.inks.map((ink) => ink.drawing.id),
+    );
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
+  });
+
+  it("carries on from another device's clear without opening a new stream", async () => {
+    const { page, mine, theirs } = await together();
+    const streams = page.streamsOf(BOB).length;
+    mine.game.onClearBoard();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    await theirs.wait(50);
+    expect(page.streamsOf(BOB)).toHaveLength(streams);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
+  });
+
   const faraway = (id: string, createdAt = Date.now()): Note => ({
     id: id as NoteId,
     author: "player",

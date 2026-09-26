@@ -162,7 +162,10 @@ export const createApi = ({
     })
     .on("GET", "/api/boards/:board", async ({ params }) => {
       const boardId = parseWith(boardIdSchema, params.board, "board id");
-      return boardId.ok ? json(await boards.snapshot(boardId.value)) : boardId.response;
+      if (!boardId.ok) return boardId.response;
+      // Read before the board: a change landing in between is then replayed to whoever follows on from here.
+      const cursor = feed.cursorOf(boardId.value);
+      return json({ ...(await boards.snapshot(boardId.value)), cursor });
     })
     .on("DELETE", "/api/boards/:board", async ({ params }) => {
       const boardId = parseWith(boardIdSchema, params.board, "board id");

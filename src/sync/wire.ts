@@ -3,11 +3,12 @@ import type { DrawingId } from "../ink/types";
 import type { Note, NoteId } from "../notes/types";
 import {
   entityIdSchema,
+  FEED_BOOT_PATTERN,
   noteSchema,
   ruleSchema,
   storedDrawingSchema,
 } from "../persistence/schemas";
-import type { StoredDrawing } from "../persistence/types";
+import type { FeedCursor, StoredDrawing } from "../persistence/types";
 import type { Rule, RuleId } from "../rules/types";
 import type { AliceLook, AliceSnapshot, Ride } from "../sim/types";
 
@@ -25,6 +26,23 @@ export const GHOST_LOOK: AliceLook = { kind: "alice" };
 export const ghostOf = (alice: AliceSnapshot): Ghost => ({ ...alice, look: GHOST_LOOK });
 
 const seqSchema = z.number().int().nonnegative();
+const bootSchema = z.string().regex(FEED_BOOT_PATTERN);
+
+export { FEED_BOOT_PATTERN } from "../persistence/schemas";
+export type { FeedCursor } from "../persistence/types";
+
+const CURSOR_PATTERN = /^(?:([a-z0-9]{1,32}):)?(\d{1,15})$/;
+
+/** A cursor as `since` and the event ids carry it: `<boot>:<seq>`, or a bare `<seq>` without a boot. */
+export const formatCursor = ({ boot, seq }: FeedCursor): string =>
+  boot === null ? `${seq}` : `${boot}:${seq}`;
+
+export const parseCursor = (raw: string): FeedCursor | null => {
+  const match = CURSOR_PATTERN.exec(raw);
+  if (match === null) return null;
+  const seq = Number(match[2]);
+  return Number.isSafeInteger(seq) ? { boot: match[1] ?? null, seq } : null;
+};
 export const peerIdSchema = z.string().regex(PEER_ID_PATTERN) as unknown as z.ZodType<PeerId>;
 
 const brandedId = <Id extends string>() => entityIdSchema as unknown as z.ZodType<Id>;
@@ -101,8 +119,8 @@ export type BoardEdit = BoardChange extends infer Change
 /** Everything `GET /api/boards/:board/events` sends. */
 export type FeedMessage =
   | BoardChange
-  | { readonly type: "cursor"; readonly seq: number }
-  | { readonly type: "resync"; readonly seq: number }
+  | { readonly type: "cursor"; readonly seq: number; readonly boot?: string }
+  | { readonly type: "resync"; readonly seq: number; readonly boot?: string }
   | { readonly type: "presence"; readonly peer: PeerId; readonly alice: Ghost | null };
 
 /** A deletion by kind and id, as the server hears it: the ids are opaque to it. */
@@ -166,8 +184,8 @@ export const boardChangeSchema: z.ZodType<BoardChange> = z.discriminatedUnion("t
 
 export const feedMessageSchema: z.ZodType<FeedMessage> = z.union([
   boardChangeSchema,
-  z.object({ type: z.literal("cursor"), seq: seqSchema }),
-  z.object({ type: z.literal("resync"), seq: seqSchema }),
+  z.object({ type: z.literal("cursor"), seq: seqSchema, boot: bootSchema.exactOptional() }),
+  z.object({ type: z.literal("resync"), seq: seqSchema, boot: bootSchema.exactOptional() }),
   z.object({ type: z.literal("presence"), peer: peerIdSchema, alice: ghostSchema.nullable() }),
 ]);
 

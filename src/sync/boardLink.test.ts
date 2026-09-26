@@ -119,6 +119,42 @@ describe("BoardLink", () => {
     expect(ears.resyncs).toBe(1);
   });
 
+  it("follows on from where the page was loaded, and hands each change on once", () => {
+    const link = linkWith();
+    const ears = new Ears();
+    link.follow(BOARD, ears.listener, { boot: "life", seq: 5 });
+    const source = FakeEventSource.latest();
+    expect(source.url).toBe(`${boardEventsPath(BOARD, ME)}&since=life%3A5`);
+    expect(source.url).toBe(boardEventsPath(BOARD, ME, { boot: "life", seq: 5 }));
+    for (const seq of [4, 5, 6, 6, 7])
+      source.send(JSON.stringify({ seq, type: "put", kind: "notes", id: NOTE.id, entity: NOTE }));
+    expect(ears.changes.map((change) => change.seq)).toEqual([6, 7]);
+  });
+
+  it("takes the opening cursor as where it stands when it followed from now", () => {
+    const link = linkWith();
+    const ears = new Ears();
+    link.follow(BOARD, ears.listener);
+    const source = FakeEventSource.latest();
+    source.send(JSON.stringify({ type: "cursor", seq: 3, boot: "life" }));
+    source.send(JSON.stringify({ seq: 3, type: "clear" }));
+    source.send(JSON.stringify({ seq: 4, type: "clear" }));
+    expect(ears.changes.map((change) => change.seq)).toEqual([4]);
+  });
+
+  it("stops the stream when told to reload, and hears nothing more from it", () => {
+    const link = linkWith();
+    const ears = new Ears();
+    link.follow(BOARD, ears.listener, { boot: "life", seq: 0 });
+    const source = FakeEventSource.latest();
+    source.send(JSON.stringify({ type: "resync", seq: 9, boot: "life" }));
+    source.send(JSON.stringify({ seq: 10, type: "clear" }));
+    expect(ears.resyncs).toBe(1);
+    expect(source.closed).toBe(true);
+    expect(link.boardId).toBeNull();
+    expect(ears.changes).toEqual([]);
+  });
+
   it("stops listening to a stream it has left, even if it still speaks", () => {
     const link = linkWith();
     const ears = new Ears();
