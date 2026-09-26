@@ -7,6 +7,7 @@ import { ALICE } from "../subjects";
 import { besides, targetOf } from "../targets";
 import { type BodyGoverns, type CompiledRule, STILL, type Target } from "../types";
 import {
+  affirmed,
   INTENSIFIERS,
   mentions,
   NEGATION,
@@ -223,7 +224,7 @@ const DIALS: readonly KnownDial[] = [
       { words: LIGHT, value: LIGHTER },
     ],
     graded: true,
-    compared: { more: HEAVIER, less: LIGHTER },
+    compared: { more: HEAVIER, less: LIGHTER, lessening: "contrary" },
     implied: null,
     fromAmount: multiplier,
   }),
@@ -249,7 +250,7 @@ const DIALS: readonly KnownDial[] = [
       { words: GRIPPY, value: STICKY_GRIP },
     ],
     graded: true,
-    compared: { more: MORE_GRIP, less: LESS_GRIP },
+    compared: { more: MORE_GRIP, less: LESS_GRIP, lessening: "softened" },
     implied: null,
     fromAmount: multiplier,
   }),
@@ -262,7 +263,7 @@ const DIALS: readonly KnownDial[] = [
       { words: SLOW, value: SLUGGISH },
     ],
     graded: true,
-    compared: { more: QUICK, less: SLUGGISH },
+    compared: { more: QUICK, less: SLUGGISH, lessening: "contrary" },
     implied: null,
     fromAmount: multiplier,
   }),
@@ -285,7 +286,7 @@ const DIALS: readonly KnownDial[] = [
       { words: SMALL, value: TINY },
     ],
     graded: true,
-    compared: { more: HUGE, less: TINY },
+    compared: { more: HUGE, less: TINY, lessening: "contrary" },
     implied: null,
     fromAmount: multiplier,
   }),
@@ -347,6 +348,8 @@ const unsays = (dial: BodyDial, words: readonly string[]): boolean =>
   mentions(words, NEGATION) || (dial.graded && mentions(words, NORMAL));
 
 const readDial = (dial: BodyDial, words: readonly string[]): number | null => {
+  const affirmative = affirmed(words);
+  if (affirmative !== null) return isAbout(dial, affirmative) ? readDial(dial, affirmative) : null;
   if (unsays(dial, words)) return ordinary(dial.governs);
   const amount = readAmount(words);
   if (amount !== null) return dial.fromAmount(amount);

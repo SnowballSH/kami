@@ -1,19 +1,25 @@
 import { isNumeral } from "./amounts";
 import type { Sentence } from "./normalise";
 import type { Target } from "./types";
+import { VERBS } from "./verbs";
 import { mentions, QUALIFIERS, UNIVERSAL, type Vocabulary } from "./vocabulary";
 
 const isNamingWord = (word: string, known: Vocabulary): boolean =>
   !known.has(word) && !isNumeral(word);
 
+const endsName = (word: string, known: Vocabulary): boolean =>
+  !isNamingWord(word, known) || QUALIFIERS.has(word) || VERBS.has(word);
+
 /**
  * "the lily pads drift left": the pointed-at word and the unknown words right after it, up to the
- * first word that describes the sentence instead ("the rock suddenly floats" names the rock).
+ * first word that describes the sentence instead ("the rock suddenly floats" names the rock) or
+ * says what the drawing does, even a doing this reading has no word for ("the bird flies slowly"
+ * names the bird, not a "bird flies").
  */
 const phraseFrom = (words: readonly string[], head: string, known: Vocabulary): string[] => {
   const at = words.indexOf(head);
   const after = at < 0 ? [] : words.slice(at + 1);
-  const end = after.findIndex((word) => !isNamingWord(word, known) || QUALIFIERS.has(word));
+  const end = after.findIndex((word) => endsName(word, known));
   return [head, ...(end < 0 ? after : after.slice(0, end))];
 };
 

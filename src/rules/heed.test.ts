@@ -47,6 +47,11 @@ const ALONE: readonly Understood[] = [
   ["the cat is wild", heed(named("cat"), 0), "the cat: goes its own way"],
 ];
 
+const GOES_ON: readonly Understood[] = [
+  ["the dog doesn't stop following me", heed(named("dog"), 1), "the dog: follows Alice"],
+  ["the cat never stops chasing me", heed(named("cat"), 1), "the cat: follows Alice"],
+];
+
 const LEFT_TO_OTHERS: readonly string[] = [
   "alice chases the cat",
   "alice follows the dog",
@@ -56,12 +61,16 @@ const LEFT_TO_OTHERS: readonly string[] = [
   "the cat",
   "the cat is fast",
   "follow me",
+  "the balloon drifts away",
+  "the clouds drift away",
+  "the cloud floats away",
+  "the ball rolls away",
 ];
 
 describe("heed laws", () => {
   const compiler = createRuleCompiler();
 
-  it.each([...FOLLOWS, ...FLEES, ...ALONE])("reads %j", async (says, effect, gloss) => {
+  it.each([...FOLLOWS, ...FLEES, ...ALONE, ...GOES_ON])("reads %j", async (says, effect, gloss) => {
     expect(await compiler.compile(says)).toEqual({ effect, explanation: gloss });
   });
 

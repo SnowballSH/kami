@@ -2,7 +2,7 @@ import { bodyRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { ALICE } from "../subjects";
 import { besides, targetOf, wordsNaming } from "../targets";
-import { mentions, union, type Vocabulary, vocabulary } from "../vocabulary";
+import { affirmed, mentions, union, type Vocabulary, vocabulary } from "../vocabulary";
 
 const FOLLOWS = vocabulary(`
   follows, follow, following, followed, chases, chase, chasing, chased, tails, trails, shadows,
@@ -62,5 +62,5 @@ export const recogniseHeed: Recogniser = (sentence) => {
   if (head !== undefined && her >= 0 && words.indexOf(head) > her) return null;
   const rest = besides(words, of);
   if (!understands(rest, HEED_WORDS)) return null;
-  return bodyRule("heed", of, heedOf(rest));
+  return bodyRule("heed", of, heedOf(affirmed(rest) ?? rest));
 };
