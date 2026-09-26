@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { INPUT_LIMITS } from "../../src/core/inputLimits";
 import {
   type AccessConfig,
   covers,
@@ -10,7 +11,7 @@ import {
   secretKindOf,
 } from "./accessConfig";
 import { clientOf, LoginThrottle } from "./loginThrottle";
-import { badRequest, json, notFound, preflight } from "./responses";
+import { badRequest, json, notFound, type Parsed, parseTextBody, preflight } from "./responses";
 import { Sessions } from "./sessions";
 import { WorkLimit } from "./workLimit";
 
@@ -29,7 +30,11 @@ const METHODS = "GET, PUT, POST, DELETE, OPTIONS";
 const HEADERS = new Set(["content-type", "authorization"]);
 const MODEL_BODY_TIMEOUT_MS = 30_000;
 const MAX_MODEL_RESPONSE_BYTES = 8 * 1024 * 1024;
-const MAX_SIGN_IN_BODY_CHARS = MAX_PASSWORD_LENGTH * 4;
+/** A request body is read in full, within this long, before it may take a model or sign-in slot. */
+const REQUEST_BODY_TIMEOUT_MS = 10_000;
+const MAX_MODEL_REQUEST_BYTES = Math.max(INPUT_LIMITS.sketchBytes, INPUT_LIMITS.textBytes);
+/** Room for a longest password written entirely as JSON `\uXXXX` escapes, plus its wrapper. */
+const MAX_SIGN_IN_BODY_BYTES = MAX_PASSWORD_LENGTH * 8;
 const passwordBodySchema = z.object({ password: z.string() });
 
 export type Respond = (request: Request) => Promise<Response>;
@@ -52,6 +57,20 @@ const busy = (retryAfterSeconds = 60): Response =>
   });
 const listed = (scope: Scope | undefined): readonly string[] =>
   scope === undefined || scope === EVERY ? [] : scope;
+
+type Presented =
+  | { readonly kind: "bearer" }
+  | { readonly kind: "password"; readonly candidate: string }
+  | null;
+
+/** The request again with its body already in memory, so a slow sender holds no slot while it trickles. */
+const buffered = async (request: Request): Promise<Parsed<Request>> => {
+  if (request.body === null) return { ok: true, value: request };
+  const body = await parseTextBody(request, MAX_MODEL_REQUEST_BYTES, REQUEST_BODY_TIMEOUT_MS);
+  if (!body.ok) return body;
+  const { url, method, headers, signal } = request;
+  return { ok: true, value: new Request(url, { method, headers, signal, body: body.value }) };
+};
 
 export class ApiAccess {
   readonly #sessions: Sessions;
@@ -173,10 +192,12 @@ export class ApiAccess {
       if (!this.#permits(scope, path, resource, id)) return denied();
     }
     if (MODEL_ROUTES.get(path) !== request.method) return respond(request);
+    const read = await buffered(request);
+    if (!read.ok) return read.response;
     const release = this.#models.enter();
     if (release === null) return busy();
     try {
-      const response = await respond(request);
+      const response = await respond(read.value);
       return await this.#bufferModelResponse(response);
     } finally {
       release();
@@ -211,10 +232,11 @@ export class ApiAccess {
     const client = clientOf(request, peer, this.config.trustedProxies);
     const wait = this.#failures.waitSeconds(client);
     if (wait > 0) return busy(wait);
+    const presented = await this.#presented(request);
     const release = this.#logins.enter();
     if (release === null) return busy();
     try {
-      const grant = await this.#presented(request);
+      const grant = this.#verify(request, presented);
       if (grant === null) {
         this.#failures.fail(client);
         this.log(`sign-in refused: connection from ${peer ?? "unknown"}, counted as ${client}`);
@@ -232,19 +254,26 @@ export class ApiAccess {
   }
 
   /** A bearer token in the header, or the shared password as `{ "password": … }` in the body. */
-  async #presented(request: Request): Promise<Grant | null> {
-    if (request.headers.has("authorization")) return this.#sessions.bearer(request);
+  async #presented(request: Request): Promise<Presented> {
+    if (request.headers.has("authorization")) return { kind: "bearer" };
     if (this.config.password === null) return null;
-    const text = await request.text().catch(() => "");
-    if (text.length > MAX_SIGN_IN_BODY_CHARS) return null;
+    const text = await parseTextBody(request, MAX_SIGN_IN_BODY_BYTES, REQUEST_BODY_TIMEOUT_MS);
+    if (!text.ok) return null;
     let body: unknown;
     try {
-      body = JSON.parse(text);
+      body = JSON.parse(text.value);
     } catch {
       return null;
     }
     const parsed = passwordBodySchema.safeParse(body);
-    return parsed.success ? this.#sessions.password(parsed.data.password) : null;
+    return parsed.success ? { kind: "password", candidate: parsed.data.password } : null;
+  }
+
+  #verify(request: Request, presented: Presented): Grant | null {
+    if (presented === null) return null;
+    return presented.kind === "bearer"
+      ? this.#sessions.bearer(request)
+      : this.#sessions.password(presented.candidate);
   }
 
   async #bufferModelResponse(response: Response): Promise<Response> {

@@ -60,6 +60,20 @@ describe("bounded bodies", () => {
     await expect(readBoundedText(new Response("ééx"), 4)).rejects.toBeInstanceOf(BodyTooLargeError);
   });
 
+  it("cancels a body that is still arriving when the signal aborts, rejecting with its reason", async () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const deadline = new AbortController();
+    const reading = readBoundedText(new Response(body), 4, deadline.signal);
+    deadline.abort(new Error("too slow"));
+    await expect(reading).rejects.toThrow("too slow");
+    expect(cancelled).toBe(true);
+  });
+
   it("rejects a declared oversized body without reading it", async () => {
     let cancelled = false;
     const body = new ReadableStream<Uint8Array>({

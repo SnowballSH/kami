@@ -178,6 +178,8 @@ the language model.
 Entity/model JSON bodies are validated with Zod (`schemas.ts` re-exports the browser-safe entity
 schemas in `src/persistence/schemas.ts` and defines request-specific schemas). Controller text has
 its own parser. Invalid values return `400`; excessive body bytes return `413` before JSON parsing.
+A model route or sign-in whose body has not fully arrived within 10 seconds is cancelled (`408` for a
+model route, `401` for a sign-in); the body is read before a model or sign-in slot is taken.
 Entities are loose objects: unknown additive fields are stored and returned untouched. Origin policy,
 credentials and board/controller grants are enforced before route handling; shared credentials
 restrict listings too. See [the trust model](../docs/access.md) before exposing a server beyond a
