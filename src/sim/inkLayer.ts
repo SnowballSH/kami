@@ -11,7 +11,7 @@ import { boundsRect } from "./bodyBounds";
 import { GHOST_TO_ALICE, SOLID_TO_ALL } from "./contacts";
 import { freshMind } from "./creatures";
 import { buildInkBody } from "./inkBody";
-import { InkEntity } from "./inkEntity";
+import { InkEntity, ownMotion } from "./inkEntity";
 import { holdsStill, NATURES } from "./natures";
 import type { DrawingPose, InkProvenance } from "./types";
 import { type BodyMaterial, materialMoved, materialUnder, retune } from "./worldPhysics";
@@ -117,7 +117,7 @@ export class InkLayer {
     ink.nature = ruling.nature;
     ink.name = ruling.name;
     ink.strength = ruling.strength;
-    ink.own = { ...ruling.motion, ...heedOf(ruling.temper) };
+    ink.own = ownMotion(ruling.nature, { ...ruling.motion, ...heedOf(ruling.temper) });
     ink.frozen = false;
     ink.mind = freshMind(ink.id);
     this.resolveMotion(ink);

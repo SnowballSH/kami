@@ -76,4 +76,31 @@ describe("pitch dark", () => {
     sim.setPhysics(PITCH_DARK);
     expect(litNow()).toBe(false);
   });
+
+  it("puts out a lantern a law says stops glowing, and relights it when the law is erased", () => {
+    const sim = enter(board);
+    sim.addDrawing(drawingOf("lamp", blob(0, -120, 40, 40)));
+    sim.applyRuling(idOf("lamp"), { ...rulingOf("lantern"), name: "a lamp" });
+    const litNow = () => sim.snapshot().drawings.find(({ id }) => id === idOf("lamp"))?.lit;
+    sim.setPhysics(PITCH_DARK);
+    expect(litNow()).toBe(true);
+    sim.setPhysics({
+      ...PITCH_DARK,
+      bodies: [{ of: { kind: "named", name: "lamp" }, edit: { glow: 0 } }],
+    });
+    expect(litNow()).toBe(false);
+    sim.setPhysics(PITCH_DARK);
+    expect(litNow()).toBe(true);
+  });
+
+  it("keeps a lantern lit under a law about some other drawing", () => {
+    const sim = enter(board);
+    sim.addDrawing(drawingOf("lamp", blob(0, -120, 40, 40)));
+    sim.applyRuling(idOf("lamp"), { ...rulingOf("lantern"), name: "a lamp" });
+    sim.setPhysics({
+      ...PITCH_DARK,
+      bodies: [{ of: { kind: "named", name: "rock" }, edit: { glow: 0 } }],
+    });
+    expect(sim.snapshot().drawings.find(({ id }) => id === idOf("lamp"))?.lit).toBe(true);
+  });
 });

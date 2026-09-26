@@ -7,6 +7,17 @@ import { type Motion, type MotionEdit, STILL } from "../rules/types";
 import { freshMind, type Mind } from "./creatures";
 import type { InkProvenance } from "./types";
 
+/** What a nature does of itself, as motion a law can override: "the lamp stops glowing" puts it out. */
+const MOTION_BY_NATURE: Readonly<Partial<Record<Nature, MotionEdit>>> = {
+  lantern: { glow: 1 },
+};
+
+/** A drawing's own motion: its nature's, then what its name asked for on top. */
+export const ownMotion = (nature: Nature, asked: MotionEdit): MotionEdit => ({
+  ...MOTION_BY_NATURE[nature],
+  ...asked,
+});
+
 export class InkEntity {
   nature: Nature = "ink";
   name = "";
@@ -37,9 +48,9 @@ export class InkEntity {
     return temperOfHeed(this.motion.heed);
   }
 
-  /** Whether it lights its patch at night: a lantern by nature, or anything given the `glow` power. */
+  /** Whether it lights its patch at night: a lantern unless a law puts it out, or anything given the `glow` power. */
   get lit(): boolean {
-    return this.nature === "lantern" || this.motion.glow > 0;
+    return this.motion.glow > 0;
   }
 
   get pose(): Pose {
