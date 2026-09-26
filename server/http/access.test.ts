@@ -691,6 +691,13 @@ describe("shared API access", () => {
       expect((await signIn(PASSWORD)).status).toBe(200);
     });
 
+    it("evaluates no more wrong passwords than the allowance when a burst arrives at once", async () => {
+      const burst = await Promise.all(Array.from({ length: 30 }, () => signIn("guess")));
+      const statuses = burst.map(({ status }) => status);
+      expect(statuses.filter((status) => status === 401)).toHaveLength(10);
+      expect(statuses.filter((status) => status === 429)).toHaveLength(20);
+    });
+
     it("throttles the client a trusted proxy names, and ignores what an untrusted peer claims", async () => {
       const forwarded = (address: string) => ({ "x-forwarded-for": `10.9.9.9, ${address}` });
       for (let i = 0; i < 10; i++) {

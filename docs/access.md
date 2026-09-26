@@ -69,7 +69,8 @@ KAMI_ALLOWED_ORIGINS=https://kami.example.org
 **Guessing.** The password is compared in constant time (as a SHA-256 digest). Sign-in attempts are
 limited to 30 a minute for the whole server, and each client may fail 10 times in 15 minutes before
 it is told to wait (`429` with `Retry-After`) — other clients are unaffected, and a correct password
-clears the count. A client is the connecting address; behind a reverse proxy it is the last
+clears the count. The count is checked again once a sign-in's body has arrived, right before the
+password is compared, so a burst of parallel attempts is held to the same 10. A client is the connecting address; behind a reverse proxy it is the last
 `X-Forwarded-For` entry, which is believed only from `KAMI_TRUSTED_PROXIES` (default the loopback
 addresses, where a proxy on the same host connects from). When Kami runs in a container behind the
 host's proxy, add the address the proxy's connections arrive from, or every visitor shares one

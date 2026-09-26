@@ -230,9 +230,13 @@ export class ApiAccess {
     }
     if (request.method !== "POST" || this.config.mode !== "shared") return notFound();
     const client = clientOf(request, peer, this.config.trustedProxies);
+    const early = this.#failures.waitSeconds(client);
+    if (early > 0) return busy(early);
+    const presented = await this.#presented(request);
+    // Checked again after the body arrives: from here to the recorded outcome nothing yields, so of a
+    // burst read in parallel only the throttle's allowance is ever verified.
     const wait = this.#failures.waitSeconds(client);
     if (wait > 0) return busy(wait);
-    const presented = await this.#presented(request);
     const release = this.#logins.enter();
     if (release === null) return busy();
     try {
