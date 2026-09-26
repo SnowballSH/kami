@@ -22,7 +22,7 @@ import {
   saw,
   UP,
 } from "./testSupport";
-import { ALICE_BASE } from "./types";
+import { ALICE_BASE, ALICE_HERSELF, type AliceIndex } from "./types";
 
 const GROUND_TOP = 560;
 const PLATEAU_TOP = 340;
@@ -286,6 +286,27 @@ describe("natures", () => {
     expect(happeningsOf(events)).toContain("grow-blocked");
     expect(aliceOf(sim).size).toBe("normal");
   });
+  it("measures a drawn body's growth from her own height", () => {
+    const sim = enter({
+      ...blank,
+      solids: [
+        ...blank.solids,
+        { rect: { x: -320, y: -210, width: 640, height: 40 }, material: "marker" },
+      ],
+    });
+    sim.disembody();
+    sim.addDrawing(drawingOf("body", blob(0, 0, 60, 150)));
+    expect(sim.incarnate(idOf("body"), "giant")).toBe(true);
+    const height = sim.aliceBounds().height;
+    expect(height).toBeCloseTo(150, 0);
+    sim.addDrawing(drawingOf("cake", blob(50, -RESTING, 16, 24)));
+    sim.applyRuling(idOf("cake"), rulingOf("grow"));
+    sim.setWalkIntent(RIGHT);
+    const events = runUntil(sim, saw("grow-blocked"), 300);
+    expect(happeningsOf(events)).toContain("grow-blocked");
+    runSteps(sim, 60);
+    expect(sim.aliceBounds().height).toBeCloseTo(height, 0);
+  });
 });
 
 describe("loadBoard", () => {
@@ -312,5 +333,41 @@ describe("loadBoard", () => {
     expect(alice).toMatchObject({ size: "normal", hasKey: false });
     expect(feetOf(sim).x).toBeCloseTo(onThePlateau.spawn.x, 0);
     expect(alice.height).toBeCloseTo(ALICE_BASE.height, 0);
+  });
+});
+
+describe("the key", () => {
+  const takeTheKey = (sim: ReturnType<typeof enter>, who: AliceIndex = ALICE_HERSELF): void => {
+    sim.addDrawing(drawingOf("cake", blob(1830, PLATEAU_TOP - RESTING, 30, 24)));
+    sim.applyRuling(idOf("cake"), rulingOf("grow"));
+    sim.setWalkIntent(RIGHT, who);
+    expect(happeningsOf(runUntil(sim, saw("key-taken")))).toContain("key-taken");
+    sim.setWalkIntent(STAY, who);
+  };
+
+  it("stays in hand when she leaves her body and is drawn a new one", () => {
+    const sim = enter(onThePlateau);
+    takeTheKey(sim);
+    sim.disembody();
+    const seat = sim.snapshot().soul?.at ?? { x: Number.NaN, y: Number.NaN };
+    sim.addDrawing(drawingOf("body", blob(seat.x, seat.y + 15, 20, 30)));
+    expect(sim.incarnate(idOf("body"), "alice")).toBe(true);
+    expect(aliceOf(sim).hasKey).toBe(true);
+    sim.setWalkIntent(RIGHT);
+    expect(happeningsOf(runUntil(sim, saw("door-opened")))).toContain("door-opened");
+    expect(sim.snapshot().doorOpen).toBe(true);
+  });
+
+  it("passes to Alice when the twin holding it is dismissed", () => {
+    const sim = enter(onThePlateau);
+    sim.setPhysics({ ...EARTH, clones: 1 });
+    takeTheKey(sim, 1);
+    expect(sim.alices()[1]?.hasKey).toBe(true);
+    sim.setPhysics(EARTH);
+    expect(aliceOf(sim).hasKey).toBe(true);
+    sim.setPhysics({ ...EARTH, aliceSize: 0.5 });
+    sim.setWalkIntent(RIGHT);
+    expect(happeningsOf(runUntil(sim, saw("door-opened")))).toContain("door-opened");
+    expect(sim.snapshot().doorOpen).toBe(true);
   });
 });
