@@ -286,6 +286,27 @@ describe("natures", () => {
     expect(happeningsOf(events)).toContain("grow-blocked");
     expect(aliceOf(sim).size).toBe("normal");
   });
+  it("measures a drawn body's growth from her own height", () => {
+    const sim = enter({
+      ...blank,
+      solids: [
+        ...blank.solids,
+        { rect: { x: -320, y: -210, width: 640, height: 40 }, material: "marker" },
+      ],
+    });
+    sim.disembody();
+    sim.addDrawing(drawingOf("body", blob(0, 0, 60, 150)));
+    expect(sim.incarnate(idOf("body"), "giant")).toBe(true);
+    const height = sim.aliceBounds().height;
+    expect(height).toBeCloseTo(150, 0);
+    sim.addDrawing(drawingOf("cake", blob(50, -RESTING, 16, 24)));
+    sim.applyRuling(idOf("cake"), rulingOf("grow"));
+    sim.setWalkIntent(RIGHT);
+    const events = runUntil(sim, saw("grow-blocked"), 300);
+    expect(happeningsOf(events)).toContain("grow-blocked");
+    runSteps(sim, 60);
+    expect(sim.aliceBounds().height).toBeCloseTo(height, 0);
+  });
 });
 
 describe("loadBoard", () => {

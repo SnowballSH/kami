@@ -219,9 +219,14 @@ export class AliceController {
     this.body.restitution = physics.bounciness;
   }
 
+  /** The scale she would be at `size` under the standing laws, from the height she was drawn at. */
+  scaleFor(size: AliceSize): number {
+    return this.innate * ALICE_SCALE[size] * this.physics.aliceSize;
+  }
+
   /** The scale the standing laws ask for; the sim grants growth only once there is headroom. */
   get lawfulScale(): number {
-    return this.innate * ALICE_SCALE[this.currentSize] * this.physics.aliceSize;
+    return this.scaleFor(this.currentSize);
   }
 
   get headingScale(): number {

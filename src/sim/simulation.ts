@@ -42,10 +42,8 @@ import { Sumikui } from "./sumikui";
 import { Twins } from "./twins";
 import {
   ALICE_HERSELF,
-  ALICE_SCALE,
   type AliceIndex,
   type AliceSnapshot,
-  aliceDimensions,
   type BounceArc,
   type InkProvenance,
   type Ride,
@@ -591,8 +589,7 @@ export class MatterSimulation implements Simulation {
         if (lastRefusedAt !== undefined && now - lastRefusedAt <= GROW_REFUSAL_COOLDOWN_MS) return;
         this.events.push({ type: "grow-blocked", drawingId: ink.id });
       },
-      hasHeadroomFor: (size, meal) =>
-        this.hasHeadroomFor(alice, ALICE_SCALE[size] * this.physics.aliceSize, meal),
+      hasHeadroomFor: (size, meal) => this.hasHeadroomFor(alice, alice.scaleFor(size), meal),
       pullToward: (ink, strengthInG) => {
         const loose = inks.dynamicBodies.filter((body) => body !== ink.body);
         const bodies = this.everyAlice().map((each) => each.body);
@@ -788,7 +785,8 @@ export class MatterSimulation implements Simulation {
   private hasHeadroomFor(alice: AliceController, scale: number, meal?: InkEntity): boolean {
     const { inks, props } = this.world;
     const current = alice.bounds();
-    const target = aliceDimensions("normal", scale);
+    const factor = scale / alice.scale;
+    const target = { width: current.width * factor, height: current.height * factor };
     if (target.height <= current.height && target.width <= current.width) return true;
     const headroom = Matter.Bodies.rectangle(
       current.x + current.width / 2,
