@@ -156,7 +156,7 @@ export class MatterSimulation implements Simulation {
   loadBoard(board: BoardDefinition): void {
     Matter.Engine.clear(this.world.engine);
     this.world = buildWorld(board, this.physics);
-    this.roster = null;
+    this.rosterChanged();
     this.events = [];
     this.rides.clear();
     this.underway = false;
@@ -169,7 +169,7 @@ export class MatterSimulation implements Simulation {
     paper.obey(physics);
     alice.applyPhysics(physics);
     twins.match(this.embodied ? physics.clones : 0, alice, physics);
-    this.roster = null;
+    this.rosterChanged();
     inks.setPhysics(physics);
     this.matchSumikui(physics.inkEater, { bides: !this.underway });
   }
@@ -203,7 +203,7 @@ export class MatterSimulation implements Simulation {
     this.world.alice = soul;
     this.world.soul = seat;
     twins.match(0, soul, this.physics);
-    this.roster = null;
+    this.rosterChanged();
     this.world.sumikui = null;
     this.matchSumikui(this.physics.inkEater, { bides: true });
   }
@@ -237,7 +237,7 @@ export class MatterSimulation implements Simulation {
     this.world.alice = embodied;
     this.world.soul = null;
     twins.match(this.physics.clones, embodied, this.physics);
-    this.roster = null;
+    this.rosterChanged();
     this.world.sumikui = null;
     this.matchSumikui(this.physics.inkEater, { bides: true });
     return true;
@@ -320,6 +320,16 @@ export class MatterSimulation implements Simulation {
 
   jumpArc(who: AliceIndex = ALICE_HERSELF): BounceArc {
     return jumpArcUnder(this.physics, this.aliceAt(who).scale);
+  }
+
+  /**
+   * The key is the party's once taken: whoever of them reaches the door opens it. Someone is always
+   * seen holding it, so when its holder leaves (a twin dismissed, a body shed) Alice takes it.
+   */
+  private rosterChanged(): void {
+    this.roster = null;
+    const { props, alice } = this.world;
+    if (props.keyTaken && !this.everyAlice().some((each) => each.hasKey)) alice.hasKey = true;
   }
 
   private everyAlice(): Roster {
@@ -642,7 +652,7 @@ export class MatterSimulation implements Simulation {
     const barred = portals.barred();
     const touched = new Map<InkEntity, Contact>();
     for (const contact of this.aliceContacts(alice)) {
-      if (props.isDoor(contact.body) && alice.hasKey) {
+      if (props.isDoor(contact.body) && props.keyTaken) {
         props.openDoor();
         this.events.push({ type: "door-opened" });
       }
