@@ -34,6 +34,7 @@ const bridgeView: InkView = {
   drawing: BRIDGE,
   pose: { origin: { x: 0, y: 0 }, position: { x: 500, y: 200 }, angle: 0, scale: 1 },
   nature: "ink",
+  lit: false,
   awakenedAtMs: null,
 };
 

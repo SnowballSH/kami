@@ -70,7 +70,7 @@ One per drawing. The player never sees this list — they see the ink change tin
 | **flier** | bird, butterfly, bee, bat, dragon, fairy | Alive. Flies level and bobbing, roaming only so far from where it was drawn; carries her |
 | **vehicle** | car, cart, boat, bicycle, train, skateboard | Something to drive. Alice steps aboard and it rolls where she points, faster than she walks; it can rotate and tumble when its footing ends, while a driven vehicle's keel damping keeps it level on ground; she jumps off |
 | **attractor** | black hole, sun, vortex, whirlpool | Pulls Alice and every loose drawing toward itself |
-| **lantern** | lantern, lamp, candle, torch | Lights its patch of the board when it's night |
+| **lantern** | lantern, lamp, candle, torch | Lights its patch of the board when it's night. A *glowing* creature (a glowing rabbit, a firefly) keeps its own nature and carries the light with it instead |
 | **portal** | portal, wormhole, warp, gate, mirror, looking glass | Step in here, out of the one drawn next. Two link; three or more go round in a ring; one alone leads nowhere (*"Draw it a twin."*). Never a wall |
 
 Creatures are natures, not names: a *walking* teapot walks, a *flying* pig flies. Any animal the Cat knows goes into the nature that says how it moves, and the player's own verb or adjective overrules the noun.

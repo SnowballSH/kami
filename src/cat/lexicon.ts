@@ -69,7 +69,7 @@ export const NATURE_THINGS: WordTable = {
     lion, tiger, wolf, fox, deer, monkey, robot, soldier, knight, person, man, woman, boy, child,
     baby, girl, kid, hero, heroine, character, player, princess, prince, queen, king, wizard,
     witch, pirate, cheshire cat, creature, monster, animal, pet, beast, worm, slug, lobster, crocodile,
-    alligator, camel, zebra, giraffe, gorilla, panda, koala
+    alligator, camel, zebra, giraffe, gorilla, panda, koala, glowworm, glow worm
   `),
   hopper: list(`
     rabbit, bunny, hare, white rabbit, march hare, frog, toad, kangaroo, grasshopper, cricket,
@@ -79,7 +79,7 @@ export const NATURE_THINGS: WordTable = {
     bird, butterfly, bee, bumblebee, wasp, bat, moth, owl, eagle, pigeon, dove, seagull, gull,
     parrot, firefly, dragonfly, fly, mosquito, hummingbird, sparrow, robin, crow, raven, swan,
     goose, flamingo, pelican, stork, hawk, falcon, vulture, ghost, angel, fairy, dragon, pegasus,
-    phoenix, griffin, bluebird, ladybird, ladybug, jubjub bird, flier
+    phoenix, griffin, bluebird, ladybird, ladybug, jubjub bird, lightning bug, flier
   `),
   vehicle: list(`
     car, cart, wagon, truck, lorry, bus, van, train, tram, trolley, boat, ship, raft, canoe,
@@ -94,7 +94,7 @@ export const NATURE_THINGS: WordTable = {
   `),
   lantern: list(`
     lantern, lamp, candle, torch, lightbulb, light bulb, bulb, streetlight, street lamp, lamppost,
-    flashlight, star, campfire light, glowworm, nightlight, night light
+    flashlight, star, campfire light, nightlight, night light
   `),
   portal: list(`
     portal, wormhole, warp, warp gate, warp pad, gateway, gate, teleporter, teleport pad, rift,
@@ -151,6 +151,9 @@ export const NEAR_ENOUGH_THINGS: Readonly<Partial<WordTable>> = {
     elevator, lift, satellite
   `),
 };
+
+/** Creatures that carry their own light by name: a firefly glows without being told to. */
+export const GLOWING_CREATURES = list("firefly, glowworm, glow worm, lightning bug");
 
 export const TAG_WORDS = ["rose", "tart", "queen"] as const;
 export type Tag = (typeof TAG_WORDS)[number];

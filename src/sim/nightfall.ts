@@ -6,7 +6,7 @@ import { centreOf } from "./portals";
 
 export const isPitchDark = (physics: WorldPhysics): boolean => physics.daylight < PITCH_DARK_BELOW;
 
-/** In pitch dark she sees only by lantern light: outside every lantern's pool she will not take a step. */
+/** In pitch dark she sees only by lantern light: outside every lit drawing's pool she will not take a step. */
 export const seesHerWay = (physics: WorldPhysics, at: Vec, inks: readonly InkEntity[]): boolean =>
   !isPitchDark(physics) ||
-  inks.some((ink) => ink.nature === "lantern" && distance(centreOf(ink), at) <= LANTERN_LIGHT_PX);
+  inks.some((ink) => ink.lit && distance(centreOf(ink), at) <= LANTERN_LIGHT_PX);

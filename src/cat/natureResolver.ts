@@ -1,5 +1,5 @@
 import { NATURE_DESCRIPTIONS, NATURE_THINGS, NEAR_ENOUGH_THINGS, type WordTable } from "./lexicon";
-import { ACTIVE_NATURES, type ActiveNature } from "./natures";
+import { ACTIVE_NATURES, type ActiveNature, isCreature } from "./natures";
 import { indexOfSequence, type Phrase, stemsOf } from "./phrase";
 
 export type KeywordKind = "thing" | "description" | "near-enough";
@@ -52,8 +52,17 @@ const sightingsIn = (phrase: Phrase): readonly Sighting[] =>
 
 const isDescription = ({ keyword }: Sighting): boolean => keyword.kind === "description";
 
+const isGlowing = ({ keyword }: Sighting): boolean =>
+  keyword.kind === "description" && keyword.nature === "lantern";
+
+/** "A glowing dog" is a dog that glows (a power, read by `motionOf`), not a lantern shaped like one. */
+const glowAsPower = (sightings: readonly Sighting[]): readonly Sighting[] =>
+  sightings.some(({ keyword }) => isCreature(keyword.nature))
+    ? sightings.filter((sighting) => !isGlowing(sighting))
+    : sightings;
+
 export const resolveNature = (phrase: Phrase): NatureMatch | null => {
-  const sightings = sightingsIn(phrase);
+  const sightings = glowAsPower(sightingsIn(phrase));
   const things = sightings.filter((sighting) => !isDescription(sighting));
   const verdict = strongestOf(sightings.filter(isDescription)) ?? strongestOf(things);
   if (verdict === null) return null;

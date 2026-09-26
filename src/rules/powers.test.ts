@@ -12,6 +12,7 @@ const ALL: Target = { kind: "all" };
 const pace = (of: Target, value: number): RuleEffect => ({ governs: "pace", of, value });
 const wings = (of: Target, value: number): RuleEffect => ({ governs: "wings", of, value });
 const size = (of: Target, value: number): RuleEffect => ({ governs: "size", of, value });
+const glow = (of: Target, value: number): RuleEffect => ({ governs: "glow", of, value });
 const rule = (id: string, createdAt: number, effect: RuleEffect): Rule => ({
   id: id as RuleId,
   noteId: `note-${id}` as NoteId,
@@ -40,6 +41,14 @@ const UNDERSTOOD: readonly Understood[] = [
   ["the rabbit is 3 times bigger", size(named("rabbit"), 3), "the rabbit: size = 3x"],
   ["the rabbit is tiny", size(named("rabbit"), 0.5), "the rabbit: size = 0.5x"],
   ["everything is huge", size(ALL, 2), "everything: size = 2x"],
+  ["the dog glows", glow(named("dog"), 1), "the dog: glows"],
+  ["the rock glows", glow(named("rock"), 1), "the rock: glows"],
+  ["the firefly shines brightly", glow(named("firefly"), 1), "the firefly: glows"],
+  ["make the cat glow", glow(named("cat"), 1), "the cat: glows"],
+  ["everything glows", glow(ALL, 1), "everything: glows"],
+  ["the dog stops glowing", glow(named("dog"), 0), "the dog: gives no light"],
+  ["the dog doesn't glow", glow(named("dog"), 0), "the dog: gives no light"],
+  ["the dog no longer glows", glow(named("dog"), 0), "the dog: gives no light"],
 ];
 
 const LEFT_TO_OTHERS: readonly (readonly [says: string, governs: RuleEffect["governs"]])[] = [
@@ -71,6 +80,7 @@ describe("powers a drawing can gain by law", () => {
   it("leaves a name that only describes a drawing to the Cat", async () => {
     expect(await compiler.compile("a flying dog")).toBeNull();
     expect(await compiler.compile("a giant rabbit")).toBeNull();
+    expect(await compiler.compile("a glowing dog")).toBeNull();
   });
 
   it("bounds pace, wings and size like Alice's own dials", () => {
@@ -105,5 +115,14 @@ describe("powers a drawing can gain by law", () => {
     expect(motionOf({}, bodies, "a rock")).toEqual({ ...STILL, size: 2 });
     const repealed = resolvePhysics(rules.filter(({ id }) => id !== "d")).bodies;
     expect(motionOf({}, repealed, "the cat")).toEqual({ ...STILL, pace: 2, size: 2 });
+  });
+
+  it("lets a law put out the light a creature was named with, and repeal lights it again", () => {
+    const rules = [rule("a", 1, glow(named("firefly"), 0)), rule("b", 2, glow(named("rock"), 1))];
+    const { bodies } = resolvePhysics(rules);
+    expect(motionOf({ glow: 1 }, bodies, "a firefly").glow).toBe(0);
+    expect(motionOf({}, bodies, "a rock").glow).toBe(1);
+    const repealed = resolvePhysics(rules.slice(1)).bodies;
+    expect(motionOf({ glow: 1 }, repealed, "a firefly").glow).toBe(1);
   });
 });

@@ -140,6 +140,11 @@ const BODY_STYLES: Readonly<Record<BodyScalarGoverns, ScalarStyle>> = {
     gloss: (shown) => (shown.startsWith("-") ? "flees Alice" : "follows Alice"),
     glossAtZero: "goes its own way",
   },
+  glow: {
+    range: { min: 0, max: 1 },
+    gloss: () => "glows",
+    glossAtZero: "gives no light",
+  },
 };
 
 const MAX_THRUST_IN_G = 3;

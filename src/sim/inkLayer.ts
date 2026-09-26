@@ -46,7 +46,7 @@ export class InkLayer {
   }
 
   get poses(): readonly DrawingPose[] {
-    return this.all.map((ink) => ({ id: ink.id, pose: ink.pose }));
+    return this.all.map((ink) => ({ id: ink.id, pose: ink.pose, lit: ink.lit }));
   }
 
   get dynamicBodies(): readonly Matter.Body[] {

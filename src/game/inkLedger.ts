@@ -103,10 +103,11 @@ export class InkLedger {
   }
 
   views(poses: readonly DrawingPose[], nowMs: number): readonly InkView[] {
-    return this.join(poses, (record, pose) => ({
+    return this.join(poses, (record, pose, lit) => ({
       drawing: shownAt(record, nowMs),
       pose,
       nature: record.ruling?.nature ?? "ink",
+      lit,
       awakenedAtMs: record.awakenedAtMs,
     }));
   }
@@ -123,11 +124,11 @@ export class InkLedger {
 
   private join<T>(
     poses: readonly DrawingPose[],
-    combine: (record: InkRecord, pose: DrawingPose["pose"]) => T,
+    combine: (record: InkRecord, pose: DrawingPose["pose"], lit: boolean) => T,
   ): readonly T[] {
-    return poses.flatMap(({ id, pose }) => {
+    return poses.flatMap(({ id, pose, lit }) => {
       const record = this.records.get(id);
-      return record === undefined ? [] : [combine(record, pose)];
+      return record === undefined ? [] : [combine(record, pose, lit)];
     });
   }
 }

@@ -28,6 +28,7 @@ export const inkOf = (id: string, strokes: readonly Stroke[]): InkView => ({
   drawing: { id: id as DrawingId, strokes, cost: 11 },
   pose: { origin: { x: 0, y: 0 }, position: { x: 3, y: 4 }, angle: 0.5, scale: 1 },
   nature: "solid",
+  lit: false,
   awakenedAtMs: null,
 });
 

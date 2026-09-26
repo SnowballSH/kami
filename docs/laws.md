@@ -65,9 +65,12 @@ A drawing has its own dial set, its **motion**:
 Motion = { spin (turns/s, + clockwise), thrust: Vec (g, the push it gives itself),
            mass (× its weight), bounce (0..1), grip (× its surface friction),
            pace (× how fast it moves of itself), wings (0 | 1, whether it flies), size (× its own size),
-           heed (−1 | 0 | 1: how a creature takes to Alice — flees her, its own way, follows her) }
-STILL : Motion = { 0, (0,0), 1, 0, 1, 1, 0, 1, 0 }
+           heed (−1 | 0 | 1: how a creature takes to Alice — flees her, its own way, follows her),
+           glow (0 | 1: whether it carries a lantern's pool of light) }
+STILL : Motion = { 0, (0,0), 1, 0, 1, 1, 0, 1, 0, 0 }
 ```
+
+`glow` is a power too, the lantern's one given to any drawing: “the dog glows”, “the rock shines”, “the firefly stops glowing” / “doesn't glow” (0). A drawing is **lit** when it is a `lantern` by nature or its resolved `glow > 0` — one predicate (`InkEntity.lit`, carried on each `DrawingPose` and `InkView`) read by both the pitch-dark rule (`sim/nightfall.ts`) and the night layer (`render/nightPainter.ts`). So a glowing creature keeps its nature and takes its light with it: a firefly that follows Alice leads her through the dark. `glow = 0` is the ordinary value, so a law cannot put out a lantern that is one by nature.
 
 The last three are **powers**: the dials Alice has as world effects (`walkSpeed`, `flight`, `aliceSize`) given to any drawing by name — “the cat is twice as fast”, “the dog can fly”, “the rabbit is huge”. A sentence about Alice keeps her own dials; a sentence about a named drawing is a body effect like any other.
 
@@ -155,7 +158,7 @@ reject unsafe physics before modifying bodies. Ruling strength must stay in 0.5�
 
 ## 6. Drawings: natures as morphisms on one body
 
-A drawing's state is its **nature**, **strength** and **own motion** (§2.1): `ruling : Drawing → Drawing` sets all three (`sim.applyRuling`). The Cat reads the motion out of the name's adjectives — “spinning”, “rotating”, “powered”, “boosted” — so a drawing can move by its name alone, before any law speaks of it. Natures are presets — “mushroom” is `bouncy`, “black hole” is `attractor`, “lantern” is `lantern` — chosen by the Cat from the player's words and scaled by their adjectives. They compose like dial sets on one subject: the newest ruling wins, erasing the drawing removes it entirely.
+A drawing's state is its **nature**, **strength** and **own motion** (§2.1): `ruling : Drawing → Drawing` sets all three (`sim.applyRuling`). The Cat reads the motion out of the name's adjectives — “spinning”, “rotating”, “powered”, “boosted” — and, on a creature only, its light: a lantern word (“glowing”, “shining”, “lit”, “lamp”) beside a walker, hopper or flier yields `{ glow: 1 }` instead of the `lantern` nature (“a glowing rabbit” hops and glows; “a glowing rock” is still a lantern), and fireflies, glowworms and lightning bugs glow by name — so a drawing can move by its name alone, before any law speaks of it. Natures are presets — “mushroom” is `bouncy`, “black hole” is `attractor`, “lantern” is `lantern` — chosen by the Cat from the player's words and scaled by their adjectives. They compose like dial sets on one subject: the newest ruling wins, erasing the drawing removes it entirely.
 
 The nature table (`src/sim/natures.ts`) is the second place the framework grows. A nature is a record of hooks — `beforeStep`, `onAliceTouch`, `onInkTouch` — over a small **`NatureWorld`** interface (feelers, emit, consume, freeze, `pullToward`, …). A new behaviour is a new record and, usually, one new capability on `NatureWorld`.
 
@@ -173,7 +176,7 @@ A **system** reads the folded state each tick and produces forces or state trans
 | attraction | `attraction`; `attractor` natures | `pullToward(center, g, bodies)` with `1/r²` falloff, capped up close |
 | weather | `temperature` | `slippery` melts above 30 °C, `floaty` burns off above 60 °C, after a dwell; emits `perished` |
 | twins | `clones` | `n` further Alice bodies spawned beside her, never colliding with her; each has an intent of her own (`setWalkIntent(intent, who)`), her own portal memory, and her own `fell` / `goal-reached` / `alice-devoured` (events carry `who`); a pilot per body lives in `game/party.ts` |
-| lighting | `daylight`; `lantern` natures | a night layer cut out around Alice and every lantern — presentation only |
+| lighting | `daylight`; every lit drawing (`lantern` nature or `glow > 0`) | a night layer cut out around Alice and every lit drawing, wherever it has moved — presentation only |
 | creatures | natures `walker`/`hopper`/`flier` | per-body minds; Alice rides them |
 | the paper's turn | `tilt`, `worldSpin` | `PaperTurn`: the angle the paper is turned on screen — `tilt` plus what `worldSpin` has accumulated (a new tilt restarts the count). The camera turns by it, so the whole page rotates; gravity stays the paper's, so Alice, creatures, vehicles and the autopilot are *of the paper* and keep walking on it, while loose ink is nudged toward the *room's* down (`tumble`: the difference between room-down seen on the paper and the paper's own gravity) and slides off a turned page |
 | the Sumikui | `inkEater`; the drawings and their provenance; the board's solids | a ghost that shadows Alice, awake the moment it is summoned, and eats everything on the paper: every drawing that is not a board role (`pinned`) or a prop of the scene (`scenery`), the board's ground under her feet (bitten out, healing later), and Alice herself (swallowed; she respawns) — what she depends on first, far clutter after, and never where Kami sets her down. A meal takes longer the more ink it is (a pebble ~1.5 s, a long bridge several). Starts at half her walking pace and doubles it every 20 s awake up to a cap; emits `sumikui-woke`, `devoured`, `paper-bitten`, `paper-healed`, `alice-devoured` |
@@ -200,6 +203,7 @@ The autopilot is a system too: `Scene.canFly` marks every cell of air climbable,
 | `everything spins` then `the rock stops spinning` | `set(spin, 1) of all`, `set(spin, 0) of named(rock)` | both kept; `motion("rock") = { spin: 0 }`, `motion("wheel") = { spin: 1 }` | motion |
 | `the dog can fly` · `the cat is twice as fast` · `the rabbit is huge` | `set(wings, 1) of named(dog)` · `set(pace, 2) of named(cat)` · `set(size, 2) of named(rabbit)` | `W.bodies ++ [...]` | powers: the dog takes to the air, the cat paces twice as fast, the rabbit doubles about its centre; Alice can ride any of them |
 | `the cat chases me` · `the mouse runs away from her` · `the cat ignores me` | `set(heed, 1) of named(cat)` · `set(heed, −1) of named(mouse)` · `set(heed, 0) of named(cat)` | `W.bodies ++ [...]` | tempers: the cat heels, the mouse bolts, the cat goes its own way again |
+| `it's night`, draw a firefly, then `the firefly follows me` · `the rock glows` · `the rock stops glowing` | `ruling(flier, glow 1)`; `set(heed, 1) of named(firefly)` · `set(glow, 1) of named(rock)` · `set(glow, 0) of named(rock)` | `W.bodies ++ [...]` | lighting: the firefly carries its pool of light at Alice's side, so she can walk on in pitch dark; the rock lights up, then goes dark |
 | `a spinning wheel` (as a name) | `null` (identity); the ruling carries `own = { spin: 1 }` | — | funnel names the drawing; motion turns it |
 | `a mushroom` | `null` (identity) | — | funnel falls through to naming |
 | `teleport us to the moon` | `[set(gravity,(0,.165)), set(airDrag,·), set(daylight,.3)]`, all of one note; props `moon`, `star ×3` | the three edits in order; erasing the note refolds without all three | gravity, drag, lighting; Kami inks the props above the words |

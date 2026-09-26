@@ -104,6 +104,8 @@ export interface SumikuiSnapshot {
 export interface DrawingPose {
   readonly id: DrawingId;
   readonly pose: Pose;
+  /** It lights its patch at night: a lantern, or a drawing with the `glow` power. */
+  readonly lit: boolean;
 }
 
 /** The flight a bounce throws Alice on, tick by tick, under the standing physics. */

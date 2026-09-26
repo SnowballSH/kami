@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { chatCompletionsUrl, createLlmCompiler, type FetchLike } from "./llmCompiler";
+import { COMPILER_SYSTEM_PROMPT } from "./prompt";
 
 const CONFIG = { url: "http://llm.example:8000", model: "kami-rules", apiKey: "secret" } as const;
 
@@ -124,6 +125,19 @@ describe("createLlmCompiler", () => {
       effect: { governs: "thrust", of: { kind: "all" }, x: 0, y: -3 },
       explanation: "everything: thrust = (0, -3) g",
     });
+
+    const firefly = await createLlmCompiler(
+      CONFIG,
+      modelSaying('{"effect":{"governs":"glow","of":{"kind":"named","name":"dog"},"value":7}}'),
+    ).compile("the dog shines like a star");
+    expect(firefly).toEqual({
+      effect: { governs: "glow", of: { kind: "named", name: "dog" }, value: 1 },
+      explanation: "the dog: glow = 1",
+    });
+  });
+
+  it("lists the glow dial in the prompt", () => {
+    expect(COMPILER_SYSTEM_PROMPT).toContain('"governs":"glow"');
   });
 
   it("rounds fractional model clone counts after clamping", async () => {

@@ -21,6 +21,7 @@ describe("persisted numeric domains", () => {
           case "wings":
           case "size":
           case "heed":
+          case "glow":
             return { governs, of, value };
           default:
             return { governs, value };
@@ -39,6 +40,22 @@ describe("persisted numeric domains", () => {
 
   it.each([-1, 0.5, 8.5, 1e9])("rejects clone count %s", (value) => {
     expect(ruleEffectSchema.safeParse({ governs: "clones", value }).success).toBe(false);
+  });
+
+  it("round-trips a glowing creature's own motion and a glow law", () => {
+    const ruling = {
+      name: "a firefly",
+      nature: "flier",
+      strength: 1,
+      tags: [],
+      line: "",
+      motion: { glow: 1 },
+    };
+    expect(rulingSchema.parse(JSON.parse(JSON.stringify(ruling)))).toEqual(ruling);
+    const law = { governs: "glow", of: { kind: "named", name: "dog" }, value: 0 };
+    expect(ruleEffectSchema.parse(JSON.parse(JSON.stringify(law)))).toEqual(law);
+    const older = { ...ruling, motion: { spin: 1 } };
+    expect(rulingSchema.parse(older)).toEqual(older);
   });
 
   it("rejects zero size and keeps the strength contract", () => {
