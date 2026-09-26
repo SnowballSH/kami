@@ -1630,9 +1630,9 @@ describe("Game with a Kami who takes everyone places", () => {
     const player = new Player("wonderland", { eyes: traveller() });
     await player.arrive();
     await player.write("teleport us to the moon", { x: 300, y: 500 });
-    await player.wait(ARRIVAL_MS * 3);
     const { drawings } = await player.store.load("wonderland");
     expect(drawings.map(({ provenance }) => provenance)).toEqual(Array(4).fill("scenery"));
+    expect(drawings.every(({ ruling }) => ruling !== null)).toBe(true);
 
     const reloaded = new Player("wonderland", { store: player.store });
     const added = vi.spyOn(reloaded.sim, "addDrawing");

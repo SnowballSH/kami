@@ -27,7 +27,7 @@ A lintel from the sky to a gap too low for Alice. Only `shrink` is granted and o
 
 ### 3. The Moon Ledge — *"Her legs are fine. It's the ground that pulls too hard."*
 
-The floor stops; a ledge stands higher than her jump and farther than her stride, and a `noInkZone` fills the gap so nothing can be built across. No nature is granted — every drawing is plain ink — and only `gravity` is writable. Write *"we are on the moon"* (or *"low gravity"*, *"gravity is half"*) and her ordinary hop clears it. Teaches: the room itself is a thing you can write about.
+The floor stops; a ledge stands higher than her jump and farther than her stride, and a `noInkZone` fills the gap so nothing can be built across. No nature is granted — every drawing is plain ink — and only `gravity` is writable. Write *"we are on the moon"* (or *"zero gravity"*) and her ordinary hop clears it; a merely *"low"* or *"half"* gravity (0.4–0.5 g, a 140–160 px hop) still falls short of the 200 px ledge, so the answer rung names the Moon. Teaches: the room itself is a thing you can write about.
 
 ## The Sumikui
 

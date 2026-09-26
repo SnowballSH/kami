@@ -29,7 +29,7 @@ export const theMoonLedge: BoardDefinition = {
       hints: [
         "Nothing you draw will be anything but ink here. Write, instead.",
         "Somewhere she would weigh less. The page knows the Moon.",
-        "Write 'we are on the moon', or 'low gravity', and let her hop.",
+        "Write 'we are on the moon', and let her hop.",
       ],
     },
   ],

@@ -68,6 +68,25 @@ describe("judgePlacement", () => {
     expect(verdict).toBe("no-ink-zone");
   });
 
+  it("catches a quick flick whose two points land either side of the red paint", () => {
+    const flick = [
+      [
+        { x: 0, y: 400 },
+        { x: 400, y: 400 },
+      ],
+    ];
+    const rules = { solids: [], aliceBounds: null };
+    expect(
+      judgePlacement(flick, {
+        ...rules,
+        noInkZones: [{ x: 150, y: 300, width: 100, height: 200 }],
+      }),
+    ).toBe("no-ink-zone");
+    expect(
+      judgePlacement(flick, { ...rules, noInkZones: [{ x: 150, y: 0, width: 100, height: 200 }] }),
+    ).toBe("ok");
+  });
+
   it("rejects points beneath the ground but keeps solids and ditches drawable", () => {
     const solids = [{ x: 0, y: 100, width: 100, height: 20 }];
     expect(
