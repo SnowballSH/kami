@@ -469,6 +469,8 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 
 The board feed (`server/sync/`) is in-memory and per process: sequence numbers restart with the server, so a
 client resuming from a cursor the log does not hold gets `resync` and reloads through `GET /api/boards/:board`.
+A stream whose reader stops reading is ended once 4 MiB of events wait for it (`MAX_BACKLOG_BYTES`); the
+browser reconnects with `Last-Event-ID` and catches up, or gets `resync`.
 In `shared` access mode both routes are board routes and need a credential that grants the board id
 (`docs/access.md`).
 
