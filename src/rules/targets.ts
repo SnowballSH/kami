@@ -1,22 +1,7 @@
 import { isNumeral } from "./amounts";
 import type { Sentence } from "./normalise";
 import type { Target } from "./types";
-import { mentions, QUALIFIERS, UNIVERSAL, type Vocabulary, vocabulary } from "./vocabulary";
-
-const MIN_ADVERB_LENGTH = 5;
-
-/** Nouns that end like adverbs, so "the royal family" and "the blue dragonfly" keep their names. */
-const NOUNS_IN_LY = vocabulary(`
-  family, jelly, belly, bully, holly, lily, lolly, dolly, folly, gully, rally, ally, assembly,
-  anomaly, monopoly, homily, reply, supply, italy, sally, polly, molly, billy, willy, filly
-`);
-
-const isAdverb = (word: string): boolean =>
-  QUALIFIERS.has(word) ||
-  (word.length >= MIN_ADVERB_LENGTH &&
-    word.endsWith("ly") &&
-    !word.endsWith("fly") &&
-    !NOUNS_IN_LY.has(word));
+import { mentions, QUALIFIERS, UNIVERSAL, type Vocabulary } from "./vocabulary";
 
 const isNamingWord = (word: string, known: Vocabulary): boolean =>
   !known.has(word) && !isNumeral(word);
@@ -28,7 +13,7 @@ const isNamingWord = (word: string, known: Vocabulary): boolean =>
 const phraseFrom = (words: readonly string[], head: string, known: Vocabulary): string[] => {
   const at = words.indexOf(head);
   const after = at < 0 ? [] : words.slice(at + 1);
-  const end = after.findIndex((word) => !isNamingWord(word, known) || isAdverb(word));
+  const end = after.findIndex((word) => !isNamingWord(word, known) || QUALIFIERS.has(word));
   return [head, ...(end < 0 ? after : after.slice(0, end))];
 };
 

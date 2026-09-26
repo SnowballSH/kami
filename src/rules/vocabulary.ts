@@ -35,10 +35,11 @@ export const NORMAL = vocabulary(`
   normal, normally, regular, usual, usually, ordinary, default, standard, average
 `);
 
-/** Words that say when or how steadily, and change nothing a law can hold: "the rock suddenly floats". */
+/** Words that say when, how steadily or in what mood, and change nothing a law can hold: "the rock suddenly floats". */
 export const STEADINESS = vocabulary(`
   always, forever, constantly, continually, continuously, endlessly, eternally, permanently,
-  suddenly, instantly, immediately, again
+  suddenly, instantly, immediately, again, finally, eventually, gradually, happily, merrily,
+  quietly, silently, calmly, proudly, peacefully, magically, mysteriously, simply, truly, actually
 `);
 
 /** Words that ask for only some of a quality: "the ball is barely bouncy", "a bit heavier". */
