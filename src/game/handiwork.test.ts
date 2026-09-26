@@ -16,6 +16,16 @@ describe("Handiwork", () => {
     expect(work.takeLatest(() => true)).toBeNull();
   });
 
+  it("keeps a drawing where it was first recorded when it is recorded again", () => {
+    const work = new Handiwork();
+    work.record(drawing("held"));
+    work.record(drawing("line"));
+    work.record(drawing("held"));
+    expect(work.takeLatest(() => true)).toEqual(drawing("line"));
+    expect(work.takeLatest(() => true)).toEqual(drawing("held"));
+    expect(work.takeLatest(() => true)).toBeNull();
+  });
+
   it("passes over and forgets what is already gone", () => {
     const work = new Handiwork();
     work.record(drawing("kept"));

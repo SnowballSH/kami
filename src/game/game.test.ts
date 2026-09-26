@@ -2226,6 +2226,29 @@ describe("Game's undo", () => {
     expect(player.renderer.lastFrame?.inks).toHaveLength(0);
   });
 
+  it("takes back a drawing that landed after ink still being read before that ink", async () => {
+    const reader = new ScriptedReader("slow motion", true);
+    const player = new Player("wonderland", { reader });
+    await player.arrive();
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
+    await player.draw(line({ x: 250, y: 500 }, { x: 450, y: 500 }));
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(1);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(1);
+
+    player.game.undo();
+    await player.wait(50);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(1);
+
+    player.game.undo();
+    await player.wait(50);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(0);
+    reader.answerAll();
+    await player.wait(100);
+    expect(player.written).not.toContain("slow motion");
+  });
+
   it("is ignored while the board loads", async () => {
     const store = new MemoryBoardStore();
     const pending = Promise.withResolvers<BoardSnapshot>();

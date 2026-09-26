@@ -9,12 +9,14 @@ export const HANDIWORK_DEPTH = 256;
 
 /**
  * What this player made on the open page, newest last, so undo can take it back. Only the
- * player's own drawings and notes enter it: never a peer's, never Kami's.
+ * player's own drawings and notes enter it: never a peer's, never Kami's. A drawing is recorded
+ * when it is made, so ink held while it is read keeps its place when it later lands.
  */
 export class Handiwork {
   private made: Made[] = [];
 
   record(made: Made): void {
+    if (this.made.some(({ kind, id }) => kind === made.kind && id === made.id)) return;
     this.made.push(made);
     if (this.made.length > HANDIWORK_DEPTH) this.made.shift();
   }

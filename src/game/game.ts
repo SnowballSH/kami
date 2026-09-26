@@ -467,17 +467,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   /**
-   * Takes back the last thing this player made: ink not yet landed stroke by stroke, else ink
-   * still hanging while it is read, else their newest drawing or note still on the page, erased
-   * as the eraser would, its ink refunded.
+   * Takes back the last thing this player made: ink not yet landed stroke by stroke, else the
+   * newest of their drawings or notes that still stands — ink hanging while it is read is let
+   * go, anything on the page erased as the eraser would — its ink refunded.
    */
   undo(): void {
     if (this.loading || this.ink.retract()) return;
-    const unread = this.held.retractNewest();
-    if (unread !== null) {
-      this.ink.refund(unread.cost);
-      return;
-    }
     const made = this.handiwork.takeLatest((entry) => this.stands(entry));
     if (made === null) return;
     if (made.kind === "note") {
@@ -485,11 +480,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       return;
     }
     this.ink.refund(made.cost);
-    this.discard(made.id);
+    if (!this.held.retract(made.id)) this.discard(made.id);
   }
 
   private stands(made: Made): boolean {
-    if (made.kind === "drawing") return this.ledger.get(made.id) !== null;
+    if (made.kind === "drawing") {
+      return this.held.isReading(made.id) || this.ledger.get(made.id) !== null;
+    }
     return (
       this.notes.get(made.id) !== null || this.rules.all.some((rule) => rule.noteId === made.id)
     );
@@ -538,6 +535,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       return;
     }
     this.held.hold(drawing);
+    this.handiwork.record({ kind: "drawing", id: drawing.id, cost: drawing.cost });
     void this.settleWords(drawing, reading);
   }
 
