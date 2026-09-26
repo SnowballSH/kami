@@ -5,6 +5,7 @@ import { knownWords, type Recogniser, understands } from "../recogniser";
 import { ALICE, SUBJECTS } from "../subjects";
 import { EARTH } from "../types";
 import {
+  affirmed,
   INTENSIFIERS,
   mentions,
   NEGATION,
@@ -128,7 +129,7 @@ const DIALS: readonly Dial[] = [
       { words: SLOW, value: SLOW_WALK },
     ],
     implied: null,
-    compared: { more: FAST_WALK, less: SLOW_WALK },
+    compared: { more: FAST_WALK, less: SLOW_WALK, lessening: "contrary" },
     fromAmount: multiplier,
   },
   {
@@ -139,7 +140,7 @@ const DIALS: readonly Dial[] = [
       { words: SMALL, value: SMALL_ALICE },
     ],
     implied: null,
-    compared: { more: BIG_ALICE, less: SMALL_ALICE },
+    compared: { more: BIG_ALICE, less: SMALL_ALICE, lessening: "contrary" },
     fromAmount: multiplier,
   },
   {
@@ -168,7 +169,7 @@ const DIALS: readonly Dial[] = [
       { words: COLD, value: COLD_DEGREES },
     ],
     implied: null,
-    compared: { more: HOT_DEGREES, less: COLD_DEGREES },
+    compared: { more: HOT_DEGREES, less: COLD_DEGREES, lessening: "softened" },
     fromAmount: (amount) => (amount.unit === "plain" ? amount.value : null),
   },
   {
@@ -212,7 +213,12 @@ const KNOWN: ReadonlyMap<Dial, Vocabulary> = new Map(DIALS.map((dial) => [dial, 
 
 export const DIAL_WORDS: Vocabulary = union(...KNOWN.values());
 
+const saysDial = (dial: Dial, words: readonly string[]): boolean =>
+  dial.about.every((topic) => mentions(words, topic));
+
 const readDial = (dial: Dial, words: readonly string[]): number | null => {
+  const affirmative = affirmed(words);
+  if (affirmative !== null) return saysDial(dial, affirmative) ? readDial(dial, affirmative) : null;
   if (mentions(words, UNDOING)) return EARTH[dial.governs];
   const amount = readAmount(words);
   if (amount !== null) return dial.fromAmount(amount, words);
@@ -227,7 +233,7 @@ export const recogniseDials: Recogniser = ({ words }) => {
   for (const dial of DIALS) {
     const known = KNOWN.get(dial);
     if (known === undefined || !understands(words, known)) continue;
-    if (!dial.about.every((topic) => mentions(words, topic))) continue;
+    if (!saysDial(dial, words)) continue;
     const value = readDial(dial, words);
     if (value !== null) return scalarRule(dial.governs, value);
   }

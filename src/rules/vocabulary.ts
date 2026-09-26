@@ -30,6 +30,21 @@ export const NEGATION = vocabulary(`
   not, never, isnt, arent, wasnt, werent, aint, dont, doesnt, didnt, wont, cannot, cant, anymore
 `);
 
+/** Words that end a doing, so a negation before one says the doing goes on: "doesn't stop". */
+export const HALTING = vocabulary(`
+  stop, stops, stopped, stopping, quit, quits, quitting, cease, ceases, ceased, halt, halts,
+  halted, lose, loses, lost, forget, forgets
+`);
+
+/**
+ * "the lamp doesn't stop glowing", "Alice never stops flying": a negated halt says the doing goes
+ * on, so the sentence reads as its affirmative ("the lamp glowing"). Null when it has no such pair.
+ */
+export const affirmed = (words: readonly string[]): readonly string[] | null =>
+  mentions(words, NEGATION) && mentions(words, HALTING)
+    ? words.filter((word) => !NEGATION.has(word) && !HALTING.has(word))
+    : null;
+
 /** Words that ask for a dial's ordinary value: "the dog is normal size", "Alice walks normally". */
 export const NORMAL = vocabulary(`
   normal, normally, regular, usual, usually, ordinary, default, standard, average
