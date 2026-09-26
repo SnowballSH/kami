@@ -249,9 +249,14 @@ export class Sumikui {
       case "ink":
         return ground.inks.includes(quarry.ink) && edible(quarry.ink) && this.onThePage(quarry.ink);
       case "paper":
-        return this.standsOnPaper(quarry.alice, ground) && !this.isHallowed(feetOf(quarry.alice));
+        return (
+          ground.alices.includes(quarry.alice) &&
+          this.standsOnPaper(quarry.alice, ground) &&
+          !this.isHallowed(feetOf(quarry.alice))
+        );
       case "alice":
         return (
+          ground.alices.includes(quarry.alice) &&
           !this.isHallowed(feetOf(quarry.alice)) &&
           distance(this.centre, quarry.alice.body.position) <= SUMIKUI_LOSES_HER_PX
         );
