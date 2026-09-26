@@ -1,4 +1,9 @@
-import type { ControllerState, EventSourceLike, StreamMessage } from "../types";
+import {
+  type ControllerState,
+  type EventSourceLike,
+  STREAM_STATE,
+  type StreamMessage,
+} from "../types";
 
 type StreamEventType = "message" | "error";
 
@@ -8,7 +13,7 @@ export class FakeEventSource implements EventSourceLike {
   static readonly opened: FakeEventSource[] = [];
 
   readonly url: string;
-  closed = false;
+  readyState: number = STREAM_STATE.open;
   private readonly listeners: Readonly<Record<StreamEventType, StreamListener[]>> = {
     message: [],
     error: [],
@@ -34,8 +39,12 @@ export class FakeEventSource implements EventSourceLike {
     if (type === "message") for (const data of this.unheard.splice(0)) listener({ data });
   }
 
+  get closed(): boolean {
+    return this.readyState === STREAM_STATE.closed;
+  }
+
   close(): void {
-    this.closed = true;
+    this.readyState = STREAM_STATE.closed;
   }
 
   send(data: unknown): void {
@@ -47,7 +56,15 @@ export class FakeEventSource implements EventSourceLike {
     this.send(JSON.stringify({ x: 0, y: 0, held: [], buttons: [], ...state }));
   }
 
+  /** A dropped connection the browser will retry by itself. */
   fail(): void {
+    this.readyState = STREAM_STATE.connecting;
+    this.dispatch("error", undefined);
+  }
+
+  /** An answer the browser will not retry (a 502, a 401): the stream is closed for good. */
+  die(): void {
+    this.readyState = STREAM_STATE.closed;
     this.dispatch("error", undefined);
   }
 

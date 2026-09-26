@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { FakeEventSource } from "../controller/testing/fakeEventSource";
 import type { Note, NoteId } from "../notes/types";
 import type { AliceSnapshot } from "../sim/types";
-import { BoardLink, boardEventsPath, PRESENCE_INTERVAL_MS, presencePath } from "./boardLink";
+import {
+  BoardLink,
+  boardEventsPath,
+  PRESENCE_INTERVAL_MS,
+  presencePath,
+  RECONNECT_BACKOFF_MS,
+} from "./boardLink";
 import { mintPeerId } from "./peer";
 import { SharedPage } from "./testing/sharedPage";
 import {
@@ -153,6 +159,100 @@ describe("BoardLink", () => {
     expect(source.closed).toBe(true);
     expect(link.boardId).toBeNull();
     expect(ears.changes).toEqual([]);
+  });
+
+  describe("when the server closes the stream for good", () => {
+    const withTimers = () => {
+      const waits: { readonly ms: number; readonly run: () => void; cancelled: boolean }[] = [];
+      const link = new BoardLink({
+        peer: ME,
+        openEventSource: (url) => new FakeEventSource(url),
+        fetch: () => Promise.resolve(new Response(null, { status: 204 })),
+        schedule: (run, ms) => {
+          const wait = { ms, run, cancelled: false };
+          waits.push(wait);
+          return () => {
+            wait.cancelled = true;
+          };
+        },
+      });
+      const elapse = () => {
+        const wait = waits.at(-1);
+        if (wait !== undefined && !wait.cancelled) wait.run();
+      };
+      return { link, waits, elapse };
+    };
+    const change = (seq: number) =>
+      JSON.stringify({ seq, type: "put", kind: "notes", id: NOTE.id, entity: NOTE });
+
+    it("follows again from its last change, waiting longer after each failure", () => {
+      const { link, waits, elapse } = withTimers();
+      const ears = new Ears();
+      link.follow(BOARD, ears.listener, { boot: "life", seq: 2 });
+      const first = FakeEventSource.latest();
+      first.send(change(3));
+      first.die();
+      expect(waits.map((wait) => wait.ms)).toEqual([RECONNECT_BACKOFF_MS.first]);
+      elapse();
+      const second = FakeEventSource.latest();
+      expect(second).not.toBe(first);
+      expect(second.url).toBe(boardEventsPath(BOARD, ME, { boot: "life", seq: 3 }));
+      second.die();
+      elapse();
+      FakeEventSource.latest().die();
+      expect(waits.map((wait) => wait.ms)).toEqual([
+        RECONNECT_BACKOFF_MS.first,
+        RECONNECT_BACKOFF_MS.first * 2,
+        RECONNECT_BACKOFF_MS.first * 4,
+      ]);
+      elapse();
+      const alive = FakeEventSource.latest();
+      alive.send(change(3));
+      alive.send(change(4));
+      expect(ears.changes.map((heard) => heard.seq)).toEqual([3, 4]);
+      alive.die();
+      expect(waits.at(-1)?.ms).toBe(RECONNECT_BACKOFF_MS.first);
+      expect(link.boardId).toBe(BOARD);
+    });
+
+    it("never waits longer than the cap", () => {
+      const { link, waits, elapse } = withTimers();
+      link.follow(BOARD, new Ears().listener, { boot: "life", seq: 0 });
+      for (let i = 0; i < 12; i++) {
+        FakeEventSource.latest().die();
+        elapse();
+      }
+      expect(Math.max(...waits.map((wait) => wait.ms))).toBe(RECONNECT_BACKOFF_MS.max);
+    });
+
+    it("leaves a stream the browser is still reconnecting to itself", () => {
+      const { link, waits } = withTimers();
+      link.follow(BOARD, new Ears().listener, { boot: "life", seq: 0 });
+      FakeEventSource.latest().fail();
+      expect(waits).toEqual([]);
+    });
+
+    it("asks for a reload when it never learned where the stream stood", () => {
+      const { link, elapse } = withTimers();
+      const ears = new Ears();
+      link.follow(BOARD, ears.listener);
+      FakeEventSource.latest().die();
+      expect(ears.resyncs).toBe(0);
+      elapse();
+      expect(ears.resyncs).toBe(1);
+      expect(link.boardId).toBeNull();
+    });
+
+    it("forgets a pending retry once it stops following", () => {
+      const { link, waits, elapse } = withTimers();
+      link.follow(BOARD, new Ears().listener, { boot: "life", seq: 0 });
+      const dead = FakeEventSource.latest();
+      dead.die();
+      link.unfollow();
+      expect(waits[0]?.cancelled).toBe(true);
+      elapse();
+      expect(FakeEventSource.latest()).toBe(dead);
+    });
   });
 
   it("stops listening to a stream it has left, even if it still speaks", () => {
