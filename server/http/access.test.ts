@@ -62,6 +62,25 @@ const bearer = (credential = ALICE): HeadersInit => ({
 });
 const request = (path: string, init?: RequestInit): Request =>
   new Request(`${ORIGIN}/api/${path}`, init);
+/** A body that sends its first bytes and then nothing, never finishing. */
+const trickle = (): { readonly body: ReadableStream<Uint8Array>; readonly cancel: () => void } => {
+  const cancel = vi.fn();
+  const body = new ReadableStream<Uint8Array>({
+    start: (controller) => controller.enqueue(new TextEncoder().encode('{"pass')),
+    cancel,
+  });
+  return { body, cancel };
+};
+const stalledPost = (path: string, body: ReadableStream<Uint8Array>): Request =>
+  request(path, {
+    method: "POST",
+    headers: { origin: ORIGIN, "content-type": "application/json" },
+    body,
+    duplex: "half",
+  } as RequestInit);
+/** Settles as `null` once `ms` of (fake) time passes without the promise settling first. */
+const within = async <T>(promise: Promise<T>, ms: number): Promise<T | null> =>
+  Promise.race([promise, vi.advanceTimersByTimeAsync(ms).then(() => null)]);
 
 describe("deployment configuration", () => {
   it("keeps the iPad LAN demo and makes shared binds loopback by default", () => {
@@ -685,6 +704,20 @@ describe("shared API access", () => {
       expect((await signIn(PASSWORD, "192.0.2.1", forwarded("198.51.100.99"))).status).toBe(429);
     });
 
+    it("reads a sign-in body before taking the login slot, so a stalled sender blocks no one", async () => {
+      vi.useFakeTimers();
+      try {
+        const { body, cancel } = trickle();
+        const stalled = gated.handle(stalledPost("session", body), "198.51.100.5");
+        expect((await within(signIn(PASSWORD), 1_000))?.status).toBe(200);
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect((await stalled).status).toBe(401);
+        expect(cancel).toHaveBeenCalledOnce();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("logs where a refused sign-in came from, so a host can find its proxy's address", async () => {
       const lines: string[] = [];
       const logged = createApi({
@@ -789,6 +822,31 @@ describe("model work budgets", () => {
       ).toBe(200);
     },
   );
+
+  it("reads a model request body before taking a slot and answers a stalled one with 408", async () => {
+    vi.useFakeTimers();
+    try {
+      const access = new ApiAccess({ ...DEMO_ACCESS, modelConcurrency: 1 });
+      const respond = vi.fn(async (received: Request) => Response.json(await received.json()));
+      const { body, cancel } = trickle();
+      const stalled = access.handle(stalledPost("compile", body), respond);
+      const answered = await within(
+        access.handle(
+          request("compile", { method: "POST", body: JSON.stringify({ text: "gravity" }) }),
+          respond,
+        ),
+        1_000,
+      );
+      expect(answered?.status).toBe(200);
+      expect(await answered?.json()).toEqual({ text: "gravity" });
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect((await stalled).status).toBe(408);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(respond).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("limits the aggregate model rate, leaves board access available and resets after a minute", async () => {
     let now = 100_000;

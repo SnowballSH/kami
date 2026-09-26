@@ -5,9 +5,11 @@ export class BodyTooLargeError extends Error {
   }
 }
 
+/** Reads at most `maxBytes` of UTF-8; an abort cancels the body and rejects with the signal's reason. */
 export const readBoundedText = async (
   message: Request | Response,
   maxBytes: number,
+  signal?: AbortSignal,
 ): Promise<string> => {
   if (Number(message.headers.get("content-length")) > maxBytes) {
     void message.body?.cancel().catch(() => undefined);
@@ -17,10 +19,14 @@ export const readBoundedText = async (
   if (reader === undefined) return "";
   const decoder = new TextDecoder("utf-8", { fatal: true });
   const chunks: string[] = [];
+  const cancel = (): void => void reader.cancel(signal?.reason).catch(() => undefined);
+  signal?.addEventListener("abort", cancel, { once: true });
   let bytes = 0;
   try {
+    signal?.throwIfAborted();
     for (;;) {
       const { value, done } = await reader.read();
+      signal?.throwIfAborted();
       if (done) break;
       bytes += value.byteLength;
       if (bytes > maxBytes) {
@@ -31,9 +37,10 @@ export const readBoundedText = async (
     chunks.push(decoder.decode());
     return chunks.join("");
   } catch (error) {
-    void reader.cancel().catch(() => undefined);
+    cancel();
     throw error;
   } finally {
+    signal?.removeEventListener("abort", cancel);
     reader.releaseLock();
   }
 };

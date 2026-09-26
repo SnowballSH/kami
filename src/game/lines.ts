@@ -1,4 +1,5 @@
-import type { RoomBrief } from "../cat/types";
+import type { LineSet } from "../cat/lines";
+import type { Nature, RoomBrief } from "../cat/types";
 import type { PlacementRejection } from "../ink/types";
 
 export const WORDMARK = "kami";
@@ -78,6 +79,19 @@ export const PORTAL_LONELY_LINE = "It leads nowhere yet. Draw it a twin.";
 export const IN_THE_DARK_LINE = "She won't take a step she can't see.";
 export const SUMIKUI_SEALED_LINE = "Sealed. It waits under the page, with the one it came from.";
 export const SUMIKUI_LORE_LINE_DELAY_MS = 3_200;
+/** What Kami says when the heat takes a drawing, by the nature it had: ice melts, clouds boil off. */
+export const PERISHED_LINES: Readonly<Partial<Record<Nature, LineSet>>> = {
+  slippery: [
+    "Melted. Ice is only water with ambitions.",
+    "A puddle now. Nothing slippery keeps its nerve in this heat.",
+    "Gone soft, then gone. Heat is rude like that.",
+  ],
+  floaty: [
+    "Gone up in steam. Clouds never stay.",
+    "Boiled clean away. It was mostly air anyway.",
+    "Evaporated. Floating was only ever the first step.",
+  ],
+};
 export const FELL_OFF_PAGE_LINE = "Off the edge of the page. Back to where she last stood.";
 
 export const glossOf = (explanation: string): string => `kami: ${explanation}`;

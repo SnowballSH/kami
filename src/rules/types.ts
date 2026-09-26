@@ -98,6 +98,8 @@ export interface Rule extends CompiledRule {
   readonly noteId: NoteId;
   readonly position: Vec;
   readonly createdAt: number;
+  /** Set on the laws a journey brought ("the Moon"); the next journey repeals them all. */
+  readonly scene?: string;
 }
 
 /** Null means "this text is not a rule" — never an error. */

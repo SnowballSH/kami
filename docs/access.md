@@ -153,11 +153,13 @@ per pen lift, so a shared 2-vCPU box serving a handful of players behind a paid 
 well with about `600` requests a minute and `4` concurrent — enough for play, small enough that a
 scripted client cannot run up the gateway bill or starve the host's other services. The budget counts
 `recognize` too, which the built-in k-NN answers from a worker thread with a bounded queue of its own
-(`server/README.md`, "Self-hosting"). A slot stays occupied while the model response is read; response bodies have an
+(`server/README.md`, "Self-hosting"). The request body is read in full (10-second deadline) before a
+slot is taken, so a slow sender holds none; a slot stays occupied while the model response is read; response bodies have an
 8 MiB ceiling and 30-second read deadline. Upstream inference/request deadlines remain those of
 the individual adapters. Restart resets the counters. Board/controller traffic is not charged
 against the model budget. The login endpoint allows 30 attempts per minute, 10 failures per client in 15
-minutes ("One password" above), and at most 128 active sessions per process. These limits bound work; they do not replace proxy connection/body limits
+minutes ("One password" above), and at most 128 active sessions per process: a sign-in beyond that
+ends the oldest session (that device signs in again) rather than refusing new ones. These limits bound work; they do not replace proxy connection/body limits
 or a firewall.
 
 | Request | Shared-mode result |
