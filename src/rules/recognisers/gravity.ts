@@ -4,7 +4,7 @@ import { DIRECTION_WORDS, type Direction, fieldAlong, readDirection } from "../d
 import { gravityRule, shownNumber } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { SUBJECTS } from "../subjects";
-import { mentions, UNIVERSAL, vocabulary } from "../vocabulary";
+import { mentions, UNIVERSAL, type Vocabulary, vocabulary } from "../vocabulary";
 
 const STANDARD_GRAVITY_MPS2 = 9.81;
 const WEAK_GRAVITY = 0.4;
@@ -23,7 +23,7 @@ const WEAK = vocabulary("low, lower, weak, weaker, light, lighter, less, reduced
 const STRONG = vocabulary("high, higher, strong, stronger, heavy, heavier, more, big, crushing");
 const FLOATING = vocabulary("weightless, float, floats, floating");
 
-const KNOWN = knownWords(
+export const GRAVITY_WORDS: Vocabulary = knownWords(
   SUBJECTS.gravity,
   BODY_WORDS,
   DIRECTION_WORDS,
@@ -69,7 +69,7 @@ const readHeading = (words: readonly string[]): Direction | null =>
   readDirection(words) ?? (mentions(words, FLIPS) ? "up" : null);
 
 export const recogniseGravity: Recogniser = ({ words }) => {
-  if (!understands(words, KNOWN) || !isAboutGravity(words)) return null;
+  if (!understands(words, GRAVITY_WORDS) || !isAboutGravity(words)) return null;
   const size = mentions(words, FLOATING) ? { inG: 0, origin: null } : readSize(words);
   const heading = readHeading(words);
   if (size === null && heading === null) return null;

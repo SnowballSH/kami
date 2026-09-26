@@ -41,6 +41,8 @@ export interface ServerConfig {
   readonly transcribe: LlmConfig | null;
   /** The sidecar whose local models read handwriting (`POST /read`); preferred over `transcribe`. */
   readonly handwriting: AuthenticatedEndpoint | null;
+  /** The text model asked to reconsider a settled note the reader was unsure of; null never asks. */
+  readonly handwritingRepair: LlmConfig | null;
   /** The sidecar the server starts and supervises itself (KAMI_SIDECAR=auto); null when off. */
   readonly sidecar: ManagedSidecarConfig | null;
   /** Ask the rules model one warm-up question at start-up; off spares a paid gateway the request. */
@@ -244,6 +246,7 @@ export const readConfig = (
   const sidecar = managedSidecarFrom(env);
   const recognizer = recognizerFrom(env, sidecar);
   const embeddedDataDirectory = nonEmpty(env.KAMI_DATA_DIR) ?? EMBEDDED_DATA_DIRECTORY;
+  const llm = modelFrom(env, LLM_VARIABLES);
   return {
     hostname: nonEmpty(env.KAMI_BIND_HOST) ?? (access.mode === "shared" ? "127.0.0.1" : "0.0.0.0"),
     access,
@@ -254,9 +257,10 @@ export const readConfig = (
       embeddedDataDirectory,
       embeddedCacheGb: positiveNumberFrom(env.KAMI_MONGO_CACHE_GB, DEFAULT_EMBEDDED_CACHE_GB),
     },
-    llm: modelFrom(env, LLM_VARIABLES),
+    llm,
     transcribe: modelFrom(env, TRANSCRIBE_VARIABLES, LLM_VARIABLES),
     handwriting: handwritingFrom(env, sidecar, recognizer),
+    handwritingRepair: isOff(env.KAMI_HANDWRITING_REPAIR) ? null : llm,
     sidecar,
     warmUp: !isOff(env.KAMI_LLM_WARM_UP),
     webDirectory: webDirectoryFrom(env),

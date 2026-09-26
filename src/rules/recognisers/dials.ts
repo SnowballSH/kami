@@ -187,6 +187,8 @@ const knownTo = (dial: Dial): Vocabulary =>
 
 const KNOWN: ReadonlyMap<Dial, Vocabulary> = new Map(DIALS.map((dial) => [dial, knownTo(dial)]));
 
+export const DIAL_WORDS: Vocabulary = union(...KNOWN.values());
+
 const readDial = (dial: Dial, words: readonly string[]): number | null => {
   const amount = readAmount(words);
   if (amount !== null) return dial.fromAmount(amount, words);

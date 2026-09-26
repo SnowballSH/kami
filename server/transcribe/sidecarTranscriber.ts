@@ -6,7 +6,12 @@ import type { FetchLike } from "../recognition/types";
 import { fetchSidecarCapabilities } from "../sidecar/health";
 import { HI_STROKES } from "./hiStrokes";
 import { SerialQueue } from "./serialQueue";
-import { asWriting, type HandwritingTranscriber, type TranscribeOptions } from "./types";
+import {
+  asWriting,
+  type HandwritingTranscriber,
+  type TranscribeOptions,
+  type Transcript,
+} from "./types";
 
 export interface SidecarTranscriberTiming {
   /** How long one read may take, queueing in the sidecar included. */
@@ -26,7 +31,27 @@ export const DEFAULT_SIDECAR_TIMING: SidecarTranscriberTiming = {
 /** Reads are one at a time (the sidecar has one thread to spare); this many may wait. */
 const MAX_WAITING_READS = 8;
 
-const readSchema = z.object({ text: z.string().nullable() });
+const readSchema = z.object({
+  text: z.string().nullable(),
+  sureness: z.array(z.number().min(0).max(1)).optional().catch(undefined),
+  alternatives: z.array(z.string()).optional().catch(undefined),
+});
+
+type SidecarReading = z.infer<typeof readSchema>;
+
+/** The sidecar's answer held to `asWriting`, its sureness kept only while it lines up with the text. */
+const transcriptOf = ({ text, sureness, alternatives }: SidecarReading): Transcript | null => {
+  const writing = asWriting(text);
+  if (writing === null) return null;
+  const aligned =
+    sureness !== undefined && writing === text && sureness.length === Array.from(writing).length;
+  const others = (alternatives ?? []).flatMap((alternative) => asWriting(alternative) ?? []);
+  return {
+    text: writing,
+    ...(aligned ? { sureness } : {}),
+    ...(others.length > 0 ? { alternatives: others } : {}),
+  };
+};
 
 const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -69,12 +94,12 @@ export class SidecarTranscriber implements HandwritingTranscriber {
     }
   }
 
-  transcribe(strokes: readonly Stroke[], options: TranscribeOptions = {}): Promise<string | null> {
+  transcribe(
+    strokes: readonly Stroke[],
+    options: TranscribeOptions = {},
+  ): Promise<Transcript | null> {
     if (strokes.length === 0) return Promise.resolve(null);
-    return this.#queue.run(
-      async () => asWriting(await this.#read(strokes, options.signal)),
-      options.signal,
-    );
+    return this.#queue.run(() => this.#read(strokes, options.signal), options.signal);
   }
 
   async #answersARead(): Promise<boolean> {
@@ -86,15 +111,15 @@ export class SidecarTranscriber implements HandwritingTranscriber {
     }
   }
 
-  async #read(strokes: readonly Stroke[], signal?: AbortSignal): Promise<string | null> {
+  async #read(strokes: readonly Stroke[], signal?: AbortSignal): Promise<Transcript | null> {
     try {
-      return await this.#post(strokes, signal);
+      return transcriptOf(await this.#post(strokes, signal));
     } catch {
       return null;
     }
   }
 
-  async #post(strokes: readonly Stroke[], signal?: AbortSignal): Promise<string | null> {
+  async #post(strokes: readonly Stroke[], signal?: AbortSignal): Promise<SidecarReading> {
     const timeout = AbortSignal.timeout(this.#timing.requestTimeoutMs);
     const answer = await this.#fetch(sidecarUrl(this.#endpoint.url, "read"), {
       method: "POST",
@@ -103,6 +128,6 @@ export class SidecarTranscriber implements HandwritingTranscriber {
       signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
     });
     if (!answer.ok) throw new Error(`the sidecar answered ${answer.status}`);
-    return readSchema.parse(await answer.json()).text;
+    return readSchema.parse(await answer.json());
   }
 }

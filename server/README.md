@@ -138,6 +138,7 @@ the language model.
 | `KAMI_EYE_MODEL` / `KAMI_EYE_THREADS` | Passed to the managed sidecar: Kami's Eye artefact directory (default `ml/artifacts/kami-eye`; `/app/models/kami-eye` in the image, the pinned release baked in — the server recognises with the sidecar only when it exists) and ONNX Runtime threads (a positive integer; unset leaves Runtime its default, the image says `1`). |
 | `KAMI_HANDWRITING_URL` | The sidecar whose `POST /read` reads handwriting, first choice over the vision model. Unset: the managed sidecar, else `KAMI_RECOGNIZER_URL`'s. `off`: never a sidecar. |
 | `KAMI_HANDWRITING_API_KEY` | Sent as `Authorization: Bearer` to that sidecar; may be given as `KAMI_HANDWRITING_API_KEY_FILE`. Defaults to `KAMI_RECOGNIZER_API_KEY` only when the URL is the recogniser's. |
+| `KAMI_HANDWRITING_REPAIR` | `off` stops asking the text model (`KAMI_LLM_*`) to reconsider settled handwriting the reader was unsure of; unset, it asks whenever that model is configured ("Handwriting reading"). |
 | `KAMI_TRANSCRIBE_URL` / `KAMI_TRANSCRIBE_MODEL` / `KAMI_TRANSCRIBE_API_KEY` / `KAMI_TRANSCRIBE_REASONING_EFFORT` | The handwriting vision model, used only when no sidecar reader passes its check; each falls back to its `KAMI_LLM_*` counterpart, so a different model on the same server needs only `KAMI_TRANSCRIBE_MODEL`, and a different server sets `KAMI_TRANSCRIBE_URL` (and its own key, or it inherits the LLM's). The key may be given as `KAMI_TRANSCRIBE_API_KEY_FILE`. Start-up must correctly read a known PNG before it is used — a text-only gateway fails the check and is simply not used. With no reader ready the route returns **501**. |
 | `KAMI_LLM_WARM_UP` | `off` skips the rules model's one start-up question ("hello"), which only serves to load a cold local model; the handwriting image check still runs once. |
 | `KAMI_RECOGNIZER_URL` | The Kami's Eye sidecar (`ml/CONTRACT.md`), used for `/api/recognize` with the k-NN as its fallback; unset, the managed sidecar (`KAMI_SIDECAR=auto`) when a model is at `KAMI_EYE_MODEL`, else the k-NN alone; `off` means the k-NN alone. |
@@ -172,7 +173,7 @@ the language model.
 | `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
 | `GET /api/controllers` | `[{ id, x, y, held, buttons, transport, idleMs }]` |
 | `WS /api/stage/:stage?role=source\|screen` | The big screen: playing devices show what they render, a monitor on `/?screen` watches whichever is in use (`docs/screen.md`) |
-| `POST /api/transcribe` `{ strokes: {x,y}[][] }` | `{ text: string \| null }` — the strokes read as handwriting, `null` for a drawing; `501` without a reader |
+| `POST /api/transcribe` `{ strokes: {x,y}[][], settled? }` | `{ text: string \| null, unsure? }` — the strokes read as handwriting and proofread, `null` for a drawing; `unsure: true` when a `settled` read would ask a model to reconsider; `501` without a reader |
 | `GET /api/exemplars` | `{ categories: string[] }` — every Quick, Draw! category a drawing can be summoned for |
 
 Entity/model JSON bodies are validated with Zod (`schemas.ts` re-exports the browser-safe entity
@@ -387,6 +388,19 @@ letters — a fence once came back as `IIIIII`). Anything else, a timeout, an HT
 the request's abort signal to stop an obsolete client wait; that does not guarantee a model cancels
 work already accepted.
 
+Every answer is then **proofread** (`transcribe/proofreadingReader.ts`, design and tuning in
+[`transcribe/PROOFREADING.md`](transcribe/PROOFREADING.md)): the sidecar also says how sure it was of
+each character and what its first model read where the second answered (`ml/CONTRACT.md`), and a
+deterministic corrector snaps the reading toward the words the game understands — its grammars, the
+Quick, Draw! names, the Cat's lexicon, the cast — with an OCR-weighted edit distance, splits words run
+together and mends `=` and digits, keeping ordinary English (SCOWL, via `wordlist-english`). It
+costs a few milliseconds. When the reading is still in doubt and a text model is configured
+(`KAMI_LLM_*`, on by default; `KAMI_HANDWRITING_REPAIR=off` disables it), the answer says
+`unsure: true`, and the client's read of the **settled** ink (`settled: true`) asks the model once,
+through `llm/chatClient.ts`, to reconstruct what the player most likely wrote — 4 s at most, two at
+a time, 120 a minute, remembered by what was read, and trusted only when faithful to the reading;
+otherwise the proofread text stands. Reads on each pen lift never reach the model.
+
 ### The sidecar the server runs itself
 
 `KAMI_SIDECAR=auto` (the image's default; off otherwise) makes the server start `ml/sidecar.py` as a
@@ -456,7 +470,7 @@ Same origin, JSON unless noted. Additive changes only; anything else is announce
 | `POST /api/compile` | `{ text }` | `{ rule: CompiledRule \| null }` |
 | `GET /api/exemplars` | — | `{ categories: string[] }` — every Quick, Draw! category `/api/exemplar` has a drawing of; the client builds its summoning lexicon from it |
 | `POST /api/scene` | `{ text }` — the whole travel sentence ("teleport us to the moon") | `{ scene: Scene \| null }` where `Scene = { place: string, laws: CompiledRule[], props: { word: string, at: {x,y}, size: number }[], line: string }`. `laws` are ordinary compiled rules (at most five, one per setting, clamped to `effectRanges`); `props` are Quick, Draw! categories with where to stand them relative to the note (`at.x` ±450, `at.y` −350 … −40, y up is negative) and a size factor 0.3–2; `line` is what Kami says on arrival. `null` when the text asks to go nowhere or the model cannot make the place. Only asked for places the client's own atlas lacks (`src/rules/scenes/atlas.ts`). |
-| `POST /api/transcribe` | `{ strokes: {x,y}[][] }` — at least one stroke, world px | `{ text: string \| null }` — what the pen wrote, whitespace collapsed, `null` when the strokes are a drawing or the reader is unsure. **`501`** `{ error }` when no reader is configured or none has passed its start-up check (a sidecar's local reader, or the vision model — "Handwriting reading"). Stateless; the client may abort a request (the read of a prefix) freely. |
+| `POST /api/transcribe` | `{ strokes: {x,y}[][], settled?: boolean }` — at least one stroke, world px; `settled: true` when the ink is final | `{ text: string \| null }` — what the pen wrote, whitespace collapsed and proofread against the game's vocabulary, `null` when the strokes are a drawing or the reader is unsure; plus `unsure: true` (only ever `true`, else absent) when the reader was unsure and a handwriting repair model is configured: asking again with `settled: true` has the model reconsider (and does not read the ink twice). **`501`** `{ error }` when no reader is configured or none has passed its start-up check (a sidecar's local reader, or the vision model — "Handwriting reading"). The client may abort a request (the read of a prefix) freely. |
 | boards, drawings, notes, rules | see the table above | |
 | `GET /api/boards/:board/events` | `?peer=<id>` (`[a-z0-9-]{1,64}`, this device's name on the board, optional) and `?since=<seq>` or the browser's own `Last-Event-ID` on reconnect | `text/event-stream`: `retry: 1000`, then the board's changes as `id: <seq>` + `data: {"seq","type":"put","kind":"drawings"\|"notes"\|"rules","id","entity"}`, `{"seq","type":"delete","kind","id"}` or `{"seq","type":"clear"}` — first everything after `since` that the server still holds (the last 2000 per board, in memory), else `data: {"type":"resync","seq"}` meaning *reload the board, then follow from `seq`*; without `since`, `data: {"type":"cursor","seq"}` says where the feed stands. `data: {"type":"presence","peer","alice"}` for every peer on the board on connect and on every report, with `alice: null` when one leaves (its stream closed). `: keep-alive` every 5 s. Every `PUT`/`DELETE` on the board's entities and `DELETE` of the board is echoed to every stream, the sender's included; the schemas are `src/sync/wire.ts` (`feedMessageSchema`) |
 | `POST /api/boards/:board/presence` | `{ peer: string, alice: AliceSnapshot }` — `alice` is the client's own `sim` snapshot of her (`src/sim/types.ts`) with `look: { kind: "alice" }` — a drawn body stays on its own page (`ghostOf`, `src/sync/wire.ts`) | `204`; `400` `{ error }` for a bad peer or snapshot. Relayed as a `presence` message; nothing is stored |

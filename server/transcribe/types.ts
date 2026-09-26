@@ -5,10 +5,19 @@ export interface TranscribeOptions {
   readonly signal?: AbortSignal;
 }
 
+/** What a reader read, and, when it can tell, how sure it was and what else it might say. */
+export interface Transcript {
+  readonly text: string;
+  /** How sure the reader was of each character (code point) of `text`, 0–1. */
+  readonly sureness?: readonly number[];
+  /** Other readings of the whole note, best first. */
+  readonly alternatives?: readonly string[];
+}
+
 /** Reads handwriting from pen strokes. `null` means "a drawing, not writing" (or no answer). */
 export interface HandwritingTranscriber {
   readonly ready: boolean;
-  transcribe(strokes: readonly Stroke[], options?: TranscribeOptions): Promise<string | null>;
+  transcribe(strokes: readonly Stroke[], options?: TranscribeOptions): Promise<Transcript | null>;
   warmUp(): Promise<boolean>;
 }
 

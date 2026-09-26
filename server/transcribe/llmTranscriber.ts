@@ -5,7 +5,12 @@ import { strictJsonSchema } from "../llm/strictJsonSchema";
 import { HI_STROKES } from "./hiStrokes";
 import { TRANSCRIBER_SYSTEM_PROMPT, TRANSCRIBER_USER_LINE } from "./prompt";
 import { strokesToPngDataUrl } from "./strokeImage";
-import { asWriting, type HandwritingTranscriber, type TranscribeOptions } from "./types";
+import {
+  asWriting,
+  type HandwritingTranscriber,
+  type TranscribeOptions,
+  type Transcript,
+} from "./types";
 
 const REQUEST_TIMEOUT_MS = 35_000;
 const WARM_UP_TIMEOUT_MS = 120_000;
@@ -41,10 +46,11 @@ export class LlmTranscriber implements HandwritingTranscriber {
   async transcribe(
     strokes: readonly Stroke[],
     options: TranscribeOptions = {},
-  ): Promise<string | null> {
+  ): Promise<Transcript | null> {
     if (strokes.length === 0) return null;
     const content = await this.#ask(strokes, options.signal);
-    return content === null ? null : parseTranscription(content);
+    const text = content === null ? null : parseTranscription(content);
+    return text === null ? null : { text };
   }
 
   #ask(

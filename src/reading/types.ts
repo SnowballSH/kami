@@ -7,9 +7,12 @@ import type { Stroke } from "../core/geometry";
 export interface PenReader {
   /** The pen lifted with these strokes on the board so far. */
   glimpse(strokes: readonly Stroke[]): void;
-  /** What these strokes were read as, if the reading is already in; undefined while it is not. */
+  /** What these strokes were read as, if the final reading is already in; undefined while not. */
   recall(strokes: readonly Stroke[]): string | null | undefined;
-  /** The strokes are final: the reading for exactly these, waiting for it if it is still out. */
+  /**
+   * The strokes are final: the reading for exactly these, waiting for it if it is still out, and
+   * for a settled second reading when the first was unsure.
+   */
   settle(strokes: readonly Stroke[]): Promise<string | null>;
   /** The strokes were dropped: nothing about them is wanted any more. */
   forget(): void;

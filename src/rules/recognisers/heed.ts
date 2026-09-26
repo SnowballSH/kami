@@ -2,7 +2,7 @@ import { bodyRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { ALICE } from "../subjects";
 import { besides, targetOf } from "../targets";
-import { mentions, union, vocabulary } from "../vocabulary";
+import { mentions, union, type Vocabulary, vocabulary } from "../vocabulary";
 
 const FOLLOWS = vocabulary(`
   follows, follow, following, followed, chases, chase, chasing, chased, tails, trails, shadows,
@@ -35,7 +35,7 @@ const GOING = vocabulary(`
   everyone, whenever, sees, around, toward, towards, along, far
 `);
 
-const KNOWN = knownWords(FOLLOWS, FLEES, ALONE, NEGATION, ME, GOING);
+export const HEED_WORDS: Vocabulary = knownWords(FOLLOWS, FLEES, ALONE, NEGATION, ME, GOING);
 
 const HEED = union(FOLLOWS, FLEES, ALONE);
 
@@ -55,11 +55,11 @@ const firstIndex = (words: readonly string[], among: ReadonlySet<string>): numbe
 export const recogniseHeed: Recogniser = (sentence) => {
   const { words } = sentence;
   if (!mentions(words, HEED)) return null;
-  const of = targetOf(sentence, KNOWN);
+  const of = targetOf(sentence, HEED_WORDS);
   if (of === null) return null;
   const her = firstIndex(words, ME);
   if (of.kind === "named" && her >= 0 && words.indexOf(of.name) > her) return null;
   const rest = besides(words, of);
-  if (!understands(rest, KNOWN)) return null;
+  if (!understands(rest, HEED_WORDS)) return null;
   return bodyRule("heed", of, heedOf(rest));
 };

@@ -248,7 +248,7 @@ Bun, `Bun.serve`, the official `mongodb` driver, zod at the boundary. `MONGODB_U
 | `POST /api/recognize` `{ strokes, partial? }` | Parallel `guesses`, `confidence`, `names`, `natures`, `strengths`, `lines`, plus `certain`; adapted to `Sighting[]` |
 | `POST /api/beautify` `{ strokes, name? }` | Upstream completion JSON (or another model's image); the browser accepts only validated stroke completion |
 | `POST /api/compile` `{ text }` | `{ rule: CompiledRule \| null }` |
-| `POST /api/transcribe` `{ strokes }` | `{ text: string \| null }` |
+| `POST /api/transcribe` `{ strokes, settled? }` | `{ text: string \| null, unsure? }` |
 | `GET /api/controllers`, `POST /api/controllers/:id/state`, `GET /api/controllers/:id/events` | Controller discovery, whole-state reports and SSE |
 | `GET /api/boards/:board/events?peer=<id>`, `POST /api/boards/:board/presence` | A board's changes and who is on it, as SSE (`server/sync/`); where Alice is on this device |
 
@@ -269,7 +269,10 @@ CPU (`ml/HANDWRITING.md`), in the sidecar the server starts itself (`KAMI_SIDECA
 default) or at `KAMI_HANDWRITING_URL`. A vision model (`KAMI_TRANSCRIBE_MODEL`, falling back to
 `KAMI_LLM_MODEL`; URL/key shared with compilation) reads only when no sidecar passes its start-up
 check. Until a reader has passed its check, or without one, the route returns `501`. A ready reader
-returns words or `null`; the client treats failure as no words and keeps the ink. See
+returns words or `null`; the client treats failure as no words and keeps the ink. The words are
+proofread against the game's vocabulary, and a note the reader was unsure of is read once more when
+the ink settles, which may ask the text model to reconsider it
+([server/transcribe/PROOFREADING.md](../server/transcribe/PROOFREADING.md)). See
 [handwriting reading](../server/README.md#handwriting-reading).
 
 ## reading/

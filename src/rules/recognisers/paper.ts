@@ -3,7 +3,7 @@ import { DIRECTION_WORDS } from "../directions";
 import { scalarRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { PAPER, SUBJECTS } from "../subjects";
-import { INTENSIFIERS, mentions, vocabulary } from "../vocabulary";
+import { INTENSIFIERS, mentions, type Vocabulary, vocabulary } from "../vocabulary";
 
 const SIDEWAYS_DEGREES = 90;
 const FLIPPED_DEGREES = 180;
@@ -27,7 +27,7 @@ const FAST = vocabulary("fast, faster, quick, quicker, quickly, rapidly, wildly,
 const SLOW = vocabulary("slow, slower, slowly, gently, lazily");
 const STARTS = vocabulary("start, starts, begin, begins, keep, keeps");
 
-const KNOWN = knownWords(
+export const PAPER_WORDS: Vocabulary = knownWords(
   PAPER,
   SUBJECTS.tilt,
   SUBJECTS.worldSpin,
@@ -71,7 +71,8 @@ const restingAngleNamed = (words: readonly string[]): boolean =>
 export const recognisePaper: Recogniser = ({ words }) => {
   const spinning = mentions(words, SUBJECTS.worldSpin);
   const tilting = mentions(words, SUBJECTS.tilt);
-  if (!mentions(words, PAPER) || !(spinning || tilting) || !understands(words, KNOWN)) return null;
+  if (!mentions(words, PAPER) || !(spinning || tilting) || !understands(words, PAPER_WORDS))
+    return null;
   const amount = readAmount(words);
   const stated = amount?.unit === "plain" ? amount.value : null;
   const facing = sign(words);

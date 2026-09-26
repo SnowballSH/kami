@@ -27,6 +27,7 @@ from handwriting.sources import (
     SCREEN_CHARACTERS,
     SCREEN_MODEL,
 )
+from handwriting.sureness import SureText, joined
 from onnx_runtime import ort
 
 CTC_HEIGHT = 48
@@ -41,11 +42,18 @@ WORD_START = "▁"
 
 @dataclass(frozen=True, slots=True)
 class LineReading:
-    """What a recogniser read, with the probability of its least and its typical sure symbol."""
+    """What a recogniser read, with the probability of its least and its typical sure symbol, and
+    of each character (`sureness`; every character as sure as the typical symbol when absent)."""
 
     text: str
     weakest: float
     typical: float
+    sureness: tuple[float, ...] | None = None
+
+    def sure_text(self) -> SureText:
+        if self.sureness is None:
+            return SureText.uniform(self.text, self.typical)
+        return SureText(self.text, self.sureness)
 
 
 class LineRecogniser(Protocol):
@@ -84,18 +92,19 @@ def ctc_collapse(
     sureness: list[float] = []
     previous = 0
     for step, symbol in enumerate(best.tolist()):
-        if symbol != previous and symbol != 0:
-            text.append(alphabet[symbol] if symbol < len(alphabet) else "")
+        if symbol != previous and symbol != 0 and symbol < len(alphabet):
+            text.append(alphabet[symbol])
             sureness.append(float(probabilities[step, symbol]))
         previous = symbol
     return "".join(text), sureness
 
 
-def reading_of(text: str, sureness: list[float]) -> LineReading:
-    if not sureness:
-        return LineReading(text, 0.0, 0.0)
-    typical = math.exp(sum(math.log(max(value, 1e-12)) for value in sureness) / len(sureness))
-    return LineReading(text, min(sureness), typical)
+def reading_of(characters: SureText, symbols: list[float]) -> LineReading:
+    """`symbols`: the sureness of each symbol the model emitted, blanks and end of text included."""
+    if not symbols:
+        return LineReading(characters.text, 0.0, 0.0, characters.sureness)
+    typical = math.exp(sum(math.log(max(value, 1e-12)) for value in symbols) / len(symbols))
+    return LineReading(characters.text, min(symbols), typical, characters.sureness)
 
 
 class CtcLineRecogniser:
@@ -112,20 +121,21 @@ class CtcLineRecogniser:
         (probabilities,) = self._session.run(None, {self._input: tensor})
         steps = np.asarray(probabilities[0], dtype=np.float32)
         text, sureness = ctc_collapse(steps, self._alphabet)
-        return reading_of(text.strip(), sureness)
+        return reading_of(SureText(text, tuple(sureness)).strip(), sureness)
 
 
 IAM_SPACING = (
-    (re.compile(r"\s+([.,;:!?)])"), r"\1"),
-    (re.compile(r"(\d)\. (\d)"), r"\1.\2"),
-    (re.compile(r"[.\s]+$"), ""),
+    re.compile(r"\s+([.,;:!?)])"),
+    re.compile(r"(\d)(\.) (\d)"),
+    re.compile(r"[.\s]+$"),
 )
 
 
-def undo_iam_spacing(text: str) -> str:
-    """IAM spaces out punctuation ("moon ." "0. 3") and TrOCR learned to; notes do not."""
-    for pattern, replacement in IAM_SPACING:
-        text = pattern.sub(replacement, text)
+def undo_iam_spacing(text: SureText) -> SureText:
+    """IAM spaces out punctuation ("moon ." "0. 3") and TrOCR learned to; notes do not. Each
+    pattern keeps its groups and drops the rest of what it matched."""
+    for pattern in IAM_SPACING:
+        text = text.keep_groups(pattern)
     return text.strip()
 
 
@@ -150,11 +160,16 @@ class TrOcrLineRecogniser:
         pixels = as_rgb_tensor(line, TROCR_SIZE, TROCR_SIZE, cv2.INTER_CUBIC)
         (hidden,) = self._encoder.run(None, {"pixel_values": pixels})
         tokens, sureness = self._decode(np.asarray(hidden, dtype=np.float32))
-        return reading_of(undo_iam_spacing(self.detokenize(tokens)), sureness)
+        return reading_of(undo_iam_spacing(self.detokenize(tokens, sureness)), sureness)
 
-    def detokenize(self, tokens: list[int]) -> str:
-        pieces = (self._pieces[token] for token in tokens if token not in TROCR_SPECIAL)
-        return "".join(pieces).replace(WORD_START, " ").strip()
+    def detokenize(self, tokens: list[int], sureness: list[float]) -> SureText:
+        """Each character as sure as the token it came from."""
+        pieces = [
+            SureText.uniform(self._pieces[token].replace(WORD_START, " "), sure)
+            for token, sure in zip(tokens, sureness, strict=False)
+            if token not in TROCR_SPECIAL
+        ]
+        return joined(pieces).strip()
 
     def _decode(self, hidden: NDArray[np.float32]) -> tuple[list[int], list[float]]:
         """Greedy decoding with the key/value cache of the merged decoder's second branch."""

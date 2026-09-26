@@ -84,11 +84,32 @@ describe("SidecarTranscriber", () => {
       }),
       FAST,
     );
-    expect(await reader.transcribe(WORDS)).toBe("no gravity");
+    expect(await reader.transcribe(WORDS)).toEqual({ text: "no gravity" });
     expect(bodies[0]).toEqual({ strokes: WORDS });
     expect(await reader.transcribe(WORDS)).toBeNull();
     expect(await reader.transcribe(WORDS)).toBeNull();
     expect(await reader.transcribe([])).toBeNull();
+  });
+
+  it("keeps the sidecar's sureness and other readings while they line up with the text", async () => {
+    const answers = [
+      { text: "sunikui", sureness: [0.9, 0.9, 0.3, 0.9, 0.9, 0.9, 0.9], alternatives: ["sumikui"] },
+      { text: "no  gravity", sureness: [0.9], alternatives: ["IIII"] },
+      { text: "no gravity", sureness: "sure" },
+    ];
+    let asked = 0;
+    const reader = new SidecarTranscriber(
+      { url: SIDECAR },
+      sidecar(READS, () => Response.json(answers[asked++])),
+      FAST,
+    );
+    expect(await reader.transcribe(WORDS)).toEqual({
+      text: "sunikui",
+      sureness: [0.9, 0.9, 0.3, 0.9, 0.9, 0.9, 0.9],
+      alternatives: ["sumikui"],
+    });
+    expect(await reader.transcribe(WORDS)).toEqual({ text: "no gravity" });
+    expect(await reader.transcribe(WORDS)).toEqual({ text: "no gravity" });
   });
 
   it("is null, never a throw, when the sidecar fails or the pen moves on", async () => {

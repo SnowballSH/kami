@@ -10,6 +10,7 @@ import {
   type WorldPhysics,
 } from "./types";
 
+export { RULE_WORDS } from "./lexicon";
 export { placeCalled } from "./scenes/atlas";
 export { destinationOf } from "./scenes/travel";
 export * from "./types";

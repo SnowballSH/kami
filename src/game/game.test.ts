@@ -20,7 +20,12 @@ import {
 } from "../modes";
 import type { GameMode } from "../modes/types";
 import { HttpBoardStore } from "../persistence/httpBoardStore";
-import type { BoardSnapshot, BoardStore, HandwritingReader } from "../persistence/types";
+import type {
+  BoardSnapshot,
+  BoardStore,
+  Handwriting,
+  HandwritingReader,
+} from "../persistence/types";
 import { createPenReader } from "../reading";
 import type { Completion, Exemplar, LiveRecognizer, Sighting } from "../recognition/types";
 import { createRuleCompiler, createSceneCompiler, resolvePhysics } from "../rules";
@@ -227,9 +232,10 @@ class ScriptedReader implements HandwritingReader {
     private readonly slow = false,
   ) {}
 
-  read(strokes: readonly Vec[][]): Promise<string | null> {
+  read(strokes: readonly Vec[][]): Promise<Handwriting | null> {
     this.asked.push(strokes.length);
-    const answer = strokes.length >= 3 ? this.says : null;
+    const answer =
+      strokes.length >= 3 && this.says !== null ? { text: this.says, unsure: false } : null;
     if (!this.slow) return Promise.resolve(answer);
     return new Promise((resolve) => this.pending.push(() => resolve(answer)));
   }

@@ -39,6 +39,12 @@ describe("readConfig", () => {
     expect(readConfig({ KAMI_TRANSCRIBE_MODEL: "vision-model" }).transcribe).toBeNull();
   });
 
+  it("repairs unsure handwriting with the rules model unless told not to", () => {
+    expect(readConfig(LLM).handwritingRepair).toEqual(readConfig(LLM).llm);
+    expect(readConfig({ ...LLM, KAMI_HANDWRITING_REPAIR: "OFF" }).handwritingRepair).toBeNull();
+    expect(readConfig({ KAMI_TRANSCRIBE_MODEL: "vision-model" }).handwritingRepair).toBeNull();
+  });
+
   it("can enable handwriting independently of model compilation", () => {
     const config = readConfig({
       KAMI_LLM_URL: "http://llm.test",

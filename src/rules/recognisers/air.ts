@@ -2,7 +2,7 @@ import { readAmount } from "../amounts";
 import { scalarRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { SUBJECTS } from "../subjects";
-import { INTENSIFIERS, mentions, vocabulary } from "../vocabulary";
+import { INTENSIFIERS, mentions, type Vocabulary, vocabulary } from "../vocabulary";
 
 const THICK_AIR = 4;
 const THIN_AIR = 0.25;
@@ -16,7 +16,13 @@ const AIR_NAMES = new Set(NAMED_AIRS.keys());
 const THICK = vocabulary("thick, thicker, dense, heavy, soupy, syrupy, more, high, strong, lots");
 const THIN = vocabulary("thin, thinner, light, less, low, little");
 
-const KNOWN = knownWords(SUBJECTS.airDrag, AIR_NAMES, THICK, THIN, INTENSIFIERS);
+export const AIR_WORDS: Vocabulary = knownWords(
+  SUBJECTS.airDrag,
+  AIR_NAMES,
+  THICK,
+  THIN,
+  INTENSIFIERS,
+);
 
 const readStatedDrag = (words: readonly string[]): number | null => {
   const amount = readAmount(words);
@@ -27,7 +33,7 @@ const readStatedDrag = (words: readonly string[]): number | null => {
 };
 
 export const recogniseAir: Recogniser = ({ words }) => {
-  if (!understands(words, KNOWN)) return null;
+  if (!understands(words, AIR_WORDS)) return null;
   const named = words.map((word) => NAMED_AIRS.get(word)).find((drag) => drag !== undefined);
   const drag = named ?? (mentions(words, SUBJECTS.airDrag) ? readStatedDrag(words) : null);
   return drag === null ? null : scalarRule("airDrag", drag);

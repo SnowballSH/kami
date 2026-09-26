@@ -12,7 +12,7 @@ export interface Sentence {
 export const METRES_PER_SECOND_SQUARED = "mpss";
 export const PERCENT = "percent";
 
-const FILLER = vocabulary(`
+export const FILLER = vocabulary(`
   set, sets, make, makes, let, lets, please, the, a, an, be, is, are, am, was, to, equals, equal,
   at, as, of, it, its, this, that, now, just, kami, hey, can, could, would, should, will, shall,
   you, i, we, im, my, our, want, need, like, same, there, here, in, for, by, so, and, then, with,
@@ -42,7 +42,9 @@ const SYMBOLS: readonly (readonly [RegExp, string])[] = [
   [/-(?![\d.])|(?<=[a-z0-9.])-/g, " "],
 ];
 
-const DETERMINERS = vocabulary("the, this, that, these, those, every, each, all, my, our, your");
+export const DETERMINERS = vocabulary(
+  "the, this, that, these, those, every, each, all, my, our, your",
+);
 
 const NAMED_ALICE: readonly (readonly [RegExp, string])[] = [
   [/\b(?:the|this|our|my) (?:girl|character|player|hero|heroine|protagonist)\b/g, "alice"],

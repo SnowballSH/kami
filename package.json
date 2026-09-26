@@ -33,6 +33,7 @@
     "perfect-freehand": "^1.2.3",
     "qrcode": "1.5.4",
     "roughjs": "^4.6.6",
+    "wordlist-english": "1.2.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {

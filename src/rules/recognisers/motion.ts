@@ -5,7 +5,7 @@ import { knownWords, type Recogniser, understands } from "../recogniser";
 import { ALICE } from "../subjects";
 import { besides, targetOf } from "../targets";
 import type { BodyGoverns, CompiledRule, Target } from "../types";
-import { INTENSIFIERS, mentions, type Vocabulary, vocabulary } from "../vocabulary";
+import { INTENSIFIERS, mentions, union, type Vocabulary, vocabulary } from "../vocabulary";
 
 interface Reading {
   readonly words: Vocabulary;
@@ -257,6 +257,8 @@ const ruleFor = (
   const sign = governs === "spin" && mentions(words, BACKWARDS) ? -1 : 1;
   return bodyRule(governs, of, sign * value);
 };
+
+export const MOTION_WORDS: Vocabulary = union(...DIALS.map(({ known }) => known));
 
 /**
  * Laws about the bodies on the board rather than the world: "the wheel spins", "every rock is

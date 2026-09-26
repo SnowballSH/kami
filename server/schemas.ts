@@ -34,4 +34,5 @@ export const compileRequestSchema = z.object({ text: textSchema.min(1) });
 
 export const transcribeRequestSchema = z.object({
   strokes: strokesSchema.refine((strokes) => strokes.length > 0, "expected at least one stroke"),
+  settled: z.boolean().exactOptional(),
 });
