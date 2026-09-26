@@ -1,5 +1,5 @@
 import { getStroke, type StrokeOptions } from "perfect-freehand";
-import type { Stroke } from "../core/geometry";
+import type { PenPoint, Stroke } from "../core/geometry";
 import { INK_THICKNESS } from "../core/world";
 import { TAU } from "./canvas2d";
 
@@ -46,8 +46,33 @@ const appendDot = (path: Path2D, stroke: Stroke, pen: Pen): void => {
   path.arc(dot.x, dot.y, radius, 0, TAU);
 };
 
-const appendOutline = (path: Path2D, stroke: Stroke, pen: Pen): void => {
+type Outline = ReturnType<typeof getStroke>;
+
+interface TracedOutline {
+  readonly pointCount: number;
+  readonly lastPoint: PenPoint | undefined;
+  readonly outline: Outline;
+}
+
+/** Keyed by pen, then stroke; a pending stroke grows in place, so its length and last point are checked too. */
+const tracedOutlines = new WeakMap<Pen, WeakMap<Stroke, TracedOutline>>();
+
+const outlineOf = (stroke: Stroke, pen: Pen): Outline => {
+  let traced = tracedOutlines.get(pen);
+  if (traced === undefined) {
+    traced = new WeakMap();
+    tracedOutlines.set(pen, traced);
+  }
+  const lastPoint = stroke.at(-1);
+  const cached = traced.get(stroke);
+  if (cached?.pointCount === stroke.length && cached.lastPoint === lastPoint) return cached.outline;
   const outline = getStroke([...stroke], penFor(stroke, pen));
+  traced.set(stroke, { pointCount: stroke.length, lastPoint, outline });
+  return outline;
+};
+
+const appendOutline = (path: Path2D, stroke: Stroke, pen: Pen): void => {
+  const outline = outlineOf(stroke, pen);
   const [start] = outline;
   if (start === undefined) return;
   path.moveTo(start[0], start[1]);

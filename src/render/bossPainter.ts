@@ -1,4 +1,5 @@
 import type { Vec } from "../core/geometry";
+import type { DrawnBody } from "../sim/body/types";
 import type { SnipperSnapshot } from "../sim/boss/snipper";
 import type { CutMark, TearSnapshot } from "../sim/boss/tear";
 import { BODY_TUNING, TEAR_TUNING } from "../sim/boss/tuning";
@@ -30,6 +31,19 @@ const PHASE_ALPHA: Readonly<Record<SnipperSnapshot["phase"], number>> = {
   lunging: 1,
   recovering: 0.8,
   perishing: 1,
+};
+
+const bodyPaths = new WeakMap<DrawnBody["strokes"], Path2D>();
+
+const bodyPath = (strokes: DrawnBody["strokes"]): Path2D => {
+  const cached = bodyPaths.get(strokes);
+  if (cached !== undefined) return cached;
+  const path = strokesPath(
+    strokes.map(({ stroke }) => stroke),
+    INK_PEN,
+  );
+  bodyPaths.set(strokes, path);
+  return path;
 };
 
 const angleOf = (from: Vec, to: Vec): number => Math.atan2(to.y - from.y, to.x - from.x);
@@ -97,12 +111,7 @@ export const paintDrawnAlice = (
     ctx.fill(strokesPath([stroke], GLOW_PEN));
   }
   ctx.fillStyle = rgbCss(MARKER.black);
-  ctx.fill(
-    strokesPath(
-      body.strokes.map(({ stroke }) => stroke),
-      INK_PEN,
-    ),
-  );
+  ctx.fill(bodyPath(body.strokes));
   paintHeart(ctx, body.heart, nowMs);
   ctx.restore();
 };

@@ -17,6 +17,18 @@ const between = (a: PenPoint, b: PenPoint, t: number): PenPoint => ({
   y: a.y + (b.y - a.y) * t,
 });
 
+/** Each player's stroke once fully tidied, kept so a settled stroke is the same array frame after frame. */
+const landedStrokes = new WeakMap<Stroke, { readonly goal: Stroke; readonly landed: Stroke }>();
+
+const tidiedStroke = (stroke: Stroke, goal: Stroke, tidying: number): Stroke => {
+  if (tidying < 1) return stroke.map((point, at) => between(point, goal[at] ?? point, tidying));
+  const cached = landedStrokes.get(stroke);
+  if (cached?.goal === goal) return cached.landed;
+  const landed = stroke.map((point, at) => between(point, goal[at] ?? point, 1));
+  landedStrokes.set(stroke, { goal, landed });
+  return landed;
+};
+
 const sameShape = (from: readonly Stroke[], to: readonly Stroke[]): boolean =>
   from.length <= to.length && from.every((stroke, index) => stroke.length === to[index]?.length);
 
@@ -34,10 +46,7 @@ export const retracedStrokes = (
 ): readonly Stroke[] => {
   if (progress >= 1 || !sameShape(from, to)) return to;
   const tidying = easeInOut(Math.min(1, progress / TIDY_SHARE));
-  const tidied = from.map((stroke, index) => {
-    const goal = to[index] ?? stroke;
-    return stroke.map((point, at) => between(point, goal[at] ?? point, tidying));
-  });
+  const tidied = from.map((stroke, index) => tidiedStroke(stroke, to[index] ?? stroke, tidying));
   const added = to.slice(from.length);
   const drawn = Math.max(0, (progress - TIDY_SHARE) / (1 - TIDY_SHARE));
   return [...tidied, ...drawnIn(added, drawn)];
@@ -49,7 +58,7 @@ export const drawnIn = (strokes: readonly Stroke[], progress: number): readonly 
   const reached = progress * strokes.length;
   return strokes.flatMap((stroke, index) => {
     const share = Math.min(1, Math.max(0, reached - index));
-    const points = stroke.slice(0, Math.ceil(share * stroke.length));
+    const points = share >= 1 ? stroke : stroke.slice(0, Math.ceil(share * stroke.length));
     return points.length > 1 ? [points] : [];
   });
 };
