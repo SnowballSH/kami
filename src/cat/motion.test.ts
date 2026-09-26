@@ -21,6 +21,30 @@ describe("motion in a name", () => {
     expect(ruling.motion).toEqual({ spin: 1 });
   });
 
+  it.each([
+    ["a glowing rabbit", "hopper"],
+    ["a shining dog", "walker"],
+    ["a luminous bird", "flier"],
+    ["a glowing flying rock", "flier"],
+    ["a walking lamp", "walker"],
+    ["a firefly", "flier"],
+    ["a lightning bug", "flier"],
+    ["a glowworm", "walker"],
+  ] as const)("keeps %j a %s that carries its own light", (name, nature) => {
+    const ruling = ruleOn(name);
+    expect(ruling.nature).toBe(nature);
+    expect(ruling.motion?.glow).toBe(1);
+  });
+
+  it.each(["a glowing lantern", "a lamp", "a glowing rock", "a lit candle"])(
+    "leaves %j a lantern, light by nature rather than by power",
+    (name) => {
+      const ruling = ruleOn(name);
+      expect(ruling.nature).toBe("lantern");
+      expect(ruling.motion).toBeUndefined();
+    },
+  );
+
   it("leaves motion off names that ask for none", () => {
     expect(ruleOn("a mushroom").motion).toBeUndefined();
     expect(ruleOn("a rock").motion).toBeUndefined();

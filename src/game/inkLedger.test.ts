@@ -24,7 +24,11 @@ const tidied: Stroke[] = [
 ];
 const drawing: Drawing = { id, strokes: drawn, cost: 10 };
 const poses: DrawingPose[] = [
-  { id, pose: { origin: { x: 5, y: 0 }, position: { x: 5, y: 0 }, angle: 0, scale: 1 } },
+  {
+    id,
+    pose: { origin: { x: 5, y: 0 }, position: { x: 5, y: 0 }, angle: 0, scale: 1 },
+    lit: false,
+  },
 ];
 
 describe("InkLedger.retrace", () => {

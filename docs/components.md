@@ -136,7 +136,7 @@ on a product of dials; rules fold in `createdAt` order; repeal refolds the rest.
 |---|---|---|
 | the world | gravity (vector), wind, airDrag, friction, bounciness, timeScale, temperature, daylight, tilt, spin (of the paper), inkEater | "gravity points left", "it's night", "tilt the world 90°", "summon the ink eater" |
 | Alice | flight, walkSpeed, aliceSize, jumpHeight, attraction, clones | "Alice can fly", "Alice is twice as fast", "there are three Alices" |
-| a drawing (`of: named \| all`) | spin, thrust, mass, bounce, grip, pace, wings, size, **heed** | "the wheel spins", "the rock is heavier", "the dog can fly", "the cat is huge", "the cat chases me", "the mouse runs away from her", "the dog leaves me alone" |
+| a drawing (`of: named \| all`) | spin, thrust, mass, bounce, grip, pace, wings, size, **heed**, **glow** | "the wheel spins", "the rock is heavier", "the dog can fly", "the cat is huge", "the cat chases me", "the mouse runs away from her", "the dog leaves me alone" |
 
 ## 8. Simulation
 
@@ -257,7 +257,7 @@ player *is* at start, win/loss, which laws and natures are allowed.
 | Board store client | `src/persistence/httpBoardStore.ts`, `writeQueue.ts`, `unsavedGuard.ts`, `session.ts`, `boardResponse.ts` | external | drawings, notes, rules saved through the Bun API; ordering and validation rules in [persistence-ordering.md](persistence-ordering.md) / [persistence-validation.md](persistence-validation.md) |
 | Schemas | `src/persistence/schemas.ts` → `server/schemas.ts` | shared | zod for every persisted shape incl. `RuleEffect` and `MotionEdit` |
 | Server | `server/index.ts`, `server/http/*`, `server/db/*` | external | Bun + MongoDB; routes in [server/README.md](../server/README.md); access model in [access.md](access.md) |
-| Model compile | `server/compile/*`, `server/llm/*` | external | prompt lists every dial incl. `heed`; output clamped by `effectRanges.ts` |
+| Model compile | `server/compile/*`, `server/llm/*` | external | prompt lists every dial incl. `heed` and `glow`; output clamped by `effectRanges.ts` |
 | Shared board (live) | `src/sync/wire.ts`, `src/sync/boardLink.ts`, `src/sync/peer.ts`, `server/sync/boardFeed.ts`, `server/sync/boardEventStream.ts`, `src/game/game.ts` (`followPage`, `receive`) | built | one board id, many devices: the server numbers every put/delete/clear per board and relays it over SSE (`GET /api/boards/:board/events`, resumable by `Last-Event-ID`, `resync` when the log does not reach back); presence (`POST /api/boards/:board/presence`, every 250 ms) paints the other devices' Alices as ghosts; remote changes land through the same seams as a load |
 
 ## 18. Verification

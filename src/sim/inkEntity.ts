@@ -37,6 +37,11 @@ export class InkEntity {
     return temperOfHeed(this.motion.heed);
   }
 
+  /** Whether it lights its patch at night: a lantern by nature, or anything given the `glow` power. */
+  get lit(): boolean {
+    return this.nature === "lantern" || this.motion.glow > 0;
+  }
+
   get pose(): Pose {
     const { position, angle } = this.body;
     return {

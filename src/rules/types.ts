@@ -10,7 +10,8 @@ export type RuleId = string & { readonly __brand: "RuleId" };
  * `pace` multiplies how fast it moves of itself (a creature's walk, hop, flight or driving),
  * `wings` (0 or 1) lets it take to the air — a creature moves as a flier, anything else hovers —
  * and `size` scales it about its own centre (1 = as drawn). `heed` is how a creature takes to
- * Alice: 1 follows her, -1 flees her, 0 goes its own way.
+ * Alice: 1 follows her, -1 flees her, 0 goes its own way. `glow` (0 or 1) makes it carry a lantern's
+ * pool of light wherever it goes, whatever its nature.
  */
 export interface Motion {
   readonly spin: number;
@@ -22,6 +23,7 @@ export interface Motion {
   readonly wings: number;
   readonly size: number;
   readonly heed: number;
+  readonly glow: number;
 }
 
 export type MotionEdit = Partial<Motion>;
@@ -169,6 +171,7 @@ export const STILL: Motion = {
   wings: 0,
   size: 1,
   heed: 0,
+  glow: 0,
 };
 
 export const EARTH: WorldPhysics = {

@@ -19,6 +19,8 @@ export interface InkView {
   readonly drawing: Drawing;
   readonly pose: Pose;
   readonly nature: Nature;
+  /** It lights its patch at night: a lantern, or a drawing with the `glow` power. */
+  readonly lit: boolean;
   /** When the ruling landed, for the shiver-and-tint beat. Null while it is still unnamed. */
   readonly awakenedAtMs: number | null;
 }

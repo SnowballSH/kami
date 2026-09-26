@@ -26,7 +26,7 @@ export const lightsOf = (
     radius: ALICE_GLOW_RADIUS * Math.sqrt(alice.height / 80),
   })),
   ...inks
-    .filter((ink) => ink.nature === "lantern")
+    .filter((ink) => ink.lit)
     .map((ink) => ({
       center: poseToWorld(rectCenter(boundsOf(ink.drawing.strokes.flat())), ink.pose),
       radius: LANTERN_LIGHT_PX,
@@ -35,7 +35,7 @@ export const lightsOf = (
 
 /**
  * Darkens the whole board when daylight drops below 1, then cuts a soft pool of light around each
- * lantern and around Alice. Drawn on its own layer so the holes take nothing from the board beneath.
+ * lit drawing and around Alice. Drawn on its own layer so the holes take nothing from the board beneath.
  */
 export class NightPainter {
   private layer: HTMLCanvasElement | null = null;
