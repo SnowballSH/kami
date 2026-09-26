@@ -10,6 +10,7 @@ import { categoryOf, createExemplarSource } from "./exemplar/exemplars";
 import { ApiAccess } from "./http/access";
 import { describeAccess } from "./http/accessConfig";
 import { createApi } from "./http/api";
+import { pacesResponseBodies } from "./http/eventStream";
 import { type SocketData, socketsOf } from "./http/sockets";
 import { createStaticSite } from "./http/staticSite";
 import { quickdrawNatureTable } from "./natures/natureTable";
@@ -111,6 +112,10 @@ console.log(
 log(`access: ${describeAccess(config.access)}`);
 log(`memory: ${connection.description}`);
 log(`game: ${config.webDirectory ?? "not built (Vite serves it in development)"}`);
+if (!pacesResponseBodies(Bun.version))
+  log(
+    `event streams: Bun ${Bun.version} buffers everything a stalled reader has not taken; run the pinned Bun (package.json) to bound it`,
+  );
 if (retired.length > 0) log(`memory: dropped ${retired.join(", ")}, which nothing reads any more`);
 log(quickdraw.description);
 log(

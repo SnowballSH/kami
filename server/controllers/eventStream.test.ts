@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { controllerEventStream, KEEP_ALIVE_MS } from "./eventStream";
+import { KEEP_ALIVE_MS } from "../http/eventStream";
+import { controllerEventStream } from "./eventStream";
 import { readEvents } from "./testing/eventReader";
 import type { ControllerHub, ControllerListener, ControllerState } from "./types";
 

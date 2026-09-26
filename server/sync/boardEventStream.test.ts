@@ -1,9 +1,13 @@
 // @vitest-environment node
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import type { NoteId } from "../../src/notes/types";
 import type { PeerId } from "../../src/sync/wire";
+import { pacesResponseBodies } from "../http/eventStream";
 import { boardEventStream, MAX_BACKLOG_BYTES, sinceOf } from "./boardEventStream";
 import { BoardFeed } from "./boardFeed";
+import type { ProbeMode, StalledReaderReport } from "./testing/stalledReaderProbe";
 
 const CHANGE_BYTES = 64 * 1024;
 
@@ -80,6 +84,36 @@ describe("boardEventStream", () => {
     expect(text).toContain('"type":"resync"');
   });
 });
+
+const BUN = process.versions.bun === undefined ? "bun" : process.execPath;
+const BUN_VERSION = execFileSync(BUN, ["--version"], { encoding: "utf8" }).trim();
+const PROBE = fileURLToPath(new URL("./testing/stalledReaderProbe.ts", import.meta.url));
+/** What Bun and the kernel may hold for a connection once Bun stops pulling: measured ~2.9 MB on 1.4.2. */
+const MOST_IN_FLIGHT_BYTES = 16 * 1024 * 1024;
+
+const probe = (mode: ProbeMode): StalledReaderReport =>
+  JSON.parse(execFileSync(BUN, [PROBE, mode], { encoding: "utf8", timeout: 60_000 }));
+
+describe.runIf(pacesResponseBodies(BUN_VERSION))(
+  `a real Bun.serve connection that stops reading (Bun ${BUN_VERSION})`,
+  () => {
+    it("is dropped once its backlog passes the limit, with what the server holds bounded", () => {
+      const report = probe("flood");
+      expect(report.end?.reason).toBe("fell-behind");
+      expect(report.end?.peakBacklogBytes).toBeLessThanOrEqual(MAX_BACKLOG_BYTES + 512 * 1024);
+      expect(report.end?.deliveredBytes).toBeLessThan(MOST_IN_FLIGHT_BYTES);
+      expect(report.caughtUp).toBe(true);
+      expect(report.resyncedFromStart).toBe(true);
+    }, 60_000);
+
+    it("is dropped at the stall deadline when the backlog stays under the limit", () => {
+      const report = probe("trickle");
+      expect(report.end?.reason).toBe("stalled");
+      expect(report.end?.deliveredBytes).toBeLessThan(MOST_IN_FLIGHT_BYTES);
+      expect(report.caughtUp).toBe(true);
+    }, 60_000);
+  },
+);
 
 describe("sinceOf", () => {
   const request = (query: string, lastEventId?: string) =>

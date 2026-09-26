@@ -492,11 +492,23 @@ in between is replayed rather than lost (at worst applied twice, which is idempo
 A board nobody has streamed, announced on or changed for 10 minutes (`PAGE_IDLE_MS`) is forgotten along with
 its log. When it comes back its numbers continue from the highest any forgotten board had reached, so a cursor
 kept from before is never read in the new numbering: it gets `resync`, or exactly what it missed.
-A stream whose reader stops reading is ended once 4 MiB of events wait for it (`MAX_BACKLOG_BYTES`); the
-browser reconnects with `Last-Event-ID` and catches up, or gets `resync`. That limit is twice the log a board
-keeps (`KEPT_BYTES`), so a catch-up, which is replayed in one go, never ends its own stream.
+
 In `shared` access mode both routes are board routes and need a credential that grants the board id
 (`docs/access.md`).
+
+**Slow readers.** Both event streams (`server/http/eventStream.ts`) keep their events in their own queue and
+hand one over only when Bun pulls for the next, and Bun ≥ 1.4 pulls only while the connection can take more
+(it holds at most ~3 MB for a connection that stopped reading: its write buffer and the kernel's). A stream
+is dropped when its queue passes a byte limit — 4 MiB for a board (`MAX_BACKLOG_BYTES`, twice the log it
+keeps, `KEPT_BYTES`, so a catch-up, replayed in one go, never ends its own stream), 1 MiB for a controller —
+or when bytes have waited 30 s with Bun taking none of them (`STALL_MS`); Bun's own `idleTimeout` (10 s
+without progress) usually closes such a connection first. A dropped browser `EventSource` reconnects after
+`retry: 1000` with `Last-Event-ID` and catches up, or gets `resync`. So a reader that never reads costs the
+server at most its limit plus Bun's ~3 MB, however much is written to the board. An older Bun (measured:
+1.3.14) pulls the whole body into its own write buffer whatever the client reads, so there only `idleTimeout`
+bounds it; the server warns at start on anything before the pinned 1.4.2 (`packageManager`, `Containerfile`).
+`server/sync/testing/stalledReaderProbe.ts` measures this on a real `Bun.serve` connection whose client
+stops reading; `boardEventStream.test.ts` runs it (skipped on a Bun before 1.4.2).
 
 The controller routes are the HTTP face of `server/controllers/` (UDP `:8788` and USB serial feed the same
 hub); the whole protocol, the Arduino sketch included, is `docs/controllers.md`.
