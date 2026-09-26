@@ -26,7 +26,7 @@ const PRIMARY_BUTTON = 0;
 const MIDDLE_BUTTON = 1;
 const MIN_PINCH_SPAN_PX = 1;
 
-type DragMode = "ink" | "pan" | "tap";
+type DragMode = "ink" | "erase" | "pan" | "tap";
 
 interface Drag {
   readonly pointerId: number;
@@ -35,6 +35,7 @@ interface Drag {
   readonly start: Vec;
   last: Vec;
   travelled: boolean;
+  penIsDown: boolean;
 }
 
 interface PinchAnchor {
@@ -61,10 +62,16 @@ const SETTLING: Phase = { kind: "settling" };
 
 const MODE_BY_TOOL: Readonly<Record<Tool, DragMode>> = {
   draw: "ink",
-  erase: "ink",
+  erase: "erase",
   pan: "pan",
   write: "tap",
 };
+
+const marks = (mode: DragMode): boolean => mode === "ink" || mode === "erase";
+
+/** A finger may yet be joined by a second one (a pinch or a two-finger tap), so it erases only once it travels or lifts alone. */
+const lowersPenAtOnce = (mode: DragMode, kind: PointerKind): boolean =>
+  mode === "ink" || (mode === "erase" && kind !== "touch");
 
 const subtract = (a: Vec, b: Vec): Vec => ({ x: a.x - b.x, y: a.y - b.y });
 
@@ -176,17 +183,19 @@ export class GestureMachine {
 
   private beginDrag(pointer: PointerPress, mode: DragMode): void {
     const { id, kind, client } = pointer;
+    const penIsDown = lowersPenAtOnce(mode, kind);
     this.phase = {
       kind: "drag",
-      drag: { pointerId: id, kind, mode, start: client, last: client, travelled: false },
+      drag: { pointerId: id, kind, mode, start: client, last: client, travelled: false, penIsDown },
     };
-    if (mode === "ink") this.sink.penDown(client);
+    if (penIsDown) this.sink.penDown(client);
   }
 
   private advanceDrag(drag: Drag, samples: readonly PenPoint[], latest: Vec): void {
     drag.travelled ||= samples.some((sample) => distance(drag.start, sample) >= TAP_SLOP_PX);
-    if (drag.mode === "ink") {
-      for (const sample of samples) this.sink.penMove(sample);
+    if (marks(drag.mode)) {
+      if (!drag.penIsDown && drag.travelled) this.lowerPen(drag);
+      if (drag.penIsDown) for (const sample of samples) this.sink.penMove(sample);
     } else if (drag.mode === "pan" && drag.travelled) {
       this.sink.panBy(subtract(latest, drag.last));
       drag.last = latest;
@@ -224,17 +233,23 @@ export class GestureMachine {
     return this.touches.size === 0 ? IDLE : SETTLING;
   }
 
+  private lowerPen(drag: Drag): void {
+    drag.penIsDown = true;
+    this.sink.penDown(drag.start);
+  }
+
   private endDrag(drag: Drag, deliberate: boolean): void {
     if (drag.travelled) {
-      if (drag.mode === "ink") this.sink.penUp();
+      if (drag.penIsDown) this.sink.penUp();
       return;
     }
-    if (drag.mode === "ink") this.sink.penCancel();
+    if (deliberate && marks(drag.mode) && !drag.penIsDown) this.lowerPen(drag);
+    if (drag.penIsDown) this.sink.penCancel();
     if (deliberate) this.sink.tap(drag.start);
   }
 
   private abandonDrag(drag: Drag): void {
-    if (drag.mode === "ink") this.sink.penCancel();
+    if (drag.penIsDown) this.sink.penCancel();
   }
 
   private noteTapLanding(pointer: PointerPress): void {

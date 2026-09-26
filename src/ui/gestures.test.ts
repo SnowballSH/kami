@@ -69,6 +69,45 @@ describe("GestureMachine", () => {
       ]);
     });
 
+    it("erases under a finger only once it travels past the tap slop", () => {
+      const { machine, calls, press } = setup("erase");
+
+      press(1, "touch", at(10, 10));
+      machine.move(1, [at(12, 10)]);
+      expect(calls).toEqual([]);
+      machine.move(1, [at(30, 10)]);
+      machine.release(1);
+
+      expect(calls).toEqual([["penDown", at(10, 10)], ["penMove", at(30, 10)], ["penUp"]]);
+    });
+
+    it("erases under a finger that lifts as a single tap", () => {
+      const { machine, calls, press } = setup("erase");
+
+      press(1, "touch", at(10, 10));
+      machine.move(1, [at(12, 11)]);
+      machine.release(1);
+
+      expect(calls).toEqual([["penDown", at(10, 10)], ["penCancel"], ["tap", at(10, 10)]]);
+    });
+
+    it("erases nothing when a still eraser finger is cancelled", () => {
+      const { machine, calls, press } = setup("erase");
+
+      press(1, "touch", at(10, 10));
+      machine.cancel(1);
+
+      expect(calls).toEqual([]);
+    });
+
+    it("erases under a pencil at once", () => {
+      const { calls, press } = setup("erase");
+
+      press(1, "pen", at(10, 10));
+
+      expect(calls).toEqual([["penDown", at(10, 10)]]);
+    });
+
     it("keeps a stroke that wandered off and came back to where it started", () => {
       const { machine, names, press } = setup("draw");
 
@@ -240,6 +279,31 @@ describe("GestureMachine", () => {
         "penCancel",
         "undo",
       ]);
+    });
+
+    it("erases nothing with the eraser and undoes once", () => {
+      const { machine, names, press, state } = setup("erase");
+
+      press(1, "touch", at(100, 100));
+      press(2, "touch", at(200, 100));
+      state.nowMs = 100;
+      machine.release(1);
+      machine.release(2);
+
+      expect(names()).toEqual(["undo"]);
+    });
+
+    it("erases nothing while pinching with the eraser", () => {
+      const { machine, names, press } = setup("erase");
+
+      press(1, "touch", at(100, 100));
+      press(2, "touch", at(200, 100));
+      machine.move(2, [at(260, 100)]);
+      machine.move(1, [at(60, 100)]);
+      machine.release(1);
+      machine.release(2);
+
+      expect(names().filter((name) => name !== "panBy" && name !== "zoomAt")).toEqual([]);
     });
 
     it.each([
