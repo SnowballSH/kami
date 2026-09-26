@@ -184,6 +184,8 @@ const UNDERSTOOD: readonly Understood[] = [
   ["the cart finally spins", spin(named("cart"), 1), "the cart: spin = 1 turns/s"],
   ["the ball happily bounces", bounce(named("ball"), 0.8), "the ball: bounce = 0.8"],
   ["the dog quietly floats", wings(named("dog"), 1), "the dog: can fly"],
+  ["the rock loudly floats", wings(named("rock"), 1), "the rock: can fly"],
+  ["the cat lazily spins", spin(named("cat"), 0.5), "the cat: spin = 0.5 turns/s"],
   ["the wheel constantly spins", spin(named("wheel"), 1), "the wheel: spin = 1 turns/s"],
   ["the car always goes fast", pace(named("car"), 2), "the car: pace = 2x"],
   ["the ball is barely bouncy", bounce(named("ball"), 0.4), "the ball: bounce = 0.4"],

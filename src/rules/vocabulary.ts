@@ -39,7 +39,9 @@ export const NORMAL = vocabulary(`
 export const STEADINESS = vocabulary(`
   always, forever, constantly, continually, continuously, endlessly, eternally, permanently,
   suddenly, instantly, immediately, again, finally, eventually, gradually, happily, merrily,
-  quietly, silently, calmly, proudly, peacefully, magically, mysteriously, simply, truly, actually
+  quietly, silently, calmly, proudly, peacefully, magically, mysteriously, simply, truly, actually,
+  loudly, noisily, boldly, bravely, sadly, gladly, sleepily, wildly, madly, cheerfully,
+  carefully, curiously, politely, joyfully, gracefully, clumsily, eagerly, secretly, sweetly
 `);
 
 /** Words that ask for only some of a quality: "the ball is barely bouncy", "a bit heavier". */
