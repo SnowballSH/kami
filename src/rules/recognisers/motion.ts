@@ -338,8 +338,16 @@ const graded = (
   return compared !== null && mentions(words, SLIGHTLY) ? weakened(compared, plain) : compared;
 };
 
+/**
+ * "not" turns a dial back to ordinary, and so does "normal" for a dial with degrees ("the dog is
+ * normal size"). A power a body has or lacks has no ordinary degree: "the lamp glows normally"
+ * says how it glows, not that it stops.
+ */
+const unsays = (dial: BodyDial, words: readonly string[]): boolean =>
+  mentions(words, NEGATION) || (dial.graded && mentions(words, NORMAL));
+
 const readDial = (dial: BodyDial, words: readonly string[]): number | null => {
-  if (mentions(words, UNDOING)) return ordinary(dial.governs);
+  if (unsays(dial, words)) return ordinary(dial.governs);
   const amount = readAmount(words);
   if (amount !== null) return dial.fromAmount(amount);
   const reading = dial.readings.find(({ words: said }) => mentions(words, said));
