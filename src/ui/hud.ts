@@ -4,6 +4,7 @@ import type { ModeCard, RoomCard } from "../modes/types";
 import type { PersistenceState } from "../persistence/types";
 import { BoardMenu } from "./boardMenu";
 import { el } from "./dom";
+import { HintHotkey } from "./hintHotkey";
 import { Joystick } from "./joystick";
 import { KeyboardWalk } from "./keyboard";
 import { homeUrl, PageActions } from "./pageActions";
@@ -62,10 +63,11 @@ export class DomHud implements Hud {
       this.toolbar.show(tool);
       if (source === "player") handlers.onToolChanged(tool);
     });
-    this.toolbar = new Toolbar(
-      (tool) => this.tools.pick(tool),
-      () => handlers.onClearBoard(),
-    );
+    this.toolbar = new Toolbar({
+      pick: (tool) => this.tools.pick(tool),
+      clear: () => handlers.onClearBoard(),
+      askForHint: () => handlers.onAskForHint(),
+    });
     this.toolbar.show(this.tools.inForce);
     this.boards = new BoardMenu(handlers);
     this.page = new PageActions({
@@ -78,7 +80,7 @@ export class DomHud implements Hud {
     this.prompt = new TextPrompt(host);
     this.stick = new Joystick(walk.source());
     this.tidy = new TidySlider((tidiness) => handlers.onTidinessChanged(tidiness));
-    const remoteStick = createRemoteStick(walk.source());
+    const remoteStick = createRemoteStick(walk.source(), () => handlers.onAskForHint());
     this.overlay.append(
       el("div", { className: "kami-top-left" }, [
         el("div", { className: "kami-top-left-row" }, [
@@ -106,6 +108,7 @@ export class DomHud implements Hud {
       this.stick.attach(host),
       new ToolHotkeys(this.tools).attach(host),
       new UndoHotkey(() => handlers.onUndo()).attach(host),
+      new HintHotkey(() => handlers.onAskForHint()).attach(host),
       this.boards.attach(owner),
       this.share.attach(owner),
       this.prompt.attach(),

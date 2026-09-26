@@ -216,8 +216,11 @@ Canvas 2D at device pixel ratio (cap 2). `toWorld(client, camera)` and `viewport
 
 The canvas uses `touch-action: none`. The floating toolbar picks draw/write/erase/pan
 (`aria-pressed`, keys `D`/`T`/`E`/`H`; holding Space pans until it is let go, unless a control has
-focus; Ctrl/⌘+Z undoes, once per press, never inside a text field — `ui/undoHotkey.ts`) and ends in the clear-page button, which clears only on a second tap within three seconds
-(`ArmedTap`, shared with the board menu's clear). A thumbstick, arrow keys and the remote controller feed independent
+focus; Ctrl/⌘+Z undoes, once per press, never inside a text field — `ui/undoHotkey.ts`), then the
+CAT button (a grin, key `?` — `ui/hintHotkey.ts`), which asks the Cat for a hint exactly as writing
+*help* does (`HudHandlers.onAskForHint` → `Game.askForHint`, see game/) and is offered in every mode,
+since every mode answers *help*; it ends in the clear-page button, which clears only on a second tap within three seconds
+(`ArmedTap`, shared with the board menu's clear; the CAT button or a tool disarms it). A thumbstick, arrow keys and the remote controller feed independent
 sources into `WalkIntentMerger`; manual input overrides enabled autopilot. The HUD also owns the view
 island bottom-right (self-driving switch — hidden in modes whose `autopilot` is `forbidden` — zoom and
 recentre), the board menu, save/retry status and the text prompt. The save status is its own line
@@ -239,7 +242,7 @@ under the pen while it is still drawing.
 Layout: the top-left cluster (home, board menu or share), the toolbar top-centre, the laws panel
 top-right under the toolbar's row and the room mark under the toolbar; the thumbstick bottom-left, the
 tidy slider bottom-centre, the view island bottom-right. At phone width (≤ 640 px) the toolbar moves to a
-second row on the left, the room mark beside it, the laws panel to a third row and the tidy slider above
+second row on the left, the room mark to the top row's right end, the laws panel to a third row and the tidy slider above
 the view island, so no two islands overlap at 375 px.
 
 Every control activates on `pointerup` (`activateOnTap`), so Apple Pencil, finger and mouse taps all work; the click a browser then synthesises is swallowed, while clicks with no pointer behind them (Enter, Space, `.click()`) still activate. A press that is cancelled or lifts off the control does nothing.
@@ -291,6 +294,12 @@ The player writes with the pen like they draw with it; nothing is selected first
 
 ## game/
 
+- **Asking for help** (`Game.askForHint`) is one path for three inputs: writing *help* (or, in a mode
+  whose `help` is `on-request`, *give me an idea*), the HUD's CAT button, the `?` key and the cabinet's
+  CAT button (`onAskForHint`). On a page that helps on request Kami counsels from what is around Alice
+  (`counsel/`); anywhere else the Cat climbs one rung of the room's hint ladder (`cat.hint()`). Written,
+  the answer goes where the words were; from a button, above Alice as a remark (clear of the toolbar,
+  never twice while the same line is still on the page). Nothing is answered while a board loads.
 - **Funnel** (`Game.interpret`): reject oversized text/invalid position; answer help locally; write the
   player note; try the offline compiler first. If it returns a law, apply the mode policy and stop.
   Otherwise a wish (`summoning/`: the lexicon is built once from `GET /api/exemplars`; the grammar
@@ -370,14 +379,15 @@ UDP :8788 / USB serial / HTTP state report
 The current serial/UDP protocol is `kami <id> <x> <y> [buttons]`; HTTP sends the same axes/buttons
 without the prefix/id. Reports are whole held state. The hub applies dead zones and releases stale
 input after one second; serial discovery rescans every three seconds. `?controller=arcade` is the
-default, `off` disables it. Button A counts as up (jump/climb); other buttons have no gameplay
-binding. SSE error releases the remote source, and EventSource reconnects. Keyboard/touch remain
+default, `off` disables it. Button A counts as up (jump/climb); button X — the cabinet's CAT button —
+asks the Cat for a hint once per press (`RemoteStickOptions.onCat` → `HudHandlers.onAskForHint`);
+B and Y have no gameplay binding. SSE error releases the remote source, and EventSource reconnects. Keyboard/touch remain
 independent sources. See [controllers.md](controllers.md).
 
 The cabinet firmware's `S,dir,ink,cat,px,py` frames are read by `server/controllers/cabinet.ts`;
 the firmware's debounce and framing are tested natively and its compilation is pinned
-(`scripts/checkCabinet.sh`). The supported integration is movement relay. Knob drawing, INK
-gestures, a binding for the physical CAT button, game-driven LED feedback and a visible reconnect UI are
+(`scripts/checkCabinet.sh`). The supported integration is movement relay and the CAT button (as `x`).
+Knob drawing, INK gestures, game-driven LED feedback and a visible reconnect UI are
 deferred. The browser Web Serial example and full-panel
 behavior in [hardware.md](hardware.md) are historical design, not the current browser path; #41
 replaces them. Do not treat its reported firmware compilation as physical acceptance.

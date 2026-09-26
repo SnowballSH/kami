@@ -25,7 +25,8 @@ before you finish, tidies your lines, writes back, and helps when you are stuck.
   flies, lights the dark, or gets eaten. If Kami is sure what you drew, he names it for you.
 - **Write a law** — *set g to the moon's*, *no friction*, *wind blows right*, *slow motion* — and physics
   changes for everything on the page. Erase the note and the law is repealed.
-- **Ask Kami.** Write *help*. He answers in his own handwriting.
+- **Ask Kami.** Write *help*, or press the grinning CAT button in the toolbar (or `?`). He answers in
+  his own handwriting, a little more plainly each time you ask.
 - **Slide the tidy slider** from *exactly what I drew* to *the cleanest version of it*.
 
 <p align="center">

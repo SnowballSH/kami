@@ -1972,6 +1972,85 @@ describe("Game while a board is loading", () => {
   });
 });
 
+describe("Game's CAT button", () => {
+  const RUNGS = 3;
+
+  const newLines = async (player: Player, ask: () => Promise<void>): Promise<string[]> => {
+    const before = player.hud.announced.length;
+    await ask();
+    return player.hud.announced.slice(before);
+  };
+
+  const pressCat = (player: Player) => async (): Promise<void> => {
+    player.hud.handlers.onAskForHint();
+    await player.wait(100);
+  };
+
+  it("gives the hint writing *help* gives, one rung higher on each press", async () => {
+    const writer = new Player("wonderland");
+    const presser = new Player("wonderland");
+    await writer.arrive();
+    await presser.arrive();
+
+    const written: string[][] = [];
+    const pressed: string[][] = [];
+    for (let rung = 0; rung < RUNGS; rung++) {
+      written.push(await newLines(writer, () => writer.write("help", { x: 200, y: 200 })));
+      pressed.push(await newLines(presser, pressCat(presser)));
+    }
+
+    expect(pressed).toEqual(written);
+    expect(pressed.every((lines) => lines.length === 1)).toBe(true);
+    expect(new Set(pressed.flat()).size).toBe(RUNGS);
+    expect(presser.written).toEqual(expect.arrayContaining(pressed.flat()));
+  });
+
+  it("climbs the same ladder as writing *help*", async () => {
+    const both = new Player("wonderland");
+    const writer = new Player("wonderland");
+    await both.arrive();
+    await writer.arrive();
+
+    const mixed = [
+      ...(await newLines(both, pressCat(both))),
+      ...(await newLines(both, () => both.write("help", { x: 200, y: 200 }))),
+    ];
+    const plain = [
+      ...(await newLines(writer, () => writer.write("help", { x: 200, y: 200 }))),
+      ...(await newLines(writer, () => writer.write("help", { x: 200, y: 200 }))),
+    ];
+
+    expect(mixed).toEqual(plain);
+  });
+
+  it("writes the hint above Alice, clear of the toolbar", async () => {
+    const player = new Player("wonderland");
+    await player.arrive();
+    const [hint] = await newLines(player, pressCat(player));
+    const note = player.renderer.lastFrame?.notes.find((view) => view.script.text === hint);
+    const alice = player.alice;
+
+    expect(note).toBeDefined();
+    expect(note?.script.bounds.y).toBeLessThan(alice.center.y);
+    expect(note?.script.bounds.y).toBeGreaterThanOrEqual(player.hud.toolbarBottomY);
+  });
+
+  it("says nothing while the board is loading", async () => {
+    const store = new MemoryBoardStore();
+    const pending = Promise.withResolvers<BoardSnapshot>();
+    vi.spyOn(store, "load").mockReturnValueOnce(pending.promise);
+    const player = new Player("wonderland", { store });
+    const arrival = player.arrive();
+    await player.wait(50);
+
+    const lines = await newLines(player, pressCat(player));
+
+    expect(lines).toEqual([]);
+    pending.resolve({ drawings: [], notes: [], rules: [] });
+    await arrival;
+  });
+});
+
 describe("Game's undo", () => {
   it("takes back the player's own law, then drawing, and refunds the ink", async () => {
     const player = new Player("wonderland");
@@ -2357,6 +2436,15 @@ describe("Game in the Sandbox", () => {
     const { player, eyes } = sandbox();
     await player.arrive();
     await player.write("help", { x: 60, y: -160 });
+    expect(player.written).toContain(DROP_LINE);
+    expect(eyes.summoned).toEqual([]);
+  });
+
+  it("answers the CAT button with the same counsel as writing *help*", async () => {
+    const { player, eyes } = sandbox();
+    await player.arrive();
+    player.hud.handlers.onAskForHint();
+    await player.wait(100);
     expect(player.written).toContain(DROP_LINE);
     expect(eyes.summoned).toEqual([]);
   });

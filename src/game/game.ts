@@ -1366,22 +1366,43 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       return;
     }
     if (isUnderGround(position, groundSolids(this.board))) return;
-    const around =
-      this.director.mode.help === "on-request" && (isHelpRequest(text) || isIdeaRequest(text))
-        ? this.scene()
-        : null;
-    if (around !== null) {
-      await this.counsel(around, position);
-      return;
-    }
-    if (isHelpRequest(text)) {
-      this.kamiWrites(this.modules.cat.hint().line, position, { lifetimeMs: HINT_LIFETIME_MS });
+    if (this.asksForHelp(text)) {
+      await this.askForHint(position);
       return;
     }
     const note = this.playerWrites(text, position);
     const stillHere = this.witness(note.id);
     await this.answer(text, note, stillHere);
     if (stillHere()) this.notes.release(note.id, this.nowMs, NOTE_LINGER_MS);
+  }
+
+  private asksForHelp(text: string): boolean {
+    return isHelpRequest(text) || (this.counselsOnRequest && isIdeaRequest(text));
+  }
+
+  private get counselsOnRequest(): boolean {
+    return this.director.mode.help === "on-request";
+  }
+
+  onAskForHint(): void {
+    void this.askForHint();
+  }
+
+  /**
+   * What writing *help* does, and what the CAT button does: on a page that helps on request Kami
+   * reads what is around Alice and counsels; anywhere else the Cat climbs one rung of the room's
+   * hint ladder. Asked from the HUD, with nowhere written, he answers above Alice as a remark.
+   */
+  async askForHint(at?: Vec): Promise<void> {
+    if (this.loading) return;
+    const around = this.counselsOnRequest ? this.scene() : null;
+    if (around !== null) {
+      await this.counsel(around, at);
+      return;
+    }
+    const { line } = this.modules.cat.hint();
+    if (at === undefined) this.remark(line, HINT_LIFETIME_MS);
+    else this.kamiWrites(line, at, { lifetimeMs: HINT_LIFETIME_MS });
   }
 
   private async answer(text: string, note: Note, stillHere: () => boolean): Promise<void> {
@@ -1435,9 +1456,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    * writes an idea, and where a picture would help (a bridge, a ladder, a friend) sketches one of
    * his own through the summoning path and names it. Without the server he leaves it at words.
    */
-  private async counsel(around: Scene, position: Vec): Promise<void> {
+  private async counsel(around: Scene, at?: Vec): Promise<void> {
     const advice = counselFor(surroundingsOf(around), this.ideasGiven++);
-    this.remark(advice.line, HINT_LIFETIME_MS, position);
+    this.remark(advice.line, HINT_LIFETIME_MS, at);
     if (advice.sketch === null) return;
     const epoch = this.epoch;
     const exemplar = (await this.modules.summoner?.exemplar(advice.sketch.word)) ?? null;
