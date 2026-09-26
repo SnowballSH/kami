@@ -36,7 +36,7 @@ export class InkLayer {
   private readonly byBodyId = new Map<number, InkEntity>();
   private cachedAll: readonly InkEntity[] | null = null;
   private cachedDynamicBodies: readonly Matter.Body[] | null = null;
-  private cachedHeldBounds: readonly Rect[] | null = null;
+  private cachedHeldBodies: readonly Matter.Body[] | null = null;
 
   constructor(
     private readonly world: Matter.World,
@@ -60,13 +60,16 @@ export class InkLayer {
     return this.cachedDynamicBodies;
   }
 
-  get heldBounds(): readonly Rect[] {
-    if (this.cachedHeldBounds === null) {
-      this.cachedHeldBounds = this.all
-        .filter((ink) => ink.body.isStatic)
-        .map((ink) => boundsRect(ink.body.bounds));
+  get heldBodies(): readonly Matter.Body[] {
+    if (this.cachedHeldBodies === null) {
+      this.cachedHeldBodies = this.all.map((ink) => ink.body).filter((body) => body.isStatic);
     }
-    return this.cachedHeldBounds;
+    return this.cachedHeldBodies;
+  }
+
+  /** Read fresh each time: a held drawing that is not pinned still turns in place under a spin law. */
+  get heldBounds(): readonly Rect[] {
+    return this.heldBodies.map((body) => boundsRect(body.bounds));
   }
 
   get spawnMarker(): InkEntity | undefined {
@@ -191,7 +194,7 @@ export class InkLayer {
   private invalidate(): void {
     this.cachedAll = null;
     this.cachedDynamicBodies = null;
-    this.cachedHeldBounds = null;
+    this.cachedHeldBodies = null;
   }
 
   private attach(ink: InkEntity): void {

@@ -2,6 +2,7 @@ import Matter from "matter-js";
 import { describe, expect, it } from "vitest";
 import type { Rect } from "../core/geometry";
 import { EARTH } from "../rules/types";
+import { boundsRect } from "./bodyBounds";
 import { type AnchorSource, InkLayer } from "./inkLayer";
 import { blob, drawingOf, line } from "./testSupport";
 
@@ -20,14 +21,14 @@ const setup = () => {
 };
 
 describe("InkLayer cached derived lists", () => {
-  it("memoises all/dynamicBodies/heldBounds until something changes", () => {
+  it("memoises all/dynamicBodies/heldBodies until something changes", () => {
     const { layer } = setup();
     layer.add(bridge());
     layer.add(loose());
 
     expect(layer.all).toBe(layer.all);
     expect(layer.dynamicBodies).toBe(layer.dynamicBodies);
-    expect(layer.heldBounds).toBe(layer.heldBounds);
+    expect(layer.heldBodies).toBe(layer.heldBodies);
   });
 
   it("holds ink spanning two anchors static, and leaves unanchored ink dynamic", () => {
@@ -50,7 +51,7 @@ describe("InkLayer cached derived lists", () => {
     const { layer } = setup();
     layer.add(bridge());
     const beforeAll = layer.all;
-    const beforeHeld = layer.heldBounds;
+    const beforeHeld = layer.heldBodies;
 
     layer.add(loose());
     expect(layer.all).not.toBe(beforeAll);
@@ -60,7 +61,7 @@ describe("InkLayer cached derived lists", () => {
     layer.remove("loose" as never);
     expect(layer.all).toHaveLength(1);
     expect(layer.dynamicBodies).toHaveLength(0);
-    expect(layer.heldBounds).not.toBe(beforeHeld);
+    expect(layer.heldBodies).not.toBe(beforeHeld);
     expect(layer.heldBounds).toHaveLength(1);
   });
 
@@ -102,5 +103,20 @@ describe("InkLayer cached derived lists", () => {
     layer.freeze(ink);
     expect(layer.dynamicBodies).toHaveLength(0);
     expect(layer.heldBounds).toHaveLength(1);
+  });
+
+  it("reports a held drawing's outline as it stands after it turns in place", () => {
+    const { layer } = setup();
+    layer.add(loose());
+    const ink = layer.all.find((each) => each.id === "loose");
+    if (ink === undefined) throw new Error("loose ink missing");
+    layer.freeze(ink);
+    const [before] = layer.heldBounds;
+
+    Matter.Body.setAngle(ink.body, ink.body.angle + Math.PI / 2);
+    const [after] = layer.heldBounds;
+
+    expect(after).toEqual(boundsRect(ink.body.bounds));
+    expect(after?.width).not.toBeCloseTo(before?.width ?? 0);
   });
 });
