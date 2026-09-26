@@ -41,6 +41,7 @@ const grip = (of: Target, value: number): RuleEffect => ({ governs: "grip", of, 
 const pace = (of: Target, value: number): RuleEffect => ({ governs: "pace", of, value });
 const size = (of: Target, value: number): RuleEffect => ({ governs: "size", of, value });
 const wings = (of: Target, value: number): RuleEffect => ({ governs: "wings", of, value });
+const glow = (of: Target, value: number): RuleEffect => ({ governs: "glow", of, value });
 
 const UNDERSTOOD: readonly Understood[] = [
   ["g = moon", gravity(0, 0.165), "gravity = 0.17 g (the Moon)"],
@@ -174,6 +175,15 @@ const UNDERSTOOD: readonly Understood[] = [
   ["the dog moves faster", pace(named("dog"), 2), "the dog: pace = 2x"],
   ["the big rock is heavy", mass(named("big rock"), 2), "the big rock: weight = 2x"],
   ["the rock is heavier", mass(named("rock"), 2), "the rock: weight = 2x"],
+  ["the rock suddenly floats", wings(named("rock"), 1), "the rock: can fly"],
+  ["the wheel constantly spins", spin(named("wheel"), 1), "the wheel: spin = 1 turns/s"],
+  ["the car always goes fast", pace(named("car"), 2), "the car: pace = 2x"],
+  ["the ball is barely bouncy", bounce(named("ball"), 0.4), "the ball: bounce = 0.4"],
+  ["the rock is a bit heavy", mass(named("rock"), 1.5), "the rock: weight = 1.5x"],
+  ["the rock is slightly heavier", mass(named("rock"), 1.5), "the rock: weight = 1.5x"],
+  ["the wheel spins slightly faster", spin(named("wheel"), 1.5), "the wheel: spin = 1.5 turns/s"],
+  ["the royal family glows", glow(named("royal family"), 1), "the royal family: glows"],
+  ["the blue dragonfly glows", glow(named("blue dragonfly"), 1), "the blue dragonfly: glows"],
   ["the rock is twice as heavy", mass(named("rock"), 2), "the rock: weight = 2x"],
   ["every rock weighs 3 times more", mass(named("rock"), 3), "the rock: weight = 3x"],
   ["the rock is weightless", mass(named("rock"), 0.1), "the rock: weight = 0.1x"],
@@ -293,6 +303,9 @@ const NOT_RULES: readonly string[] = [
   "a drifting boat",
   "a rolling log",
   "alice moves left",
+  "the ball barely floats",
+  "the wheel sometimes spins",
+  "the rock often floats",
 ];
 
 describe("the offline rule grammar", () => {

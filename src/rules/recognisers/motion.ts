@@ -1,4 +1,5 @@
 import { type Amount, readAmount } from "../amounts";
+import { weakened } from "../comparatives";
 import { DIRECTION_WORDS, type Direction, fieldAlong, readDirection } from "../directions";
 import { type BodyScalarGoverns, bodyRule, thrustRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
@@ -10,6 +11,8 @@ import {
   mentions,
   NEGATION,
   NORMAL,
+  SLIGHTLY,
+  STEADINESS,
   union,
   type Vocabulary,
   vocabulary,
@@ -29,6 +32,8 @@ interface BodyDial {
   readonly units: Vocabulary;
   readonly readings: readonly Reading[];
   readonly implied: number | null;
+  /** Whether it takes values between its readings ("slightly faster"), or is only on or off. */
+  readonly graded: boolean;
   readonly fromAmount: (amount: Amount) => number | null;
 }
 
@@ -152,6 +157,8 @@ const knowing = (dial: BodyDial): KnownDial => ({
   ...dial,
   known: knownWords(
     INTENSIFIERS,
+    STEADINESS,
+    dial.graded ? SLIGHTLY : [],
     HALT,
     UNDOING,
     BACKWARDS,
@@ -181,6 +188,7 @@ const DIALS: readonly KnownDial[] = [
       { words: FAST, value: FAST_SPIN },
       { words: SLOW, value: SLOW_SPIN },
     ],
+    graded: true,
     implied: ONE_TURN_PER_SECOND,
     fromAmount: multiplier,
   }),
@@ -194,6 +202,7 @@ const DIALS: readonly KnownDial[] = [
       { words: FAST, value: HARD_THRUST_G },
       { words: SLOW, value: GENTLE_THRUST_G },
     ],
+    graded: true,
     implied: STEADY_THRUST_G,
     fromAmount: thrustFromAmount,
   }),
@@ -208,6 +217,7 @@ const DIALS: readonly KnownDial[] = [
       { words: MORE, value: HEAVIER },
       { words: LESS, value: LIGHTER },
     ],
+    graded: true,
     implied: null,
     fromAmount: multiplier,
   }),
@@ -219,6 +229,7 @@ const DIALS: readonly KnownDial[] = [
       { words: HALT, value: 0 },
       { words: INTENSIFIERS, value: VERY_BOUNCY },
     ],
+    graded: true,
     implied: BOUNCY,
     fromAmount: multiplier,
   }),
@@ -232,6 +243,7 @@ const DIALS: readonly KnownDial[] = [
       { words: MORE, value: MORE_GRIP },
       { words: LESS, value: LESS_GRIP },
     ],
+    graded: true,
     implied: null,
     fromAmount: multiplier,
   }),
@@ -245,6 +257,7 @@ const DIALS: readonly KnownDial[] = [
       { words: MORE, value: QUICK },
       { words: LESS, value: SLUGGISH },
     ],
+    graded: true,
     implied: null,
     fromAmount: multiplier,
   }),
@@ -253,6 +266,7 @@ const DIALS: readonly KnownDial[] = [
     units: NO_UNITS,
     about: WINGS,
     readings: [{ words: HALT, value: 0 }],
+    graded: false,
     implied: CAN_FLY,
     fromAmount: ({ value }) => (value === 0 ? 0 : CAN_FLY),
   }),
@@ -266,6 +280,7 @@ const DIALS: readonly KnownDial[] = [
       { words: MORE, value: HUGE },
       { words: LESS, value: TINY },
     ],
+    graded: true,
     implied: null,
     fromAmount: multiplier,
   }),
@@ -277,6 +292,7 @@ const DIALS: readonly KnownDial[] = [
       { words: HALT, value: 0 },
       { words: GLOWING_MANNER, value: GLOWS },
     ],
+    graded: false,
     implied: GLOWS,
     fromAmount: ({ value }) => (value === 0 ? 0 : GLOWS),
   }),
@@ -286,6 +302,7 @@ const DIALS: readonly KnownDial[] = [
     about: HALT,
     steered: DRIFT,
     readings: [],
+    graded: false,
     implied: 0,
     fromAmount: thrustFromAmount,
   }),
@@ -302,12 +319,17 @@ const isAbout = (dial: BodyDial, words: readonly string[]): boolean =>
 
 const ordinary = (governs: BodyGoverns): number => (governs === "thrust" ? 0 : STILL[governs]);
 
+/** "a bit faster" is halfway from what the dial plainly does to what "faster" asks. */
+const slightly = (value: number | null, plain: number, words: readonly string[]): number | null =>
+  value !== null && mentions(words, SLIGHTLY) ? weakened(value, plain) : value;
+
 const readDial = (dial: BodyDial, words: readonly string[]): number | null => {
   if (mentions(words, UNDOING)) return ordinary(dial.governs);
   const amount = readAmount(words);
   if (amount !== null) return dial.fromAmount(amount);
   const reading = dial.readings.find(({ words: said }) => mentions(words, said));
-  return reading === undefined ? dial.implied : reading.value;
+  if (reading === undefined) return slightly(dial.implied, ordinary(dial.governs), words);
+  return slightly(reading.value, dial.implied ?? ordinary(dial.governs), words);
 };
 
 const ruleFor = (
