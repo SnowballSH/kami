@@ -68,4 +68,8 @@
   .kami-laws {
     top: calc(var(--kami-safe-top) + 2 * var(--kami-row));
   }
+
+  :has(> .kami-hud > .kami-room-mark:not([hidden])) > .kami-laws {
+    top: calc(var(--kami-safe-top) + 2 * var(--kami-row) + var(--kami-room-mark-height) + 8px);
+  }
 }

@@ -10,6 +10,7 @@
   --kami-row: calc(var(--kami-island-height) + 8px);
   --kami-popover-max: min(320px, calc(100vw - var(--kami-safe-left) - var(--kami-safe-right)));
   --kami-radius: 8px;
+  --kami-room-mark-height: 20px;
   --kami-radius-inner: 6px;
   --kami-line: 1px solid var(--kami-ink);
   --kami-hairline: 0 1px 0 rgb(17 17 17 / 0.08);
@@ -640,8 +641,12 @@
   top: calc(var(--kami-safe-top) + var(--kami-row));
   left: 50%;
   transform: translateX(-50%);
+  box-sizing: border-box;
+  height: var(--kami-room-mark-height);
   padding: 2px 8px;
   font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
   letter-spacing: 0.06em;
   color: var(--kami-ink-soft);
   background: rgb(255 255 255 / 0.7);
@@ -656,7 +661,7 @@
   }
 
   .kami-room-mark {
-    top: calc(var(--kami-safe-top) + 17px);
+    top: calc(var(--kami-safe-top) + 2 * var(--kami-row));
     left: auto;
     right: var(--kami-safe-right);
     transform: none;
