@@ -10,7 +10,8 @@ const HER_OR_ME = union(ALICE, vocabulary("me, myself, us"));
 
 /** Words after which a name goes on about something else: "a bag *of* cats" is a bag. */
 const QUALIFIERS = vocabulary(`
-  of, with, in, on, from, wearing, holding, who, that, which, named, called
+  of, with, in, on, from, for, by, wearing, holding, carrying, riding, driving, driven, ridden,
+  pulling, pulled, made, who, that, which, named, called
 `);
 
 const LEADING = vocabulary("a, an, the, some, my, our, your, this, that, these, those");
@@ -25,11 +26,14 @@ export const refersBack = (spoken: readonly string[]): boolean => {
   return pronoun >= 0 && (her < 0 || pronoun < her);
 };
 
-/** The last word before any qualifier: "rabbit hole" is a hole and "a king of the hill" a king. */
-export const headOf = (words: readonly string[]): string | undefined => {
+/** Where the head noun stands: the last word before any qualifier, or -1 for no words. */
+export const headIndexOf = (words: readonly string[]): number => {
   const qualified = words.findIndex((word, at) => at > 0 && QUALIFIERS.has(word));
-  return words.slice(0, qualified < 0 ? words.length : qualified).at(-1);
+  return (qualified < 0 ? words.length : qualified) - 1;
 };
+
+/** The last word before any qualifier: "rabbit hole" is a hole and "a king of the hill" a king. */
+export const headOf = (words: readonly string[]): string | undefined => words[headIndexOf(words)];
 
 /**
  * The one noun a pronoun beside a drawing called `name` stands for: "boat" for "a little boat",
