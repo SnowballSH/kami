@@ -2,6 +2,10 @@ import type { PenPoint, Pose, Rect, Stroke } from "../core/geometry";
 
 export type DrawingId = string & { readonly __brand: "DrawingId" };
 
+/** Whose ink a drawing is: drawn by a hand (the player's or Kami's), or a prop Kami dressed a scene with. */
+export const INK_PROVENANCES = ["drawn", "scenery"] as const;
+export type InkProvenance = (typeof INK_PROVENANCES)[number];
+
 export interface Drawing {
   readonly id: DrawingId;
   readonly strokes: readonly Stroke[];
