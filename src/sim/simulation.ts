@@ -77,6 +77,8 @@ interface BoardWorld {
   readonly engine: Matter.Engine;
   readonly props: BoardProps;
   readonly inks: InkLayer;
+  /** How far this page is turned; a board opens upright, whatever the last one did. */
+  readonly paper: PaperTurn;
   alice: AliceController;
   /** Where the heart hovers while she has no body; null once she is embodied. */
   soul: Vec | null;
@@ -107,6 +109,8 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
   Matter.Composite.add(engine.world, alice.body);
   const twins = new Twins(engine.world);
   twins.match(physics.clones, alice, physics);
+  const paper = new PaperTurn();
+  paper.obey(physics);
 
   const activePairs: Matter.Pair[] = [];
   const collectPairs = (event: Matter.IEventCollision<Matter.Engine>): void => {
@@ -120,6 +124,7 @@ const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld =
     engine,
     props,
     inks: new InkLayer(engine.world, props, physics),
+    paper,
     alice,
     soul: null,
     tear: null,
@@ -146,7 +151,6 @@ export class MatterSimulation implements Simulation {
   private readonly rides = new Map<AliceController, Ride>();
   private roster: Roster | null = null;
   private bulletTime = 1;
-  private readonly paper = new PaperTurn();
   private events: SimEvent[] = [];
   /** False until the first step after a board opens: laws folded before then were born with the room. */
   private underway = false;
@@ -162,9 +166,9 @@ export class MatterSimulation implements Simulation {
 
   setPhysics(physics: WorldPhysics): void {
     if (!validPhysics(physics)) throw new RangeError("Invalid world physics");
-    const { alice, twins, inks } = this.world;
+    const { alice, twins, inks, paper } = this.world;
     this.physics = physics;
-    this.paper.obey(physics);
+    paper.obey(physics);
     alice.applyPhysics(physics);
     twins.match(this.embodied ? physics.clones : 0, alice, physics);
     this.roster = null;
@@ -301,7 +305,7 @@ export class MatterSimulation implements Simulation {
   }
 
   paperAngle(): number {
-    return this.paper.angle;
+    return this.world.paper.angle;
   }
 
   walkSpeed(who: AliceIndex = ALICE_HERSELF): number {
@@ -346,7 +350,7 @@ export class MatterSimulation implements Simulation {
   }
 
   private tick(timeScale: number): void {
-    const { engine, inks, activePairs } = this.world;
+    const { engine, inks, activePairs, paper } = this.world;
     const alices = this.bodied();
     const elapsedMs = FIXED_STEP_MS * timeScale;
     activePairs.length = 0;
@@ -372,7 +376,7 @@ export class MatterSimulation implements Simulation {
       pullToward(alice.body.position, this.physics.attraction, inks.dynamicBodies);
     }
     Matter.Engine.update(engine, FIXED_STEP_MS);
-    this.paper.advance(this.physics, elapsedMs);
+    paper.advance(this.physics, elapsedMs);
     const settled = this.surroundings();
     for (const alice of alices) {
       alice.advanceResize(elapsedMs);
@@ -508,7 +512,7 @@ export class MatterSimulation implements Simulation {
     const loose = this.world.inks.all
       .filter((ink) => !ink.body.isStatic && isLooseInk(ink.nature))
       .map((ink) => ink.body);
-    this.paper.tumble(this.physics.gravity, loose);
+    this.world.paper.tumble(this.physics.gravity, loose);
   }
 
   private forgetInk(id: DrawingId): void {

@@ -66,6 +66,15 @@ describe("the paper's turn", () => {
     expect(sim.paperAngle()).toBeCloseTo(45, 5);
   });
 
+  it("lies upright again on the next board, however far the last one spun", () => {
+    const sim = enter(board);
+    sim.setPhysics({ ...EARTH, worldSpin: 30 });
+    runSteps(sim, ONE_SECOND);
+    sim.loadBoard(blankBoard("another"));
+    sim.setPhysics(EARTH);
+    expect(sim.paperAngle()).toBe(0);
+  });
+
   it("spins on from a tilt, and a new tilt starts the count over", () => {
     const sim = enter(board);
     sim.setPhysics({ ...EARTH, tilt: 90, worldSpin: 60 });
