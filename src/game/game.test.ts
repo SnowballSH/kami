@@ -2187,6 +2187,38 @@ describe("Game's undo", () => {
     expect(player.renderer.lastFrame?.inks).toHaveLength(1);
   });
 
+  it("takes back ink still being read before the drawing under it, and its reading comes to nothing", async () => {
+    const reader = new ScriptedReader(null, true);
+    const player = new Player("wonderland", { reader });
+    await player.arrive();
+    const refund = vi.spyOn(player.ink, "refund");
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    reader.answerAll();
+    await player.wait(100);
+    const landed = (await player.store.load("wonderland")).drawings.map(
+      ({ drawing }) => drawing.id,
+    );
+    expect(landed).toHaveLength(1);
+
+    await player.scrawl(scrawl({ x: 200, y: 200 }, 3));
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(1);
+    player.game.undo();
+    await player.wait(50);
+    expect(player.renderer.lastFrame?.heldInks).toHaveLength(0);
+    expect(refund).toHaveBeenCalledTimes(1);
+
+    reader.answerAll();
+    await player.wait(100);
+    const kept = (await player.store.load("wonderland")).drawings.map(({ drawing }) => drawing.id);
+    expect(kept).toEqual(landed);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(1);
+
+    player.game.undo();
+    await player.wait(50);
+    expect((await player.store.load("wonderland")).drawings).toHaveLength(0);
+    expect(player.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
   it("is ignored while the board loads", async () => {
     const store = new MemoryBoardStore();
     const pending = Promise.withResolvers<BoardSnapshot>();
