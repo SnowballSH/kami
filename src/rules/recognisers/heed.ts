@@ -1,7 +1,7 @@
 import { bodyRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { ALICE } from "../subjects";
-import { besides, targetOf } from "../targets";
+import { besides, targetOf, wordsNaming } from "../targets";
 import { mentions, union, vocabulary } from "../vocabulary";
 
 const FOLLOWS = vocabulary(`
@@ -58,7 +58,8 @@ export const recogniseHeed: Recogniser = (sentence) => {
   const of = targetOf(sentence, KNOWN);
   if (of === null) return null;
   const her = firstIndex(words, ME);
-  if (of.kind === "named" && her >= 0 && words.indexOf(of.name) > her) return null;
+  const [head] = wordsNaming(of);
+  if (head !== undefined && her >= 0 && words.indexOf(head) > her) return null;
   const rest = besides(words, of);
   if (!understands(rest, KNOWN)) return null;
   return bodyRule("heed", of, heedOf(rest));

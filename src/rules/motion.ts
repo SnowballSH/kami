@@ -9,23 +9,36 @@ import {
 
 const MIN_STEMMABLE_LENGTH = 4;
 
-const stem = (word: string): string => {
-  if (word.length < MIN_STEMMABLE_LENGTH) return word;
-  if (/(?:x|ch|sh|ss)es$/.test(word)) return word.slice(0, -2);
-  if (/[^su]s$/.test(word)) return word.slice(0, -1);
-  return word;
+/** What a word could be in the singular: "buses" is "bus" or "buse", "puppies" is "puppy". */
+const singularsOf = (word: string): ReadonlySet<string> => {
+  if (word.length < MIN_STEMMABLE_LENGTH) return new Set([word]);
+  return new Set([
+    word,
+    ...(/[^su]s$/.test(word) ? [word.slice(0, -1)] : []),
+    ...(/(?:s|x|z|ch|sh)es$/.test(word) ? [word.slice(0, -2)] : []),
+    ...(word.endsWith("ies") ? [`${word.slice(0, -3)}y`] : []),
+  ]);
 };
 
-const stemsOf = (name: string): readonly string[] =>
+const wordsOf = (name: string): readonly ReadonlySet<string>[] =>
   name
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((word) => word.length > 0)
-    .map(stem);
+    .map(singularsOf);
+
+const sameWord = (a: ReadonlySet<string>, b: ReadonlySet<string>): boolean =>
+  [...a].some((form) => b.has(form));
+
+const namedBy = (phrase: string, name: string): boolean => {
+  const wanted = wordsOf(phrase);
+  const given = wordsOf(name);
+  return wanted.length > 0 && wanted.every((word) => given.some((its) => sameWord(word, its)));
+};
 
 /** "the wheels" speaks of "a spinning wheel"; a nameless drawing answers only to `all`. */
 export const speaksOf = (target: Target, name: string): boolean =>
-  target.kind === "all" || stemsOf(name).includes(stem(target.name));
+  target.kind === "all" || namedBy(target.name, name);
 
 export const editOf = (effect: BodyEffect): MotionEdit =>
   effect.governs === "thrust"

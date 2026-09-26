@@ -49,6 +49,12 @@ const LEFT_TO_OTHERS: readonly (readonly [says: string, governs: RuleEffect["gov
   ["the wheel spins fast", "spin"],
   ["the rock is massive", "mass"],
   ["the rock is heavier", "mass"],
+  ["the wheel spins", "spin"],
+  ["the rock floats", "wings"],
+  ["the bird glides", "wings"],
+  ["everything falls left", "gravity"],
+  ["the wind blows right", "wind"],
+  ["the dog walks away", "heed"],
 ];
 
 describe("powers a drawing can gain by law", () => {
@@ -74,6 +80,16 @@ describe("powers a drawing can gain by law", () => {
     expect(inEffectDomain("wings", 2)).toBe(false);
     expect(inEffectDomain("size", 0.25) && inEffectDomain("size", 4)).toBe(true);
     expect(inEffectDomain("size", 5)).toBe(false);
+  });
+
+  it("reaches the drawing a plural or a model's capitalised phrase names", async () => {
+    const buses = await compiler.compile("the buses are fast");
+    const hole = pace({ kind: "named", name: "Black Hole" }, 3);
+    const rules = [rule("a", 1, buses?.effect ?? pace(ALL, 1)), rule("b", 2, hole)];
+    const { bodies } = resolvePhysics(rules);
+    expect(motionOf({}, bodies, "a bus").pace).toBe(2);
+    expect(motionOf({}, bodies, "a black hole").pace).toBe(3);
+    expect(motionOf({}, bodies, "a hole").pace).toBe(1);
   });
 
   it("folds powers as body laws, later wins per drawing, and refolds without a repealed one", () => {
