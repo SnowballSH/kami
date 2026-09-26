@@ -53,6 +53,7 @@ import {
   FELL_OFF_PAGE_LINE,
   LAW_OUTSIDE_MODE_LINE,
   NOWHERE_LINE,
+  PERISHED_LINES,
   PONDERING_LINE,
   RULE_REPEALED_LINE,
   SUMIKUI_LORE_LINE_DELAY_MS,
@@ -712,6 +713,24 @@ describe("Game on the Wonderland board", () => {
     for (const [i, a] of bounds.entries()) {
       for (const b of bounds.slice(i + 1)) expect(rectsOverlap(a, b)).toBe(false);
     }
+  });
+
+  it("says a word over ink the heat takes, once for a whole heatwave", async () => {
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+    await player.write("an ice cube", { x: 250, y: 450 });
+    await player.draw(blob({ x: 500, y: 530 }, 30, 20));
+    await player.write("an icicle", { x: 450, y: 450 });
+    expect(player.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual([
+      "slippery",
+      "slippery",
+    ]);
+
+    await player.write("it's 100 degrees", { x: 200, y: 200 });
+    expect(await player.until(() => player.renderer.lastFrame?.inks.length === 0)).toBe(true);
+    const mourned = player.everWritten.filter((text) =>
+      Object.values(PERISHED_LINES).some((lines) => lines.includes(text)),
+    );
+    expect(new Set(mourned)).toEqual(new Set([PERISHED_LINES.slippery?.[0]]));
   });
 
   it("brings a board back from memory", async () => {
@@ -1470,7 +1489,7 @@ describe("Game with a Kami who draws", () => {
     expect(eyes.summoned).toEqual(["house", "tree", "cloud", "cloud"]);
     await player.wait(ARRIVAL_MS);
     const inks = player.renderer.lastFrame?.inks ?? [];
-    expect(inks.map((ink) => ink.nature)).toEqual(["ink", "climbable", "floaty", "floaty"]);
+    expect(inks.map((ink) => ink.nature)).toEqual(["heavy", "climbable", "floaty", "floaty"]);
     const boxes = inks.map((ink) => boundsOf(ink.drawing.strokes.flat()));
     const lefts = boxes.map((box) => box.x);
     expect([...lefts].sort((a, b) => a - b)).toEqual(lefts);

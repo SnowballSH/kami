@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { FLEERS, FOLLOWERS } from "./lexicon";
 import {
   ACCEPTANCE,
   ASK_WHAT_IT_IS,
@@ -11,6 +12,7 @@ import {
 } from "./lines";
 import { KEYWORDS, resolveNature } from "./natureResolver";
 import { parsePhrase } from "./phrase";
+import { ruleOn } from "./ruling";
 import { CANDIDATES } from "./shapeGuesser";
 
 const MAX_WORDS = 15;
@@ -62,6 +64,8 @@ describe("the lexicon", () => {
       nature: "bouncy",
       keyword: "mushroom",
       kind: "thing",
+      at: 2,
+      end: 3,
     });
   });
 
@@ -88,5 +92,65 @@ describe("the lexicon", () => {
     for (const { name, nature } of Object.values(CANDIDATES).flat()) {
       expect(resolveNature(parsePhrase(name))?.nature ?? "ink", name).toBe(nature);
     }
+  });
+
+  it("gives every creature with a temper by name a creature's nature", () => {
+    for (const creature of [...FOLLOWERS, ...FLEERS]) {
+      expect(["walker", "hopper", "flier"], creature).toContain(
+        resolveNature(parsePhrase(creature))?.nature,
+      );
+    }
+  });
+
+  it.each([
+    ["a hot dog", "grow"],
+    ["a chicken leg", "grow"],
+    ["a jelly bean", "grow"],
+    ["a gummy bear", "grow"],
+    ["a hot chocolate", "shrink"],
+    ["a bubble tea", "shrink"],
+    ["an iron ball", "heavy"],
+    ["a ball and chain", "heavy"],
+    ["a floor lamp", "lantern"],
+    ["a traffic light", "lantern"],
+    ["a night light", "lantern"],
+    ["a paper clip", "sticky"],
+    ["a bean bag", "bouncy"],
+    ["a teddy bear", "bouncy"],
+    ["an aircraft carrier", "vehicle"],
+    ["a flying saucer", "floaty"],
+  ] as const)("hears %j as one name, not its parts", (name, nature) => {
+    expect(resolveNature(parsePhrase(name))?.nature).toBe(nature);
+  });
+
+  it("keeps plain the names that only hide a keyword, unless the player says more", () => {
+    expect(resolveNature(parsePhrase("a baseball bat"))).toBeNull();
+    expect(resolveNature(parsePhrase("a fire hydrant"))).toBeNull();
+    expect(resolveNature(parsePhrase("a flying baseball bat"))?.nature).toBe("flier");
+  });
+
+  it("knows the rest of Wonderland's cast", () => {
+    const cast = [
+      "the mad hatter",
+      "a dormouse",
+      "the duchess",
+      "tweedledum",
+      "tweedledee",
+      "the knave of hearts",
+      "humpty dumpty",
+      "a unicorn",
+      "the bandersnatch",
+    ];
+    for (const who of cast) expect(resolveNature(parsePhrase(who))?.nature, who).toBe("walker");
+    expect(resolveNature(parsePhrase("the jabberwock"))?.nature).toBe("flier");
+  });
+
+  it("lets a drink or a cannonball keep a violent word inside its name", () => {
+    const rule = (name: string) => ruleOn(name, { allowed: "all", drawingIsDot: false });
+    expect(rule("fruit punch").nature).toBe("shrink");
+    expect(rule("a cannon ball").nature).toBe("heavy");
+    expect(rule("a punch").line).toBe(REFUSALS.weapon);
+    expect(rule("a cannon").line).toBe(REFUSALS.weapon);
+    expect(rule("fruit punch and a knife").line).toBe(REFUSALS.weapon);
   });
 });
