@@ -152,6 +152,8 @@ export class MatterSimulation implements Simulation {
   private events: SimEvent[] = [];
   /** False until the first step after a board opens: laws folded before then were born with the room. */
   private underway = false;
+  /** Everything a creature's feelers might touch this tick, built once and reused across probes. */
+  private tickBodies: readonly Matter.Body[] = [];
 
   loadBoard(board: BoardDefinition): void {
     Matter.Engine.clear(this.world.engine);
@@ -368,6 +370,11 @@ export class MatterSimulation implements Simulation {
     engine.timing.timeScale = timeScale;
 
     this.growLawfully();
+    this.tickBodies = [
+      ...alices.map((each) => each.body),
+      ...this.world.props.solidBodies,
+      ...inks.all.map((ink) => ink.body),
+    ];
     const surroundings = this.surroundings();
     for (const alice of alices) {
       const ride = alice.snapshot().ride;
@@ -619,21 +626,12 @@ export class MatterSimulation implements Simulation {
   }
 
   private feltBy(ink: InkEntity, offset: Vec): readonly Contact[] {
-    return contactsAt(ink.body, offset, this.bodiesAround(ink));
+    return contactsAt(ink.body, offset, this.tickBodies, ink.body);
   }
 
   private groundBelow(ink: InkEntity, foot: Vec, drop: number): boolean {
     const probe = Matter.Bodies.rectangle(foot.x, foot.y + drop / 2, 2, drop);
-    return contactsWith(probe, this.bodiesAround(ink)).length > 0;
-  }
-
-  private bodiesAround(ink: InkEntity): readonly Matter.Body[] {
-    const { inks, props } = this.world;
-    return [
-      ...this.bodied().map((alice) => alice.body),
-      ...props.solidBodies,
-      ...inks.all.filter((other) => other !== ink).map((other) => other.body),
-    ];
+    return contactsWith(probe, this.tickBodies, ink.body).length > 0;
   }
 
   private aliceContacts(alice: AliceController): readonly Contact[] {

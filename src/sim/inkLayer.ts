@@ -34,6 +34,9 @@ export interface AnchorSource {
 export class InkLayer {
   private readonly inks = new Map<DrawingId, InkEntity>();
   private readonly byBodyId = new Map<number, InkEntity>();
+  private cachedAll: readonly InkEntity[] | null = null;
+  private cachedDynamicBodies: readonly Matter.Body[] | null = null;
+  private cachedHeldBounds: readonly Rect[] | null = null;
 
   constructor(
     private readonly world: Matter.World,
@@ -42,7 +45,8 @@ export class InkLayer {
   ) {}
 
   get all(): readonly InkEntity[] {
-    return [...this.inks.values()];
+    if (this.cachedAll === null) this.cachedAll = [...this.inks.values()];
+    return this.cachedAll;
   }
 
   get poses(): readonly DrawingPose[] {
@@ -50,11 +54,19 @@ export class InkLayer {
   }
 
   get dynamicBodies(): readonly Matter.Body[] {
-    return this.all.map((ink) => ink.body).filter((body) => !body.isStatic);
+    if (this.cachedDynamicBodies === null) {
+      this.cachedDynamicBodies = this.all.map((ink) => ink.body).filter((body) => !body.isStatic);
+    }
+    return this.cachedDynamicBodies;
   }
 
   get heldBounds(): readonly Rect[] {
-    return this.all.filter((ink) => ink.body.isStatic).map((ink) => boundsRect(ink.body.bounds));
+    if (this.cachedHeldBounds === null) {
+      this.cachedHeldBounds = this.all
+        .filter((ink) => ink.body.isStatic)
+        .map((ink) => boundsRect(ink.body.bounds));
+    }
+    return this.cachedHeldBounds;
   }
 
   get spawnMarker(): InkEntity | undefined {
@@ -176,13 +188,21 @@ export class InkLayer {
     );
   }
 
+  private invalidate(): void {
+    this.cachedAll = null;
+    this.cachedDynamicBodies = null;
+    this.cachedHeldBounds = null;
+  }
+
   private attach(ink: InkEntity): void {
     this.byBodyId.set(ink.body.id, ink);
     Matter.Composite.add(this.world, ink.body);
+    this.invalidate();
   }
 
   private detach(ink: InkEntity): void {
     this.byBodyId.delete(ink.body.id);
     Matter.Composite.remove(this.world, ink.body);
+    this.invalidate();
   }
 }

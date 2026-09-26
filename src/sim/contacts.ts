@@ -55,9 +55,10 @@ const collidingParts = (body: Matter.Body): readonly Matter.Body[] =>
 export const contactsWith = (
   subject: Matter.Body,
   others: readonly Matter.Body[],
+  exclude?: Matter.Body,
 ): readonly Contact[] =>
   others
-    .filter((other) => Matter.Bounds.overlaps(other.bounds, subject.bounds))
+    .filter((other) => other !== exclude && Matter.Bounds.overlaps(other.bounds, subject.bounds))
     .flatMap(collidingParts)
     .filter((part) => Matter.Bounds.overlaps(part.bounds, subject.bounds))
     .flatMap((part) => Matter.Collision.collides(part, subject) ?? [])
@@ -67,9 +68,10 @@ export const contactsAt = (
   subject: Matter.Body,
   offset: Vec,
   others: readonly Matter.Body[],
+  exclude?: Matter.Body,
 ): readonly Contact[] => {
   Matter.Body.translate(subject, offset);
-  const contacts = contactsWith(subject, others);
+  const contacts = contactsWith(subject, others, exclude);
   Matter.Body.translate(subject, { x: -offset.x, y: -offset.y });
   return contacts;
 };
