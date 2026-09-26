@@ -34,3 +34,21 @@ export const NEGATION = vocabulary(`
 export const NORMAL = vocabulary(`
   normal, normally, regular, usual, usually, ordinary, default, standard, average
 `);
+
+/** Words that say when or how steadily, and change nothing a law can hold: "the rock suddenly floats". */
+export const STEADINESS = vocabulary(`
+  always, forever, constantly, continually, continuously, endlessly, eternally, permanently,
+  suddenly, instantly, immediately, again
+`);
+
+/** Words that ask for only some of a quality: "the ball is barely bouncy", "a bit heavier". */
+export const SLIGHTLY = vocabulary("barely, slightly, bit, somewhat, kinda, mildly, tad");
+
+/** Words that say how often or how much, which the grammar cannot keep: "the wheel sometimes spins". */
+const HEDGES = vocabulary(`
+  sometimes, often, occasionally, rarely, seldom, usually, soon, later, quite, rather, almost,
+  nearly, hardly, mostly, only, even, already, ever
+`);
+
+/** Words that describe a sentence rather than name a drawing, so a name never runs on into them. */
+export const QUALIFIERS = union(STEADINESS, SLIGHTLY, HEDGES, INTENSIFIERS, NEGATION, NORMAL);

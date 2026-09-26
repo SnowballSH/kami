@@ -1,4 +1,5 @@
 import { type Amount, readAmount } from "../amounts";
+import { type Comparatives, compare } from "../comparatives";
 import { type ScalarGoverns, scalarRule } from "../effects";
 import { knownWords, type Recogniser, understands } from "../recogniser";
 import { ALICE, SUBJECTS } from "../subjects";
@@ -30,6 +31,8 @@ interface Dial {
   readonly readings: readonly Reading[];
   /** The value when the sentence is about the dial but names neither reading nor amount. */
   readonly implied: number | null;
+  /** What "more" and "less" set it to; null when the dial does not compare ("alice pulls less"). */
+  readonly compared: Comparatives | null;
   readonly fromAmount: (amount: Amount, words: readonly string[]) => number | null;
 }
 
@@ -112,6 +115,7 @@ const DIALS: readonly Dial[] = [
     about: [ALICE, WINGS],
     readings: [{ words: OFF, value: 0 }],
     implied: 1,
+    compared: null,
     fromAmount: ({ value }) => (value === 0 ? 0 : 1),
   },
   {
@@ -122,6 +126,7 @@ const DIALS: readonly Dial[] = [
       { words: SLOW, value: SLOW_WALK },
     ],
     implied: null,
+    compared: { more: FAST_WALK, less: SLOW_WALK },
     fromAmount: multiplier,
   },
   {
@@ -132,6 +137,7 @@ const DIALS: readonly Dial[] = [
       { words: SMALL, value: SMALL_ALICE },
     ],
     implied: null,
+    compared: { more: BIG_ALICE, less: SMALL_ALICE },
     fromAmount: multiplier,
   },
   {
@@ -139,6 +145,7 @@ const DIALS: readonly Dial[] = [
     about: [ALICE, PULL],
     readings: [{ words: REPEL, value: -ONE_G }],
     implied: ONE_G,
+    compared: null,
     fromAmount: (amount, words) =>
       amount.unit === "mps2" ? null : (mentions(words, REPEL) ? -1 : 1) * amount.value,
   },
@@ -147,6 +154,7 @@ const DIALS: readonly Dial[] = [
     about: [COPIES],
     readings: [],
     implied: 1,
+    compared: null,
     fromAmount: (amount, words) =>
       amount.unit === "plain" ? amount.value - (words.includes("alices") ? 1 : 0) : null,
   },
@@ -156,10 +164,9 @@ const DIALS: readonly Dial[] = [
     readings: [
       { words: HOT, value: HOT_DEGREES },
       { words: COLD, value: COLD_DEGREES },
-      { words: MORE, value: HOT_DEGREES },
-      { words: LESS, value: COLD_DEGREES },
     ],
     implied: null,
+    compared: { more: HOT_DEGREES, less: COLD_DEGREES },
     fromAmount: (amount) => (amount.unit === "plain" ? amount.value : null),
   },
   {
@@ -170,6 +177,7 @@ const DIALS: readonly Dial[] = [
       { words: SUMMON, value: 1 },
     ],
     implied: 1,
+    compared: null,
     fromAmount: ({ value }) => (value === 0 ? 0 : 1),
   },
   {
@@ -180,6 +188,7 @@ const DIALS: readonly Dial[] = [
       { words: DAY, value: FULL_DAY },
     ],
     implied: null,
+    compared: null,
     fromAmount: asIs,
   },
 ];
@@ -203,7 +212,10 @@ const readDial = (dial: Dial, words: readonly string[]): number | null => {
   const amount = readAmount(words);
   if (amount !== null) return dial.fromAmount(amount, words);
   const reading = dial.readings.find(({ words: said }) => mentions(words, said));
-  return reading === undefined ? dial.implied : reading.value;
+  const value = reading === undefined ? dial.implied : reading.value;
+  if (dial.compared === null) return value;
+  const said = { more: mentions(words, MORE), less: mentions(words, LESS) };
+  return compare(value, EARTH[dial.governs], dial.compared, said);
 };
 
 /** The dials on Alice and on the weather; the older dials keep their own recognisers. */
