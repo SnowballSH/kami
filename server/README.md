@@ -155,7 +155,7 @@ the language model.
 |---|---|
 | `GET /api/health` | `{ ok: true }` — the server is up; no session needed in either mode, nothing else disclosed |
 | `GET /api/session` | `{ mode, authenticated, boards, controllers, secret, unrestricted }`; anonymous callers receive no grants. `secret` is what the gate asks for — `"password"`, `"token"`, or `null` in demo mode; `unrestricted` is true when the session reaches every board and controller (demo, or the password), whose lists are then empty |
-| `POST /api/session` | Exchange `Authorization: Bearer <token>`, or the body `{ "password": "…" }` (JSON) when `KAMI_PASSWORD` is set, for an eight-hour secure HTTP-only session cookie. `401` for a wrong secret; `429` with `Retry-After` after 30 attempts a minute in all, or 10 failures from one client in 15 minutes |
+| `POST /api/session` | Exchange `Authorization: Bearer <token>`, or the body `{ "password": "…" }` (JSON) when `KAMI_PASSWORD` is set, for an eight-hour secure HTTP-only session cookie. `401` for a wrong secret; `429` with `Retry-After` after 30 attempts a minute in all, 10 failures from one client in 15 minutes, or when all 128 sessions belong to grants this one does not cover (`docs/access.md`) |
 | `DELETE /api/session` | Revoke the current browser session and clear its cookie |
 | `GET /api/boards` | `{ boards: BoardSummary[] }` |
 | `GET /api/boards/:board` | `{ drawings: StoredDrawing[], notes: Note[], rules: Rule[], cursor: { boot, seq } }`, oldest first; an unknown board is empty. `cursor` (additive) is where the board's event feed stood when it was read — follow the board from it with `?since=<boot>:<seq>` |

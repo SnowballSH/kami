@@ -9,7 +9,7 @@ import { startMemoryDatabase } from "../testing/memoryDatabase";
 import { ApiAccess } from "./access";
 import { type AccessConfig, type Credential, DEMO_ACCESS, readAccessConfig } from "./accessConfig";
 import { createApi } from "./api";
-import { SESSION_SECONDS } from "./sessions";
+import { MAX_SESSIONS, SESSION_SECONDS } from "./sessions";
 
 const ORIGIN = "https://kami.test";
 const ALICE: Credential = {
@@ -679,6 +679,20 @@ describe("shared API access", () => {
           )
         ).status,
       ).toBe(200);
+    });
+
+    it("never lets a scoped token signing in end the password's sessions", async () => {
+      const signInAsBob = () =>
+        gated.handle(request("session", { method: "POST", headers: bearer(BOB) }), "203.0.113.7");
+      const first = await signIn(PASSWORD);
+      for (let i = 1; i < MAX_SESSIONS; i++) {
+        if (i % 30 === 0) now += 60_000;
+        expect((await signIn(PASSWORD)).status).toBe(200);
+      }
+      now += 60_000;
+      expect((await signInAsBob()).status).toBe(429);
+      const cookie = (first.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+      expect(await session(cookie)).toMatchObject({ authenticated: true, unrestricted: true });
     });
 
     it("makes one client wait out its window after ten wrong passwords, and no one else", async () => {

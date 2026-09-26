@@ -36,6 +36,15 @@ export const MAX_PASSWORD_LENGTH = 1024;
 
 export const covers = (scope: Scope, id: string): boolean => scope === EVERY || scope.includes(id);
 
+const scopeWithin = (inner: Scope, outer: Scope): boolean =>
+  outer === EVERY || (inner !== EVERY && inner.every((id) => outer.includes(id)));
+
+/** Whether everything `inner` reaches, `outer` reaches too: `outer` is the same grant or a wider one. */
+export const grantWithin = (inner: Grant, outer: Grant): boolean =>
+  scopeWithin(inner.boards, outer.boards) &&
+  scopeWithin(inner.controllers, outer.controllers) &&
+  (!inner.models || outer.models);
+
 /** The secret a person types at the access gate. */
 export type SecretKind = "password" | "token";
 

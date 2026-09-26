@@ -1,5 +1,11 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { type Credential, type Grant, MAX_PASSWORD_LENGTH, PASSWORD_GRANT } from "./accessConfig";
+import {
+  type Credential,
+  type Grant,
+  grantWithin,
+  MAX_PASSWORD_LENGTH,
+  PASSWORD_GRANT,
+} from "./accessConfig";
 
 export const SESSION_SECONDS = 8 * 60 * 60;
 export const MAX_SESSIONS = 128;
@@ -58,12 +64,18 @@ export class Sessions {
     return this.#sessions.get(this.#cookie(request))?.grant ?? null;
   }
 
-  /** At capacity the oldest session makes room: a steady stream of sign-ins never locks everyone out. */
-  create(grant: Grant): string {
+  /**
+   * At capacity a session makes room: the oldest of the same grant, else the oldest whose grant this one
+   * covers. A grant never ends a session it does not cover, so `null` — no session — when none is left.
+   */
+  create(grant: Grant): string | null {
     this.#expire();
-    for (const id of this.#sessions.keys()) {
-      if (this.#sessions.size < MAX_SESSIONS) break;
-      this.#sessions.delete(id);
+    if (this.#sessions.size >= MAX_SESSIONS) {
+      const evicted =
+        this.#oldestWhere((held) => held.id === grant.id) ??
+        this.#oldestWhere((held) => grantWithin(held, grant));
+      if (evicted === undefined) return null;
+      this.#sessions.delete(evicted);
     }
     const id = randomBytes(32).toString("hex");
     this.#sessions.set(id, { grant, expiresAt: this.now() + SESSION_SECONDS * 1000 });
@@ -73,6 +85,11 @@ export class Sessions {
   clear(request: Request): string {
     this.#sessions.delete(this.#cookie(request));
     return this.#header("", 0);
+  }
+
+  #oldestWhere(matches: (grant: Grant) => boolean): string | undefined {
+    for (const [id, { grant }] of this.#sessions) if (matches(grant)) return id;
+    return undefined;
   }
 
   #cookie(request: Request): string {
