@@ -34,4 +34,6 @@ export type EventSourceFactory = (url: string) => EventSourceLike;
 export interface RemoteStickOptions {
   readonly controllerId: string;
   readonly openEventSource: EventSourceFactory;
+  /** Called once each time the CAT button goes down. */
+  readonly onCat?: () => void;
 }

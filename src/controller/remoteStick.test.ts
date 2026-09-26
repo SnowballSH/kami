@@ -4,11 +4,12 @@ import { type Direction, WalkIntentMerger } from "../ui/walkIntent";
 import { RemoteStick } from "./remoteStick";
 import { FakeEventSource } from "./testing/fakeEventSource";
 
-const attachStick = (controllerId = "arcade") => {
+const attachStick = (controllerId = "arcade", onCat?: () => void) => {
   const reports: Direction[][] = [];
   const stick = new RemoteStick((pressed) => reports.push([...pressed].sort()), {
     controllerId,
     openEventSource: (url) => new FakeEventSource(url),
+    ...(onCat === undefined ? {} : { onCat }),
   });
   const detach = stick.attach();
   return { reports, detach, source: FakeEventSource.latest() };
@@ -42,7 +43,7 @@ describe("RemoteStick", () => {
     expect(reports).toEqual([["left", "up"], ["right"]]);
   });
 
-  it("jumps on button A, and ignores the buttons that are not bound", () => {
+  it("jumps on button A, and walks nowhere for the other buttons", () => {
     const { reports, source } = attachStick();
 
     source.sendState({ x: 0.6, held: ["right"], buttons: ["a"] });
@@ -105,6 +106,31 @@ describe("RemoteStick", () => {
     detach();
 
     expect(reports).toEqual([]);
+  });
+
+  it("asks the Cat once each time the CAT button (x) goes down", () => {
+    const onCat = vi.fn();
+    const { reports, source } = attachStick("arcade", onCat);
+
+    source.sendState({ buttons: ["x"] });
+    source.sendState({ x: 1, held: ["right"], buttons: ["x"] });
+    source.sendState({ x: 1, held: ["right"] });
+    source.sendState({ buttons: ["x", "a"] });
+    source.sendState({ buttons: ["b", "y"] });
+
+    expect(onCat).toHaveBeenCalledTimes(2);
+    expect(reports).toEqual([["right"], ["up"], []]);
+  });
+
+  it("counts a CAT button still held after the stream drops as a fresh press", () => {
+    const onCat = vi.fn();
+    const { source } = attachStick("arcade", onCat);
+
+    source.sendState({ buttons: ["x"] });
+    source.fail();
+    source.sendState({ buttons: ["x"] });
+
+    expect(onCat).toHaveBeenCalledTimes(2);
   });
 
   it("walks Alice as one more source of the merger", () => {

@@ -25,6 +25,7 @@ const createHandlers = () =>
     onRetryPersistence: vi.fn(),
     onRestartRun: vi.fn(),
     onUndo: vi.fn(),
+    onAskForHint: vi.fn(),
   }) satisfies HudHandlers;
 
 const find = <T extends Element>(root: Element, selector: string): T => {
@@ -152,6 +153,44 @@ describe("DomHud", () => {
       press(window, { key: "z", ctrlKey: true, altKey: true });
 
       expect(handlers.onUndo).toHaveBeenCalledTimes(2);
+      expect(handlers.onToolChanged).not.toHaveBeenCalled();
+    });
+
+    it("asks the Cat for a hint from the CAT button, once per tap, without changing tools", () => {
+      const { root, handlers, pressedTools } = setup();
+      const cat = find<HTMLButtonElement>(root, ".kami-toolbar .kami-ask-cat");
+      expect(cat.getAttribute("aria-label")).toBe("Ask the Cat for a hint (?)");
+      expect(cat.querySelector(".kami-icon-cat")).not.toBeNull();
+
+      tap(cat);
+      tap(cat, "touch");
+
+      expect(handlers.onAskForHint).toHaveBeenCalledTimes(2);
+      expect(handlers.onToolChanged).not.toHaveBeenCalled();
+      expect(pressedTools()).toEqual([expect.stringContaining("kami-tool-draw")]);
+    });
+
+    it("forgets a half-confirmed page clear when the Cat is asked", () => {
+      const { root, handlers } = setup();
+      const clear = find<HTMLButtonElement>(root, ".kami-clear-page");
+
+      tap(clear);
+      tap(find(root, ".kami-ask-cat"));
+      tap(clear);
+
+      expect(handlers.onClearBoard).not.toHaveBeenCalled();
+    });
+
+    it("asks the Cat with ?, once per press, never with a modifier or inside a text field", () => {
+      const { handlers, prompt } = setup();
+
+      press(window, { key: "?", shiftKey: true });
+      window.dispatchEvent(key("keydown", { key: "?", shiftKey: true, repeat: true }));
+      press(window, { key: "?", metaKey: true });
+      press(window, { key: "/" });
+      press(prompt, { key: "?", shiftKey: true });
+
+      expect(handlers.onAskForHint).toHaveBeenCalledOnce();
       expect(handlers.onToolChanged).not.toHaveBeenCalled();
     });
 

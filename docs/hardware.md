@@ -68,7 +68,7 @@ Items 1–3 enable physical stick bring-up. Knob/button readings alone do not ma
 | **WALK** stick | ←/→ walk; ↑ jumps on the ground or climbs; ↓ climbs down. Opposing switches cancel. |
 | **Knobs** | Smoothed 12-bit values appear in serial diagnostics. The server validates them but does not relay them or move the pen. |
 | **INK** | Relayed as unbound button `b`. Toggle/long-press erase are deferred. |
-| **CAT** | Relayed as unbound button `x`. Binding this physical button is deferred. |
+| **CAT** | Relayed as button `x`; each press asks the Cat for a hint, as writing *help* does. |
 
 The Etch A Sketch drawing proposal in the spec needs a separate client pen contract. The current
 whiteboard has **unlimited ink**, no ink meter and no out-of-ink state. Naming uses writing or

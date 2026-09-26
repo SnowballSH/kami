@@ -23,12 +23,12 @@ the analog joystick wiring below. Its UNO R4 WiFi compile is verified with pinne
 
 Its USB frames are `S,<dir>,<ink>,<cat>,<px>,<py>` at 50 Hz. The serial listener accepts them as
 `arcade`: direction mask (left 1, right 2, up 4, down 8) → ±100 axes; opposite directions cancel.
-INK becomes unbound button `b`, CAT becomes unbound button `x`; knob values are validated, then
+INK becomes unbound button `b`, CAT becomes button `x` (a hint, below); knob values are validated, then
 discarded. Firmware debounces all six switches for 20 ms. Invalid fields and lines longer than
 256 characters are discarded through their terminator. `kami` frames remain supported unchanged.
 `S` frames are not accepted by UDP/HTTP.
 
-This supports the walking path only. Knob drawing, button gestures,
+This supports the walking path and the CAT button only. Knob drawing, INK button gestures,
 game-driven LEDs and a visible connection status/retry UI are deferred. The server reads USB and the browser uses SSE;
 no Web Serial adapter or "Connect cabinet" button exists. Automatic device rescans and EventSource
 reconnects are already implemented. Use `GET /api/controllers` and server logs during bring-up.
@@ -66,7 +66,10 @@ controller (its subscribers stay subscribed and hear it again when it comes back
 **What the server makes of it:** a direction becomes held when its axis passes **40**, and is let go when
 it falls back under **30** (the gap stops chatter at the threshold). `left`/`right` walk, `up` climbs or
 (on the ground) jumps once per press, `down` climbs down. Button `A` is jump as well: **the server puts `up` into `held` while `A` is held**, so
-the game only has to read `held`. `B`, `X`, `Y` are delivered to the game but not bound yet. The game walks at one speed, so the analogue
+the game only has to read `held`. Button `X` is the **CAT** button: each time it goes down the game asks
+the Cat for a hint, exactly as the HUD's CAT button and writing *help* do (held down it asks once; a
+stream that drops and comes back with it still held counts as a fresh press). `B` and `Y` are delivered
+to the game but not bound yet. The game walks at one speed, so the analogue
 value is passed along (`x`, `y` in the event below) but not used for pace yet.
 
 ## Transports

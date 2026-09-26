@@ -41,6 +41,8 @@ export interface HudHandlers {
   onRestartRun(): void;
   /** Take back the last thing this player drew or wrote. */
   onUndo(): void;
+  /** The CAT button: whatever writing *help* would do in this mode. */
+  onAskForHint(): void;
 }
 
 /** What the page offers beside the game's own handlers. */

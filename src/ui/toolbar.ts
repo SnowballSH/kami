@@ -18,18 +18,43 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   { tool: "pan", label: "Pan", hotkey: "h", icon: "pan" },
 ];
 
+export const HINT_HOTKEY = "?";
+
+export interface ToolbarActions {
+  pick(tool: Tool): void;
+  clear(): void;
+  askForHint(): void;
+}
+
+const hotkeyBadge = (hotkey: string): HTMLElement =>
+  el("span", { className: "kami-tool-hotkey", text: hotkey.toUpperCase() });
+
 const createToolButton = (spec: ToolSpec, onPick: (tool: Tool) => void): HTMLButtonElement => {
-  const hotkey = spec.hotkey.toUpperCase();
-  const label = `${spec.label} (${hotkey})`;
+  const label = `${spec.label} (${spec.hotkey.toUpperCase()})`;
   const button = el(
     "button",
     {
       className: `kami-control kami-tool kami-tool-${spec.tool}`,
       attrs: { type: "button", "aria-label": label, "aria-pressed": "false", title: label },
     },
-    [icon(spec.icon), el("span", { className: "kami-tool-hotkey", text: hotkey })],
+    [icon(spec.icon), hotkeyBadge(spec.hotkey)],
   );
   activateOnTap(button, () => onPick(spec.tool));
+  return button;
+};
+
+const HINT_LABEL = `Ask the Cat for a hint (${HINT_HOTKEY})`;
+
+const createHintButton = (onAsk: () => void): HTMLButtonElement => {
+  const button = el(
+    "button",
+    {
+      className: "kami-control kami-ask-cat",
+      attrs: { type: "button", "aria-label": HINT_LABEL, title: HINT_LABEL },
+    },
+    [icon("cat"), hotkeyBadge(HINT_HOTKEY)],
+  );
+  activateOnTap(button, onAsk);
   return button;
 };
 
@@ -43,16 +68,20 @@ export class Toolbar {
   private readonly clear: HTMLButtonElement;
   private readonly clearing: ArmedTap;
 
-  constructor(onPick: (tool: Tool) => void, onClear: () => void) {
+  constructor(actions: ToolbarActions) {
     this.buttons = new Map(
       TOOL_SPECS.map((spec) => [
         spec.tool,
         createToolButton(spec, (tool) => {
           this.clearing.disarm();
-          onPick(tool);
+          actions.pick(tool);
         }),
       ]),
     );
+    const hint = createHintButton(() => {
+      this.clearing.disarm();
+      actions.askForHint();
+    });
     this.clear = el(
       "button",
       {
@@ -68,12 +97,15 @@ export class Toolbar {
         }),
       ],
     );
-    this.clearing = new ArmedTap(onClear, (armed) => this.showClearArmed(armed));
+    this.clearing = new ArmedTap(
+      () => actions.clear(),
+      (armed) => this.showClearArmed(armed),
+    );
     activateOnTap(this.clear, () => this.clearing.tap());
     this.element = el(
       "div",
       { className: "kami-island kami-toolbar", attrs: { role: "toolbar", "aria-label": "Tools" } },
-      [...this.buttons.values(), this.clear],
+      [...this.buttons.values(), hint, this.clear],
     );
   }
 

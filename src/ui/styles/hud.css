@@ -108,11 +108,13 @@
   position: relative;
 }
 
+.kami-ask-cat,
 .kami-clear-page {
   position: relative;
   margin-left: 5px;
 }
 
+.kami-ask-cat::before,
 .kami-clear-page::before {
   content: "";
   position: absolute;
@@ -654,7 +656,7 @@
   }
 
   .kami-room-mark {
-    top: calc(var(--kami-safe-top) + var(--kami-row) + 17px);
+    top: calc(var(--kami-safe-top) + 17px);
     left: auto;
     right: var(--kami-safe-right);
     transform: none;
