@@ -71,7 +71,13 @@ A director that stages rooms fills `room` in `open(board)`; the others leave it 
 
 ### What names a body
 
-`namesABody(name, mode.names)` (`src/modes/bodyNames.ts`) is deliberately open-ended: the mode's own names (`alice · her · me`), a pronoun for the player (*me*, *myself*, *this is me*), or any name whose **head noun** is a body — a person, a role, a creature, a doll, a robot (*a girl*, *the knight*, *my cat*, *a stick figure*, *a tall girl with a red hat*). The head is the last word before any qualifier (*of*, *with*, *in*, *named*…), read with the Cat's own `parsePhrase` stems, so a body word that only qualifies another noun names that thing: *the rabbit hole* is the goal, *a bear trap*, *a spider web*, *a monster truck*, *a robot arm* and *a bag of cats* are not bodies, while *a king of the hill* is. Things (*a sword*), places (*the moon*) and laws are not bodies. Articles and a few adjectives are stripped first.
+`namesABody(name, mode.names)` (`src/modes/bodyNames.ts`) is deliberately open-ended. A name is a body when, once articles and a few adjectives are stripped:
+
+- it is one of the mode's own names (`alice · her · me`) or a pronoun for the player (*me*, *myself*, *this is me*), or
+- its **head noun** is one of those — *Princess Alice*, *robot alice*, *cat alice*, *alice on a horse*, *me on a horse* — or
+- its head noun is a body: a creature to the Cat (the longest lexicon keyword ending on the head resolves to a walker, hopper or flier: *a firefly*, *a hedgehog*, *a flamingo*, *a bouncy firefly*), or a person, role or figure from the fixed `BODY_NOUNS` the lexicon has no creature for (*a girl*, *the knight*, *a doll*, *a stick figure*, *a tall girl with a red hat*) — unless the lexicon reads the head as part of a compound that is something else: *a hot dog*, *a corn dog*, *a gummy bear* are food, *the rabbit hole* is the goal, *a spider web* is climbable. A few compounds are figures a spirit can wear however the lexicon reads them (`BODY_COMPOUNDS`: *a teddy bear*, *a rag doll*, *a toy soldier*, *a gingerbread man*).
+
+The head is the last word before any qualifier (*of*, *with*, *in*, *on*, *for*, *by*, *carrying*, *riding*, *driven*, *pulled*, *named*… — `headIndexOf` in `src/rules/referents.ts`), read with the Cat's own `parsePhrase` stems, so a body word that only qualifies another noun names that thing: *a bear trap*, *a dog house*, *a monster truck*, *a robot arm*, *a bag of cats*, *a picture of me*, *a bed for a cat* and *a car driven by a dog* are not bodies, while *a king of the hill* is. Things (*a sword*), places (*the moon*) and laws are not bodies.
 
 ## What the game does with it today
 

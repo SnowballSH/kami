@@ -69,7 +69,7 @@ export const NATURE_THINGS: WordTable = {
     snack, food, meal, dinner, lunch, breakfast, crumpet, pancake, waffle, croissant, bun,
     pudding, ice cream, lollipop, carrot, tart, crumb, cracker, egg, pasta, noodle, fries, chips,
     crisps, bean, growth potion, growing potion, grow potion,
-    hot dog, chicken leg, jelly bean, gummy bear, sausage, steak, bacon, sushi, taco,
+    hot dog, corn dog, chicken leg, jelly bean, gummy bear, sausage, steak, bacon, sushi, taco,
     bagel, pretzel, cheesecake, gingerbread, strawberry, raspberry, blackberry, blueberry, grape,
     pear, peach, plum, mango, melon, watermelon, pineapple, coconut, lemon, asparagus, broccoli,
     onion, potato, pea, peanut, tomato, acorn

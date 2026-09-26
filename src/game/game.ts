@@ -465,11 +465,17 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   /**
-   * Takes back the last thing this player made: ink not yet landed stroke by stroke, else their
-   * newest drawing or note still on the page, erased as the eraser would, its ink refunded.
+   * Takes back the last thing this player made: ink not yet landed stroke by stroke, else ink
+   * still hanging while it is read, else their newest drawing or note still on the page, erased
+   * as the eraser would, its ink refunded.
    */
   undo(): void {
     if (this.loading || this.ink.retract()) return;
+    const unread = this.held.retractNewest();
+    if (unread !== null) {
+      this.ink.refund(unread.cost);
+      return;
+    }
     const made = this.handiwork.takeLatest((entry) => this.stands(entry));
     if (made === null) return;
     if (made.kind === "note") {
@@ -529,7 +535,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       this.land(drawing);
       return;
     }
-    this.held.hold(drawing.id, drawing.strokes);
+    this.held.hold(drawing);
     void this.settleWords(drawing, reading);
   }
 
@@ -1344,13 +1350,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private async settleWords(drawing: Drawing, reading: Promise<string | null>): Promise<void> {
     const epoch = this.epoch;
     const text = await reading;
-    if (epoch !== this.epoch) return;
+    if (epoch !== this.epoch || !this.held.isReading(drawing.id)) return;
     if (text === null) {
       this.held.release(drawing.id);
       this.land(drawing);
       return;
     }
-    this.held.fade(drawing.id, drawing.strokes, this.nowMs);
+    this.held.fade(drawing, this.nowMs);
     this.ink.refund(drawing.cost);
     await this.interpret(text, writingOrigin(drawing.strokes));
   }

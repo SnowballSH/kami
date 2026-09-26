@@ -104,6 +104,7 @@ describe("the lexicon", () => {
 
   it.each([
     ["a hot dog", "grow"],
+    ["a corn dog", "grow"],
     ["a chicken leg", "grow"],
     ["a jelly bean", "grow"],
     ["a gummy bear", "grow"],
