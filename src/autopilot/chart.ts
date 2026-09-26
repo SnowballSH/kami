@@ -286,8 +286,21 @@ export class Chart {
   }
 
   anyIn(range: CellRange, flag: number): boolean {
-    for (let r = range.r0; r < range.r1; r++) {
-      for (let c = range.c0; c < range.c1; c++) if (this.has(c, r, flag)) return true;
+    return this.anyWithin(range.c0, range.c1, range.r0, range.r1, flag);
+  }
+
+  /** `anyIn` over cells [c0, c1) × [r0, r1), for hot loops that must not allocate a range. */
+  anyWithin(c0: number, c1: number, r0: number, r1: number, flag: number): boolean {
+    const { range } = this;
+    const top = Math.max(r0, range.r0);
+    const bottom = Math.min(r1, range.r1);
+    const left = Math.max(c0, range.c0);
+    const right = Math.min(c1, range.c1);
+    for (let r = top; r < bottom; r++) {
+      const row = (r - range.r0) * this.stride;
+      for (let c = left; c < right; c++) {
+        if (((this.cells[row + c - range.c0] ?? 0) & flag) !== 0) return true;
+      }
     }
     return false;
   }

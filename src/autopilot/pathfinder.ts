@@ -15,6 +15,7 @@ import {
   KEY_PICKUP,
 } from "../sim/types";
 import { CELL_PX, CellFlag, type CellRange, type Chart } from "./chart";
+import { NodeGrid, type NodeKey, NodeMemo } from "./nodeMemo";
 import type { Objective, Scene } from "./types";
 
 /** A way out from under a threat; `safe` when it ends out of the threat's reach. */
@@ -132,58 +133,76 @@ interface Edge {
 const waypointOf = (node: Node, via: Move, through: Vec | undefined): Waypoint =>
   through === undefined ? { node, via } : { node, via, through };
 
-const key = (node: Node): string => `${node.r0},${node.c0}`;
+const goalKey = (goal: Goal | null): string =>
+  goal === null ? "" : goal.kind === "eat" ? `eat:${goal.drawingId}` : goal.objective;
 
+/** A question about a node, asked by its coordinates. */
+interface Recall {
+  ask(c0: number, r0: number): boolean;
+}
+
+export interface PathfinderOptions {
+  /** Remember what each node's body touches and where each node leads, for the life of this pathfinder. */
+  readonly memoise: boolean;
+}
+
+const MEMOISED: PathfinderOptions = { memoise: true };
+
+/** A binary heap of nodes by cost, kept in parallel arrays so pushing allocates nothing. */
 class MinHeap {
-  private readonly items: { node: Node; cost: number }[] = [];
+  private readonly nodes: Node[] = [];
+  private readonly costs: number[] = [];
 
   get size(): number {
-    return this.items.length;
+    return this.nodes.length;
   }
 
   push(node: Node, cost: number): void {
-    const items = this.items;
-    items.push({ node, cost });
-    let i = items.length - 1;
+    const { nodes, costs } = this;
+    let i = nodes.length;
     while (i > 0) {
       const parent = (i - 1) >> 1;
-      const child = items[i];
-      const above = items[parent];
-      if (child === undefined || above === undefined || above.cost <= child.cost) break;
-      items[i] = above;
-      items[parent] = child;
+      const above = costs[parent] ?? Number.NEGATIVE_INFINITY;
+      if (above <= cost) break;
+      this.move(parent, i);
       i = parent;
     }
+    nodes[i] = node;
+    costs[i] = cost;
   }
 
   pop(): { node: Node; cost: number } | undefined {
-    const items = this.items;
-    const top = items[0];
-    const last = items.pop();
-    if (top === undefined || last === undefined) return top;
-    if (items.length === 0) return top;
-    items[0] = last;
+    const { nodes, costs } = this;
+    const node = nodes[0];
+    const cost = costs[0];
+    const last = nodes.pop();
+    const lastCost = costs.pop();
+    if (node === undefined || cost === undefined) return undefined;
+    if (last === undefined || lastCost === undefined || nodes.length === 0) return { node, cost };
+    const count = nodes.length;
     let i = 0;
     for (;;) {
       const left = 2 * i + 1;
+      if (left >= count) break;
       const right = left + 1;
-      let smallest = i;
-      const pick = (j: number): void => {
-        const a = items[j];
-        const b = items[smallest];
-        if (a !== undefined && b !== undefined && a.cost < b.cost) smallest = j;
-      };
-      pick(left);
-      pick(right);
-      if (smallest === i) break;
-      const a = items[i];
-      const b = items[smallest];
-      if (a === undefined || b === undefined) break;
-      items[i] = b;
-      items[smallest] = a;
-      i = smallest;
+      const leftCost = costs[left] ?? Number.POSITIVE_INFINITY;
+      const rightCost = costs[right] ?? Number.POSITIVE_INFINITY;
+      const child = right < count && rightCost < leftCost ? right : left;
+      if ((costs[child] ?? Number.POSITIVE_INFINITY) >= lastCost) break;
+      this.move(child, i);
+      i = child;
     }
-    return top;
+    nodes[i] = last;
+    costs[i] = lastCost;
+    return { node, cost };
+  }
+
+  private move(from: number, to: number): void {
+    const node = this.nodes[from];
+    const cost = this.costs[from];
+    if (node === undefined || cost === undefined) return;
+    this.nodes[to] = node;
+    this.costs[to] = cost;
   }
 }
 
@@ -191,55 +210,49 @@ class MinHeap {
 export class Pathfinder {
   private readonly killRow: number;
   private readonly arcs = new Map<number, BounceArc>();
+  private readonly grid: NodeGrid;
+  private readonly free: Recall;
+  private readonly clear: Recall;
+  private readonly supported: Recall;
+  private readonly holding: Recall;
+  private readonly landable: Recall;
+  private readonly alights: Recall;
+  private readonly flights = new Map<number, readonly Edge[]>();
+  private readonly edgesByGoal = new Map<string, Map<number, readonly Edge[]>>();
+  private edges: Map<number, readonly Edge[]> | null = null;
   private goal: Goal | null = null;
 
   constructor(
     private readonly chart: Chart,
     private readonly scene: Scene,
     private readonly footprint: Footprint,
+    private readonly options: PathfinderOptions = MEMOISED,
   ) {
     this.killRow = Math.floor(scene.board.killY / CELL_PX);
+    this.grid = new NodeGrid(chart.range);
+    this.free = this.recall((c0, r0) => this.freeAt(c0, r0));
+    this.clear = this.recall((c0, r0) => this.clearAt(c0, r0));
+    this.supported = this.recall((c0, r0) => this.supportedAt(c0, r0));
+    this.holding = this.recall((c0, r0) => this.holdingAt(c0, r0));
+    this.landable = this.recall((c0, r0) => this.landableAt(c0, r0));
+    this.alights = this.recall((c0, r0) => this.alightsAt(c0, r0));
   }
 
   isFree(node: Node): boolean {
-    const body = bodyRange(node, this.footprint);
-    return (
-      this.chart.contains(body.c0, body.r0) &&
-      this.chart.contains(body.c1 - 1, body.r1 - 1) &&
-      this.isClear(node)
-    );
-  }
-
-  private isClear(node: Node): boolean {
-    const body = bodyRange(node, this.footprint);
-    return (
-      [body.c0 - 1, body.c1 + 1, body.r0 - 1, body.r1 + 1].every(Number.isSafeInteger) &&
-      !this.chart.anyIn(body, CellFlag.solid) &&
-      !this.chart.anyIn(grow(body, 1), CellFlag.hazard)
-    );
+    return this.free.ask(node.c0, node.r0);
   }
 
   isSupported(node: Node): boolean {
-    const { c0, r0 } = node;
-    for (let c = c0; c < c0 + this.footprint.cols; c++) {
-      if (this.chart.has(c, r0, CellFlag.solid)) return true;
-    }
-    return false;
+    return this.supported.ask(node.c0, node.r0);
   }
 
   /** Footing wide enough to come down on from the air: every inner column of the body rests on something. */
   isLandable(node: Node): boolean {
-    const { c0, r0 } = node;
-    const { cols } = this.footprint;
-    const inset = cols >= 3 ? 1 : 0;
-    for (let c = c0 + inset; c < c0 + cols - inset; c++) {
-      if (!this.chart.has(c, r0, CellFlag.solid)) return false;
-    }
-    return true;
+    return this.landable.ask(node.c0, node.r0);
   }
 
   isHolding(node: Node): boolean {
-    return this.chart.anyIn(bodyRange(node, this.footprint), CellFlag.climbable);
+    return this.holding.ask(node.c0, node.r0);
   }
 
   isStance(node: Node): boolean {
@@ -268,16 +281,16 @@ export class Pathfinder {
 
   /** Cheapest route from `start` to any node satisfying `goal`, or null. `start` need not be a stance. */
   route(start: Node, goal: Goal): readonly Waypoint[] | null {
-    this.goal = goal;
-    const cameFrom = new Map<string, Waypoint>();
+    this.aimAt(goal);
+    const cameFrom = new Map<NodeKey, Waypoint>();
     const end = this.search(start, cameFrom, (node) => this.satisfies(node, goal));
     return end === null ? null : this.unwind(end, cameFrom);
   }
 
   /** The way to wherever she can stand that is nearest `point`, for going to the edge and looking. */
   nearestTo(start: Node, point: Vec): readonly Waypoint[] | null {
-    this.goal = null;
-    const cameFrom = new Map<string, Waypoint>();
+    this.aimAt(null);
+    const cameFrom = new Map<NodeKey, Waypoint>();
     let closest: Node | null = null;
     let closestGap = Number.POSITIVE_INFINITY;
     this.search(start, cameFrom, (node) => {
@@ -298,8 +311,8 @@ export class Pathfinder {
    * reach that is farthest from it, marked unsafe. Null only when she can stand nowhere at all.
    */
   awayFrom(start: Node, threat: Vec, safe: number): Flight | null {
-    this.goal = null;
-    const cameFrom = new Map<string, Waypoint>();
+    this.aimAt(null);
+    const cameFrom = new Map<NodeKey, Waypoint>();
     let farthest: Node | null = null;
     let farthestGap = Number.NEGATIVE_INFINITY;
     const refuge = this.search(start, cameFrom, (node) => {
@@ -315,9 +328,73 @@ export class Pathfinder {
     return farthest === null ? null : { path: this.unwind(farthest, cameFrom), safe: false };
   }
 
+  private recall(work: (c0: number, r0: number) => boolean): Recall {
+    return this.options.memoise ? new NodeMemo(this.grid, work) : { ask: work };
+  }
+
+  private freeAt(c0: number, r0: number): boolean {
+    const { cols, rows } = this.footprint;
+    return (
+      this.chart.contains(c0, r0 - rows) &&
+      this.chart.contains(c0 + cols - 1, r0 - 1) &&
+      this.clear.ask(c0, r0)
+    );
+  }
+
+  private clearAt(c0: number, r0: number): boolean {
+    const c1 = c0 + this.footprint.cols;
+    const top = r0 - this.footprint.rows;
+    return (
+      Number.isSafeInteger(c0 - 1) &&
+      Number.isSafeInteger(c1 + 1) &&
+      Number.isSafeInteger(top - 1) &&
+      Number.isSafeInteger(r0 + 1) &&
+      !this.chart.anyWithin(c0, c1, top, r0, CellFlag.solid) &&
+      !this.chart.anyWithin(c0 - 1, c1 + 1, top - 1, r0 + 1, CellFlag.hazard)
+    );
+  }
+
+  private supportedAt(c0: number, r0: number): boolean {
+    return this.chart.anyWithin(c0, c0 + this.footprint.cols, r0, r0 + 1, CellFlag.solid);
+  }
+
+  private landableAt(c0: number, r0: number): boolean {
+    const { cols } = this.footprint;
+    const inset = cols >= 3 ? 1 : 0;
+    for (let c = c0 + inset; c < c0 + cols - inset; c++) {
+      if (!this.chart.has(c, r0, CellFlag.solid)) return false;
+    }
+    return true;
+  }
+
+  /** Somewhere on the chart she can come down on from the air and stand. */
+  private alightsAt(c0: number, r0: number): boolean {
+    const node = { c0, r0 };
+    return this.charted(node) && this.isLandable(node) && this.isFree(node);
+  }
+
+  private holdingAt(c0: number, r0: number): boolean {
+    const { cols, rows } = this.footprint;
+    return this.chart.anyWithin(c0, c0 + cols, r0 - rows, r0, CellFlag.climbable);
+  }
+
+  /** Falls end inside the goal, so where a node leads depends on what she is after. */
+  private aimAt(goal: Goal | null): void {
+    this.goal = goal;
+    if (!this.options.memoise) return;
+    const aim = goalKey(goal);
+    const edges = this.edgesByGoal.get(aim) ?? new Map<number, readonly Edge[]>();
+    this.edgesByGoal.set(aim, edges);
+    this.edges = edges;
+  }
+
+  private key(node: Node): NodeKey {
+    return this.grid.keyOf(node.c0, node.r0);
+  }
+
   private search(
     start: Node,
-    cameFrom: Map<string, Waypoint>,
+    cameFrom: Map<NodeKey, Waypoint>,
     accept: (node: Node) => boolean,
   ): Node | null {
     const { cols, rows } = this.footprint;
@@ -331,7 +408,7 @@ export class Pathfinder {
       rows > r1 - r0
     )
       return null;
-    const best = new Map<string, number>([[key(start), 0]]);
+    const best = new Map<NodeKey, number>([[this.key(start), 0]]);
     const open = new MinHeap();
     open.push(start, 0);
     let opened = 0;
@@ -340,12 +417,12 @@ export class Pathfinder {
       const top = open.pop();
       if (top === undefined) break;
       const { node, cost } = top;
-      if ((best.get(key(node)) ?? Number.POSITIVE_INFINITY) < cost) continue;
+      if ((best.get(this.key(node)) ?? Number.POSITIVE_INFINITY) < cost) continue;
       opened++;
       if (accept(node)) return node;
       for (const edge of this.edgesFrom(node)) {
         const next = cost + edge.cost;
-        const k = key(edge.to);
+        const k = this.key(edge.to);
         if (next >= (best.get(k) ?? Number.POSITIVE_INFINITY)) continue;
         best.set(k, next);
         cameFrom.set(k, waypointOf(node, edge.via, edge.through));
@@ -355,20 +432,30 @@ export class Pathfinder {
     return null;
   }
 
-  private unwind(end: Node, cameFrom: Map<string, Waypoint>): readonly Waypoint[] {
+  private unwind(end: Node, cameFrom: Map<NodeKey, Waypoint>): readonly Waypoint[] {
     const path: Waypoint[] = [];
     let node = end;
-    let from = cameFrom.get(key(node));
+    let from = cameFrom.get(this.key(node));
     while (from !== undefined) {
       path.push(waypointOf(node, from.via, from.through));
       node = from.node;
-      from = cameFrom.get(key(node));
+      from = cameFrom.get(this.key(node));
     }
     path.push({ node, via: "walk" });
     return path.reverse();
   }
 
-  private *edgesFrom(node: Node): Generator<Edge> {
+  private edgesFrom(node: Node): readonly Edge[] {
+    const index = this.grid.indexOf(node.c0, node.r0);
+    if (this.edges === null || index < 0) return [...this.leadsFrom(node)];
+    const known = this.edges.get(index);
+    if (known !== undefined) return known;
+    const edges = [...this.leadsFrom(node)];
+    this.edges.set(index, edges);
+    return edges;
+  }
+
+  private *leadsFrom(node: Node): Generator<Edge> {
     const holding = this.isHolding(node);
     const supported = this.isSupported(node);
     if (!supported && !holding) {
@@ -387,10 +474,18 @@ export class Pathfinder {
       const down = { c0: node.c0, r0: node.r0 + 1 };
       if (this.isStance(down)) yield { to: down, via: "climb", cost: CLIMB_COST };
     }
-    if (supported) {
-      yield* this.bounces(node);
-      yield* this.jumps(node);
-    }
+    if (supported) yield* this.flightsFrom(node);
+  }
+
+  /** Bounces and jumps come down only on footing, never inside the goal, so they lead the same way whatever she is after. */
+  private flightsFrom(node: Node): readonly Edge[] {
+    const index = this.grid.indexOf(node.c0, node.r0);
+    if (!this.options.memoise || index < 0) return [...this.bounces(node), ...this.jumps(node)];
+    const known = this.flights.get(index);
+    if (known !== undefined) return known;
+    const flights = [...this.bounces(node), ...this.jumps(node)];
+    this.flights.set(index, flights);
+    return flights;
   }
 
   /** Beyond the charted board there is only blank paper: nothing to stand on, nowhere to go. */
@@ -488,7 +583,7 @@ export class Pathfinder {
     const arc = this.scene.jumpArc;
     if (!Number.isFinite(arc.apexPx)) return;
     const apexRows = Math.floor(arc.apexPx / CELL_PX);
-    if (!this.isClear({ c0: node.c0, r0: node.r0 - apexRows })) return;
+    if (!this.clear.ask(node.c0, node.r0 - apexRows)) return;
     yield* this.landings(node, arc, node.r0 + JUMP_DROP_ROWS + 1, (to) => {
       if (to.r0 >= node.r0 && Math.abs(to.c0 - node.c0) < JUMP_MIN_COLS) return null;
       if (!this.clears(node, to, apexRows)) return null;
@@ -505,7 +600,7 @@ export class Pathfinder {
       const t = step / steps;
       const lift = 4 * apexRows * t * (1 - t) + (from.r0 - to.r0) * t;
       const c0 = from.c0 + Math.sign(span) * step;
-      if (!this.isClear({ c0, r0: from.r0 - Math.round(lift) })) return false;
+      if (!this.clear.ask(c0, from.r0 - Math.round(lift))) return false;
     }
     return true;
   }
@@ -526,9 +621,8 @@ export class Pathfinder {
       const firstCol = Math.max(this.chart.range.c0, node.c0 - driftCols);
       const lastCol = Math.min(this.chart.range.c1 - this.footprint.cols, node.c0 + driftCols);
       for (let c0 = firstCol; c0 <= lastCol; c0++) {
-        const to = { c0, r0 };
-        if (!this.charted(to) || !this.isLandable(to) || !this.isFree(to)) continue;
-        const found = edge(to);
+        if (!this.alights.ask(c0, r0)) continue;
+        const found = edge({ c0, r0 });
         if (found !== null) yield found;
       }
     }
