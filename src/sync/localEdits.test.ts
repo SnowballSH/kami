@@ -101,6 +101,18 @@ describe("LocalEdits", () => {
     expect(edits.admits(relayed(put(note("mine"))))).toBe(true);
   });
 
+  it("takes nothing the server put before its own clear, while that clear's echo is awaited", () => {
+    const edits = new LocalEdits();
+    edits.wrote(put(note("mine")));
+    edits.wrote(CLEAR);
+    expect(edits.admits(relayed(put(note("theirs, before my clear"))))).toBe(false);
+    expect(edits.admits(relayed(put(note("mine"))))).toBe(false);
+    expect(edits.admits(relayed(erase))).toBe(false);
+    expect(edits.admits(relayed(CLEAR))).toBe(false);
+    expect(edits.pending).toBe(0);
+    expect(edits.admits(relayed(put(note("theirs, after my clear"))))).toBe(true);
+  });
+
   it("stops waiting for the echo of a write that never reached the server", () => {
     let nowMs = 0;
     const edits = new LocalEdits(() => nowMs);

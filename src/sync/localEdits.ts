@@ -27,7 +27,9 @@ const asEchoed = ({ kind, entity }: Put): unknown => canonicalOf(storedEntitySch
  * latest write to an entity arrives, whatever else arrives about that entity is older news than what
  * the board already shows, and is passed over: a drawing erased here does not come back on the late
  * echo of its drawing, and the late echo of a clear does not wipe what was drawn since. The echo
- * itself is passed over too, since it is already on the board.
+ * itself is passed over too, since it is already on the board. Until the echo of its own clear
+ * arrives, nothing else is taken either: whatever the server relays before that echo it put before
+ * the clear, so it is already wiped from this board.
  *
  * The server orders writes, so everything relayed about an entity after this device's write lands
  * after it on the server as well, and applies as usual. An echo not heard within `ECHO_AWAITED_MS` is
@@ -73,7 +75,7 @@ export class LocalEdits {
     }
     const key = keyOf(change);
     const expected = this.#expected.get(key);
-    if (expected === undefined) return true;
+    if (expected === undefined) return this.#clears.length === 0;
     const echo =
       expected.type === change.type &&
       (change.type === "delete" ||

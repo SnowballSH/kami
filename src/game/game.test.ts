@@ -2899,6 +2899,32 @@ describe("Game on a shared page", () => {
     expect(mine.renderer.lastFrame?.inks[0]?.settling).toBeUndefined();
   });
 
+  it("leaves nothing behind when it clears right after drawing", async () => {
+    const { page, mine, theirs } = await together();
+    page.holdMessages();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    mine.game.onClearBoard();
+    page.deliver();
+    await mine.wait(50);
+    await theirs.wait(50);
+    expect((await page.load("together")).drawings).toHaveLength(0);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  it("leaves nothing behind when it clears just after another device drew", async () => {
+    const { page, mine, theirs } = await together();
+    page.holdMessages();
+    await theirs.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    mine.game.onClearBoard();
+    page.deliver();
+    await mine.wait(50);
+    await theirs.wait(50);
+    expect((await page.load("together")).drawings).toHaveLength(0);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
   it("catches up after the server restarts without starting Alice over", async () => {
     const { page, mine, theirs } = await together();
     await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
