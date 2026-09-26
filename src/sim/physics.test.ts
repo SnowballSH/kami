@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blankBoard } from "../board/boards/blank";
+import { ENDLESS_GROUND, endlessPage } from "../board/boards/endless";
 import { EARTH, type WorldPhysics } from "../rules/types";
 import {
   blob,
@@ -15,6 +16,7 @@ import {
   runUntil,
   STAY,
   saw,
+  UP,
 } from "./testSupport";
 import type { Simulation } from "./types";
 
@@ -125,5 +127,37 @@ describe("world physics", () => {
     };
     expect(slideAfterStopping(EARTH)).toBeCloseTo(0, 0);
     expect(slideAfterStopping({ ...EARTH, friction: 0 })).toBeGreaterThan(10);
+  });
+});
+
+describe("the arc a jump is planned on", () => {
+  const jumpHeightUnder = (
+    physics: WorldPhysics,
+  ): { readonly flown: number; readonly planned: number } => {
+    const sim = enter(endlessPage("floor", [ENDLESS_GROUND]));
+    sim.setPhysics(physics);
+    runSteps(sim, 30);
+    const takeOff = feetOf(sim).y;
+    sim.setWalkIntent(UP);
+    const heights = Array.from({ length: 300 }, () => {
+      sim.step();
+      return takeOff - feetOf(sim).y;
+    });
+    return { flown: Math.max(...heights), planned: sim.jumpArc().apexPx };
+  };
+
+  it.each([
+    { world: "Earth", gravity: { x: 0, y: 1 } },
+    { world: "a sideways wind of gravity", gravity: { x: 0.75, y: 1 } },
+    { world: "the Moon, leaning", gravity: { x: -0.1, y: 0.165 } },
+  ])("rises as high as she flies on $world", ({ gravity }) => {
+    const { flown, planned } = jumpHeightUnder({ ...EARTH, gravity });
+    expect(planned).toBeCloseTo(flown, -1);
+  });
+
+  it("never comes down when gravity points up the paper", () => {
+    expect(jumpHeightUnder({ ...EARTH, gravity: { x: 0, y: -0.5 } }).planned).toBe(
+      Number.POSITIVE_INFINITY,
+    );
   });
 });

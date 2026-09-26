@@ -49,11 +49,11 @@ import {
 import { jumpSpeedAt, walkSpeedAt } from "./flight";
 import {
   ALICE_BASE,
-  ALICE_SCALE,
   type AliceLook,
   type AliceSize,
   type AliceSnapshot,
   type Axis,
+  aliceScaleFor,
   type Ride,
   type WalkIntent,
 } from "./types";
@@ -221,7 +221,7 @@ export class AliceController {
 
   /** The scale she would be at `size` under the standing laws, from the height she was drawn at. */
   scaleFor(size: AliceSize): number {
-    return this.innate * ALICE_SCALE[size] * this.physics.aliceSize;
+    return aliceScaleFor(this.innate, size, this.physics.aliceSize);
   }
 
   /** The scale the standing laws ask for; the sim grants growth only once there is headroom. */
@@ -391,6 +391,8 @@ export class AliceController {
       height,
       size: this.currentSize,
       sizeMultiplier: this.physics.aliceSize,
+      innateScale: this.innate,
+      scale: this.currentScale,
       headingScale: this.headingScale,
       facing: this.facing,
       walking: this.walking,
