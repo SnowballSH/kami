@@ -48,7 +48,7 @@ Every rule Kami understands today has the same very simple shape, a **dial set**
 set(d, v)(W) = W with W.d := v
 ```
 
-That is, `RuleEffect = { governs: d, value: v }` (or `{ governs: d, x, y }` for the two vector fields) *is* the morphism, written as data so it can be stored, sent to the server and checked. The rule additionally carries its `sourceText`, a gloss for Kami to write back, the note it lives in, and `createdAt`.
+That is, `RuleEffect = { governs: d, value: v }` (or `{ governs: d, x, y }` for the two vector fields) *is* the morphism, written as data so it can be stored, sent to the server and checked. The rule additionally carries its `sourceText`, a gloss for Kami to write back, the note it lives in, `createdAt`, and — for a law a journey brought — the `scene` it belongs to, so the next journey repeals it even after a reload.
 
 Two morphisms are always available and cost nothing:
 

@@ -2,7 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { type Credential, type Grant, MAX_PASSWORD_LENGTH, PASSWORD_GRANT } from "./accessConfig";
 
 export const SESSION_SECONDS = 8 * 60 * 60;
-const MAX_SESSIONS = 128;
+export const MAX_SESSIONS = 128;
 const COOKIE = "__Host-kami";
 const hash = (text: string): Buffer => createHash("sha256").update(text).digest();
 
@@ -58,9 +58,13 @@ export class Sessions {
     return this.#sessions.get(this.#cookie(request))?.grant ?? null;
   }
 
-  create(grant: Grant): string | null {
+  /** At capacity the oldest session makes room: a steady stream of sign-ins never locks everyone out. */
+  create(grant: Grant): string {
     this.#expire();
-    if (this.#sessions.size >= MAX_SESSIONS) return null;
+    for (const id of this.#sessions.keys()) {
+      if (this.#sessions.size < MAX_SESSIONS) break;
+      this.#sessions.delete(id);
+    }
     const id = randomBytes(32).toString("hex");
     this.#sessions.set(id, { grant, expiresAt: this.now() + SESSION_SECONDS * 1000 });
     return this.#header(id, SESSION_SECONDS);

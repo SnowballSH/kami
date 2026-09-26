@@ -100,7 +100,7 @@ import { CameraRig, framingZoom } from "./cameraRig";
 import { FixedStepLoop } from "./fixedStepLoop";
 import { HeldInkBook } from "./heldInk";
 import { IdMint } from "./idMint";
-import { InkLedger, type InkRecord } from "./inkLedger";
+import { InkLedger, type InkRecord, storedOf } from "./inkLedger";
 import {
   ALICE_CORNERED_LINE,
   ALICE_FLEES_LINES,
@@ -247,7 +247,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   private readonly ids = new IdMint();
   private readonly introduced = new Set<string>();
   private readonly director: ModeDirector;
-  private sceneLawIds: RuleId[] = [];
 
   private board: BoardDefinition;
   private epoch = 0;
@@ -593,7 +592,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     this.labelsByKami.clear();
     this.glimpse = null;
     this.rules.replaceAll([]);
-    this.sceneLawIds = [];
     this.showLaws();
     this.applyLaws({ silently: true });
     this.introduced.clear();
@@ -754,7 +752,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   /** A stored drawing takes its place on the page; one already there is left alone or retraced. */
-  private placeDrawing({ drawing, ruling }: StoredDrawing): void {
+  private placeDrawing({ drawing, ruling, provenance = "drawn" }: StoredDrawing): void {
     const { sim } = this.modules;
     const known = this.ledger.get(drawing.id);
     if (known !== null) {
@@ -767,8 +765,8 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       }
       return;
     }
-    sim.addDrawing(drawing);
-    this.ledger.add(drawing);
+    sim.addDrawing(drawing, provenance);
+    this.ledger.add(drawing, provenance);
     if (ruling !== null) {
       sim.applyRuling(drawing.id, ruling);
       this.ledger.awaken(drawing.id, ruling, this.nowMs - ALREADY_AWAKE_MS);
@@ -1464,9 +1462,9 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     };
     this.modules.sim.addDrawing(drawing, provenance);
     this.party.invalidate();
-    this.ledger.conjure(drawing, fromMs);
+    const record = this.ledger.conjure(drawing, fromMs, provenance);
     this.tidied.add(drawing.id);
-    this.modules.store.saveDrawing(this.board.id, { drawing, ruling: null });
+    this.modules.store.saveDrawing(this.board.id, storedOf(record));
     return drawing;
   }
 
@@ -1476,14 +1474,15 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
    * the place with props of his own, one after another. A place the mode forbids is refused whole.
    */
   private async travel(scene: Destination, note: Note, stillHere: () => boolean): Promise<void> {
-    const rules = scene.laws.map((law) => this.ruleFrom(law, note));
+    const rules = scene.laws.map((law) => ({ ...this.ruleFrom(law, note), scene: scene.place }));
     const forbidden = rules.find((rule) => !this.allowsRule(rule));
     if (forbidden !== undefined) {
       this.refuseLaw(note.id, forbidden.effect.governs);
       return;
     }
-    for (const id of this.sceneLawIds) this.onRepealLaw(id);
-    this.sceneLawIds = [];
+    for (const { id } of this.rules.all.filter((rule) => rule.scene !== undefined)) {
+      this.onRepealLaw(id);
+    }
     this.enactAll(
       rules,
       note.id,
@@ -1492,7 +1491,6 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         rules.map((rule) => rule.explanation),
       ),
     );
-    this.sceneLawIds = rules.map((rule) => rule.id);
     this.remark(scene.line);
     await this.dress(scene, note, stillHere);
   }
@@ -1642,7 +1640,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 
     this.modules.sim.applyRuling(id, ruling);
     this.party.invalidate();
-    this.modules.store.saveDrawing(this.board.id, { drawing: awake.drawing, ruling });
+    this.modules.store.saveDrawing(this.board.id, storedOf(awake));
     this.forget(this.notes.removeAnchoredTo({ type: "drawing", id }));
     const attached = this.notes.attachToDrawing(label.id, id);
     this.notes.release(label.id, this.nowMs, NOTE_LINGER_MS);
@@ -1697,10 +1695,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     }
     const retraced = this.ledger.retrace(id, strokes, this.nowMs);
     if (retraced === null) return;
-    this.modules.store.saveDrawing(this.board.id, {
-      drawing: retraced.drawing,
-      ruling: retraced.ruling,
-    });
+    this.modules.store.saveDrawing(this.board.id, storedOf(retraced));
   }
 
   /** The slider came to rest: what is already named is tidied again at the new firmness. */

@@ -37,6 +37,12 @@ describe("createStaticSite", () => {
     }
   });
 
+  it("serves files when the directory is given with a trailing slash", async () => {
+    const slashed = createStaticSite(`${root}/`);
+    const response = await slashed(new Request("http://kami.test/assets/app-abc123.js"));
+    expect(response?.headers.get("content-type")).toContain("javascript");
+  });
+
   it("serves hashed assets as immutable", async () => {
     const response = await get("/assets/app-abc123.js");
     expect(response?.headers.get("content-type")).toContain("javascript");

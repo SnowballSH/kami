@@ -1,12 +1,14 @@
 import type { Ruling } from "../cat/types";
 import type { Stroke } from "../core/geometry";
-import type { Drawing, DrawingId } from "../ink/types";
+import type { Drawing, DrawingId, InkProvenance } from "../ink/types";
 import type { Note, NoteId } from "../notes/types";
 import type { Rule, RuleId } from "../rules/types";
 
 export interface StoredDrawing {
   readonly drawing: Drawing;
   readonly ruling: Ruling | null;
+  /** Absent for ink drawn by a hand; scenery is never eaten by the Sumikui. */
+  readonly provenance?: InkProvenance;
 }
 
 export interface BoardSnapshot {

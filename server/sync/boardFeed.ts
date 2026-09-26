@@ -4,8 +4,13 @@ export type Publish = (message: FeedMessage) => void;
 
 export type Unsubscribe = () => void;
 
-/** How many changes a board keeps for clients that reconnect with a `since` cursor. */
+/** How many changes, and how many bytes of them, a board keeps for clients that reconnect with a `since` cursor. */
 export const KEPT_CHANGES = 2_000;
+export const KEPT_BYTES = 8 * 1024 * 1024;
+
+/** A page nobody has listened to, announced on or changed for this long is forgotten. */
+export const PAGE_IDLE_MS = 10 * 60_000;
+const SWEEP_EVERY_MS = 60_000;
 
 /**
  * A device announces its Alice several times a second. One that has been silent this long has gone,
@@ -16,7 +21,9 @@ export const PRESENCE_GONE_AFTER_MS = 5_000;
 
 interface Page {
   seq: number;
-  readonly log: BoardChange[];
+  touchedAtMs: number;
+  logBytes: number;
+  readonly log: { readonly change: BoardChange; readonly bytes: number }[];
   readonly listeners: Set<Publish>;
   readonly peers: Map<PeerId, { readonly alice: Ghost; readonly heardAtMs: number }>;
 }
@@ -27,15 +34,31 @@ interface Page {
  */
 export class BoardFeed {
   readonly #pages = new Map<string, Page>();
+  /**
+   * The highest number any forgotten board had reached. A new page counts on from here, so a cursor a
+   * client kept from a forgotten page is never mistaken for one in the new numbering.
+   */
+  #forgottenSeq = 0;
+  #sweptAtMs: number;
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(private readonly now: () => number = Date.now) {
+    this.#sweptAtMs = now();
+  }
+
+  get pageCount(): number {
+    return this.#pages.size;
+  }
 
   record(boardId: string, edit: BoardEdit): BoardChange {
     const page = this.#page(boardId);
     page.seq += 1;
     const sequenced: BoardChange = { ...edit, seq: page.seq };
-    page.log.push(sequenced);
-    if (page.log.length > KEPT_CHANGES) page.log.splice(0, page.log.length - KEPT_CHANGES);
+    const bytes = Buffer.byteLength(JSON.stringify(sequenced));
+    page.log.push({ change: sequenced, bytes });
+    page.logBytes += bytes;
+    while (page.log.length > KEPT_CHANGES || page.logBytes > KEPT_BYTES) {
+      page.logBytes -= page.log.shift()?.bytes ?? 0;
+    }
     this.#tell(page, sequenced);
     return sequenced;
   }
@@ -48,13 +71,14 @@ export class BoardFeed {
   }
 
   leave(boardId: string, peer: PeerId): void {
-    const page = this.#page(boardId);
-    if (!page.peers.delete(peer)) return;
+    const page = this.#pages.get(boardId);
+    if (page === undefined || !page.peers.delete(peer)) return;
     this.#tell(page, { type: "presence", peer, alice: null });
   }
 
   peers(boardId: string): readonly PeerId[] {
-    const page = this.#page(boardId);
+    const page = this.#pages.get(boardId);
+    if (page === undefined) return [];
     this.#forgetTheSilent(page);
     return [...page.peers.keys()];
   }
@@ -69,12 +93,13 @@ export class BoardFeed {
     if (since === null) listener({ type: "cursor", seq: page.seq });
     else if (since > page.seq || (since < page.seq && !this.#reaches(page, since))) {
       listener({ type: "resync", seq: page.seq });
-    } else for (const change of page.log) if (change.seq > since) listener(change);
+    } else for (const { change } of page.log) if (change.seq > since) listener(change);
     this.#forgetTheSilent(page);
     for (const [peer, { alice }] of page.peers) listener({ type: "presence", peer, alice });
     page.listeners.add(listener);
     return () => {
       page.listeners.delete(listener);
+      page.touchedAtMs = this.now();
     };
   }
 
@@ -89,7 +114,7 @@ export class BoardFeed {
 
   #reaches(page: Page, since: number): boolean {
     const oldest = page.log[0];
-    return oldest !== undefined && oldest.seq <= since + 1;
+    return oldest !== undefined && oldest.change.seq <= since + 1;
   }
 
   #tell(page: Page, message: FeedMessage): void {
@@ -97,10 +122,33 @@ export class BoardFeed {
   }
 
   #page(boardId: string): Page {
+    const nowMs = this.now();
+    if (nowMs - this.#sweptAtMs >= SWEEP_EVERY_MS) this.#sweep(nowMs);
     const existing = this.#pages.get(boardId);
-    if (existing !== undefined) return existing;
-    const page: Page = { seq: 0, log: [], listeners: new Set(), peers: new Map() };
+    if (existing !== undefined) {
+      existing.touchedAtMs = nowMs;
+      return existing;
+    }
+    const page: Page = {
+      seq: this.#forgottenSeq,
+      touchedAtMs: nowMs,
+      logBytes: 0,
+      log: [],
+      listeners: new Set(),
+      peers: new Map(),
+    };
     this.#pages.set(boardId, page);
     return page;
+  }
+
+  #sweep(nowMs: number): void {
+    this.#sweptAtMs = nowMs;
+    for (const [boardId, page] of this.#pages) {
+      this.#forgetTheSilent(page);
+      const idle = page.listeners.size === 0 && page.peers.size === 0;
+      if (!idle || nowMs - page.touchedAtMs < PAGE_IDLE_MS) continue;
+      this.#forgottenSeq = Math.max(this.#forgottenSeq, page.seq);
+      this.#pages.delete(boardId);
+    }
   }
 }
