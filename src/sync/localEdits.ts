@@ -1,6 +1,7 @@
+import { canonicalOf } from "../core/canonical";
 import { same } from "../core/same";
 import { PERSISTENCE_TIMEOUT_MS } from "../persistence/requestDeadline";
-import type { BoardChange, BoardEdit } from "./wire";
+import { type BoardChange, type BoardEdit, storedEntitySchemas } from "./wire";
 
 /**
  * How long after a write its echo is awaited. A write lands, or fails, within a few request deadlines
@@ -16,15 +17,19 @@ type Expected = (
 const keyOf = (change: Exclude<BoardEdit, { readonly type: "clear" }>): string =>
   `${change.kind}/${change.id}`;
 
-/** The entity as the server will echo it: through JSON, so `-0` and `undefined` fields compare as they will arrive. */
-const asEchoed = (entity: unknown): unknown => JSON.parse(JSON.stringify(entity));
+type Put = Extract<BoardEdit, { readonly type: "put" }>;
+
+/** The entity as the server will echo it: what it stores, not what this device holds. */
+const asEchoed = ({ kind, entity }: Put): unknown => canonicalOf(storedEntitySchemas[kind], entity);
 
 /**
  * This device's writes to a shared page that the server has yet to echo back. Until the echo of its
  * latest write to an entity arrives, whatever else arrives about that entity is older news than what
  * the board already shows, and is passed over: a drawing erased here does not come back on the late
  * echo of its drawing, and the late echo of a clear does not wipe what was drawn since. The echo
- * itself is passed over too, since it is already on the board.
+ * itself is passed over too, since it is already on the board. Until the echo of its own clear
+ * arrives, nothing else is taken either: whatever the server relays before that echo it put before
+ * the clear, so it is already wiped from this board.
  *
  * The server orders writes, so everything relayed about an entity after this device's write lands
  * after it on the server as well, and applies as usual. An echo not heard within `ECHO_AWAITED_MS` is
@@ -47,7 +52,7 @@ export class LocalEdits {
       case "put":
         this.#expected.set(keyOf(edit), {
           type: "put",
-          entity: asEchoed(edit.entity),
+          entity: asEchoed(edit),
           writtenAtMs,
         });
         return;
@@ -70,7 +75,7 @@ export class LocalEdits {
     }
     const key = keyOf(change);
     const expected = this.#expected.get(key);
-    if (expected === undefined) return true;
+    if (expected === undefined) return this.#clears.length === 0;
     const echo =
       expected.type === change.type &&
       (change.type === "delete" ||

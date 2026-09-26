@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { strokesSchema, textSchema, vecSchema } from "./input";
+import { penStrokesSchema, strokesSchema, textSchema, vecSchema } from "./input";
 import { INPUT_LIMITS } from "./inputLimits";
 import { BodyTooLargeError, readBoundedText } from "./readBody";
 
@@ -51,6 +51,19 @@ describe("input budgets", () => {
     expect(
       new TextEncoder().encode(JSON.stringify({ text: "\0".repeat(INPUT_LIMITS.text) })).byteLength,
     ).toBeLessThan(INPUT_LIMITS.textBytes);
+  });
+});
+
+describe("pen strokes", () => {
+  it("keep a pen's pressure where geometry drops it", () => {
+    const strokes = [[{ x: 1, y: 2, pressure: 0.5 }]];
+    expect(penStrokesSchema.parse(strokes)).toEqual(strokes);
+    expect(strokesSchema.parse(strokes)).toEqual([[{ x: 1, y: 2 }]]);
+  });
+
+  it("refuse a pressure outside 0 to 1", () => {
+    for (const pressure of [-0.1, 1.1, Number.NaN])
+      expect(penStrokesSchema.safeParse([[{ x: 0, y: 0, pressure }]]).success).toBe(false);
   });
 });
 

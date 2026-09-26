@@ -135,6 +135,13 @@ export const deletionOf = (kind: "drawings" | "notes" | "rules", id: string): Bo
   }
 };
 
+/** What the server validates, and so stores and echoes, each kind of entity as. */
+export const storedEntitySchemas = {
+  drawings: storedDrawingSchema,
+  notes: noteSchema,
+  rules: ruleSchema,
+} as const;
+
 export const boardChangeSchema: z.ZodType<BoardChange> = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
     z.object({
@@ -142,21 +149,21 @@ export const boardChangeSchema: z.ZodType<BoardChange> = z.discriminatedUnion("t
       type: z.literal("put"),
       kind: z.literal("drawings"),
       id: entityIdSchema,
-      entity: storedDrawingSchema,
+      entity: storedEntitySchemas.drawings,
     }),
     z.object({
       seq: seqSchema,
       type: z.literal("put"),
       kind: z.literal("notes"),
       id: entityIdSchema,
-      entity: noteSchema,
+      entity: storedEntitySchemas.notes,
     }),
     z.object({
       seq: seqSchema,
       type: z.literal("put"),
       kind: z.literal("rules"),
       id: entityIdSchema,
-      entity: ruleSchema,
+      entity: storedEntitySchemas.rules,
     }),
   ]),
   z.discriminatedUnion("kind", [

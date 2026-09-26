@@ -4,7 +4,14 @@ import { boardFor } from "../board";
 import { ENDLESS_STRIP as ENDLESS_GROUND, endlessPage } from "../board/boards/endless";
 import { createCat } from "../cat";
 import { OFFER_HELP } from "../cat/lines";
-import { boundsOf, poseToWorld, rectsOverlap, type Stroke, type Vec } from "../core/geometry";
+import {
+  boundsOf,
+  type PenPoint,
+  poseToWorld,
+  rectsOverlap,
+  type Stroke,
+  type Vec,
+} from "../core/geometry";
 import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { FIXED_STEP_MS } from "../core/world";
 import { BRIDGE_LINE, DROP_LINE, IDEAS, LADDER_LINE } from "../counsel";
@@ -374,7 +381,7 @@ class Player {
     this.game.onToolChanged(tool);
   }
 
-  async draw(points: readonly Vec[]): Promise<void> {
+  async draw(points: readonly PenPoint[]): Promise<void> {
     this.use("draw");
     const [first, ...rest] = points;
     if (first === undefined) return;
@@ -2886,6 +2893,68 @@ describe("Game on a shared page", () => {
     await theirs.wait(50);
     expect(mine.renderer.lastFrame?.inks).toHaveLength(1);
     expect(theirs.renderer.lastFrame?.inks).toHaveLength(1);
+  });
+
+  const pencil = (points: readonly Vec[]): PenPoint[] =>
+    points.map((point) => ({ ...point, pressure: 0.5 }));
+
+  it("keeps a pencil's pressure on the server and on the other device", async () => {
+    const { page, mine, theirs } = await together();
+    await mine.draw(pencil(line({ x: 620, y: 0 }, { x: 900, y: 0 })));
+    await theirs.wait(50);
+    const [stored] = (await page.load("together")).drawings;
+    expect(stored?.drawing.strokes[0]?.[0]?.pressure).toBe(0.5);
+    expect(theirs.renderer.lastFrame?.inks[0]?.drawing.strokes[0]?.[0]?.pressure).toBe(0.5);
+  });
+
+  it("follows another device naming and erasing what it drew with a pencil", async () => {
+    const { page, mine, theirs } = await together();
+    await mine.draw(pencil(line({ x: 620, y: 0 }, { x: 900, y: 0 })));
+    await theirs.wait(50);
+    await mine.wait(50);
+    await theirs.write("ground", { x: 760, y: -120 });
+    await mine.wait(50);
+    expect(mine.renderer.lastFrame?.inks.map((ink) => ink.nature)).toEqual(["solid"]);
+    await eraseTheInk(theirs, 0);
+    await mine.wait(50);
+    expect((await page.load("together")).drawings).toHaveLength(0);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  it("does not retrace its own pencil drawing when it catches up after a restart", async () => {
+    const { page, mine } = await together();
+    await mine.draw(pencil(line({ x: 620, y: 0 }, { x: 900, y: 0 })));
+    await mine.wait(50);
+    page.restart("second");
+    await mine.wait(100);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(1);
+    expect(mine.renderer.lastFrame?.inks[0]?.settling).toBeUndefined();
+  });
+
+  it("leaves nothing behind when it clears right after drawing", async () => {
+    const { page, mine, theirs } = await together();
+    page.holdMessages();
+    await mine.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    mine.game.onClearBoard();
+    page.deliver();
+    await mine.wait(50);
+    await theirs.wait(50);
+    expect((await page.load("together")).drawings).toHaveLength(0);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
+  });
+
+  it("leaves nothing behind when it clears just after another device drew", async () => {
+    const { page, mine, theirs } = await together();
+    page.holdMessages();
+    await theirs.draw(line({ x: 620, y: 0 }, { x: 900, y: 0 }));
+    mine.game.onClearBoard();
+    page.deliver();
+    await mine.wait(50);
+    await theirs.wait(50);
+    expect((await page.load("together")).drawings).toHaveLength(0);
+    expect(mine.renderer.lastFrame?.inks).toHaveLength(0);
+    expect(theirs.renderer.lastFrame?.inks).toHaveLength(0);
   });
 
   it("catches up after the server restarts without starting Alice over", async () => {

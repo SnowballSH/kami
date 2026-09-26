@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { DrawingId } from "../ink/types";
 import type { Note, NoteId } from "../notes/types";
+import type { StoredDrawing } from "../persistence/types";
 import { ECHO_AWAITED_MS, LocalEdits } from "./localEdits";
 import { type BoardChange, type BoardEdit, deletionOf } from "./wire";
 
@@ -15,6 +17,21 @@ const note = (text: string, x = 0): Note => ({
 
 const put = (entity: Note): BoardEdit => ({ type: "put", kind: "notes", id: entity.id, entity });
 const erase: BoardEdit = deletionOf("notes", "n1");
+
+const pencilled = (extra: object = {}): StoredDrawing => ({
+  drawing: {
+    id: "d1" as DrawingId,
+    strokes: [[{ x: 0, y: 0, pressure: 0.5, ...extra }]],
+    cost: 1,
+  },
+  ruling: null,
+});
+const putDrawing = (entity: StoredDrawing): BoardEdit => ({
+  type: "put",
+  kind: "drawings",
+  id: entity.drawing.id,
+  entity,
+});
 const CLEAR: BoardEdit = { type: "clear" };
 
 let seq = 0;
@@ -68,12 +85,32 @@ describe("LocalEdits", () => {
     expect(edits.pending).toBe(0);
   });
 
+  it("knows the echo of its own drawing in the form the server keeps it", () => {
+    const edits = new LocalEdits();
+    edits.wrote(putDrawing(pencilled({ tilt: 30 })));
+    expect(edits.admits(relayed(putDrawing(pencilled())))).toBe(false);
+    expect(edits.pending).toBe(0);
+    expect(edits.admits(relayed(deletionOf("drawings", "d1")))).toBe(true);
+  });
+
   it("takes another device's clear, which supersedes every write of its own before it", () => {
     const edits = new LocalEdits();
     edits.wrote(put(note("mine")));
     expect(edits.admits(relayed(CLEAR))).toBe(true);
     expect(edits.pending).toBe(0);
     expect(edits.admits(relayed(put(note("mine"))))).toBe(true);
+  });
+
+  it("takes nothing the server put before its own clear, while that clear's echo is awaited", () => {
+    const edits = new LocalEdits();
+    edits.wrote(put(note("mine")));
+    edits.wrote(CLEAR);
+    expect(edits.admits(relayed(put(note("theirs, before my clear"))))).toBe(false);
+    expect(edits.admits(relayed(put(note("mine"))))).toBe(false);
+    expect(edits.admits(relayed(erase))).toBe(false);
+    expect(edits.admits(relayed(CLEAR))).toBe(false);
+    expect(edits.pending).toBe(0);
+    expect(edits.admits(relayed(put(note("theirs, after my clear"))))).toBe(true);
   });
 
   it("stops waiting for the echo of a write that never reached the server", () => {

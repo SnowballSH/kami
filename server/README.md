@@ -440,7 +440,9 @@ MongoDB start their own throwaway in-memory `mongod` (`testing/memoryDatabase.ts
 ## API contract (what the client may rely on)
 
 Input budgets come from `src/core/inputLimits.ts`: each drawing allows 256 strokes, 1024 points
-per stroke and 2048 points in total, with finite coordinates within ±1,000,000,000. Drawing and
+per stroke and 2048 points in total, with finite coordinates within ±1,000,000,000. A stored
+drawing's points may carry the pen's `pressure` (0–1, optional), kept so a pencil's thick and thin
+survive a reload and reach other devices; the model routes read `{x,y}` and drop it. Drawing and
 model requests are limited to 262,144 UTF-8 bytes; notes, rules and compile requests to 131,072
 bytes; controller state to 256 bytes. Text is limited to 4000 UTF-16 code units, completion names
 to 80. Byte excess returns `413 {"error"}` before JSON parsing; invalid counts/coordinates/text

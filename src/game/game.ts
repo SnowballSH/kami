@@ -2,6 +2,7 @@ import type { Scene } from "../autopilot/types";
 import { arenaBoard, arenaHeight, endlessBoard, groundSolids } from "../board";
 import type { BoardDefinition, Zone } from "../board/types";
 import type { Cat, Nature, Ruling } from "../cat/types";
+import { canonicalOf } from "../core/canonical";
 import {
   boundsOf,
   clamp,
@@ -14,6 +15,7 @@ import {
   strokesLength,
   type Vec,
 } from "../core/geometry";
+import { penStrokesSchema } from "../core/input";
 import { INPUT_LIMITS, isInputPoint, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import { same } from "../core/same";
 import { BULLET_TIME_SCALE, FIXED_STEP_MS } from "../core/world";
@@ -886,7 +888,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     const { sim } = this.modules;
     const known = this.ledger.get(drawing.id);
     if (known !== null) {
-      if (!same(known.drawing.strokes, drawing.strokes)) {
+      if (!same(canonicalOf(penStrokesSchema, known.drawing.strokes), drawing.strokes)) {
         this.ledger.retrace(drawing.id, drawing.strokes, this.nowMs);
       }
       if (ruling !== null && !same(known.ruling, ruling)) {
