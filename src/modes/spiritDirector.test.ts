@@ -36,6 +36,32 @@ describe("what names a body", () => {
     for (const name of ["a sword", "a hammer", "the moon", "a bouncy mushroom", "", "   "])
       expect(namesABody(name, BODY_NAMES)).toBe(false);
   });
+
+  it.each([
+    ["a cat", true],
+    ["my knight", true],
+    ["stick man", true],
+    ["a stickman", true],
+    ["a tall girl", true],
+    ["alice", true],
+    ["a cat girl", true],
+    ["two little robots", true],
+    ["the girl with the red hat", true],
+    ["a king of the hill", true],
+    ["the rabbit hole", false],
+    ["a bear trap", false],
+    ["a spider web", false],
+    ["the dog house", false],
+    ["a bird cage", false],
+    ["a fish bowl", false],
+    ["a bee hive", false],
+    ["a monster truck", false],
+    ["a robot arm", false],
+    ["a bag of cats", false],
+    ["a picture of me", false],
+  ])("reads %j by its head noun: a body is %s", (name, body) => {
+    expect(namesABody(name, BODY_NAMES)).toBe(body);
+  });
 });
 
 describe("the spirit director", () => {

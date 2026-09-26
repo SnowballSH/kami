@@ -71,7 +71,7 @@ A director that stages rooms fills `room` in `open(board)`; the others leave it 
 
 ### What names a body
 
-`namesABody(name, mode.names)` (`src/modes/bodyNames.ts`) is deliberately open-ended: the mode's own names (`alice · her · me`), a pronoun for the player (*me*, *myself*, *this is me*), or any body noun — a person, a role, a creature, a doll, a robot (*a girl*, *the knight*, *my cat*, *a stick figure*). Things (*a sword*), places (*the moon*) and laws are not bodies. Articles and a few adjectives are stripped first.
+`namesABody(name, mode.names)` (`src/modes/bodyNames.ts`) is deliberately open-ended: the mode's own names (`alice · her · me`), a pronoun for the player (*me*, *myself*, *this is me*), or any name whose **head noun** is a body — a person, a role, a creature, a doll, a robot (*a girl*, *the knight*, *my cat*, *a stick figure*, *a tall girl with a red hat*). The head is the last word before any qualifier (*of*, *with*, *in*, *named*…), read with the Cat's own `parsePhrase` stems, so a body word that only qualifies another noun names that thing: *the rabbit hole* is the goal, *a bear trap*, *a spider web*, *a monster truck*, *a robot arm* and *a bag of cats* are not bodies, while *a king of the hill* is. Things (*a sword*), places (*the moon*) and laws are not bodies. Articles and a few adjectives are stripped first.
 
 ## What the game does with it today
 
