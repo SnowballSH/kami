@@ -244,7 +244,6 @@ export class ApiAccess {
       }
       this.#failures.succeed(client);
       const cookie = this.#sessions.create(grant);
-      if (cookie === null) return busy();
       const response = json({ ok: true });
       response.headers.set("set-cookie", cookie);
       return response;
