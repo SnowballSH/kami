@@ -11,8 +11,8 @@ import type { Chew, HeldInkView, InkView } from "./types";
 
 interface SettledInk {
   readonly strokes: Drawing["strokes"];
-  readonly path: Path2D;
   readonly bounds: Rect;
+  path: Path2D | null;
 }
 
 interface LiveInk {
@@ -68,9 +68,20 @@ export class InkPainter {
       }
     }
     for (const ink of inks) this.paintInk(ctx, ink, view, nowMs, chew);
-    if (this.settled.size > inks.length) this.prune(inks);
     for (const [id, startedAt] of this.portalPulses) {
       if (nowMs - startedAt > 400) this.portalPulses.delete(id);
+    }
+  }
+
+  /** One ink painted again on top of the rest, as a ridden vehicle is over its rider. */
+  paintOver(ctx: CanvasRenderingContext2D, ink: InkView, view: Rect, nowMs: number): void {
+    this.paintInk(ctx, ink, view, nowMs, null);
+  }
+
+  /** Forgets every cached ink but those still on the board. */
+  retain(alive: ReadonlySet<DrawingId>): void {
+    for (const id of this.settled.keys()) {
+      if (!alive.has(id)) this.settled.delete(id);
     }
   }
 
@@ -118,7 +129,7 @@ export class InkPainter {
     const path =
       chew?.drawingId === ink.drawing.id
         ? strokesPath(uneaten(ink.drawing.strokes, chew.bite), INK_PEN)
-        : settled.path;
+        : this.pathOf(settled);
     const progress = awakening(nowMs, ink.awakenedAtMs);
     const awake = ink.awakenedAtMs !== null;
     const { origin, position, angle, scale } = ink.pose;
@@ -173,11 +184,16 @@ export class InkPainter {
     if (cached?.strokes === drawing.strokes) return cached;
     const ink: SettledInk = {
       strokes: drawing.strokes,
-      path: strokesPath(drawing.strokes, INK_PEN),
       bounds: boundsOf(drawing.strokes.flat()),
+      path: null,
     };
     this.settled.set(drawing.id, ink);
     return ink;
+  }
+
+  private pathOf(settled: SettledInk): Path2D {
+    settled.path ??= strokesPath(settled.strokes, INK_PEN);
+    return settled.path;
   }
 
   private livePath(strokes: readonly Stroke[]): Path2D {
@@ -195,12 +211,5 @@ export class InkPainter {
     const path = strokesPath(strokes, INK_PEN);
     this.live = { strokeCount: strokes.length, pointCount, lastPoint, path };
     return path;
-  }
-
-  private prune(inks: readonly InkView[]): void {
-    const alive = new Set(inks.map((ink) => ink.drawing.id));
-    for (const id of this.settled.keys()) {
-      if (!alive.has(id)) this.settled.delete(id);
-    }
   }
 }

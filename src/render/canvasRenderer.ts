@@ -144,6 +144,7 @@ export class CanvasRenderer implements Renderer {
       });
     }
     this.inkPainter.paintInks(ctx, frame.inks, view, nowMs, chewOf(world.sumikui), events);
+    this.inkPainter.retain(new Set(frame.inks.map(({ drawing }) => drawing.id)));
     const moonlit = frame.daylight < 1;
     if (!moonlit) this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
     this.paintGhosts(ctx, frame.ghosts ?? [], view, nowMs);
@@ -214,7 +215,7 @@ export class CanvasRenderer implements Renderer {
     if (ride?.gait !== "vehicle") return;
     const vehicle = inks.find((ink) => ink.drawing.id === ride.id);
     if (vehicle === undefined) return;
-    this.inkPainter.paintInks(ctx, [vehicle], view, nowMs);
+    this.inkPainter.paintOver(ctx, vehicle, view, nowMs);
   }
 
   /** Other devices' Alices on a shared page: there, but faint, so whose is whose stays clear. */
