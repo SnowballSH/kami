@@ -107,17 +107,17 @@ export class CanvasRenderer implements Renderer {
   }
 
   toWorld(client: Vec, camera: Camera): Vec {
-    this.refitIfBoxChanged();
+    this.refitIfChanged();
     return toWorld(this.toCanvas(client), camera, this.box);
   }
 
   viewport(): Size {
-    this.refitIfBoxChanged();
+    this.refitIfChanged();
     return this.box;
   }
 
   render(frame: RenderFrame): void {
-    this.refitIfBoxChanged();
+    this.refitIfChanged();
     const { ctx } = this;
     const { camera, world, nowMs } = frame;
     const view = visibleWorld(camera, this.box);
@@ -256,8 +256,10 @@ export class CanvasRenderer implements Renderer {
     };
   }
 
-  private refitIfBoxChanged(): void {
+  private refitIfChanged(): void {
     const { clientWidth, clientHeight } = this.canvas;
-    if (clientWidth !== this.box.width || clientHeight !== this.box.height) this.resize();
+    const boxChanged = clientWidth !== this.box.width || clientHeight !== this.box.height;
+    const ratioChanged = cappedPixelRatio(globalThis.devicePixelRatio) !== this.pixelRatio;
+    if (boxChanged || ratioChanged) this.resize();
   }
 }

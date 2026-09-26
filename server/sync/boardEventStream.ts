@@ -14,16 +14,19 @@ const EVENT_STREAM_HEADERS = {
 const KEEP_ALIVE_COMMENT = ": keep-alive\n\n";
 const reconnectField = `retry: ${RECONNECT_AFTER_MS}\n\n`;
 
-/** Numbered changes carry their `seq` as the event id, so a reconnecting browser sends it back as `Last-Event-ID`. */
+/**
+ * Numbered changes, and the `cursor` or `resync` a stream opens with, carry their `seq` as the event id,
+ * so a browser that reconnects before any change arrived still sends back where it was as `Last-Event-ID`.
+ */
 const eventOf = (message: FeedMessage): string => {
   const data = `data: ${JSON.stringify(message)}\n\n`;
   switch (message.type) {
     case "put":
     case "delete":
     case "clear":
-      return `id: ${message.seq}\n${data}`;
     case "cursor":
     case "resync":
+      return `id: ${message.seq}\n${data}`;
     case "presence":
       return data;
   }
