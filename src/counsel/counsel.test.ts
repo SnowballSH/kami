@@ -21,6 +21,8 @@ const alice = (feet: Vec, facing: 1 | -1 = 1): AliceSnapshot => ({
   height: ALICE_BASE.height,
   size: "normal",
   sizeMultiplier: 1,
+  innateScale: 1,
+  scale: 1,
   headingScale: 1,
   facing,
   walking: false,

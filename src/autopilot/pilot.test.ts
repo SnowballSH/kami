@@ -1,11 +1,23 @@
 import { describe, expect, it } from "vitest";
+import { blankBoard } from "../board/boards/blank";
 import type { BoardDefinition } from "../board/types";
 import type { Nature } from "../cat/types";
 import type { Rect, Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 import { EARTH } from "../rules/types";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "../sim/flight";
-import { aliceOf, enter, runSteps } from "../sim/testSupport";
+import {
+  aliceOf,
+  blob,
+  drawingOf,
+  enter,
+  idOf,
+  RIGHT,
+  rulingOf,
+  runSteps,
+  runUntil,
+  saw,
+} from "../sim/testSupport";
 import { ALICE_BASE, type AliceSize, type AliceSnapshot } from "../sim/types";
 import { CELL_PX, CellFlag, Chart, MAX_CHART_CELLS } from "./chart";
 import { createAutopilot } from "./index";
@@ -41,6 +53,8 @@ const alice = (feet: Vec, size: AliceSize = "normal", sizeMultiplier = 1): Alice
     height,
     size,
     sizeMultiplier,
+    innateScale: 1,
+    scale,
     headingScale: scale,
     facing: 1,
     walking: false,
@@ -232,6 +246,25 @@ describe("Pilot", () => {
       cols: 7,
       rows: 15,
     });
+  });
+
+  it("plans a drawn body's growth at the size the simulation grows her to", () => {
+    const sim = enter(blankBoard("sketchbook"));
+    sim.disembody();
+    sim.addDrawing(drawingOf("body", blob(0, 0, 90, 120)));
+    expect(sim.incarnate(idOf("body"), "giant")).toBe(true);
+    const drawn = aliceOf(sim);
+    const planned = footprintFor(drawn, "big");
+    sim.addDrawing(drawingOf("cake", blob(70, -5, 16, 24)));
+    sim.applyRuling(idOf("cake"), rulingOf("grow"));
+    sim.setWalkIntent(RIGHT);
+    runUntil(sim, saw("consumed"), 300);
+    runSteps(sim, 60);
+    const grown = aliceOf(sim);
+    expect(grown.size).toBe("big");
+    expect(planned).toEqual(footprintFor(grown));
+    expect(grown.width).toBeCloseTo(drawn.width * 2);
+    expect(grown.height).toBeCloseTo(drawn.height * 2);
   });
 
   it("walks out from a low ceiling before deferred law growth starts for Alice and her twin", () => {
