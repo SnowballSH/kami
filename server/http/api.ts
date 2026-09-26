@@ -25,6 +25,7 @@ import {
   entityIdSchema,
   noteSchema,
   recognizeRequestSchema,
+  ruleCompileRequestSchema,
   ruleSchema,
   storedDrawingSchema,
   transcribeRequestSchema,
@@ -233,8 +234,12 @@ export const createApi = ({
       return exemplar === null ? json({ error: `no picture of ${word}` }, 404) : json(exemplar);
     })
     .on("POST", "/api/compile", async ({ request }) => {
-      const body = await parseJsonBody(request, compileRequestSchema, INPUT_LIMITS.textBytes);
-      return body.ok ? json({ rule: await compiler.compile(body.value.text) }) : body.response;
+      const body = await parseJsonBody(request, ruleCompileRequestSchema, INPUT_LIMITS.textBytes);
+      if (!body.ok) return body.response;
+      const { text, referent } = body.value;
+      return json({
+        rule: await compiler.compile(text, referent === undefined ? undefined : { referent }),
+      });
     })
     .on("POST", "/api/scene", async ({ request }) => {
       const body = await parseJsonBody(request, compileRequestSchema, INPUT_LIMITS.textBytes);

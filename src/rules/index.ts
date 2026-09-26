@@ -10,6 +10,8 @@ import {
   type WorldPhysics,
 } from "./types";
 
+export { speaksOfReferent } from "./grammarCompiler";
+export { referentOf } from "./referents";
 export { placeCalled } from "./scenes/atlas";
 export { destinationOf } from "./scenes/travel";
 export * from "./types";

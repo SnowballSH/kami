@@ -166,7 +166,7 @@ the language model.
 | `POST /api/boards/:board/presence` `{ peer, alice }` | `204`; where this device's Alice is, relayed to everyone else on the board |
 | `POST /api/recognize` `{ strokes: {x,y}[][], partial?: boolean }` | Structured parallel arrays plus `certain`; at most three, best first. See the API contract below. |
 | `POST /api/beautify` `{ strokes, name? }` | Upstream model response; the current browser validates point-for-point `{ tidied, added, category, confidence }` into its `Completion` type. |
-| `POST /api/compile` `{ text }` | `{ rule: CompiledRule \| null }` |
+| `POST /api/compile` `{ text, referent? }` | `{ rule: CompiledRule \| null }`; `referent` (one lowercase word, optional) is the drawing the note was written beside, which a pronoun in it stands for (`docs/laws.md` §4) |
 | `POST /api/scene` `{ text }` | `{ scene: Scene \| null }` — a place as a bundle of laws and props Kami draws ("Scenes" below) |
 | `POST /api/controllers/:id/state` `<x> <y> [buttons]` (plain text) | `204`; a joystick's whole state, axes -100 … 100 with y up (`docs/controllers.md`) |
 | `GET /api/controllers/:id/events` | Server-Sent Events: `{ x, y, held, buttons }` on connect and on every change |
@@ -319,7 +319,8 @@ the fallback.
 
 `compile/llmCompiler.ts` posts the note to `<KAMI_LLM_URL>/v1/chat/completions` with a system
 prompt (`compile/prompt.ts`) that lists every `RuleEffect` variant with its unit and range and asks
-for `{"effect": …, "explanation": …}` or `{"effect": null}`. The reply may be wrapped in prose or
+for `{"effect": …, "explanation": …}` or `{"effect": null}`. With a `referent`, the user message is the note followed by
+`Beside: <referent>`, and the prompt tells the model a pronoun subject means that drawing. The reply may be wrapped in prose or
 code fences; the outermost JSON object is parsed, validated against the raw effect union and
 clamped (`compile/effectRanges.ts`): gravity ±30 g per axis, wind ±3 g, timeScale
 0.1–3, airDrag and friction 0–10, bounciness 0–1. A missing gloss is written for it. Timeouts

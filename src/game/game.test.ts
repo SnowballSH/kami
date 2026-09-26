@@ -56,6 +56,7 @@ import {
   DEVOURED_ROOM_RESTARTS_LINE,
   FELL_OFF_PAGE_LINE,
   LAW_OUTSIDE_MODE_LINE,
+  NAME_IT_FIRST_LINE,
   NOWHERE_LINE,
   PERISHED_LINES,
   PONDERING_LINE,
@@ -257,6 +258,7 @@ class Player {
   private nowMs = 0;
 
   readonly pondered: string[] = [];
+  readonly ponderedBeside: (string | null)[] = [];
   readonly travelled: string[] = [];
 
   constructor(
@@ -283,8 +285,9 @@ class Player {
         handwriting: this.handwriting,
         compiler: createRuleCompiler(),
         thinker: {
-          compile: (text) => {
+          compile: (text, context) => {
             this.pondered.push(text);
+            this.ponderedBeside.push(context?.referent ?? null);
             return Promise.resolve(thoughts[text] ?? null);
           },
         },
@@ -1129,6 +1132,68 @@ describe("Game with a model to think with", () => {
     expect(player.pondered).toEqual(["my friend gerald"]);
     const [stored] = (await player.store.load("wonderland")).drawings;
     expect(stored?.ruling).toMatchObject({ nature: "ink" });
+  });
+});
+
+describe("Game reading 'it' beside a drawing", () => {
+  const SAILS = "it sails to the right";
+  let player: Player;
+
+  beforeEach(async () => {
+    player = new Player("wonderland");
+    await player.arrive();
+    await player.draw(blob({ x: 300, y: 530 }, 30, 20));
+  });
+
+  const noteAt = (text: string) => {
+    const note = player.renderer.lastFrame?.notes.find(({ script }) => script.text === text);
+    if (note === undefined) throw new Error(`no note saying ${text}`);
+    return note.script.bounds;
+  };
+
+  it("binds the pronoun to the named drawing, and erasing the note repeals the law", async () => {
+    await player.write("a boat", { x: 250, y: 450 });
+    await player.write(SAILS, { x: 180, y: 400 });
+
+    const [law] = (await player.store.load("wonderland")).rules;
+    expect(law?.effect).toEqual({
+      governs: "thrust",
+      of: { kind: "named", name: "boat" },
+      x: 0.5,
+      y: 0,
+    });
+    expect(player.pondered).toEqual([]);
+
+    const { x, y } = noteAt(SAILS);
+    await player.erase({ x: x + 1, y: y + 1 });
+    expect((await player.store.load("wonderland")).rules).toEqual([]);
+  });
+
+  it("reads the pronoun as before when nothing is drawn nearby", async () => {
+    await player.write("a boat", { x: 250, y: 450 });
+    await player.write(SAILS, { x: 200, y: 100 });
+
+    expect((await player.store.load("wonderland")).rules).toEqual([]);
+    expect(player.pondered).toEqual([SAILS]);
+    expect(player.ponderedBeside).toEqual([null]);
+  });
+
+  it("asks what an unnamed drawing is rather than naming it with the law", async () => {
+    await player.write("it spins", { x: 250, y: 450 });
+
+    const { drawings, rules } = await player.store.load("wonderland");
+    expect(rules).toEqual([]);
+    expect(drawings.map(({ ruling }) => ruling)).toEqual([null]);
+    expect(player.written).toContain(NAME_IT_FIRST_LINE);
+    expect(player.pondered).toEqual([]);
+  });
+
+  it("tells the model what the pronoun stands for when the grammar cannot read the law", async () => {
+    await player.write("a boat", { x: 250, y: 450 });
+    await player.write("it hums a sad old tune", { x: 180, y: 400 });
+
+    expect(player.pondered).toEqual(["it hums a sad old tune"]);
+    expect(player.ponderedBeside).toEqual(["boat"]);
   });
 });
 

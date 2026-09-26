@@ -1,5 +1,12 @@
 import { INPUT_LIMITS } from "../core/inputLimits";
-import type { CompiledRule, Governs, RuleCompiler, RuleEffect, Target } from "../rules/types";
+import type {
+  CompileContext,
+  CompiledRule,
+  Governs,
+  RuleCompiler,
+  RuleEffect,
+  Target,
+} from "../rules/types";
 import { browserFetch, compilePath, type FetchLike, JSON_HEADERS } from "./api";
 
 const COMPILE_TIMEOUT_MS = 35_000;
@@ -76,13 +83,13 @@ export class RemoteRuleCompiler implements RuleCompiler {
     this.#fetch = fetchFn;
   }
 
-  async compile(text: string): Promise<CompiledRule | null> {
+  async compile(text: string, context?: CompileContext): Promise<CompiledRule | null> {
     if (text.length > INPUT_LIMITS.text) return null;
     try {
       const response = await this.#fetch(compilePath(), {
         method: "POST",
         headers: JSON_HEADERS,
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, ...context }),
         signal: AbortSignal.timeout(COMPILE_TIMEOUT_MS),
       });
       if (!response.ok) return null;

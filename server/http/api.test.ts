@@ -6,7 +6,7 @@ import { INPUT_LIMITS } from "../../src/core/inputLimits";
 import type { DrawingId } from "../../src/ink/types";
 import type { Note, NoteId } from "../../src/notes/types";
 import type { BoardSnapshot, StoredDrawing } from "../../src/persistence/types";
-import type { Rule, RuleId } from "../../src/rules/types";
+import type { CompileContext, Rule, RuleId } from "../../src/rules/types";
 import { createBeautifier } from "../beautify/beautifier";
 import { InMemoryControllerHub, STALE_AFTER_MS } from "../controllers/hub";
 import { readEvents } from "../controllers/testing/eventReader";
@@ -120,7 +120,8 @@ beforeAll(async () => {
     read: async (strokes) => nearestNeighbours.read(strokes),
   };
   const compiler = {
-    compile: async (text: string) => (text.includes("mars") ? MARS_RULE : null),
+    compile: async (text: string, beside?: CompileContext) =>
+      text.includes("mars") || beside?.referent === "planet" ? MARS_RULE : null,
   };
   const scenes = {
     compile: async (text: string) => (text.includes("mars") ? MARS_SCENE : null),
@@ -700,6 +701,15 @@ describe("recognise and compile", () => {
     expect(await understood.json()).toEqual({ rule: MARS_RULE });
     const shrug = await call("POST", "/api/compile", { text: "a mushroom" });
     expect(await shrug.json()).toEqual({ rule: null });
+  });
+
+  it("hands the compiler the drawing a note was written beside, as one plain word", async () => {
+    const beside = await call("POST", "/api/compile", { text: "it is red", referent: "planet" });
+    expect(await beside.json()).toEqual({ rule: MARS_RULE });
+    for (const referent of ["two words", "Planet", "", 7]) {
+      const refused = await call("POST", "/api/compile", { text: "it is red", referent });
+      expect(refused.status).toBe(400);
+    }
   });
 
   it("returns the scene compiler's scene, or null when it knows no such place", async () => {

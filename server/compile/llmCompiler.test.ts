@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { chatCompletionsUrl, createLlmCompiler, type FetchLike } from "./llmCompiler";
-import { COMPILER_SYSTEM_PROMPT } from "./prompt";
+import { BESIDE_PREFIX, COMPILER_SYSTEM_PROMPT } from "./prompt";
 
 const CONFIG = { url: "http://llm.example:8000", model: "kami-rules", apiKey: "secret" } as const;
 
@@ -51,6 +51,24 @@ describe("createLlmCompiler", () => {
       content: "make it feel like the red planet",
     });
     expect(seen[0]?.body.messages[0]?.content).toContain('"governs":"bounciness"');
+  });
+
+  it("tells the model which drawing the note was written beside", async () => {
+    const seen: SeenRequest[] = [];
+    const reply = '{"effect":{"governs":"spin","of":{"kind":"named","name":"boat"},"value":1}}';
+    const rule = await createLlmCompiler(CONFIG, modelSaying(reply, seen)).compile(
+      "it twirls like a ballerina",
+      { referent: "boat" },
+    );
+    expect(rule?.effect).toEqual({
+      governs: "spin",
+      of: { kind: "named", name: "boat" },
+      value: 1,
+    });
+    expect(seen[0]?.body.messages.at(-1)?.content).toBe(
+      `it twirls like a ballerina\n${BESIDE_PREFIX} boat`,
+    );
+    expect(COMPILER_SYSTEM_PROMPT).toContain(`"${BESIDE_PREFIX} <noun>"`);
   });
 
   it("sends no bearer token when there is no key", async () => {

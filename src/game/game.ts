@@ -43,8 +43,9 @@ import type { PenReader } from "../reading/types";
 import type { LiveRecognizer, Sighting } from "../recognition/types";
 import { motionAllowed } from "../render/animation/motion";
 import type { Renderer } from "../render/types";
-import { destinationOf, placeCalled } from "../rules";
+import { destinationOf, placeCalled, referentOf, speaksOfReferent } from "../rules";
 import type {
+  CompileContext,
   CompiledRule,
   Scene as Destination,
   Governs,
@@ -119,6 +120,7 @@ import {
   isHelpRequest,
   KEY_TAKEN_LINE,
   LAW_OUTSIDE_MODE_LINE,
+  NAME_IT_FIRST_LINE,
   NOWHERE_LINE,
   OFFER_HELP_HINT,
   PERISHED_LINES,
@@ -1415,10 +1417,16 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
   }
 
   private async answer(text: string, note: Note, stillHere: () => boolean): Promise<void> {
-    const law = await this.modules.compiler.compile(text);
+    const beside = this.drawingNear(note.id);
+    const context = contextBeside(beside);
+    const law = await this.modules.compiler.compile(text, context);
     if (!stillHere()) return;
     if (law !== null) {
       this.enactIfAllowed(this.ruleFrom(law, note));
+      return;
+    }
+    if (beside !== null && beside.ruling === null && speaksOfReferent(text)) {
+      this.remarkUnder(note.id, NAME_IT_FIRST_LINE);
       return;
     }
 
@@ -1452,7 +1460,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
       return;
     }
 
-    const thought = await this.ponder(text, note.id);
+    const thought = await this.ponder(text, note.id, context);
     if (!stillHere()) return;
     if (thought !== null) this.enactIfAllowed(this.ruleFrom(thought, note));
     else if (subject !== null && ruling !== null) this.name(subject.drawing.id, ruling, note);
@@ -1611,8 +1619,12 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
     return () => epoch === this.epoch && this.notes.get(noteId) !== null;
   }
 
-  private ponder(text: string, noteId: NoteId): Promise<CompiledRule | null> {
-    return this.whilePondering(noteId, () => this.modules.thinker.compile(text));
+  private ponder(
+    text: string,
+    noteId: NoteId,
+    context: CompileContext | undefined,
+  ): Promise<CompiledRule | null> {
+    return this.whilePondering(noteId, () => this.modules.thinker.compile(text, context));
   }
 
   /** A place the atlas knows is there at once; for anywhere else the model is asked, and Kami says so. */
@@ -2187,6 +2199,13 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
 }
 
 const isPlayers = (note: Note): boolean => note.author === "player";
+
+/** What a pronoun in a note stands for: the named drawing it was written beside, if any. */
+const contextBeside = (beside: InkRecord | null): CompileContext | undefined => {
+  const ruling = beside?.ruling ?? null;
+  const referent = ruling === null ? null : referentOf(ruling.name);
+  return referent === null ? undefined : { referent };
+};
 
 const writingOrigin = (strokes: readonly Stroke[]): Vec => {
   const { x, y } = boundsOf(strokes.flat());
