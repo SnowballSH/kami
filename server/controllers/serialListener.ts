@@ -16,8 +16,12 @@ export interface SerialListenerSettings {
   readonly rescanMs: number;
   readonly deviceDirectory: string;
   readonly prepare: (path: string) => Promise<void>;
+  readonly openDevice: (path: string) => Promise<FileHandle>;
   readonly log: Log;
 }
+
+const openWithoutAdoptingTheTty = (path: string): Promise<FileHandle> =>
+  open(path, READ_WITHOUT_ADOPTING_THE_TTY);
 
 const codeOf = (failure: unknown): unknown =>
   failure instanceof Error && "code" in failure ? failure.code : undefined;
@@ -95,7 +99,7 @@ class SerialListener implements ControllerInput {
     this.#opening.add(path);
     try {
       await this.#settings.prepare(path);
-      const device = await open(path, READ_WITHOUT_ADOPTING_THE_TTY);
+      const device = await this.#settings.openDevice(path);
       if (this.#listening) this.#read(path, device);
       else await device.close();
     } catch (failure) {
@@ -135,7 +139,8 @@ export const listenOnSerial = (
     rescanMs = RESCAN_MS,
     deviceDirectory = DEVICE_DIRECTORY,
     prepare = prepareSerialDevice,
+    openDevice = openWithoutAdoptingTheTty,
     log = console.log,
   }: Partial<SerialListenerSettings> = {},
 ): ControllerInput =>
-  new SerialListener(hub, device, { rescanMs, deviceDirectory, prepare, log }).start();
+  new SerialListener(hub, device, { rescanMs, deviceDirectory, prepare, openDevice, log }).start();

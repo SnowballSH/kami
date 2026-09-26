@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, open, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -115,13 +115,18 @@ describe("the serial listener", () => {
   it("names the dialout group once when the device may not be read, and keeps going", async () => {
     const device = join(directory, "ttyACM0");
     await writeFile(device, "kami arcade 100 0\n");
-    await chmod(device, 0o000);
-    listen(AUTO_SERIAL_DEVICE);
+    let permitted = false;
+    listen(AUTO_SERIAL_DEVICE, {
+      openDevice: async (path) => {
+        if (permitted) return open(path);
+        throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+      },
+    });
     await pause(SEVERAL_RESCANS_MS);
     expect(logged).toHaveLength(1);
     expect(logged[0]).toContain("dialout");
 
-    await chmod(device, 0o644);
+    permitted = true;
     await vi.waitFor(() => expect(hub.list()).toHaveLength(1));
   });
 
