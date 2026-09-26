@@ -1,3 +1,4 @@
+import { OnePerTick } from "../autopilot/cadence";
 import { Chart } from "../autopilot/chart";
 import type { Autopilot, PilotOptions, Scene, SceneInk } from "../autopilot/types";
 import type { BoardDefinition } from "../board/types";
@@ -57,6 +58,7 @@ const contains = (rect: Rect, point: Vec): boolean =>
 export class Party {
   private readonly pilots: Autopilot[] = [];
   private readonly charts = new Map<readonly SceneInk[], Chart | null>();
+  private readonly cadence = new OnePerTick();
   private readonly wasStuck: boolean[] = [];
   private readonly wasFleeing: boolean[] = [];
   private readonly fleeCalmAtMs: number[] = [];
@@ -114,6 +116,7 @@ export class Party {
     const alices = sim.alices();
     this.match(alices.length);
     this.charts.clear();
+    this.cadence.nextTick();
     const steered = this.manual.x !== 0 || this.manual.y !== 0;
     const news: News[] = [];
     for (const [who, alice] of alices.entries()) {
@@ -153,7 +156,9 @@ export class Party {
     while (this.pilots.length < count) {
       const seed = this.pilots.length;
       const wanders = seed !== ALICE_HERSELF;
-      this.pilots.push(this.hire({ seed, wanders, charter: (scene) => this.chart(scene) }));
+      this.pilots.push(
+        this.hire({ seed, wanders, charter: (scene) => this.chart(scene), cadence: this.cadence }),
+      );
     }
     if (this.chosen >= count) this.select(ALICE_HERSELF);
   }
