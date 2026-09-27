@@ -1,11 +1,11 @@
-import type { Cat } from "../cat/types";
-import type { Stroke } from "../core/geometry";
-import type { InkSession } from "../ink/types";
-import type { NoteId } from "../notes/types";
-import type { Sighting } from "../recognition/types";
-import type { GameClock } from "./context";
+import type { Cat } from "../../cat/types";
+import type { Stroke } from "../../core/geometry";
+import type { InkSession } from "../../ink/types";
+import type { NoteId } from "../../notes/types";
+import type { Sighting } from "../../recognition/types";
+import type { GameClock } from "../context";
+import type { NoteBook } from "../noteBook";
 import { guessCornerOf } from "./naming";
-import type { NoteBook } from "./noteBook";
 import type { Voice } from "./voice";
 
 const GLIMPSE_LIFETIME_MS = 8_000;

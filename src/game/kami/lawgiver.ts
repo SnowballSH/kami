@@ -1,8 +1,10 @@
-import { allowsLaw, refusalLine } from "../modes";
-import type { Note, NoteId } from "../notes/types";
-import type { CompiledRule, Governs, Rule, RuleId, WorldPhysics } from "../rules/types";
-import type { LawsPanel } from "../ui/types";
-import type { GameContext } from "./context";
+import { allowsLaw, refusalLine } from "../../modes";
+import type { Note, NoteId } from "../../notes/types";
+import type { CompiledRule, Governs, Rule, RuleId, WorldPhysics } from "../../rules/types";
+import type { LawsPanel } from "../../ui/types";
+import type { GameContext } from "../context";
+import { markUnderstood, type NoteKeeping } from "../noteKeeping";
+import { groupedByNote, RuleBook } from "../ruleBook";
 import {
   glossOf,
   LAW_OUTSIDE_MODE_LINE,
@@ -10,8 +12,6 @@ import {
   SUMIKUI_SEALED_LINE,
   SUMIKUI_SUMMONED_LINES,
 } from "./lines";
-import { markUnderstood, type NoteKeeping } from "./noteKeeping";
-import { groupedByNote, RuleBook } from "./ruleBook";
 import { REMARK_LIFETIME_MS, type Voice } from "./voice";
 
 /** The standing laws of the board: enacted, refused under the mode's policy, repealed, and folded into the world. */

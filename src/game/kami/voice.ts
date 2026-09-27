@@ -1,12 +1,12 @@
-import { groundSolids } from "../board";
-import { clamp, expandRect, type Rect, type Vec } from "../core/geometry";
-import type { Note, NoteAction, NoteId } from "../notes/types";
-import type { Renderer } from "../render/types";
-import type { Hud } from "../ui/types";
-import type { GameContext } from "./context";
+import { groundSolids } from "../../board";
+import { clamp, expandRect, type Rect, type Vec } from "../../core/geometry";
+import type { Note, NoteAction, NoteId } from "../../notes/types";
+import type { Renderer } from "../../render/types";
+import type { Hud } from "../../ui/types";
+import type { GameContext } from "../context";
+import { NOTE_STYLE, type NoteAnchor } from "../noteBook";
+import type { Drift } from "../noteLayout";
 import { PONDERING_LINE, SUMIKUI_LORE_LINE_DELAY_MS } from "./lines";
-import { NOTE_STYLE, type NoteAnchor } from "./noteBook";
-import type { Drift } from "./noteLayout";
 
 export const REMARK_LIFETIME_MS = 6_000;
 export const HINT_LIFETIME_MS = 10_000;

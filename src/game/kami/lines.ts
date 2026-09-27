@@ -1,6 +1,6 @@
-import type { LineSet } from "../cat/lines";
-import type { Nature, RoomBrief } from "../cat/types";
-import type { PlacementRejection } from "../ink/types";
+import type { LineSet } from "../../cat/lines";
+import type { Nature, RoomBrief } from "../../cat/types";
+import type { PlacementRejection } from "../../ink/types";
 
 export const WORDMARK = "kami";
 export const TAGLINE = "draw it. name it. it wakes up.";

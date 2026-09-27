@@ -25,8 +25,8 @@ import { createBoardLink } from "../sync";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
 import { ForgetfulBoardStore } from "./forgetfulStore";
 import { Game } from "./game";
+import { DEFAULT_TIDINESS } from "./kami/tidier";
 import { BOARD_PARAM, boardInUrl, modeInUrl, shareLink } from "./launch";
-import { DEFAULT_TIDINESS } from "./tidier";
 
 const AUTOPILOT_PARAM = "autopilot";
 const AUTOPILOT_MEMORY = "kami.autopilot";

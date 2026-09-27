@@ -1,7 +1,7 @@
 import type { DrawingId } from "../ink/types";
 import type { NoteId } from "../notes/types";
 import type { GameContext } from "./context";
-import type { Lawgiver } from "./lawgiver";
+import type { Lawgiver } from "./kami/lawgiver";
 import type { NoteKeeping } from "./noteKeeping";
 
 /** Takes things off the page for good, on this device and in the store: erased, eaten, used up. */

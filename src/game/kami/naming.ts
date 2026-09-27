@@ -1,15 +1,15 @@
-import type { Ruling } from "../cat/types";
-import { boundsOf, type Stroke, type Vec } from "../core/geometry";
-import type { Drawing, DrawingId } from "../ink/types";
-import { namesABody } from "../modes";
-import type { EmbodimentTransition } from "../modes/types";
-import type { Note } from "../notes/types";
+import type { Ruling } from "../../cat/types";
+import { boundsOf, type Stroke, type Vec } from "../../core/geometry";
+import type { Drawing, DrawingId } from "../../ink/types";
+import { namesABody } from "../../modes";
+import type { EmbodimentTransition } from "../../modes/types";
+import type { Note } from "../../notes/types";
+import type { GameContext } from "../context";
+import { type InkRecord, storedOf } from "../inkLedger";
+import { type NearInk, nearestInk } from "../inkNearby";
+import type { NoteAnchor } from "../noteBook";
+import { markUnderstood, type NoteKeeping } from "../noteKeeping";
 import { IS_THIS_HER_LINE } from "./bossLines";
-import type { GameContext } from "./context";
-import { type InkRecord, storedOf } from "./inkLedger";
-import { type NearInk, nearestInk } from "./inkNearby";
-import type { NoteAnchor } from "./noteBook";
-import { markUnderstood, type NoteKeeping } from "./noteKeeping";
 import type { Tidier } from "./tidier";
 import { REMARK_LIFETIME_MS, type Voice } from "./voice";
 

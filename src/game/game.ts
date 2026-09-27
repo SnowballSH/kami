@@ -15,19 +15,19 @@ import { ALICE_HERSELF, type SimEvent, type WalkIntent } from "../sim/types";
 import { EditTrackingStore, type Ghost } from "../sync";
 import { titleCardShownMs } from "../ui/titleCard";
 import type { CanvasInputSink, Hud, HudHandlers, LawsPanelHandlers, Tool } from "../ui/types";
-import { SOUL_WAITS_LINE } from "./bossLines";
 import { CameraRig, framingZoom } from "./cameraRig";
-import { Conjurer } from "./conjurer";
 import { GameClock, type GameContext } from "./context";
 import { Eraser } from "./eraser";
 import { FixedStepLoop } from "./fixedStepLoop";
-import { Funnel } from "./funnel";
-import { Glimpses } from "./glimpses";
 import { Handiwork, type Made } from "./handiwork";
 import { HeldInkBook } from "./heldInk";
 import { IdMint } from "./idMint";
 import { InkLedger, storedOf } from "./inkLedger";
-import { Lawgiver } from "./lawgiver";
+import { SOUL_WAITS_LINE } from "./kami/bossLines";
+import { Conjurer } from "./kami/conjurer";
+import { Funnel } from "./kami/funnel";
+import { Glimpses } from "./kami/glimpses";
+import { Lawgiver } from "./kami/lawgiver";
 import {
   BLANK_BOARD_BRIEF,
   REJECTION_LINES,
@@ -35,19 +35,19 @@ import {
   TAGLINE,
   TWIN_SELECTED_LINE,
   WORDMARK,
-} from "./lines";
+} from "./kami/lines";
+import { Naming } from "./kami/naming";
+import { CARD_READ_MS, introducesItself, Reactions, type Reopener } from "./kami/reactions";
+import { Tidier } from "./kami/tidier";
+import { HINT_LIFETIME_MS, Voice } from "./kami/voice";
 import type { GameModules } from "./modules";
-import { Naming } from "./naming";
 import { NoteBook } from "./noteBook";
 import { isPlayers, NoteKeeping } from "./noteKeeping";
 import { PageSync } from "./pageSync";
 import { type Page, Party } from "./party";
 import { Presence } from "./presence";
-import { CARD_READ_MS, introducesItself, Reactions, type Reopener } from "./reactions";
 import { SteppedTurn } from "./steppedTurn";
 import { StuckDetector } from "./stuckDetector";
-import { Tidier } from "./tidier";
-import { HINT_LIFETIME_MS, Voice } from "./voice";
 
 const MAX_STEPS_PER_FRAME = 5;
 const ERASER_TOLERANCE = 18;

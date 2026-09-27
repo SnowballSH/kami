@@ -1,8 +1,8 @@
-import { clamp } from "../core/geometry";
-import type { DrawingId } from "../ink/types";
-import type { LiveRecognizer } from "../recognition/types";
-import type { GameClock } from "./context";
-import type { InkLedger, InkRecord } from "./inkLedger";
+import { clamp } from "../../core/geometry";
+import type { DrawingId } from "../../ink/types";
+import type { LiveRecognizer } from "../../recognition/types";
+import type { GameClock } from "../context";
+import type { InkLedger, InkRecord } from "../inkLedger";
 
 export const DEFAULT_TIDINESS = 0.5;
 const RETIDY_AFTER_MS = 350;

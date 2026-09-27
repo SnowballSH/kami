@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { boardFor } from "../board";
-import { type Rect, rectsOverlap, type Vec } from "../core/geometry";
-import { CameraRig } from "./cameraRig";
-import { GameClock } from "./context";
-import { IdMint } from "./idMint";
-import { NOTE_FADE_MS, NOTE_STYLE, NoteBook } from "./noteBook";
-import { FakeHandwriting, FakeRenderer } from "./testing/fakes";
+import { boardFor } from "../../board";
+import { type Rect, rectsOverlap, type Vec } from "../../core/geometry";
+import { CameraRig } from "../cameraRig";
+import { GameClock } from "../context";
+import { IdMint } from "../idMint";
+import { NOTE_FADE_MS, NOTE_STYLE, NoteBook } from "../noteBook";
+import { FakeHandwriting, FakeRenderer } from "../testing/fakes";
 import { HINT_LIFETIME_MS, MAX_REMARKS, Voice } from "./voice";
 
 const ALICE: Rect = { x: 500, y: 500, width: 30, height: 60 };

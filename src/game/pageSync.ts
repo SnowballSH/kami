@@ -7,11 +7,11 @@ import type { BoardSnapshot, FeedCursor, StoredDrawing } from "../persistence/ty
 import type { Rule } from "../rules/types";
 import type { BoardChange } from "../sync";
 import type { GameContext } from "./context";
-import type { Lawgiver } from "./lawgiver";
-import { NOTE_LINGER_MS } from "./naming";
+import type { Lawgiver } from "./kami/lawgiver";
+import { NOTE_LINGER_MS } from "./kami/naming";
+import type { Reopener } from "./kami/reactions";
 import type { NoteKeeping } from "./noteKeeping";
 import type { Presence } from "./presence";
-import type { Reopener } from "./reactions";
 
 const ALREADY_AWAKE_MS = 10_000;
 /**

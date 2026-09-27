@@ -1,16 +1,16 @@
-import { groundSolids } from "../board";
-import type { Vec } from "../core/geometry";
-import { INPUT_LIMITS, isInputPoint, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
-import { isIdeaRequest } from "../counsel";
-import { isUnderGround } from "../ink/placement";
-import type { Note, NoteId } from "../notes/types";
-import { destinationOf, placeCalled, referentOf, speaksOfReferent } from "../rules";
-import type { CompileContext, Scene as Destination } from "../rules/types";
+import { groundSolids } from "../../board";
+import type { Vec } from "../../core/geometry";
+import { INPUT_LIMITS, isInputPoint, TEXT_LIMIT_MESSAGE } from "../../core/inputLimits";
+import { isIdeaRequest } from "../../counsel";
+import { isUnderGround } from "../../ink/placement";
+import type { Note, NoteId } from "../../notes/types";
+import { destinationOf, placeCalled, referentOf, speaksOfReferent } from "../../rules";
+import type { CompileContext, Scene as Destination } from "../../rules/types";
+import type { GameContext } from "../context";
+import type { Eraser } from "../eraser";
+import type { InkRecord } from "../inkLedger";
+import { nearestInk } from "../inkNearby";
 import type { Conjurer } from "./conjurer";
-import type { GameContext } from "./context";
-import type { Eraser } from "./eraser";
-import type { InkRecord } from "./inkLedger";
-import { nearestInk } from "./inkNearby";
 import type { Lawgiver } from "./lawgiver";
 import { LineCycles } from "./lineCycles";
 import {

@@ -1,11 +1,16 @@
-import type { Zone } from "../board/types";
-import type { Nature } from "../cat/types";
-import type { DrawingId } from "../ink/types";
-import { EMBODIED_MODE_ID } from "../modes";
-import type { EmbodimentTransition, ModeDirector } from "../modes/types";
-import { BODY_TUNING } from "../sim/boss/tuning";
-import type { SimEvent } from "../sim/types";
-import { roomCardShownMs } from "../ui/roomCard";
+import type { Zone } from "../../board/types";
+import type { Nature } from "../../cat/types";
+import type { DrawingId } from "../../ink/types";
+import { EMBODIED_MODE_ID } from "../../modes";
+import type { EmbodimentTransition, ModeDirector } from "../../modes/types";
+import { BODY_TUNING } from "../../sim/boss/tuning";
+import type { SimEvent } from "../../sim/types";
+import { roomCardShownMs } from "../../ui/roomCard";
+import type { GameContext } from "../context";
+import type { Eraser } from "../eraser";
+import { bodyCluster } from "../inkNearby";
+import type { NoteKeeping } from "../noteKeeping";
+import type { News } from "../party";
 import {
   HEART_SWALLOWED_LINE,
   INCARNATED_LINE,
@@ -23,9 +28,6 @@ import {
   TEAR_OPENS_LINES,
   UNMADE_LINE,
 } from "./bossLines";
-import type { GameContext } from "./context";
-import type { Eraser } from "./eraser";
-import { bodyCluster } from "./inkNearby";
 import { LineCycles } from "./lineCycles";
 import {
   ALICE_CORNERED_LINE,
@@ -49,8 +51,6 @@ import {
   TWIN_GOAL_LINE,
   WARPED_LINES,
 } from "./lines";
-import type { NoteKeeping } from "./noteKeeping";
-import type { News } from "./party";
 import { ABOVE_ALICE, HINT_LIFETIME_MS, type Voice } from "./voice";
 
 /** Long enough to read the closing line where she stands before the next room opens over it. */
