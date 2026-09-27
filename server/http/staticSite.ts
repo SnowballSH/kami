@@ -86,11 +86,6 @@ export const createStaticSite = (directory: string): SiteHandler => {
   const root = resolve(directory);
   const cache = new Recent<CachedFile>(MAX_CACHED_FILES);
 
-  const remember = (path: string, file: CachedFile): CachedFile => {
-    cache.set(path, file);
-    return file;
-  };
-
   const load = async (path: string): Promise<CachedFile | null> => {
     const immutable = path.includes(IMMUTABLE_ASSETS);
     const cached = cache.get(path);
@@ -104,14 +99,16 @@ export const createStaticSite = (directory: string): SiteHandler => {
       }
       const body = new Uint8Array(await readFile(path));
       const extension = extname(path);
-      return remember(path, {
+      const file: CachedFile = {
         body,
         etag: `"${size.toString(16)}-${Math.trunc(mtimeMs).toString(16)}"`,
         mtimeMs,
         contentType: CONTENT_TYPES[extension] ?? "application/octet-stream",
         compressible: COMPRESSIBLE.has(extension) && size >= MIN_COMPRESSIBLE_BYTES,
         encoded: new Map(),
-      });
+      };
+      cache.set(path, file);
+      return file;
     } catch {
       return null;
     }
