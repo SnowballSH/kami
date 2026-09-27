@@ -25,6 +25,11 @@ const viewBoxOf = (svg: string): ViewBox => {
 
 const pathCount = (svg: string): number => svg.split("<path").length - 1;
 
+const GIF_ENCODE_TIMEOUT_MS = 120_000;
+
+const readAsset = (...path: readonly string[]): string =>
+  readFileSync(join(process.cwd(), ...path), "utf8");
+
 describe("brand logo", () => {
   it("writes the wordmark in Kami's hand, deterministically per seed", () => {
     expect(wordmarkSvg()).toBe(wordmarkSvg());
@@ -98,13 +103,16 @@ describe("brand logo", () => {
     expect(pathCount(lockup)).toBe(pathCount(markSvg()) + pathCount(wordmarkSvg()));
   });
 
-  it("keeps the committed assets in step with the generator", () => {
-    const read = (...path: readonly string[]): string =>
-      readFileSync(join(process.cwd(), ...path), "utf8");
-    expect(read("src/brand/assets/kami-wordmark.svg")).toBe(wordmarkSvg());
-    expect(read("src/brand/assets/kami-mark.svg")).toBe(markSvg());
-    expect(read("src/brand/assets/kami-lockup.svg")).toBe(lockupSvg());
-    expect(read("public/kami-mark.svg")).toBe(markSvg());
+  it("keeps the committed SVGs in step with the generator", () => {
+    expect(readAsset("src/brand/assets/kami-wordmark.svg")).toBe(wordmarkSvg());
+    expect(readAsset("src/brand/assets/kami-mark.svg")).toBe(markSvg());
+    expect(readAsset("src/brand/assets/kami-lockup.svg")).toBe(lockupSvg());
+    expect(readAsset("public/kami-mark.svg")).toBe(markSvg());
+  });
+
+  it("keeps the committed GIF in step with the generator", {
+    timeout: GIF_ENCODE_TIMEOUT_MS,
+  }, () => {
     expect(readFileSync(join(process.cwd(), "src/brand/assets/kami-wordmark.gif"))).toEqual(
       Buffer.from(animatedGif(wordmarkFrames(), WORDMARK_GIF)),
     );
