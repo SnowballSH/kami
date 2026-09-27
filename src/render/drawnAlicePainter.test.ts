@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DrawnBody } from "../sim/body/types";
 import type { AliceSnapshot } from "../sim/types";
-import { paintDrawnAlice } from "./bossPainter";
+import { paintDrawnAlice } from "./drawnAlicePainter";
 
 let pathsBuilt = 0;
 

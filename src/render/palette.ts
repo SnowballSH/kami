@@ -47,6 +47,7 @@ export const BOARD_COLORS = {
   noInk: "#e76a6a",
   eraserRing: rgbCss(MARKER.black, 0.6),
   eraserVeil: "rgba(255, 255, 255, 0.45)",
+  eyeWhite: "#f4f1ea",
 } as const;
 
 const NOTE_INK: Readonly<Record<NoteAuthor | Exclude<NoteTone, "plain">, Rgb>> = {
