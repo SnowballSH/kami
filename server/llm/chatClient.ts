@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { DEFAULT_REQUEST_SHAPE, degradeAfterRejection, type RequestShape } from "./requestShape";
+import {
+  DEFAULT_REQUEST_SHAPE,
+  degradeAfterRejection,
+  type ReasoningEffort,
+  type RequestShape,
+  type ResponseFormatMode,
+} from "./requestShape";
 
 export {
   parseReasoningEffort,
@@ -7,8 +13,6 @@ export {
   type ReasoningEffort,
   type RequestShape,
 } from "./requestShape";
-
-import type { ReasoningEffort } from "./requestShape";
 
 export interface LlmConfig {
   readonly url: string;
@@ -94,20 +98,29 @@ const withTimeout = (timeoutMs: number, signal: AbortSignal | undefined): AbortS
     ? AbortSignal.timeout(timeoutMs)
     : AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]);
 
-const responseFormatOf = (
+const responseFormatModeOf = (
   { responseFormat }: RequestShape,
   jsonSchema: AskOptions["jsonSchema"],
+): ResponseFormatMode =>
+  responseFormat === "json_schema" && jsonSchema === undefined ? "json_object" : responseFormat;
+
+const responseFormatFields = (
+  mode: ResponseFormatMode,
+  jsonSchema: AskOptions["jsonSchema"],
 ): Readonly<Record<string, unknown>> => {
-  if (responseFormat === "none") return {};
-  if (responseFormat === "json_schema" && jsonSchema !== undefined) {
-    return {
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: "reply", strict: true, schema: jsonSchema },
-      },
-    };
+  switch (mode) {
+    case "none":
+      return {};
+    case "json_object":
+      return { response_format: { type: "json_object" } };
+    case "json_schema":
+      return {
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "reply", strict: true, schema: jsonSchema },
+        },
+      };
   }
-  return { response_format: { type: "json_object" } };
 };
 
 const textOf = ({ content }: ChatMessage): string =>
@@ -134,11 +147,8 @@ const mentioningJson = (messages: readonly ChatMessage[]): readonly ChatMessage[
   const last = messages.findLastIndex((message) => message.role === "user");
   return last === -1
     ? [...messages, { role: "user", content: JSON_REMINDER }]
-    : messages.with(last, withReminder(messages[last] as ChatMessage));
+    : messages.map((message, index) => (index === last ? withReminder(message) : message));
 };
-
-const isJsonObjectMode = ({ response_format }: Readonly<Record<string, unknown>>): boolean =>
-  (response_format as { type?: string } | undefined)?.type === "json_object";
 
 /**
  * One OpenAI-compatible `/v1/chat/completions` endpoint: vLLM, Ollama, llama.cpp, OpenAI itself
@@ -193,7 +203,7 @@ export class ChatClient {
     { maxTokens, timeoutMs, jsonSchema, signal }: AskOptions,
     shape: RequestShape,
   ): Promise<Response> {
-    const responseFormat = responseFormatOf(shape, jsonSchema);
+    const mode = responseFormatModeOf(shape, jsonSchema);
     return this.#fetch(chatCompletionsUrl(this.#config.url), {
       method: "POST",
       headers: this.#headers(),
@@ -202,8 +212,8 @@ export class ChatClient {
         ...(shape.temperature ? { temperature: 0 } : {}),
         [shape.tokenLimit]: maxTokens,
         ...(shape.reasoning && this.#effort !== null ? { reasoning_effort: this.#effort } : {}),
-        ...responseFormat,
-        messages: isJsonObjectMode(responseFormat) ? mentioningJson(messages) : messages,
+        ...responseFormatFields(mode, jsonSchema),
+        messages: mode === "json_object" ? mentioningJson(messages) : messages,
       }),
       signal: withTimeout(timeoutMs, signal),
     });
