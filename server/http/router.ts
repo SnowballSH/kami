@@ -1,5 +1,5 @@
 import type { ApiAccess } from "./access";
-import { badRequest, notFound, preflight, serverError } from "./responses";
+import { badRequest, noContent, notFound, serverError } from "./responses";
 
 export type HttpMethod = "GET" | "PUT" | "POST" | "DELETE";
 
@@ -52,7 +52,7 @@ const matchSegments = (
 export class Router {
   readonly #routes: Route[] = [];
 
-  constructor(private readonly access?: ApiAccess) {}
+  constructor(private readonly access: ApiAccess) {}
 
   on<Path extends string>(method: HttpMethod, path: Path, handler: RouteHandler<Path>): this {
     this.#routes.push({
@@ -65,14 +65,11 @@ export class Router {
   }
 
   /** `peer` is the remote address of the connection the request came on, when known. */
-  readonly handle = async (request: Request, peer?: string): Promise<Response> => {
-    return this.access === undefined
-      ? this.#route(request)
-      : this.access.handle(request, this.#route, peer);
-  };
+  readonly handle = (request: Request, peer?: string): Promise<Response> =>
+    this.access.handle(request, this.#route, peer);
 
   readonly #route = async (request: Request): Promise<Response> => {
-    if (request.method === "OPTIONS") return preflight();
+    if (request.method === "OPTIONS") return noContent();
     const actual = segmentsOf(new URL(request.url).pathname);
     try {
       for (const route of this.#routes) {

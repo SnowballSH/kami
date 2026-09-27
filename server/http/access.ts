@@ -11,7 +11,7 @@ import {
   secretKindOf,
 } from "./accessConfig";
 import { clientOf, LoginThrottle } from "./loginThrottle";
-import { badRequest, json, notFound, type Parsed, parseTextBody, preflight } from "./responses";
+import { badRequest, json, noContent, notFound, type Parsed, parseTextBody } from "./responses";
 import { Sessions } from "./sessions";
 import { WorkLimit } from "./workLimit";
 
@@ -35,6 +35,8 @@ const REQUEST_BODY_TIMEOUT_MS = 10_000;
 const MAX_MODEL_REQUEST_BYTES = Math.max(INPUT_LIMITS.sketchBytes, INPUT_LIMITS.textBytes);
 /** Room for a longest password written entirely as JSON `\uXXXX` escapes, plus its wrapper. */
 const MAX_SIGN_IN_BODY_BYTES = MAX_PASSWORD_LENGTH * 8;
+const SIGN_INS_PER_MINUTE = 30;
+const SIGN_IN_CONCURRENCY = 1;
 const passwordBodySchema = z.object({ password: z.string() });
 
 export type Respond = (request: Request) => Promise<Response>;
@@ -50,7 +52,7 @@ const unauthorized = (): Response =>
     status: 401,
     headers: { "content-type": "application/json", "www-authenticate": "Bearer" },
   });
-const busy = (retryAfterSeconds = 60): Response =>
+const rateLimited = (retryAfterSeconds = 60): Response =>
   new Response(JSON.stringify({ error: "request limit reached; try again later" }), {
     status: 429,
     headers: { "content-type": "application/json", "retry-after": String(retryAfterSeconds) },
@@ -85,7 +87,7 @@ export class ApiAccess {
   ) {
     this.#sessions = new Sessions(config.credentials, config.password, now);
     this.#models = new WorkLimit(config.modelRequestsPerMinute, config.modelConcurrency, now);
-    this.#logins = new WorkLimit(30, 1, now);
+    this.#logins = new WorkLimit(SIGN_INS_PER_MINUTE, SIGN_IN_CONCURRENCY, now);
     this.#failures = new LoginThrottle(now);
   }
 
@@ -173,7 +175,7 @@ export class ApiAccess {
       return (method !== null && !METHODS.split(", ").includes(method)) ||
         headers.some((header) => !HEADERS.has(header))
         ? denied()
-        : preflight();
+        : noContent();
     }
     let segments: string[];
     try {
@@ -195,7 +197,7 @@ export class ApiAccess {
     const read = await buffered(request);
     if (!read.ok) return read.response;
     const release = this.#models.enter();
-    if (release === null) return busy();
+    if (release === null) return rateLimited();
     try {
       const response = await respond(read.value);
       return await this.#bufferModelResponse(response);
@@ -231,14 +233,14 @@ export class ApiAccess {
     if (request.method !== "POST" || this.config.mode !== "shared") return notFound();
     const client = clientOf(request, peer, this.config.trustedProxies);
     const early = this.#failures.waitSeconds(client);
-    if (early > 0) return busy(early);
+    if (early > 0) return rateLimited(early);
     const presented = await this.#presented(request);
     // Checked again after the body arrives: from here to the recorded outcome nothing yields, so of a
     // burst read in parallel only the throttle's allowance is ever verified.
     const wait = this.#failures.waitSeconds(client);
-    if (wait > 0) return busy(wait);
+    if (wait > 0) return rateLimited(wait);
     const release = this.#logins.enter();
-    if (release === null) return busy();
+    if (release === null) return rateLimited();
     try {
       const grant = this.#verify(request, presented);
       if (grant === null) {
@@ -248,7 +250,7 @@ export class ApiAccess {
       }
       this.#failures.succeed(client);
       const cookie = this.#sessions.create(grant);
-      if (cookie === null) return busy();
+      if (cookie === null) return rateLimited();
       const response = json({ ok: true });
       response.headers.set("set-cookie", cookie);
       return response;

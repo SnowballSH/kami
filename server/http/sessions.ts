@@ -10,6 +10,7 @@ import {
 export const SESSION_SECONDS = 8 * 60 * 60;
 export const MAX_SESSIONS = 128;
 const COOKIE = "__Host-kami";
+const BEARER = /^Bearer ([A-Za-z0-9_-]{32,256})$/i;
 const hash = (text: string): Buffer => createHash("sha256").update(text).digest();
 
 interface Session {
@@ -47,9 +48,8 @@ export class Sessions {
   }
 
   bearer(request: Request): Grant | null {
-    const authorization = request.headers.get("authorization") ?? "";
-    if (!/^Bearer [A-Za-z0-9_-]{32,256}$/i.test(authorization)) return null;
-    return matchIn(this.#tokens, authorization.slice(7));
+    const token = BEARER.exec(request.headers.get("authorization") ?? "")?.[1];
+    return token === undefined ? null : matchIn(this.#tokens, token);
   }
 
   password(candidate: string): Grant | null {

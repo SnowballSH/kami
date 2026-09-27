@@ -10,7 +10,6 @@ import {
 import type { Beautifier } from "../beautify/beautifier";
 import { controllerEventStream } from "../controllers/eventStream";
 import { isControllerId, parseControllerReading } from "../controllers/message";
-import { noContent } from "../controllers/responses";
 import type { ControllerHub } from "../controllers/types";
 import { type BoardRepository, type EntityKind, isEntityKind } from "../db/boardRepository";
 import type { ExemplarSource } from "../exemplar/exemplars";
@@ -38,6 +37,7 @@ import {
   badRequest,
   busy,
   json,
+  noContent,
   notFound,
   notImplemented,
   ok,

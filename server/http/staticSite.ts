@@ -100,12 +100,9 @@ export const createStaticSite = (directory: string): SiteHandler => {
     const cached = cache.get(path);
     if (cached !== undefined && immutable) return cached;
     try {
-      const { mtimeMs, size, isFile } = await stat(path).then((info) => ({
-        mtimeMs: info.mtimeMs,
-        size: info.size,
-        isFile: info.isFile(),
-      }));
-      if (!isFile) return null;
+      const info = await stat(path);
+      if (!info.isFile()) return null;
+      const { mtimeMs, size } = info;
       if (cached !== undefined && cached.mtimeMs === mtimeMs && cached.body.byteLength === size) {
         return cached;
       }
