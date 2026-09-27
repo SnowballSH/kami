@@ -1,4 +1,4 @@
-import { allowsLaw, refusalLine } from "../../modes";
+import { allowsLaw, type RoomStaging, refusalLine } from "../../modes";
 import type { Note, NoteId } from "../../notes/types";
 import type { CompiledRule, Governs, Rule, RuleId, WorldPhysics } from "../../rules/types";
 import type { LawsPanel } from "../../ui/types";
@@ -16,7 +16,7 @@ import { REMARK_LIFETIME_MS, type Voice } from "./voice";
 
 /** The standing laws of the board: enacted, refused under the mode's policy, repealed, and folded into the world. */
 export class Lawgiver {
-  private readonly book: RuleBook;
+  private readonly book: RuleBook<RoomStaging | null>;
   private sumikuiLoose = false;
 
   constructor(
@@ -25,11 +25,13 @@ export class Lawgiver {
     private readonly keeping: NoteKeeping,
     private readonly panel: LawsPanel,
   ) {
-    this.book = new RuleBook((rules) =>
-      context.modules.resolvePhysics(
-        rules.filter((rule) => this.allows(rule)),
-        context.director.room?.world,
-      ),
+    this.book = new RuleBook(
+      (rules, room) =>
+        context.modules.resolvePhysics(
+          rules.filter((rule) => this.allowedIn(room, rule)),
+          room?.world,
+        ),
+      () => context.director.room,
     );
   }
 
@@ -42,8 +44,7 @@ export class Lawgiver {
   }
 
   allows(rule: Rule): boolean {
-    const { director } = this.context;
-    return allowsLaw(director.room?.laws ?? director.mode.laws, rule.effect.governs);
+    return this.allowedIn(this.context.director.room, rule);
   }
 
   ruleFrom(compiled: CompiledRule, note: Note): Rule {
@@ -138,6 +139,10 @@ export class Lawgiver {
     this.book.replaceAll([]);
     this.show();
     this.fold({ silently: true });
+  }
+
+  private allowedIn(room: RoomStaging | null, rule: Rule): boolean {
+    return allowsLaw(room?.laws ?? this.context.director.mode.laws, rule.effect.governs);
   }
 
   private glossNote(noteId: NoteId, ofNote: readonly Rule[]): void {
