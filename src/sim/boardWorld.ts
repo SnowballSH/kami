@@ -10,7 +10,7 @@ import { exactBounds } from "./bodyBounds";
 import type { Tear } from "./boss/tear";
 import { Checkpoints } from "./checkpoints";
 import { GRAVITY_SCALE } from "./constants";
-import { contactsWith } from "./contacts";
+import { touchesAny } from "./contacts";
 import { Footings, type LastFooting } from "./footing";
 import type { InkEntity } from "./inkEntity";
 import { InkLayer } from "./inkLayer";
@@ -145,11 +145,11 @@ export const hasHeadroom = (
     target.width - 2 * HEADROOM_INSET,
     target.height - 2 * HEADROOM_INSET,
   );
-  const ceilings = [
-    ...props.solidBodies,
-    ...inks.all
-      .filter((ink) => ink !== meal && ink.body.isStatic && NATURES[ink.nature].solidToAlice)
-      .map((ink) => ink.body),
-  ];
-  return contactsWith(headroom, ceilings).length === 0;
+  const isCeiling = (body: Matter.Body): boolean => {
+    const ink = inks.find(body);
+    return ink !== undefined && ink !== meal && NATURES[ink.nature].solidToAlice;
+  };
+  return (
+    !touchesAny(headroom, props.solidBodies) && !touchesAny(headroom, inks.heldBodies, isCeiling)
+  );
 };

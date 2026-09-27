@@ -68,6 +68,24 @@ export const contactsWith = (
   return contacts;
 };
 
+/** Whether `subject` touches any part of any of `others` that `admits`, stopping at the first. */
+export const touchesAny = (
+  subject: Matter.Body,
+  others: readonly Matter.Body[],
+  admits: (other: Matter.Body) => boolean = () => true,
+): boolean => {
+  for (const other of others) {
+    if (!Matter.Bounds.overlaps(other.bounds, subject.bounds) || !admits(other)) continue;
+    const { parts } = other;
+    for (let at = parts.length > 1 ? 1 : 0; at < parts.length; at++) {
+      const part = parts[at];
+      if (part === undefined || !Matter.Bounds.overlaps(part.bounds, subject.bounds)) continue;
+      if (Matter.Collision.collides(part, subject) !== null) return true;
+    }
+  }
+  return false;
+};
+
 export const contactsAt = (
   subject: Matter.Body,
   offset: Vec,
