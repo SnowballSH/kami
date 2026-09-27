@@ -14,11 +14,11 @@ import { BoardRepository } from "../db/boardRepository";
 import type { DatabaseConnection } from "../db/connect";
 import { computeFeature } from "../quickdraw/feature";
 import { QuickdrawRecognizer } from "../quickdraw/recognizer";
-import type { Reading } from "../recognition/types";
+import type { RankOptions, Reading, SketchRanker } from "../recognition/types";
 import { BoardFeed } from "../sync/boardFeed";
 import { startMemoryDatabase } from "../testing/memoryDatabase";
 import { circleSketch, lineSketch } from "../testing/sketches";
-import { type ApiDependencies, createApi, type RankOptions, type SketchRecognizer } from "./api";
+import { type ApiDependencies, createApi } from "./api";
 import type { Router } from "./router";
 
 const ORIGIN = "http://kami.test";
@@ -122,7 +122,7 @@ beforeAll(async () => {
       },
     ]).flat(),
   );
-  const recognizer: SketchRecognizer = {
+  const recognizer: SketchRanker = {
     read: async (strokes) => nearestNeighbours.read(strokes),
   };
   const compiler = {
@@ -624,7 +624,7 @@ describe("recognise and compile", () => {
 
   it("folds aliases into one guess, keeps the best three, and passes the pen's state on", async () => {
     const asked: RankOptions[] = [];
-    const scripted: SketchRecognizer = {
+    const scripted: SketchRanker = {
       read: async (_strokes, options = {}) => {
         asked.push(options);
         return {

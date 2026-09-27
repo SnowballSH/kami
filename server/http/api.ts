@@ -1,4 +1,3 @@
-import type { Stroke } from "../../src/core/geometry";
 import { INPUT_LIMITS } from "../../src/core/inputLimits";
 import type { RuleCompiler, SceneCompiler } from "../../src/rules/types";
 import {
@@ -16,7 +15,7 @@ import type { ExemplarSource } from "../exemplar/exemplars";
 import { type NatureTable, quickdrawNatureTable } from "../natures/natureTable";
 import { isCertain } from "../recognition/certainty";
 import { RecognizerBusyError } from "../recognition/ranking/workerPool";
-import type { Reading } from "../recognition/types";
+import type { Reading, SketchRanker } from "../recognition/types";
 import { NO_SCENES } from "../scene/llmSceneCompiler";
 import {
   beautifyRequestSchema,
@@ -49,15 +48,6 @@ import {
 } from "./responses";
 import { Router } from "./router";
 
-export interface RankOptions {
-  /** The drawing is still under the pen: guess from what there is, do not give up. */
-  readonly partial?: boolean;
-}
-
-export interface SketchRecognizer {
-  read(strokes: readonly Stroke[], options?: RankOptions): Promise<Reading>;
-}
-
 const MAX_GUESSES = 3;
 const CONFIDENCE_DECIMALS = 3;
 
@@ -78,7 +68,7 @@ const recognitionOf = ({ ranking, certainAbove }: Reading, natures: NatureTable)
 export interface ApiDependencies {
   readonly access?: ApiAccess;
   readonly boards: BoardRepository;
-  readonly recognizer: SketchRecognizer;
+  readonly recognizer: SketchRanker;
   readonly compiler: RuleCompiler;
   readonly beautifier: Beautifier;
   readonly controllers: ControllerHub;

@@ -44,12 +44,29 @@ const bareNameOf = (name: string): string =>
     .filter((word) => !ARTICLES.has(word))
     .join(" ");
 
+interface CategoryIndex {
+  readonly known: ReadonlySet<string>;
+  readonly byName: ReadonlyMap<string, string>;
+}
+
+const indexes = new WeakMap<NatureTable, CategoryIndex>();
+
+const indexOf = (natures: NatureTable): CategoryIndex => {
+  const cached = indexes.get(natures);
+  if (cached !== undefined) return cached;
+  const index: CategoryIndex = {
+    known: new Set(natures.categories),
+    byName: new Map(
+      natures.categories.map((category) => [bareNameOf(natures.describe(category).name), category]),
+    ),
+  };
+  indexes.set(natures, index);
+  return index;
+};
+
 /** The Quick, Draw! category a spoken word stands for: "rabbits" → rabbit, "the hot air balloon" → hot air balloon. */
 export const categoryOf = (word: string, natures: NatureTable): string | null => {
-  const known = new Set(natures.categories);
-  const byName = new Map(
-    natures.categories.map((category) => [bareNameOf(natures.describe(category).name), category]),
-  );
+  const { known, byName } = indexOf(natures);
   for (const phrasing of phrasings(word)) {
     if (known.has(phrasing)) return phrasing;
     const named = byName.get(phrasing);
