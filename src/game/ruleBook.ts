@@ -15,14 +15,17 @@ export const groupedByNote = (
   return byNote;
 };
 
-/** The standing laws of the current board. */
+/** The standing laws of the current board, and the world they fold into. */
 export class RuleBook {
   private rules: readonly Rule[] = [];
+  private folded: WorldPhysics | null = null;
 
+  /** `resolve` must depend only on the rules it is given, since its answer is kept until they change. */
   constructor(private readonly resolve: (rules: readonly Rule[]) => WorldPhysics) {}
 
   get physics(): WorldPhysics {
-    return this.resolve(this.rules);
+    this.folded ??= this.resolve(this.rules);
+    return this.folded;
   }
 
   get all(): readonly Rule[] {
@@ -30,13 +33,13 @@ export class RuleBook {
   }
 
   enact(rule: Rule): void {
-    this.rules = [...this.rules, rule];
+    this.set([...this.rules, rule]);
   }
 
   /** Every law the note carried — one, or a whole scene's worth — no longer standing. */
   repealByNote(noteId: NoteId): readonly Rule[] {
     const repealed = this.rules.filter((candidate) => candidate.noteId === noteId);
-    if (repealed.length > 0) this.rules = this.rules.filter((rule) => rule.noteId !== noteId);
+    if (repealed.length > 0) this.set(this.rules.filter((rule) => rule.noteId !== noteId));
     return repealed;
   }
 
@@ -49,18 +52,24 @@ export class RuleBook {
     if (known !== undefined && same(known, rule)) return false;
     const others = this.rules.filter((candidate) => candidate.id !== rule.id);
     const after = others.findIndex((candidate) => candidate.createdAt > rule.createdAt);
-    this.rules =
-      after === -1 ? [...others, rule] : [...others.slice(0, after), rule, ...others.slice(after)];
+    this.set(
+      after === -1 ? [...others, rule] : [...others.slice(0, after), rule, ...others.slice(after)],
+    );
     return true;
   }
 
   repeal(id: RuleId): Rule | null {
     const repealed = this.rules.find((candidate) => candidate.id === id) ?? null;
-    if (repealed !== null) this.rules = this.rules.filter((rule) => rule.id !== id);
+    if (repealed !== null) this.set(this.rules.filter((rule) => rule.id !== id));
     return repealed;
   }
 
   replaceAll(rules: readonly Rule[]): void {
-    this.rules = [...rules];
+    this.set([...rules]);
+  }
+
+  private set(rules: readonly Rule[]): void {
+    this.rules = rules;
+    this.folded = null;
   }
 }

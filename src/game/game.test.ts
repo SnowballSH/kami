@@ -261,6 +261,17 @@ class ScriptedReader implements HandwritingReader {
   }
 }
 
+const befallHerOnce = (sim: Simulation, befalls: readonly SimEvent[]): void => {
+  const step = sim.step.bind(sim);
+  let befallen = false;
+  vi.spyOn(sim, "step").mockImplementation(() => {
+    const events = step();
+    if (befallen) return events;
+    befallen = true;
+    return [...events, ...befalls];
+  });
+};
+
 class Player {
   readonly sim = createSimulation();
   readonly renderer = new FakeRenderer();
@@ -2428,30 +2439,13 @@ describe("Game in puzzle mode", () => {
   it("shows a Solved card after the last room", async () => {
     const player = new Player("puzzle-moon-ledge", { mode: PUZZLE_MODE });
     await player.arrive();
-    (
-      player.game as unknown as {
-        celebrate: (event: { type: "goal-reached"; who: number }) => void;
-      }
-    ).celebrate({
-      type: "goal-reached",
-      who: 0,
-    });
+    befallHerOnce(player.sim, [{ type: "goal-reached", who: 0 }]);
+    await player.wait(50);
     expect(player.hud.cards.at(-1)).toMatchObject({
       title: "Solved",
       tagline: "Three rooms, all of them yours. Draw on, or play again.",
     });
   });
-
-  const befallHerOnce = (sim: Simulation, befalls: readonly SimEvent[]): void => {
-    const step = sim.step.bind(sim);
-    let befallen = false;
-    vi.spyOn(sim, "step").mockImplementation(() => {
-      const events = step();
-      if (befallen) return events;
-      befallen = true;
-      return [...events, ...befalls];
-    });
-  };
 
   it("shows a Lost card and restarts the room when the ink eater catches her", async () => {
     const player = new Player(FIRST_PUZZLE_BOARD_ID, { mode: PUZZLE_MODE });
@@ -3279,9 +3273,8 @@ describe("Game in Boss mode", () => {
   });
 
   it("shows the Boss win card when the tear closes", async () => {
-    (player.game as unknown as { celebrate: (event: { type: "tear-closed" }) => void }).celebrate({
-      type: "tear-closed",
-    });
+    befallHerOnce(player.sim, [{ type: "tear-closed" }]);
+    await player.wait(50);
     expect(player.hud.cards.at(-1)).toMatchObject({
       title: "The tear is closed",
       tagline: "It went back under the page. She is whole enough. Draw on, or start again.",
