@@ -30,10 +30,15 @@ export interface WriteOptions {
   readonly spoken?: boolean;
 }
 
+/** The part of the game's context Kami writes with. */
 export interface VoiceStage
   extends Pick<GameContext, "notes" | "camera" | "ids" | "clock" | "board"> {
   readonly hud: Pick<Hud, "announce" | "toolbarBottom">;
-  readonly renderer: Pick<Renderer, "toWorld" | "viewport">;
+  readonly modules: { readonly renderer: Pick<Renderer, "toWorld" | "viewport"> };
+}
+
+/** What Kami keeps his writing clear of, besides the page and the HUD. */
+export interface VoiceSurroundings {
   /** The selected Alice, whom remarks are written above. */
   aliceBounds(): Rect;
   tearAt(): Vec | null;
@@ -50,7 +55,10 @@ interface Recital {
 export class Voice {
   private recital: Recital[] = [];
 
-  constructor(private readonly stage: VoiceStage) {}
+  constructor(
+    private readonly stage: VoiceStage,
+    private readonly around: VoiceSurroundings,
+  ) {}
 
   write(text: string, position: Vec, options: WriteOptions = {}): Note {
     const { lifetimeMs, anchor, action, tone = "plain", minY, spoken = true } = options;
@@ -99,7 +107,7 @@ export class Voice {
     if (fleeting.some((note) => note.text === line)) return;
     for (const note of fleeting.slice(0, Math.max(0, fleeting.length - MAX_REMARKS + 1)))
       notes.hurry(note.id, clock.nowMs);
-    const alice = this.aliceBounds();
+    const alice = this.around.aliceBounds();
     this.write(line, at ?? { x: alice.x + ABOVE_ALICE.x, y: alice.y + ABOVE_ALICE.y }, {
       lifetimeMs,
       minY: this.writingTop(),
@@ -167,20 +175,16 @@ export class Voice {
       if (current()) this.remark(line, HINT_LIFETIME_MS, position);
   }
 
-  private aliceBounds(): Rect {
-    return this.stage.aliceBounds();
-  }
-
   private writingTop(): number {
     return this.toWorld({ x: 0, y: this.stage.hud.toolbarBottom() + HUD_WRITING_GAP }).y;
   }
 
   private toWorld(client: Vec): Vec {
-    return this.stage.renderer.toWorld(client, this.stage.camera.camera);
+    return this.stage.modules.renderer.toWorld(client, this.stage.camera.camera);
   }
 
   private visibleWorld(): Rect {
-    const { width, height } = this.stage.renderer.viewport();
+    const { width, height } = this.stage.modules.renderer.viewport();
     return this.screenToWorld({ x: 0, y: 0, width, height });
   }
 
@@ -211,15 +215,16 @@ export class Voice {
 
   /** What Kami writes around: the board's solids, the selected Alice, the HUD and the tear. */
   private obstacles(): readonly Rect[] {
-    const { board, renderer } = this.stage;
-    const tear = this.stage.tearAt();
+    const { board, modules } = this.stage;
+    const { renderer } = modules;
+    const tear = this.around.tearAt();
     const { width, height } = renderer.viewport();
     const lawsWidth = Math.min(LAWS_PANEL.maxWidth, Math.max(0, width - 2 * LAWS_PANEL.right));
     const lawsRight = width - LAWS_PANEL.right;
     const lawsBottom = Math.min(height, TOOLBAR_BAND_PX + height * LAWS_PANEL.heightShare);
     return [
       ...board.solids.map(({ rect }) => rect),
-      expandRect(this.aliceBounds(), 12),
+      expandRect(this.around.aliceBounds(), 12),
       this.screenToWorld({ x: 0, y: 0, width, height: TOOLBAR_BAND_PX }),
       this.screenToWorld({
         x: lawsRight - lawsWidth,

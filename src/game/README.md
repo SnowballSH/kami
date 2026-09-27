@@ -1,11 +1,13 @@
 # game/
 
 The browser game on one device. `Game` (`game.ts`) is the only class other areas construct: it is
-the canvas input sink, the HUD and laws-panel handler, and the frame loop. It owns no behaviour of
-its own beyond wiring; each concern lives in a part that shares one `GameContext` (`context.ts`):
-the modules, the `GameClock`, the mode director, the store, the note book, the ink ledger, the
-party, the camera and the id mint. The board being played is read through the context, never
-copied, because opening a board replaces it.
+the canvas input sink, the HUD and laws-panel handler, and the frame loop. Besides wiring it keeps
+what sits between the player's hand and the parts: opening and loading a board, undo, the eraser's
+hit-tests, settling held ink into a drawing or words, asking for a hint (`askForHint`) and writing
+the player's own notes (`playerWrites`). Every other concern lives in a part; most share one
+`GameContext` (`context.ts`): the modules, the `GameClock`, the mode director, the HUD, the store,
+the note book, the ink ledger, the party, the camera, the id mint, the stuck detector and the board.
+The board is read through the context, never copied, because opening a board replaces it.
 
 ## Epochs
 
@@ -31,9 +33,11 @@ false, so nothing from a board already left lands on the next one.
 | `Eraser` | `eraser.ts` | Taking drawings and notes off the page for good |
 | `Party` | `party.ts` | One pilot per Alice; the page is charted only when a pilot drives |
 
-`Voice` and `Tidier` take narrow dependencies so they can be tested alone; the other parts take the
-context. Parts that need to call back into `Game` (reopening a board, the player's own writing) get a
-small interface (`Reopener`, `Writer`) rather than the `Game` itself.
+`Tidier`, `Glimpses`, `Presence`, `NoteKeeping` and `Party` take narrow dependencies so they can be
+tested alone; `Voice` takes the slice of the context it writes with, plus where Alice and the tear
+are; the other parts take the context. Parts that need to call back into `Game` (reopening a board,
+the player's own writing, a hint) get a small interface (`Reopener`, `Writer`) rather than the `Game`
+itself.
 
 `testing/player.ts` drives a real `Game` with a real sim and fakes for rendering, handwriting and
 storage; the `game.*.test.ts` files are written against it.

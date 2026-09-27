@@ -12,7 +12,7 @@ export {
   SPIRIT_MODE,
   SPIRIT_MODE_ID,
 } from "./modes";
-export { allowsLaw, naturesAllowed, opensWithAlice, refusalLine, wonBy } from "./policy";
+export { allowsLaw, refusalLine, wonBy } from "./policy";
 export {
   FIRST_PUZZLE_BOARD_ID,
   isPuzzleBoard,

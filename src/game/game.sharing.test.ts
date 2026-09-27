@@ -104,6 +104,15 @@ describe("Game on a shared page", () => {
     expect(theirs.hud.cards).toEqual([SANDBOX_MODE.card]);
   });
 
+  it("hands the renderer the same ghosts frame after frame until someone is heard", async () => {
+    const { mine, theirs } = await together();
+    await mine.wait(500);
+    const company = theirs.game.company;
+    await theirs.wait(50);
+    expect(theirs.game.company).toBe(company);
+    expect(theirs.renderer.lastFrame?.ghosts).toBe(company);
+  });
+
   it("lets a ghost go when its device leaves the page", async () => {
     const { page, mine, theirs } = await together();
     await mine.wait(500);

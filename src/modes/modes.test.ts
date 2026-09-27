@@ -5,9 +5,8 @@ import type { DrawingId } from "../ink/types";
 import { createDirector } from "./director";
 import { EmbodiedDirector } from "./embodiedDirector";
 import { BOSS_MODE, EMBODIED_MODE, GAME_MODES, modeFor, SPIRIT_MODE } from "./modes";
-import { allowsLaw, naturesAllowed, opensWithAlice } from "./policy";
+import { allowsLaw } from "./policy";
 import { SpiritDirector } from "./spiritDirector";
-import type { GameMode } from "./types";
 
 const A_RULING: Ruling = {
   name: "a cat",
@@ -37,12 +36,10 @@ describe("the game modes", () => {
     expect(EMBODIED_MODE.opening).toEqual({ player: "body", freshPage: false });
     expect(EMBODIED_MODE.loss).toEqual({ kind: "respawn" });
     expect(EMBODIED_MODE.autopilot).toBe("allowed");
-    expect(opensWithAlice(EMBODIED_MODE)).toBe(true);
   });
 
   it("the spirit mode opens with nobody on the board until she is drawn, and loses the body rather than respawning", () => {
     expect(SPIRIT_MODE.opening.player).toBe("spirit");
-    expect(opensWithAlice(SPIRIT_MODE)).toBe(false);
     if (SPIRIT_MODE.opening.player === "spirit") {
       expect(SPIRIT_MODE.opening.incarnation.kind).toBe("drawn");
     }
@@ -57,14 +54,6 @@ describe("mode policies", () => {
     expect(allowsLaw({ kind: "only", dials: ["gravity"] }, "clones")).toBe(false);
     expect(allowsLaw({ kind: "except", dials: ["clones"] }, "clones")).toBe(false);
     expect(allowsLaw({ kind: "except", dials: ["clones"] }, "gravity")).toBe(true);
-  });
-
-  it("narrow a room's natures by the mode's, never widening them", () => {
-    const strict: GameMode = { ...EMBODIED_MODE, natures: ["bouncy", "climbable"] };
-    expect(naturesAllowed(EMBODIED_MODE, "all")).toBe("all");
-    expect(naturesAllowed(EMBODIED_MODE, ["bouncy"])).toEqual(["bouncy"]);
-    expect(naturesAllowed(strict, "all")).toEqual(["bouncy", "climbable"]);
-    expect(naturesAllowed(strict, ["climbable", "floaty"])).toEqual(["climbable"]);
   });
 });
 

@@ -1,6 +1,6 @@
 # Game modes
 
-A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, which laws and natures the page will take, whether the board id names a room or an endless page, when Kami helps, and whether other devices share the page. The everyday way to play — Alice stands at the spawn and you draw for her — is written down as `EMBODIED_MODE`. `SANDBOX_MODE` (`?mode=sandbox`) is an endless page with no edges that everyone who opens it draws on together. `PUZZLE_MODE` (`?mode=puzzle`) plays three rooms in a row, each staged so that one drawn or written idea is the way through, with the Sumikui loose from the first frame ([puzzles.md](puzzles.md)). `SPIRIT_MODE` opens the room as a spirit with no body: you draw Alice, name her, and she is yours. `BOSS_MODE` ([boss.md](boss.md)) is the spirit opening for two players, with a servant of the one under the page coming through a tear to snip the body apart; every opening is a fresh page that clears saved fight drawings and notes.
+A **mode** is a way to play a board. The board says what is sketched on the paper; the mode says what the *player* is when the room opens, how they come to have a body, what winning and losing mean, which laws the page will take, whether the board id names a room or an endless page, when Kami helps, and whether other devices share the page. The everyday way to play — Alice stands at the spawn and you draw for her — is written down as `EMBODIED_MODE`. `SANDBOX_MODE` (`?mode=sandbox`) is an endless page with no edges that everyone who opens it draws on together. `PUZZLE_MODE` (`?mode=puzzle`) plays three rooms in a row, each staged so that one drawn or written idea is the way through, with the Sumikui loose from the first frame ([puzzles.md](puzzles.md)). `SPIRIT_MODE` opens the room as a spirit with no body: you draw Alice, name her, and she is yours. `BOSS_MODE` ([boss.md](boss.md)) is the spirit opening for two players, with a servant of the one under the page coming through a tear to snip the body apart; every opening is a fresh page that clears saved fight drawings and notes.
 
 This document is the architecture. Embodied, sandbox, puzzle, spirit and boss are all playable; the columns at the end say which seams of the spirit groundwork are built and which are not.
 
@@ -14,7 +14,6 @@ interface GameMode {
   win: WinRule;                             // reach-goal | endless | outlast(ms) | defeat-foe
   loss: LossRule;                           // respawn | unmade | board-restarts
   laws: LawPolicy;                          // all | only(dials) | except(dials)
-  natures: NaturePolicy;                    // "all" | Nature[] — narrows the room's own list
   autopilot: "allowed" | "forbidden";       // may she walk herself
   page: PageKind;                           // room | endless — what the board id names
   help: HelpPolicy;                         // offered (the hint ladder) | on-request (only when asked)
@@ -47,7 +46,6 @@ interface ModeDirector {
   witness(event: SimEvent): EmbodimentTransition[];      // every sim event
   named(drawingId, ruling): EmbodimentTransition[];      // every naming
   won(event: SimEvent): boolean;                         // this mode's WinRule, judged on an event
-  close(): void;
 }
 
 type EmbodimentTransition =
@@ -121,7 +119,6 @@ The embodied mode is exactly the game as it was.
 | win | `reach-goal` | `reach-goal` → the next room | `endless` | `reach-goal` | `defeat-foe` — the tear closes |
 | loss | `respawn` — the sim's own checkpoint path | `board-restarts` — devoured, the Lost card and the room reopens blank; a fall still respawns at the checkpoint | `respawn` — onto the last ink she stood on | `unmade` — the body is gone; you are a spirit again | `board-restarts` — the heart is swallowed; the room reopens |
 | laws | `all` | `only inkEater`, widened per room to its dials | `except inkEater` — *"Nothing hungry lives on this page."* | `except clones` — one body at a time | `except clones, inkEater` — the servant is foe enough |
-| natures | `all` | `all` — each room's zone narrows to one or none | `all` | `all` | `all` |
 | autopilot | `allowed` | `allowed`, on by default | `allowed` — explores toward the newest ink | `forbidden` — a body you drew is a body you steer | `forbidden` — the second player steers |
 | page | `room` | `room` | `endless` | `room` | `room` |
 | help | `offered` | `offered` | `on-request` | `offered` — quiet while nobody is on the board | `offered` — quiet while nobody is on the board |

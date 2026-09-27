@@ -27,7 +27,6 @@ export const PUZZLE_MODE: GameMode = {
   win: { kind: "reach-goal" },
   loss: { kind: "board-restarts" },
   laws: { kind: "only", dials: ["inkEater"] },
-  natures: "all",
   autopilot: "allowed",
   page: "room",
   help: "offered",

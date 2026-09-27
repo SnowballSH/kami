@@ -1,5 +1,5 @@
 import type { BoardDefinition, PageKind } from "../board/types";
-import type { AllowedNatures, Ruling } from "../cat/types";
+import type { Ruling } from "../cat/types";
 import type { DrawingId } from "../ink/types";
 import type { Governs, WorldPhysics } from "../rules/types";
 import type { SimEvent } from "../sim/types";
@@ -48,9 +48,6 @@ export type LawPolicy =
   | { readonly kind: "all" }
   | { readonly kind: "only"; readonly dials: readonly Governs[] }
   | { readonly kind: "except"; readonly dials: readonly Governs[] };
-
-/** Narrows the board's own `RoomBrief.allowedNatures`; never widens it. */
-export type NaturePolicy = AllowedNatures;
 
 /**
  * When Kami helps unasked. `offered`: the stuck detector climbs the hint ladder when she has made
@@ -102,7 +99,6 @@ export interface GameMode {
   readonly win: WinRule;
   readonly loss: LossRule;
   readonly laws: LawPolicy;
-  readonly natures: NaturePolicy;
   /** Whether she may walk herself; a spirit's drawn Alice may be meant to be steered by hand. */
   readonly autopilot: "allowed" | "forbidden";
   /** How the board id is read: as the room sketched under it, or as an endless page. */
@@ -173,5 +169,4 @@ export interface ModeDirector {
   named(drawingId: DrawingId, ruling: Ruling): readonly EmbodimentTransition[];
   /** True when the room has been won under this mode's `WinRule`. */
   won(event: SimEvent): boolean;
-  close(): void;
 }

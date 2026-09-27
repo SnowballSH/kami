@@ -15,17 +15,26 @@ export const groupedByNote = (
   return byNote;
 };
 
-/** The standing laws of the current board, and the world they fold into. */
-export class RuleBook {
+/**
+ * The standing laws of the current board, and the world they fold into over the ground they stand
+ * on — whatever else the fold reads, such as the room's own world. `resolve` must depend only on
+ * the rules and the ground it is given: its answer is kept until the rules change or `ground()`
+ * returns a different value.
+ */
+export class RuleBook<Ground> {
   private rules: readonly Rule[] = [];
-  private folded: WorldPhysics | null = null;
+  private folded: { readonly ground: Ground; readonly physics: WorldPhysics } | null = null;
 
-  /** `resolve` must depend only on the rules it is given, since its answer is kept until they change. */
-  constructor(private readonly resolve: (rules: readonly Rule[]) => WorldPhysics) {}
+  constructor(
+    private readonly resolve: (rules: readonly Rule[], ground: Ground) => WorldPhysics,
+    private readonly ground: () => Ground,
+  ) {}
 
   get physics(): WorldPhysics {
-    this.folded ??= this.resolve(this.rules);
-    return this.folded;
+    const ground = this.ground();
+    if (this.folded === null || this.folded.ground !== ground)
+      this.folded = { ground, physics: this.resolve(this.rules, ground) };
+    return this.folded.physics;
   }
 
   get all(): readonly Rule[] {

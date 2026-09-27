@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { NoteId } from "../notes/types";
 import { resolvePhysics } from "../rules";
-import type { Rule, RuleEffect, RuleId } from "../rules/types";
+import { EARTH, type Rule, type RuleEffect, type RuleId, type WorldPhysics } from "../rules/types";
 import { RuleBook } from "./ruleBook";
 
 const law = (id: string, createdAt: number, effect: RuleEffect): Rule => ({
@@ -14,13 +14,15 @@ const law = (id: string, createdAt: number, effect: RuleEffect): Rule => ({
   explanation: id,
 });
 
+const onEarth = (): WorldPhysics => EARTH;
+
 const MOON = law("moon", 100, { governs: "gravity", x: 0, y: 0.165 });
 const MARS = law("mars", 200, { governs: "gravity", x: 0, y: 0.38 });
 const WIND = law("wind", 300, { governs: "wind", x: 0.2, y: 0 });
 
 describe("RuleBook.place", () => {
   it("folds a law heard from elsewhere in at the moment it was written, not at the end", () => {
-    const book = new RuleBook(resolvePhysics);
+    const book = new RuleBook(resolvePhysics, onEarth);
     book.enact(MOON);
     book.enact(WIND);
     expect(book.place(MARS)).toBe(true);
@@ -29,14 +31,14 @@ describe("RuleBook.place", () => {
   });
 
   it("changes nothing for a law it already holds word for word, and says so", () => {
-    const book = new RuleBook(resolvePhysics);
+    const book = new RuleBook(resolvePhysics, onEarth);
     book.enact(MOON);
     expect(book.place({ ...MOON })).toBe(false);
     expect(book.all).toHaveLength(1);
   });
 
   it("replaces a law that was rewritten under the same id", () => {
-    const book = new RuleBook(resolvePhysics);
+    const book = new RuleBook(resolvePhysics, onEarth);
     book.enact(MOON);
     book.enact(WIND);
     expect(book.place({ ...MOON, createdAt: 400, explanation: "later" })).toBe(true);
@@ -47,7 +49,7 @@ describe("RuleBook.place", () => {
 
 describe("RuleBook.repeal", () => {
   it("strikes one law by id and hands it back, or null for a stranger", () => {
-    const book = new RuleBook(resolvePhysics);
+    const book = new RuleBook(resolvePhysics, onEarth);
     book.enact(MOON);
     book.enact(MARS);
     expect(book.repeal(MARS.id)).toEqual(MARS);
@@ -63,12 +65,23 @@ describe("RuleBook.physics", () => {
     const book = new RuleBook((rules) => {
       folds += 1;
       return resolvePhysics(rules);
-    });
+    }, onEarth);
     book.enact(MOON);
     expect(book.physics).toBe(book.physics);
     expect(folds).toBe(1);
     book.repealByNote(MOON.noteId);
     expect(book.physics.gravity).not.toEqual({ x: 0, y: 0.165 });
     expect(folds).toBe(2);
+  });
+
+  it("folds afresh over a new room's world though no law changed", () => {
+    const low = { ...EARTH, gravity: { x: 0, y: 0.1 } };
+    let room: WorldPhysics = EARTH;
+    const book = new RuleBook(resolvePhysics, () => room);
+    book.enact(WIND);
+    expect(book.physics.gravity).toEqual(EARTH.gravity);
+    room = low;
+    expect(book.physics.gravity).toEqual(low.gravity);
+    expect(book.physics.wind).toEqual({ x: 0.2, y: 0 });
   });
 });
