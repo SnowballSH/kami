@@ -14,8 +14,8 @@ import {
 } from "../sim/types";
 
 const IDLE: WalkIntent = { x: 0, y: 0 };
-export const FLEE_CALM_MS = 6_000;
-export const STUCK_CALM_MS = 2_000;
+const FLEE_CALM_MS = 6_000;
+const STUCK_CALM_MS = 2_000;
 
 /** What every Alice sees alike this step: the page, as opposed to herself. */
 export interface Page {

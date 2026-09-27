@@ -3,7 +3,7 @@ import { capturePointer, el, releasePointer } from "./dom";
 import type { Detach } from "./types";
 import type { Direction, PressedListener } from "./walkIntent";
 
-export const STICK_RADIUS_PX = 56;
+const STICK_RADIUS_PX = 56;
 export const DEAD_ZONE = 0.3;
 const DIAGONAL = 0.5;
 const HELD_CLASS = "is-held";

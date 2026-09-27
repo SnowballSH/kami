@@ -6,7 +6,7 @@ export type Direction = (typeof DIRECTIONS)[number];
 
 export type PressedListener = (pressed: ReadonlySet<Direction>) => void;
 
-export const IDLE_INTENT: WalkIntent = { x: 0, y: 0 };
+const IDLE_INTENT: WalkIntent = { x: 0, y: 0 };
 
 const axis = (negative: boolean, positive: boolean): Axis => {
   if (negative === positive) return 0;

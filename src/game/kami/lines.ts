@@ -115,7 +115,7 @@ export const BLANK_BOARD_BRIEF: RoomBrief = {
 };
 
 /** How Kami tells the Alices apart: Alice herself, then her twins by number. */
-export const aliceName = (who: number): string => (who === 0 ? "Alice" : `Alice ${who + 1}`);
+const aliceName = (who: number): string => (who === 0 ? "Alice" : `Alice ${who + 1}`);
 export const TWIN_GOAL_LINE = (who: number): string =>
   `${aliceName(who)} found the rabbit hole. One of you was enough.`;
 export const TWIN_SELECTED_LINE = (who: number): string => `${aliceName(who)}, then. Lead on.`;

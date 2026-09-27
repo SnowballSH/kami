@@ -46,7 +46,6 @@ export class Presence {
     return [...this.ghosts.values()].map(({ alice }) => alice);
   }
 
-  /** Hears what other devices do to the page from `since`, where its snapshot was read. */
   follow(boardId: string, since: FeedCursor | null, follower: PageFollower): void {
     this.leave();
     if (this.link === null) return;
