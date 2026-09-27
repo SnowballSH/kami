@@ -310,11 +310,7 @@ export class MatterSimulation implements Simulation {
     engine.timing.timeScale = timeScale;
 
     this.growLawfully();
-    this.tickBodies = [
-      ...alices.map((each) => each.body),
-      ...props.solidBodies,
-      ...inks.all.map((ink) => ink.body),
-    ];
+    this.tickBodies = [...alices.map((each) => each.body), ...props.solidBodies, ...inks.bodies];
     const { surroundings } = this;
     for (const alice of alices) {
       if (alice.riding !== null) this.rides.set(alice, alice.riding);

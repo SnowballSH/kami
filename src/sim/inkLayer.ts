@@ -35,6 +35,7 @@ export class InkLayer {
   private readonly inks = new Map<DrawingId, InkEntity>();
   private readonly byBodyId = new Map<number, InkEntity>();
   private cachedAll: readonly InkEntity[] | null = null;
+  private cachedBodies: readonly Matter.Body[] | null = null;
   private cachedDynamicBodies: readonly Matter.Body[] | null = null;
   private cachedHeldBodies: readonly Matter.Body[] | null = null;
   private cachedSolidToAlice: readonly Matter.Body[] | null = null;
@@ -55,13 +56,18 @@ export class InkLayer {
     return this.all.map((ink) => ({ id: ink.id, pose: ink.pose, lit: ink.lit }));
   }
 
+  get bodies(): readonly Matter.Body[] {
+    this.cachedBodies ??= this.all.map((ink) => ink.body);
+    return this.cachedBodies;
+  }
+
   get dynamicBodies(): readonly Matter.Body[] {
-    this.cachedDynamicBodies ??= this.all.map((ink) => ink.body).filter((body) => !body.isStatic);
+    this.cachedDynamicBodies ??= this.bodies.filter((body) => !body.isStatic);
     return this.cachedDynamicBodies;
   }
 
   get heldBodies(): readonly Matter.Body[] {
-    this.cachedHeldBodies ??= this.all.map((ink) => ink.body).filter((body) => body.isStatic);
+    this.cachedHeldBodies ??= this.bodies.filter((body) => body.isStatic);
     return this.cachedHeldBodies;
   }
 
@@ -208,6 +214,7 @@ export class InkLayer {
 
   private invalidate(): void {
     this.cachedAll = null;
+    this.cachedBodies = null;
     this.cachedDynamicBodies = null;
     this.cachedHeldBodies = null;
     this.cachedSolidToAlice = null;

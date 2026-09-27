@@ -48,43 +48,40 @@ export const toContact = (subject: Matter.Body, collision: Matter.Collision): Co
   };
 };
 
-/** Unlike `Matter.Query.collides`, reports every touching part of a compound, not just the first. */
-export const contactsWith = (
+const touchingParts = function* (
   subject: Matter.Body,
   others: readonly Matter.Body[],
-  exclude?: Matter.Body,
-): readonly Contact[] => {
-  const contacts: Contact[] = [];
-  for (const other of others) {
-    if (other === exclude || !Matter.Bounds.overlaps(other.bounds, subject.bounds)) continue;
-    const { parts } = other;
-    for (let at = parts.length > 1 ? 1 : 0; at < parts.length; at++) {
-      const part = parts[at];
-      if (part === undefined || !Matter.Bounds.overlaps(part.bounds, subject.bounds)) continue;
-      const collision = Matter.Collision.collides(part, subject);
-      if (collision !== null) contacts.push(toContact(subject, collision));
-    }
-  }
-  return contacts;
-};
-
-/** Whether `subject` touches any part of any of `others` that `admits`, stopping at the first. */
-export const touchesAny = (
-  subject: Matter.Body,
-  others: readonly Matter.Body[],
-  admits: (other: Matter.Body) => boolean = () => true,
-): boolean => {
+  admits: (other: Matter.Body) => boolean,
+): Generator<Matter.Collision> {
   for (const other of others) {
     if (!Matter.Bounds.overlaps(other.bounds, subject.bounds) || !admits(other)) continue;
     const { parts } = other;
     for (let at = parts.length > 1 ? 1 : 0; at < parts.length; at++) {
       const part = parts[at];
       if (part === undefined || !Matter.Bounds.overlaps(part.bounds, subject.bounds)) continue;
-      if (Matter.Collision.collides(part, subject) !== null) return true;
+      const collision = Matter.Collision.collides(part, subject);
+      if (collision !== null) yield collision;
     }
   }
-  return false;
 };
+
+/** Unlike `Matter.Query.collides`, reports every touching part of a compound, not just the first. */
+export const contactsWith = (
+  subject: Matter.Body,
+  others: readonly Matter.Body[],
+  exclude?: Matter.Body,
+): readonly Contact[] =>
+  Array.from(
+    touchingParts(subject, others, (other) => other !== exclude),
+    (collision) => toContact(subject, collision),
+  );
+
+/** Whether `subject` touches any part of any of `others` that `admits`, stopping at the first. */
+export const touchesAny = (
+  subject: Matter.Body,
+  others: readonly Matter.Body[],
+  admits: (other: Matter.Body) => boolean = () => true,
+): boolean => !touchingParts(subject, others, admits).next().done;
 
 export const contactsAt = (
   subject: Matter.Body,
