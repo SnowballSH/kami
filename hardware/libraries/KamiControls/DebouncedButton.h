@@ -2,7 +2,9 @@
 
 #include <stdint.h>
 
-/** A switch counts as held or released once its reading has been stable for 20 ms. */
+const uint32_t DEBOUNCE_MS = 20;
+
+/** A switch counts as held or released once its reading has been stable for DEBOUNCE_MS. */
 class DebouncedButton {
  public:
   bool sample(bool pressed, uint32_t now) {
@@ -10,7 +12,7 @@ class DebouncedButton {
       candidate_ = pressed;
       changedAt_ = now;
     }
-    if (now - changedAt_ >= 20) held_ = candidate_;
+    if (now - changedAt_ >= DEBOUNCE_MS) held_ = candidate_;
     return held_;
   }
 
