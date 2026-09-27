@@ -1,3 +1,4 @@
+export type { SketchCatalogue } from "../persistence/types";
 export { MOST_SUMMONED, parseWish, WISH_WORDS, type Wish } from "./grammar";
 export {
   fitSketch,
@@ -9,10 +10,5 @@ export {
   standOver,
 } from "./layout";
 export { pluralOf, SummoningLexicon } from "./lexicon";
-export {
-  type PictureSource,
-  type SketchCatalogue,
-  type Summoned,
-  Summoner,
-} from "./summoner";
+export { type PictureSource, type Summoned, Summoner } from "./summoner";
 export type { Summons } from "./types";

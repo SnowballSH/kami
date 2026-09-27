@@ -1,5 +1,5 @@
 import { type EventSourceFactory, type EventSourceLike, STREAM_STATE } from "../controller/types";
-import { API_BASE, browserFetch, type FetchLike, JSON_HEADERS } from "../persistence/api";
+import { boardPath, browserFetch, type FetchLike, JSON_HEADERS } from "../persistence/api";
 import type { FeedCursor } from "../persistence/types";
 import type { AliceSnapshot } from "../sim/types";
 import type { Detach } from "../ui/types";
@@ -33,12 +33,11 @@ export const boardEventsPath = (
   peer: PeerId,
   since: FeedCursor | null = null,
 ): string => {
-  const path = `${API_BASE}/boards/${encodeURIComponent(boardId)}/events?peer=${encodeURIComponent(peer)}`;
+  const path = `${boardPath(boardId)}/events?peer=${encodeURIComponent(peer)}`;
   return since === null ? path : `${path}&since=${encodeURIComponent(formatCursor(since))}`;
 };
 
-export const presencePath = (boardId: string): string =>
-  `${API_BASE}/boards/${encodeURIComponent(boardId)}/presence`;
+export const presencePath = (boardId: string): string => `${boardPath(boardId)}/presence`;
 
 export interface PageListener {
   /** A change another device made to the page; this device's own come back only as older news is passed over. */

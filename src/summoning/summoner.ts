@@ -1,13 +1,9 @@
 import type { Rect, Stroke } from "../core/geometry";
+import type { SketchCatalogue } from "../persistence/types";
 import type { Exemplar } from "../recognition";
 import { parseWish, type Wish } from "./grammar";
 import { fitSketch, layoutBoxes, sizeOf, standOver } from "./layout";
 import { SummoningLexicon } from "./lexicon";
-
-/** The words there are pictures of (`GET /api/exemplars`); empty when the server is away. */
-export interface SketchCatalogue {
-  categories(): Promise<readonly string[]>;
-}
 
 /** Where a picture of a word comes from (`GET /api/exemplar?word=…`); null without one. */
 export interface PictureSource {

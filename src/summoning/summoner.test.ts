@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { boundsOf, type Stroke } from "../core/geometry";
+import type { SketchCatalogue } from "../persistence/types";
 import type { Exemplar } from "../recognition";
 import { SUMMONED_SIZE } from "./layout";
-import { type PictureSource, type SketchCatalogue, Summoner } from "./summoner";
+import { type PictureSource, Summoner } from "./summoner";
 
 const SQUARE: readonly Stroke[] = [
   [
