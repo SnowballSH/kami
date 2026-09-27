@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { poseToWorld, rectsOverlap } from "../core/geometry";
 import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";

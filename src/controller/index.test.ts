@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Direction } from "../ui/walkIntent";
 import { createRemoteStick } from "./index";

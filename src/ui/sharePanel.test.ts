@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SharePanel } from "./sharePanel";
 import type { ShareInfo } from "./types";

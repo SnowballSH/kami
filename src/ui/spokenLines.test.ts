@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { KEPT_LINES, REPEAT_QUIET_MS, SpokenLines } from "./spokenLines";
 

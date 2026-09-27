@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SANDBOX_MODE } from "../modes/sandboxMode";
 import { CARD_FADE_MS } from "./fadingCard";

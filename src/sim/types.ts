@@ -7,8 +7,6 @@ import type { Abilities, BodyPartKind, DrawnBody } from "./body/types";
 import type { TearSnapshot } from "./boss/tear";
 import type { SnipperRank } from "./boss/tuning";
 
-export type { InkProvenance } from "../ink/types";
-
 export type AliceSize = "small" | "normal" | "big";
 
 const ALICE_SCALE: Readonly<Record<AliceSize, number>> = { small: 0.5, normal: 1, big: 2 };

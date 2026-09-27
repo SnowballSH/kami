@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import type { PersistenceState } from "../persistence/types";
 import { PersistenceStatus } from "./persistenceStatus";

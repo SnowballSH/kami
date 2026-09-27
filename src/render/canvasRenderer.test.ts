@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Vec } from "../core/geometry";
 import type { Handwriting } from "../handwriting/types";

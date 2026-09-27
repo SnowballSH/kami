@@ -15,7 +15,7 @@ export default defineConfig({
     projects: [
       {
         extends: true,
-        test: { name: "web", environment: "happy-dom", include: ["src/**/*.test.ts"] },
+        test: { name: "web", environment: "node", include: ["src/**/*.test.ts"] },
       },
       {
         extends: true,

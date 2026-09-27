@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RoomCard } from "../modes/types";
 import { CARD_FADE_MS } from "./fadingCard";

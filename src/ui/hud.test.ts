@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { INPUT_LIMITS, TEXT_LIMIT_MESSAGE } from "../core/inputLimits";
 import type { WalkIntent } from "../sim/types";
