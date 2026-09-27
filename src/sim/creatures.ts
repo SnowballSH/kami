@@ -100,9 +100,9 @@ const carryAlice = (ink: InkEntity, world: NatureWorld, velocity: Vec): void => 
  * `toward` — she is off and it goes after her; `away` — she is too close and it bolts; `roam` —
  * it has no temper, or she is far enough that a shy thing forgets her.
  */
-export type Urge = "heel" | "toward" | "away" | "roam";
+type Urge = "heel" | "toward" | "away" | "roam";
 
-export const urgeOf = (ink: InkEntity, world: NatureWorld): Urge => {
+const urgeOf = (ink: InkEntity, world: NatureWorld): Urge => {
   if (ink.temper === null) return "roam";
   const gap = rectCenter(world.alice.bounds()).x - ink.body.position.x;
   if (ink.temper === "follows") {

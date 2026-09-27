@@ -6,12 +6,10 @@ import { ALICE_BASE } from "../types";
 import {
   abilitiesOf,
   aliveParts,
-  bodyStrokesInWorld,
+  classifyParts,
   graft,
-  heartInWorld,
   incarnate,
   namesWings,
-  partOf,
   partReach,
   snip,
   toBodySpace,
@@ -63,7 +61,7 @@ describe("incarnating a drawing", () => {
     expect(centre).toEqual({ x: 100, y: 109 });
     expect(body.frame).toEqual({ width: 100, height: 122 });
     expect(body.heart).toEqual({ x: 0, y: -9 });
-    expect(heartInWorld(body, { centre, facing: 1, scale: 1 })).toEqual(HEART);
+    expect(toWorldSpace(body.heart, { centre, facing: 1, scale: 1 })).toEqual(HEART);
   });
 
   it("segments strokes about the heart: torso around it, head above, arms beside, legs below", () => {
@@ -108,16 +106,13 @@ describe("incarnating a drawing", () => {
     expect(partsOf(body).slice(-2)).toEqual(["legs", "legs"]);
     expect(abilitiesOf(body).walk).toBe(true);
     expect(
-      partOf(
-        line({ x: 0, y: 50 }, { x: 0, y: 60 }),
+      classifyParts(
+        [line({ x: 0, y: 50 }, { x: 0, y: 60 })],
         { x: 0, y: 25 },
-        {
-          width: 100,
-          height: 100,
-        },
+        { width: 100, height: 100 },
         false,
       ),
-    ).toBe("legs");
+    ).toEqual(["legs"]);
   });
 
   it("calls a stroke sticking up and out a wing, and is quicker to when the name has wings", () => {
@@ -175,12 +170,9 @@ describe("body space", () => {
     const local = toBodySpace({ x: 30, y: 30 }, space);
     expect(local).toEqual({ x: 10, y: 5 });
     expect(toWorldSpace(local, space)).toEqual({ x: 30, y: 30 });
-    const [first] = bodyStrokesInWorld(figure(), {
-      centre: { x: 100, y: 109 },
-      facing: 1,
-      scale: 1,
-    });
-    expect(first?.[0]).toEqual(HEAD[0]);
+    const home = { centre: { x: 100, y: 109 }, facing: 1, scale: 1 } as const;
+    const tip = figure().strokes[0]?.stroke[0];
+    expect(tip && toWorldSpace(tip, home)).toEqual(HEAD[0]);
   });
 });
 

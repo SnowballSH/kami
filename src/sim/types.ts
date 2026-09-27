@@ -11,7 +11,7 @@ export type { InkProvenance } from "../ink/types";
 
 export type AliceSize = "small" | "normal" | "big";
 
-export const ALICE_SCALE: Readonly<Record<AliceSize, number>> = { small: 0.5, normal: 1, big: 2 };
+const ALICE_SCALE: Readonly<Record<AliceSize, number>> = { small: 0.5, normal: 1, big: 2 };
 
 export const ALICE_BASE = { width: 28, height: 60 } as const;
 

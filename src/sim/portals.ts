@@ -4,7 +4,7 @@ import type { InkEntity } from "./inkEntity";
 import type { AliceIndex, SimEvent } from "./types";
 
 /** Portals let out into the next portal drawn after them, and the last one back into the first. */
-export const exitOf = (portal: InkEntity, inks: readonly InkEntity[]): InkEntity | null => {
+const exitOf = (portal: InkEntity, inks: readonly InkEntity[]): InkEntity | null => {
   const portals = inks.filter((ink) => ink.nature === "portal");
   const at = portals.indexOf(portal);
   if (at < 0 || portals.length < 2) return null;

@@ -16,7 +16,7 @@ const axisInterval = (start: number, end: number, min: number, max: number): Int
   return [Math.min(toMin, toMax), Math.max(toMin, toMax)];
 };
 
-export const segmentCrossesRect = ([start, end]: Segment, rect: Rect): boolean => {
+const segmentCrossesRect = ([start, end]: Segment, rect: Rect): boolean => {
   const [enterX, exitX] = axisInterval(start.x, end.x, rect.x, rect.x + rect.width);
   const [enterY, exitY] = axisInterval(start.y, end.y, rect.y, rect.y + rect.height);
   return Math.max(0, enterX, enterY) <= Math.min(1, exitX, exitY);

@@ -54,7 +54,7 @@ export interface Gateway {
 }
 
 /** Grid cells [c0, c1) × [r0, r1) touched by a world rect. */
-export const cellsOf = (rect: Rect): CellRange => ({
+const cellsOf = (rect: Rect): CellRange => ({
   c0: Math.floor(rect.x / CELL_PX),
   c1: Math.ceil((rect.x + rect.width) / CELL_PX),
   r0: Math.floor(rect.y / CELL_PX),

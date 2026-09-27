@@ -71,7 +71,7 @@ export interface Arrival {
 
 export const ARRIVAL_MS = 1800;
 
-export const arrivalProgress = (arrival: Arrival, nowMs: number): number =>
+const arrivalProgress = (arrival: Arrival, nowMs: number): number =>
   Math.min(1, Math.max(0, (nowMs - arrival.startedAtMs) / ARRIVAL_MS));
 
 /**
@@ -82,11 +82,11 @@ export type InkMotion =
   | ({ readonly kind: "arrival" } & Arrival)
   | ({ readonly kind: "retrace" } & Retrace);
 
-export const motionProgress = (motion: InkMotion, nowMs: number): number =>
+const motionProgress = (motion: InkMotion, nowMs: number): number =>
   motion.kind === "arrival" ? arrivalProgress(motion, nowMs) : retraceProgress(motion, nowMs);
 
 /** What of `strokes` shows at `nowMs` while `motion` brings them in: `strokes` themselves once it is over. */
-export const strokesInMotion = (
+const strokesInMotion = (
   strokes: readonly Stroke[],
   motion: InkMotion,
   nowMs: number,

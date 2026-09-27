@@ -1,7 +1,13 @@
-import { clamp, distance, type Vec } from "../../core/geometry";
+import { clamp, distance, lerpVec, towards, type Vec } from "../../core/geometry";
 import { aliveParts, partReach, toWorldSpace } from "../body/drawnBody";
 import type { BodyPartKind, Cut, DrawnBody } from "../body/types";
-import { SNIP_PRIORITY, SNIPPER_TUNING, type SnipperRank, TEAR_TUNING } from "./tuning";
+import {
+  SNIP_PRIORITY,
+  SNIPPER_TUNING,
+  type SnipperRank,
+  type SnipperTuning,
+  TEAR_TUNING,
+} from "./tuning";
 
 /** The body it hunts, as it stands this tick. */
 export interface Prey {
@@ -55,18 +61,6 @@ export interface SnipperSnapshot {
 const ARRIVED_PX = 24;
 const CUT_ALONG_LIMB = 0.55;
 
-const towards = (from: Vec, to: Vec, step: number): Vec => {
-  const gap = distance(from, to);
-  if (gap <= step) return to;
-  const scale = step / gap;
-  return { x: from.x + (to.x - from.x) * scale, y: from.y + (to.y - from.y) * scale };
-};
-
-const lerp = (from: Vec, to: Vec, t: number): Vec => ({
-  x: from.x + (to.x - from.x) * t,
-  y: from.y + (to.y - from.y) * t,
-});
-
 const partsWithInk = (body: DrawnBody): ReadonlySet<BodyPartKind> =>
   new Set(body.strokes.map((stroke) => stroke.part));
 
@@ -91,7 +85,7 @@ export const cutAcross = (prey: Prey, part: BodyPartKind | null, halfLength: num
   const axis = length < 1 ? { x: 0, y: -1 } : { x: along.x / length, y: along.y / length };
   const across = { x: -axis.y, y: axis.x };
   const middle =
-    part === null || part === "torso" ? prey.heart : lerp(prey.heart, tip, CUT_ALONG_LIMB);
+    part === null || part === "torso" ? prey.heart : lerpVec(prey.heart, tip, CUT_ALONG_LIMB);
   return {
     from: { x: middle.x - across.x * halfLength, y: middle.y - across.y * halfLength },
     to: { x: middle.x + across.x * halfLength, y: middle.y + across.y * halfLength },
@@ -123,7 +117,7 @@ export class Snipper {
     this.health = SNIPPER_TUNING[rank].health;
   }
 
-  get tuning() {
+  get tuning(): SnipperTuning {
     return SNIPPER_TUNING[this.rank];
   }
 
@@ -202,7 +196,7 @@ export class Snipper {
       }
       case "lunging": {
         const t = clamp((this.clock - phase.fromMs) / (phase.untilMs - phase.fromMs), 0, 1);
-        this.position = lerp(phase.cut.from, phase.cut.to, t);
+        this.position = lerpVec(phase.cut.from, phase.cut.to, t);
         if (t < 1) return null;
         this.snips += 1;
         this.phase = { kind: "recovering", untilMs: this.clock + tuning.recoverMs };

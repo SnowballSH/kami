@@ -35,6 +35,17 @@ export const approach = (value: number, target: number, maxChange: number): numb
 
 export const distance = (a: Vec, b: Vec): number => Math.hypot(b.x - a.x, b.y - a.y);
 
+export const lerpVec = (from: Vec, to: Vec, t: number): Vec => ({
+  x: from.x + (to.x - from.x) * t,
+  y: from.y + (to.y - from.y) * t,
+});
+
+/** `step` along the line from `from` to `to`, stopping at `to`. */
+export const towards = (from: Vec, to: Vec, step: number): Vec => {
+  const gap = distance(from, to);
+  return gap <= step ? to : lerpVec(from, to, step / gap);
+};
+
 export const strokeLength = (stroke: Stroke): number =>
   stroke.slice(1).reduce((total, point, i) => total + distance(stroke[i] ?? point, point), 0);
 
@@ -109,12 +120,6 @@ export const rectGap = (a: Rect, b: Rect): number =>
     Math.max(a.x - (b.x + b.width), 0, b.x - (a.x + a.width)),
     Math.max(a.y - (b.y + b.height), 0, b.y - (a.y + a.height)),
   );
-
-export const translateRect = (rect: Rect, by: Vec): Rect => ({
-  ...rect,
-  x: rect.x + by.x,
-  y: rect.y + by.y,
-});
 
 export const distanceToSegment = (point: Vec, a: Vec, b: Vec): number => {
   const lengthSquared = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;

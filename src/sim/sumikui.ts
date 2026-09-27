@@ -1,5 +1,5 @@
 import type Matter from "matter-js";
-import { clamp, distance, distanceToRect, type Vec } from "../core/geometry";
+import { clamp, distance, distanceToRect, towards, type Vec } from "../core/geometry";
 import type { AliceController } from "./alice";
 import {
   SUMIKUI_BASE_SPEED,
@@ -66,13 +66,6 @@ export const edible = (ink: InkEntity, namelessOnly = false): boolean =>
   !NATURES[ink.nature].pinned && ink.provenance !== "scenery" && (!namelessOnly || ink.name === "");
 
 const nearness = (gap: number): number => 1 / (1 + gap / SUMIKUI_NEAR_PX);
-
-const towards = (from: Vec, to: Vec, step: number): Vec => {
-  const gap = distance(from, to);
-  if (gap <= step) return to;
-  const scale = step / gap;
-  return { x: from.x + (to.x - from.x) * scale, y: from.y + (to.y - from.y) * scale };
-};
 
 /**
  * The Sumikui, the ink eater. A ghost over the board, not a body in it, awake from the moment it

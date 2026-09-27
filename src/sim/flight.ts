@@ -11,7 +11,7 @@ const ARC_TICK_LIMIT = 100_000;
 const pullPerTick = (gravity: Vec): number => gravity.y * FIXED_STEP_MS * FIXED_STEP_MS;
 
 /** Replays matter-js's per-tick velocity update for a body thrown straight up, so the planner sees the same arc Alice will fly. */
-export const traceArc = (speed: number, pull: number, drag: number): BounceArc => {
+const traceArc = (speed: number, pull: number, drag: number): BounceArc => {
   const heights: number[] = [0];
   let velocity = -speed;
   let height = 0;

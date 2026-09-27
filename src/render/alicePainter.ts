@@ -36,8 +36,7 @@ export interface AliceBadge {
 
 export const HERSELF: AliceBadge = { ribbon: null, selected: false };
 
-export const ribbonColour = (ribbon: number): string =>
-  `hsl(${(ribbon * RIBBON_HUE_STEP) % 360} 65% 45%)`;
+const ribbonColour = (ribbon: number): string => `hsl(${(ribbon * RIBBON_HUE_STEP) % 360} 65% 45%)`;
 
 const DRESS: readonly Vec[] = [
   { x: 0, y: -14 },
