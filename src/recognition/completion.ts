@@ -1,7 +1,15 @@
+import { z } from "zod";
 import type { Stroke } from "../core/geometry";
 import { strokesSchema } from "../core/input";
 import { INPUT_LIMITS, isInputStrokes } from "../core/inputLimits";
 import type { Completion } from "./types";
+
+const answerSchema = z.object({
+  tidied: strokesSchema,
+  added: strokesSchema,
+  category: z.string().max(INPUT_LIMITS.name).catch(""),
+  confidence: z.number().catch(0),
+});
 
 const hasInk = (strokes: readonly Stroke[]): boolean => strokes.some((stroke) => stroke.length > 0);
 
@@ -23,19 +31,15 @@ const withPressureOf = (drawn: readonly Stroke[], tidied: readonly Stroke[]): re
  * server, a tidied drawing that is not point for point the player's, or anything else unexpected.
  */
 export const completionOf = (body: unknown, drawn: readonly Stroke[]): Completion | null => {
-  if (typeof body !== "object" || body === null) return null;
-  if (!("tidied" in body) || !("added" in body)) return null;
-  const tidied = strokesSchema.safeParse(body.tidied);
-  const added = strokesSchema.safeParse(body.added);
-  if (!tidied.success || !added.success) return null;
-  if (!isInputStrokes([...tidied.data, ...added.data])) return null;
-  if (!hasInk(tidied.data) || !sameShape(tidied.data, drawn)) return null;
-  const category = "category" in body ? body.category : "";
-  const confidence = "confidence" in body ? body.confidence : 0;
+  const parsed = answerSchema.safeParse(body);
+  if (!parsed.success) return null;
+  const { tidied, added, category, confidence } = parsed.data;
+  if (!isInputStrokes([...tidied, ...added])) return null;
+  if (!hasInk(tidied) || !sameShape(tidied, drawn)) return null;
   return {
-    tidied: withPressureOf(drawn, tidied.data),
-    added: added.data.filter((stroke) => stroke.length > 1),
-    word: typeof category === "string" && category.length <= INPUT_LIMITS.name ? category : "",
-    confidence: typeof confidence === "number" && Number.isFinite(confidence) ? confidence : 0,
+    tidied: withPressureOf(drawn, tidied),
+    added: added.filter((stroke) => stroke.length > 1),
+    word: category,
+    confidence,
   };
 };

@@ -22,4 +22,11 @@ export const transcribePath = (): string => `${API_BASE}/transcribe`;
 
 export const exemplarsPath = (): string => `${API_BASE}/exemplars`;
 
+export const exemplarPath = (word: string): string =>
+  `${API_BASE}/exemplar?${new URLSearchParams({ word })}`;
+
+export const recognizePath = (): string => `${API_BASE}/recognize`;
+
+export const beautifyPath = (): string => `${API_BASE}/beautify`;
+
 export const JSON_HEADERS = { "content-type": "application/json" } as const;

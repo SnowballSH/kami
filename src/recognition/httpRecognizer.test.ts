@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { INPUT_LIMITS } from "../core/inputLimits";
 import type { Drawing, DrawingId } from "../ink/types";
-import { type FetchLike, HttpRecognizer } from "./httpRecognizer";
+import type { FetchLike } from "../persistence/api";
+import { HttpRecognizer } from "./httpRecognizer";
 
 const drawing: Drawing = {
   id: "drawing-1" as DrawingId,

@@ -1,31 +1,17 @@
-import type { Stroke, Vec } from "../core/geometry";
+import { z } from "zod";
 import type { Exemplar } from "./types";
 
-export const EXEMPLAR_BOX = 256;
+const EXEMPLAR_BOX = 256;
 
-const isPoint = (value: unknown): value is Vec =>
-  typeof value === "object" &&
-  value !== null &&
-  "x" in value &&
-  "y" in value &&
-  Number.isFinite(value.x) &&
-  Number.isFinite(value.y);
+const inBox = z.number().min(0).max(EXEMPLAR_BOX);
 
-const isStroke = (value: unknown): value is Stroke =>
-  Array.isArray(value) && value.length > 1 && value.every(isPoint);
-
-const inBox = ({ x, y }: Vec): boolean =>
-  x >= 0 && x <= EXEMPLAR_BOX && y >= 0 && y <= EXEMPLAR_BOX;
+const exemplarSchema = z.object({
+  word: z.string().trim().min(1),
+  strokes: z.array(z.array(z.object({ x: inBox, y: inBox })).min(2)).min(1),
+}) satisfies z.ZodType<Exemplar>;
 
 /** The server's picture of a word; null for anything that is not strokes inside the 256 px frame. */
 export const exemplarOf = (body: unknown): Exemplar | null => {
-  if (typeof body !== "object" || body === null) return null;
-  const { word, strokes } = body as Record<string, unknown>;
-  if (typeof word !== "string" || word.trim().length === 0) return null;
-  if (!Array.isArray(strokes) || strokes.length === 0 || !strokes.every(isStroke)) return null;
-  if (!strokes.every((stroke) => stroke.every(inBox))) return null;
-  return {
-    word: word.trim(),
-    strokes: strokes.map((stroke) => stroke.map(({ x, y }) => ({ x, y }))),
-  };
+  const parsed = exemplarSchema.safeParse(body);
+  return parsed.success ? parsed.data : null;
 };

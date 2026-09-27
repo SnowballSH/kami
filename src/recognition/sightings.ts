@@ -1,33 +1,28 @@
-import { NATURES, type Nature } from "../cat/types";
+import { z } from "zod";
+import { NATURES } from "../cat/types";
 import type { Sighting } from "./types";
 
-const isListOf =
-  <Item>(isItem: (item: unknown) => item is Item) =>
-  (value: unknown): value is readonly Item[] =>
-    Array.isArray(value) && value.every(isItem);
-
-const isWord = (item: unknown): item is string => typeof item === "string";
-const isNumber = (item: unknown): item is number =>
-  typeof item === "number" && Number.isFinite(item);
-const isNature = (item: unknown): item is Nature => NATURES.some((nature) => nature === item);
-
-const LEADER = 0;
-
-const isWords = isListOf(isWord);
-const isNumbers = isListOf(isNumber);
-const isNatures = isListOf(isNature);
+const answerSchema = z
+  .object({
+    guesses: z.array(z.string()),
+    confidence: z.array(z.number()),
+    names: z.array(z.string()),
+    natures: z.array(z.enum(NATURES)),
+    strengths: z.array(z.number()),
+    lines: z.array(z.string()),
+    certain: z.boolean().catch(false),
+  })
+  .refine(({ guesses, confidence, names, natures, strengths, lines }) =>
+    [confidence, names, natures, strengths, lines].every(
+      (column) => column.length === guesses.length,
+    ),
+  );
 
 /** The server's parallel arrays as one list; [] for anything that is not the documented shape. */
 export const sightingsOf = (body: unknown): readonly Sighting[] => {
-  if (typeof body !== "object" || body === null) return [];
-  const { guesses, confidence, names, natures, strengths, lines, certain } = body as Record<
-    string,
-    unknown
-  >;
-  if (!isWords(guesses) || !isNumbers(confidence) || !isWords(names)) return [];
-  if (!isNatures(natures) || !isNumbers(strengths) || !isWords(lines)) return [];
-  const columns = [confidence, names, natures, strengths, lines];
-  if (columns.some((column) => column.length !== guesses.length)) return [];
+  const parsed = answerSchema.safeParse(body);
+  if (!parsed.success) return [];
+  const { guesses, confidence, names, natures, strengths, lines, certain } = parsed.data;
   return guesses.map((word, index) => ({
     word,
     confidence: confidence[index] ?? 0,
@@ -35,6 +30,6 @@ export const sightingsOf = (body: unknown): readonly Sighting[] => {
     nature: natures[index] ?? "ink",
     strength: strengths[index] ?? 1,
     line: lines[index] ?? "",
-    certain: index === LEADER && certain === true,
+    certain: index === 0 && certain,
   }));
 };
