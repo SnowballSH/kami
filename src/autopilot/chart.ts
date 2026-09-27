@@ -68,7 +68,7 @@ const union = (a: CellRange, b: CellRange): CellRange => ({
   r1: Math.max(a.r1, b.r1),
 });
 
-export const grow = (range: CellRange, by: number): CellRange => ({
+export const widenRange = (range: CellRange, by: number): CellRange => ({
   c0: range.c0 - by,
   c1: range.c1 + by,
   r0: range.r0 - by,
@@ -186,7 +186,7 @@ const extentOf = (scene: Scene): CellRange => {
   if (first === undefined) throw new Error("a scene always has Alice in it");
   const extent = rest.reduce(union, first);
   const killRow = Math.ceil(scene.board.killY / CELL_PX);
-  return grow({ ...extent, r1: Math.min(extent.r1, killRow) }, MARGIN_CELLS);
+  return widenRange({ ...extent, r1: Math.min(extent.r1, killRow) }, MARGIN_CELLS);
 };
 
 const boundedGeometry = (scene: Scene): boolean => {

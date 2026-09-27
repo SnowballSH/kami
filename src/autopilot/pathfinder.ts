@@ -14,7 +14,7 @@ import {
   type BounceArc,
   KEY_PICKUP,
 } from "../sim/types";
-import { CELL_PX, CellFlag, type CellRange, type Chart, grow } from "./chart";
+import { CELL_PX, CellFlag, type CellRange, type Chart, widenRange } from "./chart";
 import { MinHeap } from "./minHeap";
 import { NodeGrid, type NodeKey, NodeMemo } from "./nodeMemo";
 import type { Objective, Scene } from "./types";
@@ -200,7 +200,7 @@ export class Pathfinder {
     const body = bodyRect(node, this.footprint);
     const { board } = this.scene;
     if (goal.kind === "eat") {
-      return this.chart.edibleIn(grow(bodyRange(node, this.footprint), 1)) === goal.drawingId;
+      return this.chart.edibleIn(widenRange(bodyRange(node, this.footprint), 1)) === goal.drawingId;
     }
     switch (goal.objective) {
       case "key": {
