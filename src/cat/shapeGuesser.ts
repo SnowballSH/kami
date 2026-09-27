@@ -1,5 +1,5 @@
 import type { Drawing } from "../ink/types";
-import { isAllowed } from "./natures";
+import { isHonoured } from "./natures";
 import { classifyShape, type ShapeKind } from "./shape";
 import type { AllowedNatures, Nature } from "./types";
 
@@ -60,8 +60,8 @@ const LAST_RESORT: Guesses = ["a plank", "a box", "a button"];
 
 export const guessNames = (drawing: Drawing, allowed: AllowedNatures): Guesses => {
   const ranked = [...CANDIDATES[classifyShape(drawing)], ...EVERY_CANDIDATE];
-  const permitted = ranked.filter(({ nature }) => isAllowed(nature, allowed));
-  const forbidden = ranked.filter(({ nature }) => !isAllowed(nature, allowed));
+  const permitted = ranked.filter(({ nature }) => isHonoured(nature, allowed));
+  const forbidden = ranked.filter(({ nature }) => !isHonoured(nature, allowed));
   const [first, second, third] = new Set([...permitted, ...forbidden].map(({ name }) => name));
   return [first ?? LAST_RESORT[0], second ?? LAST_RESORT[1], third ?? LAST_RESORT[2]];
 };

@@ -5,7 +5,7 @@ import type { Drawing, DrawingId } from "../ink/types";
 import type { LiveRecognizer, Recognizer, Sighting } from "../recognition/types";
 import { createCat } from "./index";
 import { REFUSALS } from "./lines";
-import { isAllowed } from "./natures";
+import { isHonoured } from "./natures";
 import type { Cat, Nature, RoomBrief } from "./types";
 
 const zoneOf = (id: string): RoomBrief => {
@@ -305,17 +305,26 @@ describe("ScriptedCat", () => {
 
     it("always offers three distinct names the room would honour", async () => {
       const anythingGoes = createCat();
-      for (const room of ROOMS.filter((candidate) => candidate !== inkOnlyRiverbank)) {
+      for (const room of ROOMS) {
         for (const drawing of [...Object.values(SHAPES), drawingOf()]) {
           cat.enterRoom(room);
           const guesses = await cat.guess(drawing);
           expect(new Set(guesses).size).toBe(3);
           for (const guess of guesses) {
             const { nature } = await anythingGoes.name(guess, SKETCH);
-            expect(isAllowed(nature, room.allowedNatures)).toBe(true);
+            expect(isHonoured(nature, room.allowedNatures)).toBe(true);
           }
         }
       }
+    });
+
+    it("offers plain ink before a forbidden nature where the room leaves ink unlisted", async () => {
+      cat.enterRoom(restricted("riverbank", ["grow"]));
+      expect(await cat.guess(SHAPES.flat ?? drawingOf())).toEqual([
+        "a plank",
+        "a biscuit",
+        "a bridge",
+      ]);
     });
 
     it("still finds three names where only ink exists", async () => {
