@@ -19,28 +19,28 @@ const FLEES = vocabulary(`
 
 const ALONE = vocabulary(`
   alone, indifferent, wild, wanders, wander, roams, roam, roaming, ignores, ignore, ignoring,
-  ignored, forget, forgets, forgets
+  ignored, forget, forgets
 `);
 
-const NEGATION = vocabulary(`
+const UNHEEDING = vocabulary(`
   not, no, never, dont, doesnt, wont, stops, stop, stopped, quits, quit, longer, anymore
 `);
 
-const ME = union(ALICE, vocabulary("me, us, alice"));
+const ME = union(ALICE, vocabulary("me, us"));
 
 const GOING = vocabulary(`
   runs, run, running, goes, go, going, walks, walk, hops, flies, moves, comes, come, gets,
   keeps, keep, stays, stay, leaves, leave, backs, back, close, near, nearby, distance, off, from,
   out, behind, around, after, about, everywhere, wherever, side, always, forever, terribly,
-  everyone, whenever, sees, around, toward, towards, along, far
+  everyone, whenever, sees, toward, towards, along, far
 `);
 
-export const HEED_WORDS: Vocabulary = knownWords(FOLLOWS, FLEES, ALONE, NEGATION, ME, GOING);
+export const HEED_WORDS: Vocabulary = knownWords(FOLLOWS, FLEES, ALONE, UNHEEDING, ME, GOING);
 
 const HEED = union(FOLLOWS, FLEES, ALONE);
 
 const heedOf = (words: readonly string[]): number => {
-  if (mentions(words, NEGATION) || mentions(words, ALONE)) return 0;
+  if (mentions(words, UNHEEDING) || mentions(words, ALONE)) return 0;
   return mentions(words, FLEES) ? -1 : 1;
 };
 

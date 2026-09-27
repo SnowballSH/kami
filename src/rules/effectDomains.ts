@@ -1,4 +1,5 @@
-import { clamp } from "../core/geometry";
+import { clamp, type Vec } from "../core/geometry";
+import { GOVERNS } from "./subjects";
 import {
   type BodyLaw,
   type Governs,
@@ -52,47 +53,28 @@ export const inEffectDomain = (governs: Governs, value: number): boolean => {
   );
 };
 
+const isGoverns = (key: string): key is Governs => Object.hasOwn(EFFECT_DOMAINS, key);
+
+const inDomain = (governs: Governs, value: number | Vec): boolean =>
+  typeof value === "number"
+    ? inEffectDomain(governs, value)
+    : inEffectDomain(governs, value.x) && inEffectDomain(governs, value.y);
+
 const validTarget = (of: Target): boolean =>
   of.kind === "all" || (of.kind === "named" && of.name.trim().length > 0);
 
-export const validEffect = (effect: RuleEffect): boolean => {
-  if (isBodyEffect(effect) && !validTarget(effect.of)) return false;
-  return "value" in effect
-    ? inEffectDomain(effect.governs, effect.value)
-    : inEffectDomain(effect.governs, effect.x) && inEffectDomain(effect.governs, effect.y);
-};
+export const validEffect = (effect: RuleEffect): boolean =>
+  (!isBodyEffect(effect) || validTarget(effect.of)) &&
+  inDomain(effect.governs, "value" in effect ? effect.value : effect);
 
 const validBodyLaw = ({ of, edit }: BodyLaw): boolean =>
   validTarget(of) &&
-  (edit.spin === undefined || inEffectDomain("spin", edit.spin)) &&
-  (edit.thrust === undefined ||
-    (inEffectDomain("thrust", edit.thrust.x) && inEffectDomain("thrust", edit.thrust.y))) &&
-  (edit.mass === undefined || inEffectDomain("mass", edit.mass)) &&
-  (edit.bounce === undefined || inEffectDomain("bounce", edit.bounce)) &&
-  (edit.grip === undefined || inEffectDomain("grip", edit.grip)) &&
-  (edit.pace === undefined || inEffectDomain("pace", edit.pace)) &&
-  (edit.wings === undefined || inEffectDomain("wings", edit.wings)) &&
-  (edit.size === undefined || inEffectDomain("size", edit.size)) &&
-  (edit.heed === undefined || inEffectDomain("heed", edit.heed)) &&
-  (edit.glow === undefined || inEffectDomain("glow", edit.glow));
+  Object.entries(edit).every(
+    ([governs, value]) => value === undefined || !isGoverns(governs) || inDomain(governs, value),
+  );
 
 export const validPhysics = (physics: WorldPhysics): boolean =>
-  validEffect({ governs: "gravity", ...physics.gravity }) &&
-  validEffect({ governs: "wind", ...physics.wind }) &&
-  inEffectDomain("timeScale", physics.timeScale) &&
-  inEffectDomain("airDrag", physics.airDrag) &&
-  inEffectDomain("friction", physics.friction) &&
-  inEffectDomain("bounciness", physics.bounciness) &&
-  inEffectDomain("temperature", physics.temperature) &&
-  inEffectDomain("daylight", physics.daylight) &&
-  inEffectDomain("flight", physics.flight) &&
-  inEffectDomain("walkSpeed", physics.walkSpeed) &&
-  inEffectDomain("aliceSize", physics.aliceSize) &&
-  inEffectDomain("attraction", physics.attraction) &&
-  inEffectDomain("clones", physics.clones) &&
-  inEffectDomain("inkEater", physics.inkEater) &&
-  inEffectDomain("tilt", physics.tilt) &&
-  inEffectDomain("worldSpin", physics.worldSpin) &&
+  GOVERNS.every((governs) => inDomain(governs, physics[governs])) &&
   physics.bodies.every(validBodyLaw);
 
 export const clampEffectValue = (governs: Governs, value: number): number => {

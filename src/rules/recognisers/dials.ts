@@ -209,9 +209,12 @@ const knownTo = (dial: Dial): Vocabulary =>
     ...dial.readings.map((r) => r.words),
   );
 
-const KNOWN: ReadonlyMap<Dial, Vocabulary> = new Map(DIALS.map((dial) => [dial, knownTo(dial)]));
+const KNOWN_DIALS: readonly (readonly [Dial, Vocabulary])[] = DIALS.map((dial) => [
+  dial,
+  knownTo(dial),
+]);
 
-export const DIAL_WORDS: Vocabulary = union(...KNOWN.values());
+export const DIAL_WORDS: Vocabulary = union(...KNOWN_DIALS.map(([, known]) => known));
 
 const saysDial = (dial: Dial, words: readonly string[]): boolean =>
   dial.about.every((topic) => mentions(words, topic));
@@ -230,10 +233,8 @@ const readDial = (dial: Dial, words: readonly string[]): number | null => {
 
 /** The dials on Alice and on the weather; the older dials keep their own recognisers. */
 export const recogniseDials: Recogniser = ({ words }) => {
-  for (const dial of DIALS) {
-    const known = KNOWN.get(dial);
-    if (known === undefined || !understands(words, known)) continue;
-    if (!saysDial(dial, words)) continue;
+  for (const [dial, known] of KNOWN_DIALS) {
+    if (!understands(words, known) || !saysDial(dial, words)) continue;
     const value = readDial(dial, words);
     if (value !== null) return scalarRule(dial.governs, value);
   }
