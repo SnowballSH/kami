@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
+import { Recent } from "../recent";
 
 const INDEX_DOCUMENT = "index.html";
 const IMMUTABLE_ASSETS = `${sep}assets${sep}`;
@@ -83,14 +84,9 @@ export const acceptedEncodings = (acceptEncoding: string | null): readonly Encod
  */
 export const createStaticSite = (directory: string): SiteHandler => {
   const root = resolve(directory);
-  const cache = new Map<string, CachedFile>();
+  const cache = new Recent<CachedFile>(MAX_CACHED_FILES);
 
   const remember = (path: string, file: CachedFile): CachedFile => {
-    cache.delete(path);
-    if (cache.size >= MAX_CACHED_FILES) {
-      const oldest = cache.keys().next().value;
-      if (oldest !== undefined) cache.delete(oldest);
-    }
     cache.set(path, file);
     return file;
   };

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { WorkLimit } from "../../http/workLimit";
 import { ChatClient, type FetchLike, type LlmConfig, lastJsonObject } from "../../llm/chatClient";
 import { strictJsonSchema } from "../../llm/strictJsonSchema";
-import { Recent } from "../recent";
+import { Recent } from "../../recent";
 import { asWriting } from "../types";
 import type { Proofread } from "./corrector";
 import { DEFAULT_FAITHFULNESS, type FaithfulnessLimits, isFaithful } from "./faithful";
