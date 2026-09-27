@@ -1,5 +1,5 @@
 import type { ApiAccess } from "./access";
-import { badRequest, noContent, notFound, serverError } from "./responses";
+import { badRequest, notFound, serverError } from "./responses";
 
 export type HttpMethod = "GET" | "PUT" | "POST" | "DELETE";
 
@@ -69,7 +69,6 @@ export class Router {
     this.access.handle(request, this.#route, peer);
 
   readonly #route = async (request: Request): Promise<Response> => {
-    if (request.method === "OPTIONS") return noContent();
     const actual = segmentsOf(new URL(request.url).pathname);
     try {
       for (const route of this.#routes) {
