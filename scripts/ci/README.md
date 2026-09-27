@@ -4,7 +4,7 @@
 `package.json`, frozen `bun.lock`, and the existing `bun run check` and `bun run build`.
 No model endpoint or deployment credential is supplied to hosted CI.
 
-`bun run check:lightweight` requires uv 0.12.13. It installs only the locked `check`
+`bun run check:lightweight` requires uv 0.12.19. It installs only the locked `check`
 group (Ruff and mypy) into `.cache/check-venv`, leaving any ML environment intact.
 It runs:
 
