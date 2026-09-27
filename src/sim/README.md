@@ -6,7 +6,8 @@
 
 | File | Holds |
 |---|---|
-| `simulation.ts` | `MatterSimulation`: owns one `BoardWorld` (engine, props, ink, Alice, checkpoints) per loaded board, the standing `WorldPhysics`, and the tick order below |
+| `simulation.ts` | `MatterSimulation`: owns one `BoardWorld` per loaded board, the standing `WorldPhysics`, and the tick order below |
+| `boardWorld.ts` | `BoardWorld` (engine, props, ink, Alice, checkpoints) and the questions asked of it: off the board, where to respawn, headroom to grow |
 | `alice.ts` | `AliceController`: walking, blocking, step-assist, climbing, resize, respawn, traction |
 | `contacts.ts` | Collision categories, `Contact`, slope classification, the probe helpers |
 | `inkLayer.ts` / `inkEntity.ts` | Live drawings ↔ matter bodies; rebuilds a body when a ruling changes it |
