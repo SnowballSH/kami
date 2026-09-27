@@ -62,7 +62,7 @@ const writingOrigin = (strokes: readonly Stroke[]): Vec => {
 
 /**
  * The game on one device: it wires input, the HUD and the laws panel to the sim and to Kami's
- * parts, opens boards, and draws every frame. `docs/architecture.md` → game/ describes the parts.
+ * parts, opens boards, and draws every frame. `README.md` here describes the parts.
  */
 export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, LawsPanelHandlers {
   private readonly director: ModeDirector;

@@ -84,4 +84,32 @@ describe("NoteBook fleeting Kami notes", () => {
     if (bounds === null) throw new Error("ground note missing");
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(0);
   });
+
+  it("writes a note once, moving it clear of what is already there and inside the view", () => {
+    const handwriting = new FakeHandwriting();
+    const book = new NoteBook(handwriting);
+    const within = { x: 0, y: 0, width: 400, height: 400 };
+    book.write({ note: note("first", "first", 1), nowMs: 0, within });
+    const below = book.write({
+      note: { ...note("second", "second", 2), position: { x: 10, y: 0 } },
+      nowMs: 0,
+      drift: "down",
+      within,
+    });
+    const inside = book.write({
+      note: { ...note("third", "third", 3), position: { x: 390, y: 200 } },
+      nowMs: 0,
+      within,
+    });
+
+    expect(handwriting.everWritten).toEqual(["first", "second", "third"]);
+    const first = book.boundsOf("first" as NoteId);
+    const second = book.boundsOf(below.id);
+    const third = book.boundsOf(inside.id);
+    if (first === null || second === null || third === null) throw new Error("notes missing");
+    expect(second.y).toBeGreaterThanOrEqual(first.y + first.height);
+    expect(second.y).toBe(below.position.y);
+    expect(third.x + third.width).toBeLessThanOrEqual(within.width);
+    expect(third.x).toBe(inside.position.x);
+  });
 });

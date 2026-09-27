@@ -15,6 +15,32 @@ export const NOTE_STYLE = {
   kami: { size: 26, maxWidth: 460 },
 } as const;
 
+const translate = ({ x, y }: Vec, by: Vec): Vec => ({ x: x + by.x, y: y + by.y });
+
+/** Handwriting does not depend on where it is written, so a draft is moved rather than rewritten. */
+const shifted = (script: PenScript, by: Vec): PenScript =>
+  by.x === 0 && by.y === 0
+    ? script
+    : {
+        ...script,
+        strokes: script.strokes.map((stroke) =>
+          stroke.map((point) => ({ ...point, ...translate(point, by) })),
+        ),
+        bounds: { ...script.bounds, ...translate(script.bounds, by) },
+      };
+
+/** The bounds moved inside `within` and above `maxY`, as far as they fit. */
+const clampedWithin = (bounds: Rect, within: Rect | undefined, maxY = Infinity): Rect => {
+  if (within === undefined) return bounds;
+  const right = within.x + within.width - bounds.width;
+  const bottom = Math.min(within.y + within.height, maxY) - bounds.height;
+  return {
+    ...bounds,
+    x: clamp(bounds.x, Math.min(within.x, right), Math.max(within.x, right)),
+    y: clamp(bounds.y, Math.min(within.y, bottom), Math.max(within.y, bottom)),
+  };
+};
+
 /** What a note hangs off: erase the anchor and the note goes with it. */
 export type NoteAnchor =
   | { readonly type: "note"; readonly id: NoteId }
@@ -60,17 +86,16 @@ export class NoteBook {
     obstacles,
     within,
   }: NotePlacement): Note {
-    const placed =
+    const draft = this.scriptFor(note, this.seed + 1, within);
+    const wanted =
       drift === undefined
-        ? note
-        : this.clearSpotFor(note, drift, minY, maxY, obstacles ?? [], within);
-    return this.inscribe(
-      this.clampToWithin(placed, within, maxY),
-      nowMs,
-      anchor ?? null,
-      lifetimeMs,
-      within,
-    ).note;
+        ? draft.bounds
+        : this.clearSpotFor(draft.bounds, drift, minY, maxY, obstacles ?? [], within);
+    const bounds = clampedWithin(wanted, within, maxY);
+    const by = { x: bounds.x - draft.bounds.x, y: bounds.y - draft.bounds.y };
+    const placed = { ...note, position: translate(note.position, by) };
+    return this.inscribe(placed, nowMs, anchor ?? null, lifetimeMs, within, shifted(draft, by))
+      .note;
   }
 
   /**
@@ -191,46 +216,15 @@ export class NoteBook {
   }
 
   private clearSpotFor(
-    note: Note,
+    wanted: Rect,
     drift: Drift,
     minY: number | undefined,
     maxY: number | undefined,
     obstacles: readonly Rect[],
     within: Rect | undefined,
-  ): Note {
-    const wanted = this.scriptFor(note, this.seed + 1, within).bounds;
+  ): Rect {
     const taken = [...this.entries.values()].map((entry) => entry.script.bounds).concat(obstacles);
-    const settled = settle(wanted, taken, drift, minY, within, maxY);
-    const position = {
-      x: note.position.x + settled.x - wanted.x,
-      y: note.position.y + settled.y - wanted.y,
-    };
-    return { ...note, position };
-  }
-
-  private clampToWithin(
-    note: Note,
-    within: Rect | undefined,
-    maxY = Number.POSITIVE_INFINITY,
-  ): Note {
-    if (within === undefined) return note;
-    const script = this.scriptFor(note, this.seed + 1, within);
-    const offsetX = script.bounds.x - note.position.x;
-    const offsetY = script.bounds.y - note.position.y;
-    const minX = within.x - offsetX;
-    const maxX = within.x + within.width - script.bounds.width - offsetX;
-    const minY = within.y - offsetY;
-    const maxOriginY = Math.min(
-      within.y + within.height - script.bounds.height - offsetY,
-      maxY - script.bounds.height - offsetY,
-    );
-    return {
-      ...note,
-      position: {
-        x: clamp(note.position.x, Math.min(minX, maxX), Math.max(minX, maxX)),
-        y: clamp(note.position.y, Math.min(minY, maxOriginY), Math.max(minY, maxOriginY)),
-      },
-    };
+    return { ...wanted, ...settle(wanted, taken, drift, minY, within, maxY) };
   }
 
   private scriptFor(note: Note, seed: number, within?: Rect): PenScript {
@@ -249,9 +243,10 @@ export class NoteBook {
     anchor: NoteAnchor | null,
     lifetimeMs?: number,
     within?: Rect,
+    written?: PenScript,
   ): Entry {
     this.seed += 1;
-    const script = this.scriptFor(note, this.seed, within);
+    const script = written ?? this.scriptFor(note, this.seed, within);
     const expiresAtMs =
       lifetimeMs === undefined ? null : writtenAtMs + script.durationMs + lifetimeMs;
     const entry = { note, script, writtenAtMs, expiresAtMs, anchor };
