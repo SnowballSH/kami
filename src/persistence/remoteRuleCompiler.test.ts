@@ -40,6 +40,7 @@ describe("RemoteRuleCompiler", () => {
   it.each([
     { governs: "spin", value: 1 },
     { governs: "thrust", of: { kind: "named" }, x: 0, y: -1 },
+    { governs: "spin", of: { kind: "named", name: " " }, value: 1 },
     { governs: "mass", of: { kind: "alice" }, value: 2 },
   ])("refuses a drawing law without a proper target: %j", async (effect) => {
     const compiler = new RemoteRuleCompiler(async () =>

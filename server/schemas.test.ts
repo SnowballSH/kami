@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EFFECT_DOMAINS } from "../src/rules/effectDomains";
-import { ruleEffectSchema, rulingSchema } from "./schemas";
+import { rawRuleEffectSchema, ruleEffectSchema, rulingSchema } from "./schemas";
 
 describe("persisted numeric domains", () => {
   it("accepts every inclusive boundary and rejects values outside it", () => {
@@ -66,6 +66,14 @@ describe("persisted numeric domains", () => {
     }
     for (const strength of [0, 2.1, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(rulingSchema.safeParse({ ...ruling, strength }).success).toBe(false);
+    }
+  });
+
+  it("agrees with the game on a named target: trimmed, and never blank", () => {
+    const aimedAt = (name: string) => ({ governs: "spin", of: { kind: "named", name }, value: 1 });
+    for (const schema of [rawRuleEffectSchema, ruleEffectSchema]) {
+      expect(schema.safeParse(aimedAt(" ")).success).toBe(false);
+      expect(schema.parse(aimedAt(" wheel "))).toEqual(aimedAt("wheel"));
     }
   });
 });

@@ -93,7 +93,7 @@ export const noteSchema = z.looseObject({
 
 const targetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("all") }),
-  z.object({ kind: z.literal("named"), name: textSchema.min(1) }),
+  z.object({ kind: z.literal("named"), name: textSchema.trim().min(1) }),
 ]) satisfies z.ZodType<Target>;
 
 const vectorEffect = <Governs extends Exclude<WorldGoverns, ScalarGoverns>>(governs: Governs) =>

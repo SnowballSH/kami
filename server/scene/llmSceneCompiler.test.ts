@@ -71,6 +71,14 @@ describe("parseSceneReply", () => {
       parseSceneReply('{"place":"X","laws":[{"effect":{"governs":"magic"}}]}', drawable),
     ).toBeNull();
   });
+
+  it("never sends a law aimed at a blank name, which the game would refuse", () => {
+    const aimless = JSON.stringify({
+      place: "X",
+      laws: [{ effect: { governs: "spin", of: { kind: "named", name: " " }, value: 1 } }],
+    });
+    expect(parseSceneReply(aimless, drawable)).toBeNull();
+  });
 });
 
 describe("createLlmSceneCompiler", () => {
