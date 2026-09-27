@@ -501,8 +501,15 @@ export class Pilot implements Autopilot {
       }
       case "objective":
         return towards(pointOf(scene, errand.objective).x);
-      default:
+      case "wait":
+      case "flee":
+      case "explore":
+      case "idle":
         return IDLE;
+      default: {
+        const unhandled: never = errand;
+        return unhandled;
+      }
     }
   }
 
