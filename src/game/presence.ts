@@ -24,6 +24,7 @@ export class Presence {
     PeerId,
     { readonly alice: Ghost; readonly heardAtMs: number }
   >();
+  private crowd: readonly Ghost[] | null = null;
   private shown: ShareInfo | null = null;
 
   /** `link` is null unless the mode shares pages live. */
@@ -43,7 +44,8 @@ export class Presence {
   }
 
   get company(): readonly Ghost[] {
-    return [...this.ghosts.values()].map(({ alice }) => alice);
+    this.crowd ??= [...this.ghosts.values()].map(({ alice }) => alice);
+    return this.crowd;
   }
 
   follow(boardId: string, since: FeedCursor | null, follower: PageFollower): void {
@@ -56,6 +58,7 @@ export class Presence {
         seen: (peer, alice) => {
           if (alice === null) this.ghosts.delete(peer);
           else this.ghosts.set(peer, { alice, heardAtMs: this.clock.nowMs });
+          this.crowd = null;
         },
         resync: () => {
           this.unfollow = null;
@@ -70,13 +73,17 @@ export class Presence {
     this.unfollow?.();
     this.unfollow = null;
     this.ghosts.clear();
+    this.crowd = null;
   }
 
   frame(boardId: string, alice: AliceSnapshot | null, announcing: boolean): void {
     const { nowMs } = this.clock;
     if (this.following && announcing && alice !== null) this.link?.announce(alice, nowMs);
     for (const [peer, { heardAtMs }] of this.ghosts)
-      if (nowMs - heardAtMs > GHOST_GONE_AFTER_MS) this.ghosts.delete(peer);
+      if (nowMs - heardAtMs > GHOST_GONE_AFTER_MS) {
+        this.ghosts.delete(peer);
+        this.crowd = null;
+      }
     this.showShare(boardId);
   }
 
