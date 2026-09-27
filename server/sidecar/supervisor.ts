@@ -1,5 +1,6 @@
 import { dirname } from "node:path";
 import type { Env } from "../env/env";
+import { reasonOf } from "../errors";
 import type { FetchLike } from "../recognition/types";
 import { fetchSidecarCapabilities, type SidecarCapabilities } from "./health";
 import { type ManagedSidecarConfig, managedSidecarUrl, sidecarEnvironment } from "./managed";
@@ -158,7 +159,7 @@ export class SidecarSupervisor {
         onLine: (line) => log(`${SIDECAR_PREFIX}${line}`),
       });
     } catch (error) {
-      log(`${SIDECAR_PREFIX}cannot start ${python} ${script}: ${(error as Error).message}`);
+      log(`${SIDECAR_PREFIX}cannot start ${python} ${script}: ${reasonOf(error)}`);
       return null;
     }
   }

@@ -20,8 +20,7 @@ export interface ManagedSidecarConfig {
 export const managedSidecarUrl = ({ port }: ManagedSidecarConfig): string =>
   `http://${SIDECAR_HOST}:${port}`;
 
-/** Only what a Python process needs: the server's secrets stay with the server. The sidecar stops
- * when the process named by KAMI_SIDECAR_PARENT_PID is no longer its parent. */
+/** Only what a Python process needs: the server's secrets stay with the server. */
 const INHERITED = ["PATH", "LANG", "LC_ALL", "TZ", "TMPDIR", "SSL_CERT_FILE"] as const;
 
 export const sidecarEnvironment = (
@@ -37,6 +36,7 @@ export const sidecarEnvironment = (
     PYTHONUNBUFFERED: "1",
     PYTHONDONTWRITEBYTECODE: "1",
     OMP_NUM_THREADS: "1",
+    // The sidecar exits once this process is no longer its parent, so a killed server leaves no orphan.
     KAMI_SIDECAR_PARENT_PID: String(parentPid),
   };
   if (config.threads !== null) environment.KAMI_EYE_THREADS = String(config.threads);

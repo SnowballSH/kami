@@ -1,6 +1,7 @@
 import { constants, type ReadStream } from "node:fs";
 import { type FileHandle, open, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { reasonOf } from "../errors";
 import { LineBuffer, reportLines } from "./lines";
 import { prepareSerialDevice } from "./tty";
 import { AUTO_SERIAL_DEVICE, type ControllerHub, type ControllerInput, type Log } from "./types";
@@ -32,7 +33,7 @@ const complaintAbout = (path: string, failure: unknown): string => {
     return `controllers: no permission to read ${path} — add this user to the dialout group (sudo usermod -aG dialout $USER), then log in again`;
   }
   if (code === "ENOENT") return `controllers: ${path} is not there; still looking for it`;
-  return `controllers: reading ${path} failed (${failure instanceof Error ? failure.message : failure})`;
+  return `controllers: reading ${path} failed (${reasonOf(failure)})`;
 };
 
 /**

@@ -8,6 +8,7 @@
  * (the route says 503).
  */
 import type { Stroke } from "../../../src/core/geometry";
+import { reasonOf } from "../../errors";
 import {
   DEFAULT_RECOGNIZER_OPTIONS,
   type FeatureMatrix,
@@ -161,7 +162,7 @@ export class WorkerRankingPool implements InProcessSketchRanker {
 
   #failed(slot: Slot, error: unknown): void {
     if (this.#closed) return;
-    const reason = error instanceof Error ? error.message : String(error);
+    const reason = reasonOf(error);
     this.#settings.log(`recognition thread failed (${reason}); starting another`);
     slot.port.terminate();
     this.#slots.delete(slot);

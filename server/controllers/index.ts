@@ -1,4 +1,6 @@
 /** The physical-controller relay: one hub, fed by UDP, serial and `POST /api/controllers/:id/state`. */
+
+import { reasonOf } from "../errors";
 import { InMemoryControllerHub } from "./hub";
 import { listenOnSerial } from "./serialListener";
 import type {
@@ -31,9 +33,7 @@ const udpInput = async (
   try {
     return await listenOnUdp(hub, port, { log });
   } catch (error) {
-    log(
-      `controllers: UDP :${port} is unavailable (${error instanceof Error ? error.message : error})`,
-    );
+    log(`controllers: UDP :${port} is unavailable (${reasonOf(error)})`);
     return null;
   }
 };
