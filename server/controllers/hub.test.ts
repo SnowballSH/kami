@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FORGET_AFTER_MS, InMemoryControllerHub, STALE_AFTER_MS } from "./hub";
 import { ManualClock } from "./testing/manualClock";

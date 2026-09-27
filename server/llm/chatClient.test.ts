@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { ChatClient, type FetchLike, type LlmConfig } from "./chatClient";
 import { DEFAULT_REQUEST_SHAPE, degradeAfterRejection, parseReasoningEffort } from "./requestShape";

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { plainMatrix } from "../testing/matrices";
 import { circleSketch, lineSketch, toSimplified } from "../testing/sketches";

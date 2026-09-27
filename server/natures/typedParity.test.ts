@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { ruleOn } from "../../src/cat/ruling";
 import type { Nature } from "../../src/cat/types";

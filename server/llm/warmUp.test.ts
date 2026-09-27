@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLlmCompiler } from "../compile/llmCompiler";
 import { createLlmTranscriber } from "../transcribe/llmTranscriber";

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { MAX_FRAME_BYTES, pack } from "../../src/stage/wire";
 import { HANDOVER_IDLE_MS, MOST_BUFFERED_BYTES, type Seat, Stage, StageHub } from "./stageHub";

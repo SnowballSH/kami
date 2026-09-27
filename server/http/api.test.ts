@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Ruling } from "../../src/cat/types";
 import type { Stroke } from "../../src/core/geometry";

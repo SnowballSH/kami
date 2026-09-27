@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { DEFAULT_EMBEDDED_CACHE_GB, embeddedMongodArgs, MIN_EMBEDDED_CACHE_GB } from "./connect";
 

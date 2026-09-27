@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { FetchLike } from "../../llm/chatClient";
 import { DEFAULT_REPAIR_LIMITS, LlmRepairer } from "./repairer";

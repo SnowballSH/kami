@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { circleSketch, lineSketch, transformSketch } from "../testing/sketches";
 import { computeFeature, FEATURE_LENGTH } from "./feature";

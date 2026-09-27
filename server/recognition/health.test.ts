@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { checkEyeHealth, describeEye } from "./health";
 import type { FetchLike } from "./types";

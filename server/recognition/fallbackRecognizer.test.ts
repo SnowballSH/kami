@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { lineSketch } from "../testing/sketches";
 import { FallbackRecognizer } from "./fallbackRecognizer";

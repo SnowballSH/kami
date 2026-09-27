@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { FetchLike } from "../llm/chatClient";
 import { createLlmSceneCompiler, PROP_REACH, PROP_SIZE, parseSceneReply } from "./llmSceneCompiler";

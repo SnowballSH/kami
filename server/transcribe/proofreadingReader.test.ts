@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { Stroke } from "../../src/core/geometry";
 import type { Proofread } from "./proofread/corrector";

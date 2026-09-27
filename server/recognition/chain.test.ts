@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { createRecognizerChain } from "./chain";
 import type { FetchLike, InProcessSketchRanker, RankOptions, Reading } from "./types";

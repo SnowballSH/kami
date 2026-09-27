@@ -432,23 +432,18 @@ from Quick, Draw! on first request. Strokes are handed out in the dataset's 0–
 scales and places them. `GET /api/exemplars` lists the categories, from which the game builds its
 summoning lexicon (plurals, aliases, scenes like "a forest") — `src/summoning`.
 
-## Two things that would otherwise bite
+## `bun --watch` and the data directory lock
 
-- **Bun and `bson`.** `bson` 7 probes `v8.startupSnapshot.isBuildingSnapshot()` while it loads, and
-  Bun 1.3 throws "not implemented" from it, so `import "mongodb"` crashes. `db/bsonSnapshotShim.ts`
-  replaces the probe with `() => false` when it throws, and `db/mongo.ts` loads the driver with a
-  dynamic `import()` afterwards (Bun evaluates statically imported CommonJS before any shim could
-  run). Import the driver from `db/mongo.ts`, never from `"mongodb"` directly.
-- **`bun --watch` and the data directory lock.** A watch reload re-executes the server in place, so
-  the `mongod` it spawned is still running and still holds `.kami-data/mongod.lock`. That is why
-  the embedded `mongod` has a fixed port: `connectDatabase` first tries to adopt whatever is
-  listening there and only spawns one if nothing answers. The server's shutdown stops the `mongod`
-  either way; `ingest` and `evaluate` stop it only if they started it.
+A watch reload re-executes the server in place, so the `mongod` it spawned is still running and
+still holds `.kami-data/mongod.lock`. That is why the embedded `mongod` has a fixed port:
+`connectDatabase` first tries to adopt whatever is listening there and only spawns one if nothing
+answers. The server's shutdown stops the `mongod` either way; `ingest` and `evaluate` stop it only
+if they started it.
 
 ## Tests
 
-`bunx vitest run server` — every file is `// @vitest-environment node` and the ones that need
-MongoDB start their own throwaway in-memory `mongod` (`testing/memoryDatabase.ts`), never
+`bunx vitest run --project server` — the server suites run in Node (`vite.config.ts`), and the ones
+that need MongoDB start their own throwaway in-memory `mongod` (`testing/memoryDatabase.ts`), never
 `.kami-data/`.
 
 ## API contract (what the client may rely on)

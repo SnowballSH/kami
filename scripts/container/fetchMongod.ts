@@ -1,8 +1,6 @@
 import { chmod, copyFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import "../../server/db/bsonSnapshotShim";
-
-const { MongoBinary } = await import("mongodb-memory-server");
+import { MongoBinary } from "mongodb-memory-server";
 
 const USAGE =
   "usage: MONGOMS_VERSION=<x.y.z> [MONGOMS_DISTRO=ubuntu-24.04] bun scripts/container/fetchMongod.ts <destination>";

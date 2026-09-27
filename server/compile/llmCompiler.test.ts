@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { chatCompletionsUrl, createLlmCompiler, type FetchLike } from "./llmCompiler";
 import { BESIDE_PREFIX, COMPILER_SYSTEM_PROMPT } from "./prompt";

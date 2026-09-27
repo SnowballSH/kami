@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { type Db, MongoClient } from "./mongo";
+import { type Db, MongoClient } from "mongodb";
 
 export const DATABASE_NAME = "kami";
 

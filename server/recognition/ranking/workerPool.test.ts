@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { computeFeature } from "../../quickdraw/feature";
 import { buildFeatureMatrix } from "../../quickdraw/featureMatrix";

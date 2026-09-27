@@ -1,7 +1,7 @@
+import type { Collection, Db, Document, Sort } from "mongodb";
 import type { Note } from "../../src/notes/types";
 import type { BoardSnapshot, BoardSummary, StoredDrawing } from "../../src/persistence/types";
 import type { Rule } from "../../src/rules/types";
-import type { Collection, Db, Document, Sort } from "./mongo";
 
 export const ENTITY_KINDS = ["drawings", "notes", "rules"] as const;
 

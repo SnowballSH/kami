@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { RemoteStick } from "../../src/controller/remoteStick";
 import { FakeEventSource } from "../../src/controller/testing/fakeEventSource";

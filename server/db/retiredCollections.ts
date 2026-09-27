@@ -1,4 +1,4 @@
-import type { Db } from "./mongo";
+import type { Db } from "mongodb";
 
 /** Collections earlier versions kept and nothing reads any more: `quickdraw` became a file. */
 export const RETIRED_COLLECTIONS = ["quickdraw"] as const;
