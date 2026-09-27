@@ -1,5 +1,5 @@
-/** A binary heap of items by cost, kept in parallel arrays so pushing allocates nothing. */
-export class MinHeap<T> {
+/** A binary heap of items by cost, kept in parallel arrays so pushing allocates nothing; items are never undefined, so a missing one means empty. */
+export class MinHeap<T extends NonNullable<unknown>> {
   private readonly items: T[] = [];
   private readonly costs: number[] = [];
 
