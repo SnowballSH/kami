@@ -24,7 +24,7 @@ import { FakeHandwriting, FakeHud, FakeLawsPanel, FakeRenderer, MemoryBoardStore
 export const COMMIT_WAIT_MS = 1_200;
 
 export const bossPaceBody = (heart: Vec): readonly Stroke[] => {
-  const line = (from: Vec, to: Vec): Stroke =>
+  const segment = (from: Vec, to: Vec): Stroke =>
     Array.from({ length: 13 }, (_, i) => ({
       x: from.x + ((to.x - from.x) * i) / 12,
       y: from.y + ((to.y - from.y) * i) / 12,
@@ -32,14 +32,14 @@ export const bossPaceBody = (heart: Vec): readonly Stroke[] => {
   const cx = heart.x;
   const cy = heart.y;
   return [
-    line({ x: cx - 16, y: cy - 22 }, { x: cx + 16, y: cy - 22 }),
-    line({ x: cx + 16, y: cy - 22 }, { x: cx + 16, y: cy + 18 }),
-    line({ x: cx + 16, y: cy + 18 }, { x: cx - 16, y: cy + 18 }),
-    line({ x: cx - 16, y: cy + 18 }, { x: cx - 16, y: cy - 22 }),
-    line({ x: cx - 10, y: cy + 18 }, { x: cx - 14, y: cy + 64 }),
-    line({ x: cx + 10, y: cy + 18 }, { x: cx + 14, y: cy + 64 }),
-    line({ x: cx - 16, y: cy - 15 }, { x: cx - 45, y: cy + 5 }),
-    line({ x: cx + 16, y: cy - 15 }, { x: cx + 45, y: cy + 5 }),
+    segment({ x: cx - 16, y: cy - 22 }, { x: cx + 16, y: cy - 22 }),
+    segment({ x: cx + 16, y: cy - 22 }, { x: cx + 16, y: cy + 18 }),
+    segment({ x: cx + 16, y: cy + 18 }, { x: cx - 16, y: cy + 18 }),
+    segment({ x: cx - 16, y: cy + 18 }, { x: cx - 16, y: cy - 22 }),
+    segment({ x: cx - 10, y: cy + 18 }, { x: cx - 14, y: cy + 64 }),
+    segment({ x: cx + 10, y: cy + 18 }, { x: cx + 14, y: cy + 64 }),
+    segment({ x: cx - 16, y: cy - 15 }, { x: cx - 45, y: cy + 5 }),
+    segment({ x: cx + 16, y: cy - 15 }, { x: cx + 45, y: cy + 5 }),
     Array.from({ length: 17 }, (_, i) => ({
       x: cx + 13 * Math.cos((i / 16) * 2 * Math.PI),
       y: cy - 36 + 13 * Math.sin((i / 16) * 2 * Math.PI),
