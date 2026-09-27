@@ -32,7 +32,7 @@ Tick order: `alice.control` → nature `beforeStep` hooks → wind → `Engine.u
 
 ## What a tick reuses
 
-The tick is the hot path, so nothing in it rebuilds what has not changed. `InkLayer` and `BoardProps` keep their body and rect lists (all, dynamic, held, solid-to-Alice, passable; paper, markers, solid rects) until a drawing is added, removed, rebuilt or re-ruled, or the paper is bitten or heals. Within one tick the simulation builds Alice's `AliceSurroundings` once (ink cannot come or go between her control and her senses) and one `NatureWorld` per Alice, on first use. Contact probes loop instead of chaining arrays.
+The tick is the hot path, so nothing in it rebuilds what has not changed. `InkLayer` and `BoardProps` keep their body and rect lists (all, dynamic, held, solid-to-Alice, passable; paper, markers, solid rects) until a drawing is added, removed, rebuilt or re-ruled, or the paper is bitten or heals. Alice's `AliceSurroundings` is one `LiveSurroundings` per board (`surroundings.ts`) that reads the ink and props as they stand, so `alice.sense` after `Engine.update` sees whatever the natures, wind and the step added, removed or rebuilt; its joined obstacle list is rebuilt only when `InkLayer` or `BoardProps` hands out a new list. The simulation builds one `NatureWorld` per Alice per tick, on first use. Contact probes loop instead of chaining arrays.
 
 ## The endless board
 

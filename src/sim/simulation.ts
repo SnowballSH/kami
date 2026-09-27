@@ -7,7 +7,7 @@ import { FIXED_STEP_MS } from "../core/world";
 import type { Drawing, DrawingId, InkProvenance } from "../ink/types";
 import { validPhysics } from "../rules/effectDomains";
 import { EARTH, type WorldPhysics } from "../rules/types";
-import { AliceController, type AliceSurroundings } from "./alice";
+import { AliceController } from "./alice";
 import { pullToward } from "./attraction";
 import {
   type BoardWorld,
@@ -42,6 +42,7 @@ import { seesHerWay } from "./nightfall";
 import { isLooseInk } from "./paper";
 import { Portals } from "./portals";
 import { restingFeet } from "./restingFeet";
+import { LiveSurroundings } from "./surroundings";
 import {
   ALICE_HERSELF,
   type AliceIndex,
@@ -53,7 +54,6 @@ import {
   type WalkIntent,
   type WorldSnapshot,
 } from "./types";
-import { liftsHer, rideOn } from "./vehicles";
 import { weather } from "./weather";
 import { accelerationOf, push } from "./worldPhysics";
 
@@ -90,10 +90,12 @@ export class MatterSimulation implements Simulation {
       return contactsWith(probe, this.tickBodies, ink.body).length > 0;
     },
   };
+  private surroundings = new LiveSurroundings(this.world, this.feelers);
 
   loadBoard(board: BoardDefinition): void {
     Matter.Engine.clear(this.world.engine);
     this.world = buildWorld(board, this.physics);
+    this.surroundings = new LiveSurroundings(this.world, this.feelers);
     this.rosterChanged();
     this.events = [];
     this.rides.clear();
@@ -313,7 +315,7 @@ export class MatterSimulation implements Simulation {
       ...props.solidBodies,
       ...inks.all.map((ink) => ink.body),
     ];
-    const surroundings = this.surroundings();
+    const { surroundings } = this;
     for (const alice of alices) {
       if (alice.riding !== null) this.rides.set(alice, alice.riding);
       else if (alice.grounded) this.rides.delete(alice);
@@ -490,29 +492,6 @@ export class MatterSimulation implements Simulation {
       this.events.push({ type: "perished", drawingId: ink.id, nature: ink.nature });
       this.forgetInk(ink.id);
     }
-  }
-
-  private surroundings(): AliceSurroundings {
-    const { inks, props } = this.world;
-    const natureOf = (body: Matter.Body) => {
-      const ink = inks.find(body);
-      return ink === undefined ? undefined : NATURES[ink.nature];
-    };
-    return {
-      obstacles: [...props.solidBodies, ...inks.solidToAlice],
-      passables: inks.passable,
-      isInk: (body) => inks.find(body) !== undefined,
-      isSlippery: (body) => natureOf(body)?.slippery ?? false,
-      isClimbable: (body) => natureOf(body)?.climbable ?? false,
-      liftsHer: (body) => {
-        const ink = inks.find(body);
-        return ink !== undefined && ink.nature === "vehicle" && liftsHer(ink, this.feelers);
-      },
-      rideOn: (body) => {
-        const ink = inks.find(body);
-        return ink === undefined ? null : rideOn(ink);
-      },
-    };
   }
 
   /** The board as the natures see it on behalf of `alice`; one per Alice per tick. */
