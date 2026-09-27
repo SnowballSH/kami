@@ -321,7 +321,7 @@ export class MatterSimulation implements Simulation {
     for (const alice of alices) {
       alice.control(this.intentSheCanFollow(alice), surroundings, timeScale);
     }
-    for (const ink of inks.all) stepOf(ink)?.(ink, this.natureWorld(this.nearestAliceTo(ink)));
+    this.stepInks();
     moveOfItself(inks.all, timeScale);
     this.blowWind();
     this.tumbleLooseInk();
@@ -422,18 +422,25 @@ export class MatterSimulation implements Simulation {
     }
   }
 
-  private nearestAliceTo(ink: InkEntity): AliceController {
-    const { position } = ink.body;
-    let nearest = this.world.alice;
-    let gap = Number.POSITIVE_INFINITY;
-    for (const alice of this.everyAlice()) {
-      const d = distanceToRect(position, alice.bounds());
-      if (d < gap) {
-        gap = d;
-        nearest = alice;
+  /** Each drawing's own doings this tick, on behalf of whichever Alice is nearest it. */
+  private stepInks(): void {
+    let standing: readonly { readonly alice: AliceController; readonly bounds: Rect }[] | null =
+      null;
+    for (const ink of this.world.inks.all) {
+      const step = stepOf(ink);
+      if (step === undefined) continue;
+      standing ??= this.everyAlice().map((alice) => ({ alice, bounds: alice.bounds() }));
+      let nearest = this.world.alice;
+      let gap = Number.POSITIVE_INFINITY;
+      for (const { alice, bounds } of standing) {
+        const d = distanceToRect(ink.body.position, bounds);
+        if (d < gap) {
+          gap = d;
+          nearest = alice;
+        }
       }
+      step(ink, this.natureWorld(nearest));
     }
-    return nearest;
   }
 
   private intentSheCanFollow(alice: AliceController): WalkIntent {
