@@ -1,5 +1,6 @@
+import type { FetchLike } from "../http/endpoint";
 import { QUICKDRAW_CATEGORIES } from "./categories";
-import { type FetchLike, fetchCategoryDrawings } from "./dataset";
+import { fetchCategoryDrawings } from "./dataset";
 import { type StoredSketch, writeSnapshot } from "./snapshotFile";
 
 export const DEFAULT_SAMPLES_PER_CATEGORY = 300;
@@ -28,7 +29,7 @@ const fetchCategorySketches = async (
 };
 
 /** Downloads every category a few at a time, handing each one over as soon as it has arrived. */
-export const fetchQuickdrawSketches = async (
+const fetchQuickdrawSketches = async (
   categories: readonly string[],
   samplesPerCategory: number,
   onCategory: (fetched: CategorySketches) => Promise<void>,

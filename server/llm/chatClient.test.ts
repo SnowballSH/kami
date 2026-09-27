@@ -1,6 +1,6 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { ChatClient, type FetchLike, type LlmConfig } from "./chatClient";
+import type { FetchLike } from "../http/endpoint";
+import { ChatClient, type LlmConfig } from "./chatClient";
 import { DEFAULT_REQUEST_SHAPE, degradeAfterRejection, parseReasoningEffort } from "./requestShape";
 
 const CONFIG: LlmConfig = { url: "http://gateway.test", model: "any" };

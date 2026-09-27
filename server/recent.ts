@@ -7,10 +7,6 @@ export class Recent<V> {
     this.#capacity = capacity;
   }
 
-  get size(): number {
-    return this.#entries.size;
-  }
-
   get(key: string): V | undefined {
     const value = this.#entries.get(key);
     if (value !== undefined) this.set(key, value);

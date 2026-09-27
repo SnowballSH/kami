@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Stroke } from "../../src/core/geometry";
+import type { FetchLike } from "../http/endpoint";
 
 const DATASET_BASE_URL = "https://storage.googleapis.com/quickdraw_dataset/full/simplified";
 const DEFAULT_RANGE_BYTES = 1_500_000;
@@ -18,8 +19,6 @@ export interface QuickdrawDrawing {
   readonly keyId: string;
   readonly drawing: readonly SimplifiedStroke[];
 }
-
-export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 export const datasetUrl = (category: string): string =>
   `${DATASET_BASE_URL}/${encodeURIComponent(category)}.ndjson`;

@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { LlmConfig } from "./compile/llmCompiler";
 import { AUTO_SERIAL_DEVICE, type ControllerTransportConfig } from "./controllers/types";
 import { type DatabaseOptions, DEFAULT_EMBEDDED_CACHE_GB } from "./db/connect";
 import {
@@ -15,7 +14,8 @@ import {
 import { type FileReader, resolveSecretFiles } from "./env/secrets";
 import { type AccessConfig, readAccessConfig } from "./http/accessConfig";
 import type { AuthenticatedEndpoint } from "./http/endpoint";
-import { parseReasoningEffort } from "./llm/chatClient";
+import type { LlmConfig } from "./llm/chatClient";
+import { parseReasoningEffort } from "./llm/requestShape";
 import { sidecarUrl } from "./recognition/sidecarUrl";
 import { type ManagedSidecarConfig, managedSidecarUrl } from "./sidecar/managed";
 

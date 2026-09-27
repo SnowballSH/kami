@@ -1,12 +1,11 @@
 import { z } from "zod";
 import type { CompileContext, CompiledRule, RuleCompiler } from "../../src/rules/types";
-import { ChatClient, type FetchLike, type LlmConfig, lastJsonObject } from "../llm/chatClient";
+import type { FetchLike } from "../http/endpoint";
+import { ChatClient, type LlmConfig, lastJsonObject } from "../llm/chatClient";
 import { strictJsonSchema } from "../llm/strictJsonSchema";
 import { rawRuleEffectSchema } from "../schemas";
 import { clampEffect, describeEffect } from "./effectRanges";
 import { BESIDE_PREFIX, COMPILER_SYSTEM_PROMPT } from "./prompt";
-
-export { chatCompletionsUrl, type FetchLike, type LlmConfig } from "../llm/chatClient";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const WARM_UP_TIMEOUT_MS = 120_000;
@@ -31,7 +30,7 @@ const parseModelReply = (content: string): CompiledRule | null => {
 const besideLine = (text: string, { referent }: CompileContext): string =>
   `${text}\n${BESIDE_PREFIX} ${referent}`;
 
-export class LlmRuleCompiler implements RuleCompiler {
+class LlmRuleCompiler implements RuleCompiler {
   readonly #chat: ChatClient;
 
   constructor(config: LlmConfig, fetchFn: FetchLike = fetch) {

@@ -1,6 +1,5 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
-import type { FetchLike } from "../llm/chatClient";
+import type { FetchLike } from "../http/endpoint";
 import { createLlmSceneCompiler, PROP_REACH, PROP_SIZE, parseSceneReply } from "./llmSceneCompiler";
 
 const CONFIG = { url: "http://llm.example:8000", model: "kami-scenes", apiKey: "secret" } as const;

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { readConfig } from "../config";
 import { InMemoryControllerHub } from "../controllers/hub";

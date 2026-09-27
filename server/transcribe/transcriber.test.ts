@@ -1,7 +1,6 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { Stroke } from "../../src/core/geometry";
-import type { FetchLike } from "../recognition/types";
+import type { FetchLike } from "../http/endpoint";
 import { FirstReadyTranscriber } from "./chain";
 import { createTranscriber } from "./transcriber";
 import type { HandwritingTranscriber } from "./types";

@@ -8,7 +8,7 @@ import {
 } from "./recognizer";
 
 /** How much of each held-out drawing the recogniser is shown, as shares of its points. */
-export const INK_BUCKETS = [0.2, 0.4, 0.6, 0.8, 1] as const;
+const INK_BUCKETS = [0.2, 0.4, 0.6, 0.8, 1] as const;
 export const HIGH_CONFIDENCE = 0.8;
 
 export interface LabelledSketch {

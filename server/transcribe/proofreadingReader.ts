@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import type { Stroke } from "../../src/core/geometry";
+import { Recent } from "../recent";
 import type { VocabularyCorrector } from "./proofread/corrector";
 import { doubtfulWords } from "./proofread/doubt";
 import type { HandwritingRepairer } from "./proofread/repairer";
-import { Recent } from "./recent";
 import type { HandwritingTranscriber, Transcript } from "./types";
 
 export interface ReadOptions {
@@ -55,10 +55,6 @@ export class ProofreadingReader implements NoteReader {
 
   get ready(): boolean {
     return this.#transcriber.ready;
-  }
-
-  get repairs(): boolean {
-    return this.#repairer !== null;
   }
 
   async read(

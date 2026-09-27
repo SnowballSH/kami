@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { type Grant, PASSWORD_GRANT } from "./accessConfig";
 import { MAX_SESSIONS, Sessions } from "./sessions";

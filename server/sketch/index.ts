@@ -1,3 +1,4 @@
+import { reasonOf } from "../errors";
 import { ExemplarLibrary } from "./exemplarLibrary";
 import { QuickdrawLibrary } from "./quickdrawLibrary";
 import { FirstAnswering, type SketchStore, StoredLibrary } from "./storedLibrary";
@@ -27,7 +28,7 @@ export const createSketchLibrary = async (
   try {
     return await ExemplarLibrary.load(directory);
   } catch (error) {
-    log(`summoning: could not read the exemplar set at ${directory}: ${String(error)}`);
+    log(`summoning: could not read the exemplar set at ${directory}: ${reasonOf(error)}`);
     return fallback();
   }
 };

@@ -12,7 +12,7 @@ from tiny_model import TINY_LABELS
 from exemplar_set import EXEMPLARS_DIR, META_FILE, load_exemplars
 from quickdraw_bin import Drawing
 from recognizer import SketchRecognizer
-from sidecar import MAX_NAME_LENGTH
+from sidecar_input import MAX_NAME_LENGTH
 
 WORLD_SCALE = 2.5
 WORLD_SHIFT = (4000.0, -700.0)

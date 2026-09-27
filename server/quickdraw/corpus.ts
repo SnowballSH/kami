@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { errorCodeOf, reasonOf } from "../errors";
 import { buildCorpusIndex, type CorpusIndex, corpusIndexKey } from "./corpusIndex";
 import { buildFeatureMatrix } from "./featureMatrix";
 import { readIndexFile, writeIndexFile } from "./indexFile";
@@ -50,9 +51,6 @@ export const indexPathsFor = (snapshot: string, dataDirectory: string): readonly
   const name = `${basename(snapshot).replace(SNAPSHOT_SUFFIX, "")}${INDEX_SUFFIX}`;
   return [...new Set([join(dirname(snapshot), name), join(dataDirectory, name)])];
 };
-
-const reasonOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 const firstCached = async (
   paths: readonly string[],
@@ -116,7 +114,7 @@ export const loadQuickdrawCorpus = async (
   try {
     return await loadFrom(snapshot, indexPaths);
   } catch (error) {
-    const missing = (error as NodeJS.ErrnoException).code === "ENOENT";
+    const missing = errorCodeOf(error) === "ENOENT";
     return {
       corpus: QuickdrawCorpus.empty,
       description: missing

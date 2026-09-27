@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from sidecar import (
+from sidecar_input import (
     MAX_BODY_BYTES,
     MAX_COORDINATE,
     MAX_NAME_LENGTH,
@@ -58,7 +58,7 @@ class InputLimitTests(unittest.TestCase):
             [[]] * (MAX_STROKES + 1),
         ]
         for strokes in cases:
-            with self.subTest(strokes=len(strokes)), patch("sidecar._parse_point") as convert:
+            with self.subTest(strokes=len(strokes)), patch("sidecar_input._parse_point") as convert:
                 with self.assertRaises(BadRequest):
                     parse_strokes({"strokes": strokes})
                 convert.assert_not_called()

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { createNatureTable } from "../../natures/natureTable";
 import { createKamiLexicon, gameWordsOf, Lexicon } from "./lexicon";

@@ -1,10 +1,10 @@
 /** Builds what /api/recognize asks: the sidecar over the k-NN when a sidecar is configured, else the k-NN alone. */
-import type { AuthenticatedEndpoint } from "../http/endpoint";
+import type { AuthenticatedEndpoint, FetchLike } from "../http/endpoint";
 import { FallbackRecognizer } from "./fallbackRecognizer";
 import { checkEyeHealth, describeEye } from "./health";
 import { asSketchRanker } from "./inProcessRanker";
 import { RemoteSketchRecognizer } from "./remoteRecognizer";
-import type { FetchLike, InProcessSketchRanker, SketchRanker } from "./types";
+import type { InProcessSketchRanker, SketchRanker } from "./types";
 
 export interface RecognizerChain {
   readonly recognizer: SketchRanker;

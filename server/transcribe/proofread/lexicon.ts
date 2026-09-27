@@ -40,8 +40,7 @@ const RARE_ENGLISH: readonly string[] = [...english35, ...english40, ...american
  * The words a handwriting proofreader may trust or snap to. Game words come from the game's own
  * sources of truth: the rule grammar and its places, the wish grammar, the Cat's naming lexicon,
  * every name a Quick, Draw! category and its scenes answer to, the nature table's display names,
- * and the cast. Everyday
- * English keeps an ordinary word from being forced into a game word.
+ * and the cast. Everyday English keeps an ordinary word from being forced into a game word.
  */
 export class Lexicon {
   readonly #kinds = new Map<string, WordKind>();

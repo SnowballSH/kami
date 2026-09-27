@@ -6,7 +6,7 @@ export type Direction = (typeof DIRECTIONS)[number];
 export const BUTTONS = ["a", "b", "x", "y"] as const;
 export type Button = (typeof BUTTONS)[number];
 
-export const TRANSPORTS = ["udp", "serial", "http"] as const;
+const TRANSPORTS = ["udp", "serial", "http"] as const;
 export type Transport = (typeof TRANSPORTS)[number];
 
 /** What a controller says: both axes in percent of travel, -100 … 100 with y up, and the buttons held. */

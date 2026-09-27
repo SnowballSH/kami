@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { CompiledRule, Governs, Scene, SceneCompiler } from "../../src/rules/types";
 import { clampEffect, describeEffect } from "../compile/effectRanges";
-import { ChatClient, type FetchLike, type LlmConfig, lastJsonObject } from "../llm/chatClient";
+import type { FetchLike } from "../http/endpoint";
+import { ChatClient, type LlmConfig, lastJsonObject } from "../llm/chatClient";
 import { strictJsonSchema } from "../llm/strictJsonSchema";
 import { rawRuleEffectSchema } from "../schemas";
 import { SCENE_SYSTEM_PROMPT } from "./prompt";
@@ -82,7 +83,7 @@ export const parseSceneReply = (
 };
 
 /** Asks the model to make a place of "teleport us to a chocolate factory"; never for the atlas's own. */
-export class LlmSceneCompiler implements SceneCompiler {
+class LlmSceneCompiler implements SceneCompiler {
   readonly #chat: ChatClient;
 
   constructor(
@@ -109,7 +110,7 @@ export class LlmSceneCompiler implements SceneCompiler {
   }
 }
 
-const NO_SCENES: SceneCompiler = { compile: () => Promise.resolve(null) };
+export const NO_SCENES: SceneCompiler = { compile: () => Promise.resolve(null) };
 
 export const createLlmSceneCompiler = (
   config: LlmConfig | null,

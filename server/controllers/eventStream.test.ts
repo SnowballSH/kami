@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { KEEP_ALIVE_MS } from "../http/eventStream";
 import { controllerEventStream } from "./eventStream";

@@ -1,6 +1,6 @@
+import { MongoClient } from "mongodb";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { DATABASE_NAME, type DatabaseConnection } from "../db/connect";
-import { MongoClient } from "../db/mongo";
 
 export const startMemoryDatabase = async (): Promise<DatabaseConnection> => {
   const mongod = await MongoMemoryServer.create();

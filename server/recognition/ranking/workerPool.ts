@@ -8,6 +8,7 @@
  * (the route says 503).
  */
 import type { Stroke } from "../../../src/core/geometry";
+import { reasonOf } from "../../errors";
 import {
   DEFAULT_RECOGNIZER_OPTIONS,
   type FeatureMatrix,
@@ -17,9 +18,9 @@ import { floorFor } from "../certainty";
 import type { InProcessSketchRanker, RankOptions, Reading } from "../types";
 import type { FromWorker, SpawnWorker, WorkerPort } from "./protocol";
 
-export const DEFAULT_MAX_QUEUED = 32;
+const DEFAULT_MAX_QUEUED = 32;
 /** Live sketches go stale in a long queue, so only this many wait; a newer one replaces the oldest. */
-export const DEFAULT_MAX_QUEUED_PARTIALS = 4;
+const DEFAULT_MAX_QUEUED_PARTIALS = 4;
 
 export class RecognizerBusyError extends Error {
   constructor() {
@@ -161,7 +162,7 @@ export class WorkerRankingPool implements InProcessSketchRanker {
 
   #failed(slot: Slot, error: unknown): void {
     if (this.#closed) return;
-    const reason = error instanceof Error ? error.message : String(error);
+    const reason = reasonOf(error);
     this.#settings.log(`recognition thread failed (${reason}); starting another`);
     slot.port.terminate();
     this.#slots.delete(slot);

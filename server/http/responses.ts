@@ -6,7 +6,7 @@ export const json = (body: unknown, status = 200): Response => Response.json(bod
 
 export const ok = (): Response => json({ ok: true });
 
-export const preflight = (): Response => new Response(null, { status: 204 });
+export const noContent = (): Response => new Response(null, { status: 204 });
 
 export const badRequest = (error: string, issues: readonly string[] = []): Response =>
   json({ error, issues }, 400);
@@ -56,7 +56,7 @@ export const parseJsonBody = async <Schema extends z.ZodType>(
   }
 };
 
-export class BodyTimeoutError extends Error {
+class BodyTimeoutError extends Error {
   constructor(deadlineMs: number) {
     super(`Body did not arrive within ${deadlineMs} ms.`);
     this.name = "BodyTimeoutError";

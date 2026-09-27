@@ -20,7 +20,7 @@ export interface FallbackSettings {
   readonly onPrimaryAvailabilityChange: (available: boolean) => void;
 }
 
-export const DEFAULT_BREAKER: CircuitBreakerOptions = { failureThreshold: 3, coolDownMs: 5_000 };
+const DEFAULT_BREAKER: CircuitBreakerOptions = { failureThreshold: 3, coolDownMs: 5_000 };
 
 const hasInk = (strokes: readonly Stroke[]): boolean => strokes.some((stroke) => stroke.length > 0);
 
@@ -29,7 +29,6 @@ export class FallbackRecognizer implements SketchRanker {
   readonly #floor: SketchRanker;
   readonly #breaker: CircuitBreaker;
   readonly #onPrimaryAvailabilityChange: (available: boolean) => void;
-  #lastAnsweredBy: RecognizerSource | null = null;
 
   constructor(
     primary: UnreliableSketchRanker,
@@ -42,10 +41,6 @@ export class FallbackRecognizer implements SketchRanker {
     this.#onPrimaryAvailabilityChange = settings.onPrimaryAvailabilityChange ?? (() => {});
   }
 
-  get lastAnsweredBy(): RecognizerSource | null {
-    return this.#lastAnsweredBy;
-  }
-
   async read(strokes: readonly Stroke[], options: RankOptions = {}): Promise<Reading> {
     return (await this.readWithSource(strokes, options)).reading;
   }
@@ -56,12 +51,9 @@ export class FallbackRecognizer implements SketchRanker {
   ): Promise<SourcedReading> {
     const fromPrimary =
       hasInk(strokes) && this.#breaker.tryEnter() ? await this.#askPrimary(strokes, options) : null;
-    const answer: SourcedReading =
-      fromPrimary === null
-        ? { source: "floor", reading: await this.#floor.read(strokes, options) }
-        : { source: "primary", reading: fromPrimary };
-    this.#lastAnsweredBy = answer.source;
-    return answer;
+    return fromPrimary === null
+      ? { source: "floor", reading: await this.#floor.read(strokes, options) }
+      : { source: "primary", reading: fromPrimary };
   }
 
   async #askPrimary(strokes: readonly Stroke[], options: RankOptions): Promise<Reading | null> {

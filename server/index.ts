@@ -53,7 +53,7 @@ const compiler = createLlmCompiler(config.llm);
 const transcriber = createTranscriber({ sidecar: config.handwriting, vision: config.transcribe });
 const handwriting =
   transcriber === null ? null : createNoteReader(transcriber, config.handwritingRepair);
-const access = new ApiAccess(config.access, Date.now, (line) => console.log(`  ${line}`));
+const access = new ApiAccess(config.access, Date.now, log);
 const stage = stageSockets(access);
 const api = createApi({
   access,

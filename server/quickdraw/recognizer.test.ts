@@ -1,10 +1,8 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { circleSketch, lineSketch } from "../testing/sketches";
 import { computeFeature } from "./feature";
 import { prefixOfStrokes } from "./prefix";
 import {
-  asAsyncRecognizer,
   DEFAULT_RECOGNIZER_OPTIONS,
   type LabelledFeature,
   QuickdrawRecognizer,
@@ -51,15 +49,6 @@ describe("QuickdrawRecognizer", () => {
   it("ignores stored features of the wrong length", () => {
     const stale = [{ category: "circle", feature: new Float32Array(16).fill(0.25) }];
     expect(new QuickdrawRecognizer(stale).size).toBe(0);
-  });
-
-  it("answers through a promise with the same guesses, for callers that also ask remote models", async () => {
-    const recognizer = new QuickdrawRecognizer(syntheticSamples());
-    const circle = circleSketch({ x: 0, y: 0 }, 120);
-    expect(await asAsyncRecognizer(recognizer).rank(circle)).toEqual(recognizer.rank(circle));
-    expect(await asAsyncRecognizer(recognizer).rank(circle, { partial: true })).toEqual(
-      recognizer.rank(circle, { partial: true }),
-    );
   });
 });
 

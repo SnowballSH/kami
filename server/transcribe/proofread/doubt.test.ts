@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { doubtfulWords, isDoubtfulWord } from "./doubt";
 import { proofreadOf, wordOf } from "./testing";

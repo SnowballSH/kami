@@ -11,8 +11,16 @@ export default defineConfig({
     proxy: { "/api": { target: `http://localhost:${SERVER_PORT}`, ws: true } },
   },
   test: {
-    environment: "happy-dom",
-    include: ["src/**/*.test.ts", "server/**/*.test.ts"],
     testTimeout: PLAYTHROUGH_TIMEOUT_MS,
+    projects: [
+      {
+        extends: true,
+        test: { name: "web", environment: "happy-dom", include: ["src/**/*.test.ts"] },
+      },
+      {
+        extends: true,
+        test: { name: "server", environment: "node", include: ["server/**/*.test.ts"] },
+      },
+    ],
   },
 });

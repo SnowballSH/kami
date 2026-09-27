@@ -1,6 +1,5 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
-import type { FetchLike } from "../recognition/types";
+import type { FetchLike } from "../http/endpoint";
 import { fetchSidecarCapabilities } from "./health";
 
 const SIDECAR = { url: "http://127.0.0.1:8790/" };

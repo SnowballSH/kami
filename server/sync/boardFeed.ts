@@ -28,12 +28,12 @@ const SWEEP_EVERY_MS = 60_000;
  * whether or not its event stream ever told us: an announcement can arrive after the stream closed,
  * and nothing else would ever withdraw that ghost.
  */
-export const PRESENCE_GONE_AFTER_MS = 5_000;
+const PRESENCE_GONE_AFTER_MS = 5_000;
 
 const BOOT_LENGTH = 12;
 
 /** A name for this process's life, so a cursor from before a restart is never read in the new numbering. */
-export const mintBoot = (): string => crypto.randomUUID().replaceAll("-", "").slice(0, BOOT_LENGTH);
+const mintBoot = (): string => crypto.randomUUID().replaceAll("-", "").slice(0, BOOT_LENGTH);
 
 export interface BoardFeedOptions {
   readonly now?: () => number;

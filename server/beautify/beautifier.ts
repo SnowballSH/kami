@@ -1,7 +1,5 @@
 import type { Stroke } from "../../src/core/geometry";
-import { type AuthenticatedEndpoint, endpointHeaders } from "../http/endpoint";
-
-export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+import { type AuthenticatedEndpoint, endpointHeaders, type FetchLike } from "../http/endpoint";
 
 export interface BeautifyRequest {
   readonly strokes: readonly Stroke[];

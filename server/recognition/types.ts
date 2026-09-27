@@ -1,8 +1,6 @@
 /** The shapes every sketch recogniser in the chain agrees on: the sidecar, the k-NN and the fallback. */
 import type { Stroke } from "../../src/core/geometry";
 
-export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
-
 export interface RankedCategory {
   readonly category: string;
   readonly confidence: number;

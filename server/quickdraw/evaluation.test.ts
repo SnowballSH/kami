@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { circleSketch, lineSketch } from "../testing/sketches";
 import { type Outcome, runTrial, sweepLeaderFloor, TRIALS, tally } from "./evaluation";

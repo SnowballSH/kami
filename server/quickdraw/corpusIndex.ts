@@ -13,7 +13,7 @@ import { indexedPrefixesOf, prefixFeaturesOf } from "./prefixFeatures";
 import type { StoredSketch } from "./snapshotFile";
 
 /** How many drawings of each category are kept for summoning by name; the rest only vote in the k-NN. */
-export const SUMMONS_PER_CATEGORY = 24;
+const SUMMONS_PER_CATEGORY = 24;
 
 /** Bump when the layout of `indexFile.ts` or the choice of summoned drawings changes. */
 const INDEX_FORMAT = 2;

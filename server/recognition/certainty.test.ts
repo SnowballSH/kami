@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { floorFor, isCertain } from "./certainty";
 import type { CertaintyFloors } from "./types";

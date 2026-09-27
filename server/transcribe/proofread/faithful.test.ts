@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { isFaithful } from "./faithful";
 import { proofreadOf, TEST_LEXICON, wordOf } from "./testing";

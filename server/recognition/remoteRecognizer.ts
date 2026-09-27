@@ -1,16 +1,10 @@
 /** Asks the Kami's Eye sidecar (ml/sidecar.py) what a sketch is; any failure is a null, never a throw. */
 import { z } from "zod";
 import type { Stroke } from "../../src/core/geometry";
-import { type AuthenticatedEndpoint, endpointHeaders } from "../http/endpoint";
+import { type AuthenticatedEndpoint, endpointHeaders, type FetchLike } from "../http/endpoint";
 import { floorFor } from "./certainty";
 import { sidecarUrl } from "./sidecarUrl";
-import type {
-  CertaintyFloors,
-  FetchLike,
-  RankOptions,
-  Reading,
-  UnreliableSketchRanker,
-} from "./types";
+import type { CertaintyFloors, RankOptions, Reading, UnreliableSketchRanker } from "./types";
 
 export const PARTIAL_TIMEOUT_MS = 150;
 export const FINISHED_TIMEOUT_MS = 400;

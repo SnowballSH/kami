@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Stroke } from "../../src/core/geometry";
-import { ChatClient, type FetchLike, type LlmConfig, lastJsonObject } from "../llm/chatClient";
+import type { FetchLike } from "../http/endpoint";
+import { ChatClient, type LlmConfig, lastJsonObject } from "../llm/chatClient";
 import { strictJsonSchema } from "../llm/strictJsonSchema";
 import { HI_STROKES } from "./hiStrokes";
 import { TRANSCRIBER_SYSTEM_PROMPT, TRANSCRIBER_USER_LINE } from "./prompt";

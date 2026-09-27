@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { createSocket } from "node:dgram";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryControllerHub } from "./hub";

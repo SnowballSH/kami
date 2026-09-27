@@ -3,7 +3,7 @@
  * 400; the shape then loses one feature at a time, in an order that gives up the least first:
  * structured output before reasoning control, the token-limit spelling and the temperature last.
  */
-export const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh"] as const;
+const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh"] as const;
 
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
@@ -86,7 +86,7 @@ export const degradeAfterRejection = (
   return null;
 };
 
-export const isReasoningEffort = (value: string): value is ReasoningEffort =>
+const isReasoningEffort = (value: string): value is ReasoningEffort =>
   (REASONING_EFFORTS as readonly string[]).includes(value);
 
 /** `off` means never send the field; anything else must be one of the known levels. */

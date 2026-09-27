@@ -4,8 +4,6 @@ import { strokesSchema, textSchema } from "../src/persistence/schemas";
 
 export {
   boardIdSchema,
-  compiledRuleSchema,
-  drawingSchema,
   entityIdSchema,
   noteSchema,
   rawRuleEffectSchema,
@@ -13,9 +11,6 @@ export {
   ruleSchema,
   rulingSchema,
   storedDrawingSchema,
-  strokeSchema,
-  strokesSchema,
-  vecSchema,
 } from "../src/persistence/schemas";
 
 /** `partial` marks a drawing still under the pen: a live guess, asked for many times a second. */

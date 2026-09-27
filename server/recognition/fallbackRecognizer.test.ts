@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { lineSketch } from "../testing/sketches";
 import { FallbackRecognizer } from "./fallbackRecognizer";
@@ -35,8 +34,10 @@ describe("FallbackRecognizer", () => {
   it("answers from the primary and passes the partial flag along", async () => {
     const eye = new ScriptedEye();
     const chain = chainAt(eye, { now: 0 });
-    expect(await chain.read(SKETCH, { partial: true })).toBe(FROM_EYE);
-    expect(chain.lastAnsweredBy).toBe("primary");
+    expect(await chain.readWithSource(SKETCH, { partial: true })).toEqual({
+      source: "primary",
+      reading: FROM_EYE,
+    });
     expect(eye.asked).toEqual([{ partial: true }]);
   });
 
@@ -45,7 +46,6 @@ describe("FallbackRecognizer", () => {
     eye.alive = false;
     const chain = chainAt(eye, { now: 0 });
     expect(await chain.readWithSource(SKETCH)).toEqual({ source: "floor", reading: FROM_KNN });
-    expect(chain.lastAnsweredBy).toBe("floor");
 
     const throwing: UnreliableSketchRanker = { read: () => Promise.reject(new Error("boom")) };
     expect(await chainAt(throwing, { now: 0 }).read(SKETCH)).toBe(FROM_KNN);

@@ -1,9 +1,8 @@
 import { z } from "zod";
 import type { Stroke } from "../../src/core/geometry";
-import { type AuthenticatedEndpoint, endpointHeaders } from "../http/endpoint";
+import { type AuthenticatedEndpoint, endpointHeaders, type FetchLike } from "../http/endpoint";
 import { sidecarUrl } from "../recognition/sidecarUrl";
-import type { FetchLike } from "../recognition/types";
-import { fetchSidecarCapabilities } from "../sidecar/health";
+import { waitForSidecar } from "../sidecar/health";
 import { HI_STROKES } from "./hiStrokes";
 import { SerialQueue } from "./serialQueue";
 import {
@@ -22,7 +21,7 @@ export interface SidecarTranscriberTiming {
   readonly pollMs: number;
 }
 
-export const DEFAULT_SIDECAR_TIMING: SidecarTranscriberTiming = {
+const DEFAULT_SIDECAR_TIMING: SidecarTranscriberTiming = {
   requestTimeoutMs: 10_000,
   warmUpTimeoutMs: 120_000,
   pollMs: 1_000,
@@ -53,8 +52,6 @@ const transcriptOf = ({ text, sureness, alternatives }: SidecarReading): Transcr
   };
 };
 
-const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
 /**
  * Reads handwriting with the sidecar's local models (`POST /read`, ml/CONTRACT.md). Ready once the
  * sidecar says it has a handwriting model and has answered one read; any failure is a `null`.
@@ -82,16 +79,12 @@ export class SidecarTranscriber implements HandwritingTranscriber {
 
   async warmUp(): Promise<boolean> {
     this.#ready = false;
-    const deadline = Date.now() + this.#timing.warmUpTimeoutMs;
-    for (;;) {
-      const capabilities = await fetchSidecarCapabilities(this.#endpoint, this.#fetch);
-      if (capabilities !== null) {
-        this.#ready = capabilities.handwriting && (await this.#answersARead());
-        return this.#ready;
-      }
-      if (Date.now() + this.#timing.pollMs > deadline) return false;
-      await pause(this.#timing.pollMs);
-    }
+    const capabilities = await waitForSidecar(this.#endpoint, this.#fetch, {
+      timeoutMs: this.#timing.warmUpTimeoutMs,
+      pollMs: this.#timing.pollMs,
+    });
+    this.#ready = capabilities?.handwriting === true && (await this.#answersARead());
+    return this.#ready;
   }
 
   transcribe(

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { reasonOf } from "../errors";
 import type { Env } from "./env";
 
 /** Every variable that may carry a secret, and so may be given as `<NAME>_FILE` instead. */
@@ -25,8 +26,9 @@ const secretFromFile = (name: string, path: string, readFile: FileReader): strin
   try {
     return readFile(path).trim();
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`${name}${FILE_SUFFIX} names ${path}, which could not be read: ${reason}`);
+    throw new Error(
+      `${name}${FILE_SUFFIX} names ${path}, which could not be read: ${reasonOf(error)}`,
+    );
   }
 };
 

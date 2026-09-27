@@ -1,5 +1,6 @@
 import { isIP } from "node:net";
 import { z } from "zod";
+import { type Env, isOff } from "../env/env";
 import { boardIdSchema } from "../schemas";
 
 /** Every board or controller, present and future: what the shared password grants. */
@@ -85,8 +86,6 @@ export const describeAccess = (config: AccessConfig): string => {
   ];
   return `shared, signed in with ${gates.join(" or ")}; origins ${config.origins.join(", ")}`;
 };
-
-type Env = Readonly<Record<string, string | undefined>>;
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
@@ -182,10 +181,7 @@ export const readAccessConfig = (env: Env): AccessConfig => {
     if (origins.length === 0 || !origins.every(isSecureOrigin)) {
       throw new Error("Shared mode requires explicit HTTPS (or loopback) KAMI_ALLOWED_ORIGINS");
     }
-    if (
-      env.KAMI_CONTROLLER_UDP_PORT !== undefined &&
-      env.KAMI_CONTROLLER_UDP_PORT.trim().toLowerCase() !== "off"
-    ) {
+    if (env.KAMI_CONTROLLER_UDP_PORT !== undefined && !isOff(env.KAMI_CONTROLLER_UDP_PORT)) {
       throw new Error("Unauthenticated controller UDP must be off in shared mode");
     }
   }

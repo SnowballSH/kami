@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startMemoryDatabase } from "../testing/memoryDatabase";
 import type { DatabaseConnection } from "./connect";
