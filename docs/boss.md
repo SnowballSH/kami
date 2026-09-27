@@ -2,11 +2,11 @@
 
 Two players at one board. One holds the pen; the other holds the keys (or the on-screen thumbstick, or the Arduino joystick — [controllers.md](controllers.md)). The room opens with nobody on it: a small blue heart pulsing at the spawn. The drawer draws a body around it and names it — *alice*, *me*, *a knight*, *my cat*, any body noun — and the strokes become the body. Then the page tears open above the heart and something comes through to snip the body apart, one part at a time. The drawer redraws what is snipped; the player dodges and swings whatever the drawer arms them with. Hurt it until the tear closes.
 
-`?mode=boss`. The mode is `BOSS_MODE` in `src/modes/modes.ts`, built on the spirit groundwork described in [modes.md](modes.md). Boss now uses a screen-sized arena with a pinned camera; a newly drawn body is rested above its floor, and closing the tear shows a dedicated win card. Everything below is client-side (`src/sim/body`, `src/sim/boss`, `src/modes/spiritDirector.ts`, `src/render/bossPainter.ts`, `src/game/bossLines.ts`).
+`?mode=boss`. The mode is `BOSS_MODE` in `src/modes/modes.ts`, built on the spirit groundwork described in [modes.md](modes.md). Boss now uses a screen-sized arena with a pinned camera; a newly drawn body is rested above its floor, and closing the tear shows a dedicated win card. Everything below is client-side (`src/sim/body`, `src/sim/boss`, `src/modes/spiritDirector.ts`, `src/render/bossPainter.ts`, `src/game/kami/bossLines.ts`).
 
 ## Lore
 
-Kami is the paper. Long ago the one under the page tore it; the Sumikui, the ink eater, is one shard of that thing that came through and was bound by what is written. This servant is another shard, sent through a fresh tear, and it is not bound: it does not eat ink, it *cuts* it. Kami is frightened of it and says so; he is proud of the two who face it, and says that too (`src/game/bossLines.ts`).
+Kami is the paper. Long ago the one under the page tore it; the Sumikui, the ink eater, is one shard of that thing that came through and was bound by what is written. This servant is another shard, sent through a fresh tear, and it is not bound: it does not eat ink, it *cuts* it. Kami is frightened of it and says so; he is proud of the two who face it, and says that too (`src/game/kami/bossLines.ts`).
 
 ## The body (`src/sim/body/drawnBody.ts`)
 

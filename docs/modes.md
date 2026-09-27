@@ -139,8 +139,8 @@ The embodied mode is exactly the game as it was.
 | Incarnation by drawing: `director.named` → `sim.incarnate(id, name)`; `AliceController` from the drawing's bounds; strokes stay authoritative and are painted as her (`AliceLook` `drawn`); speed and jump scale with the body inside the `aliceSize` clamps; the drawing leaves the ink ledger, so it is never tidied | built | `src/sim/body/drawnBody.ts` (`incarnate`), `AliceController.wear`, `paintDrawnAlice` |
 | Body parts and abilities: below the heart legs, beside it arms, above it head, up-and-out (or named winged) wings; legs walk and jump, arms climb, wings fly, head sees | built | `partOf`, `abilitiesOf`; `AliceController` gates control by them |
 | Being unmade and grafted back: `unmade` on `fell` / `alice-devoured` / `heart-swallowed` of Alice herself (a twin's loss is her own); committed strokes that reach the body rejoin it (`sim.graft`) and glow while fresh | built | `SpiritDirector.witness`, `graft`, `BODY_TUNING.graftGlowMs` |
-| Kami's lines for a soul, a body, a snip, a graft | built | `src/game/bossLines.ts` |
-| Choosing the mode: `?mode=`, `modeFor`, the card written under the wordmark | built | `src/game/launch.ts` (`modeInUrl`), `Game.writeModeCard` |
+| Kami's lines for a soul, a body, a snip, a graft | built | `src/game/kami/bossLines.ts` |
+| Choosing the mode: `?mode=`, `modeFor`, the card written under the wordmark | built | `src/game/launch.ts` (`modeInUrl`), `Game.start` (`hud.showTitleCard`) |
 | Start screen: an address with no `?mode=` offers Sandbox / Puzzle / Boss (nothing else); one tap writes the mode into the address and opens the page | built | `src/ui/startScreen.ts` (`chooseMode`, `START_CHOICES`) |
 | The stuck detector and hint ladder stay quiet while nobody is on the board | built | `Game.frame` |
 | A spirit's hand as the camera's subject | not built | the camera follows the soul where it sits, which is where the body will be drawn; a wandering pen is not followed |
