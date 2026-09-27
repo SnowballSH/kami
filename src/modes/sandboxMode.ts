@@ -19,7 +19,6 @@ export const SANDBOX_MODE: GameMode = {
   win: { kind: "endless" },
   loss: { kind: "respawn" },
   laws: { kind: "except", dials: ["inkEater"] },
-  natures: "all",
   autopilot: "allowed",
   page: "endless",
   help: "on-request",

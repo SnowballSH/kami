@@ -45,6 +45,4 @@ export class EmbodiedDirector implements ModeDirector {
   won(event: SimEvent): boolean {
     return wonBy(this.mode.win, event);
   }
-
-  close(): void {}
 }

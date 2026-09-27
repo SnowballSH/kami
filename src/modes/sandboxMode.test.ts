@@ -3,7 +3,7 @@ import { ALICE_HERSELF } from "../sim/types";
 import { createDirector } from "./director";
 import { EmbodiedDirector } from "./embodiedDirector";
 import { EMBODIED_MODE, GAME_MODES, modeFor } from "./modes";
-import { allowsLaw, opensWithAlice, refusalLine } from "./policy";
+import { allowsLaw, refusalLine } from "./policy";
 import { NOTHING_HUNGRY_LINE, SANDBOX_MODE, SANDBOX_MODE_ID } from "./sandboxMode";
 
 describe("the sandbox mode", () => {
@@ -20,7 +20,6 @@ describe("the sandbox mode", () => {
     expect(SANDBOX_MODE.win).toEqual({ kind: "endless" });
     expect(SANDBOX_MODE.loss).toEqual({ kind: "respawn" });
     expect(SANDBOX_MODE.autopilot).toBe("allowed");
-    expect(opensWithAlice(SANDBOX_MODE)).toBe(true);
   });
 
   it("forbids the ink eater and nothing else, refusing it in lore", () => {

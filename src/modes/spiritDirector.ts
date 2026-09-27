@@ -73,10 +73,6 @@ export class SpiritDirector implements ModeDirector {
     return wonBy(this.mode.win, event);
   }
 
-  close(): void {
-    this.state = spiritOf(this.incarnation);
-  }
-
   private unmade(cause: "fell" | "devoured" | "swallowed"): readonly EmbodimentTransition[] {
     this.state = spiritOf(this.incarnation);
     return [{ kind: "unmade", cause }];
