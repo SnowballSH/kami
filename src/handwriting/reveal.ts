@@ -1,5 +1,4 @@
-import { distance, type Stroke, strokeLength, type Vec } from "../core/geometry";
-import { lerp } from "./resample";
+import { distance, lerpVec, type Stroke, strokeLength, type Vec } from "../core/geometry";
 import type { PenScript } from "./types";
 
 const NOTHING_WRITTEN: readonly Stroke[] = [];
@@ -14,7 +13,7 @@ export const cutAtLength = (stroke: Stroke, length: number): Stroke => {
   for (const point of rest) {
     const step = distance(from, point);
     if (step >= remaining) {
-      if (remaining > 0) cut.push(lerp(from, point, remaining / step));
+      if (remaining > 0) cut.push(lerpVec(from, point, remaining / step));
       return cut;
     }
     cut.push(point);

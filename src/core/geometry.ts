@@ -137,7 +137,8 @@ export const distanceToStroke = (point: Vec, stroke: Stroke): number => {
   if (first === undefined) return Number.POSITIVE_INFINITY;
   let nearest = distance(point, first);
   for (let at = 1; at < stroke.length; at++) {
-    const [from, to] = [stroke[at - 1], stroke[at]];
+    const from = stroke[at - 1];
+    const to = stroke[at];
     if (from !== undefined && to !== undefined)
       nearest = Math.min(nearest, distanceToSegment(point, from, to));
   }
