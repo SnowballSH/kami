@@ -1,14 +1,16 @@
+import { z } from "zod";
 import { DIRECTIONS, type Direction } from "../ui/walkIntent";
 import { CONTROLLER_BUTTONS, type ControllerButton, type ControllerState } from "./types";
 
 const JUMP_BUTTON: ControllerButton = "a";
 const CAT_BUTTON: ControllerButton = "x";
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null;
-
-const isAxis = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value);
+const eventSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  held: z.array(z.unknown()),
+  buttons: z.array(z.unknown()),
+});
 
 const knownOnly = <T extends string>(known: readonly T[], values: readonly unknown[]): T[] =>
   known.filter((candidate) => values.includes(candidate));
@@ -24,10 +26,9 @@ const parseJson = (text: string): unknown => {
 /** Null for anything that is not a controller event; unknown directions and buttons are dropped. */
 export const parseControllerState = (data: unknown): ControllerState | null => {
   if (typeof data !== "string") return null;
-  const state = parseJson(data);
-  if (!isRecord(state)) return null;
-  const { x, y, held, buttons } = state;
-  if (!isAxis(x) || !isAxis(y) || !Array.isArray(held) || !Array.isArray(buttons)) return null;
+  const event = eventSchema.safeParse(parseJson(data));
+  if (!event.success) return null;
+  const { x, y, held, buttons } = event.data;
   return {
     x,
     y,
