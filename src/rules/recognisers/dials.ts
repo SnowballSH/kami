@@ -231,7 +231,7 @@ const readDial = (dial: Dial, words: readonly string[]): number | null => {
   return compare(value, EARTH[dial.governs], dial.compared, words, TURNING);
 };
 
-/** The dials on Alice and on the weather; the older dials keep their own recognisers. */
+/** The dials on Alice, the weather, the hour and the Sumikui. */
 export const recogniseDials: Recogniser = ({ words }) => {
   for (const [dial, known] of KNOWN_DIALS) {
     if (!understands(words, known) || !saysDial(dial, words)) continue;

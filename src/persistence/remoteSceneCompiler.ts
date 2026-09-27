@@ -14,7 +14,6 @@ const sceneSchema = z.object({
 
 const answerSchema = z.object({ scene: sceneSchema });
 
-/** Asks the server's model to make a place the offline atlas does not know. */
 export class RemoteSceneCompiler implements SceneCompiler {
   readonly #fetch: FetchLike;
 

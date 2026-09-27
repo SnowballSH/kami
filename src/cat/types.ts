@@ -78,16 +78,17 @@ export interface RoomBrief {
   readonly hints: readonly [string, string, string];
 }
 
-/**
- * The single face of all the AI in the game. Methods are async where a model
- * could sit behind them; the demo implementation is offline and instant.
- */
+/** A proper look at a drawing: `rulings` are what each of the `guesses` would be. */
 export interface Look {
   readonly certain: Ruling | null;
   readonly guesses: readonly [string, string, string];
   readonly rulings: readonly Ruling[];
 }
 
+/**
+ * The single face of all the AI in the game. Methods are async where a model
+ * could sit behind them; the demo implementation is offline and instant.
+ */
 export interface Cat {
   /** Resets the hint ladder and the once-per-room offer of help. */
   enterRoom(room: RoomBrief): void;

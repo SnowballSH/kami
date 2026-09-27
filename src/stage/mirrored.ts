@@ -2,7 +2,6 @@ import type { Renderer } from "../render/types";
 import type { LawsPanel } from "../ui/types";
 import type { StageSource } from "./source";
 
-/** The game's renderer, and everything it is shown passed on to the stage. */
 export const mirroredRenderer = (renderer: Renderer, stage: StageSource): Renderer => ({
   setBoard: (board) => {
     renderer.setBoard(board);

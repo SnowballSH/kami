@@ -4,7 +4,7 @@ import type { Direction, PressedListener } from "../ui/walkIntent";
 import { holdsCat, parseControllerState, pressedDirections } from "./controllerState";
 import type { ControllerState, RemoteStickOptions } from "./types";
 
-export const controllerEventsPath = (controllerId: string): string =>
+const controllerEventsPath = (controllerId: string): string =>
   `${API_BASE}/controllers/${encodeURIComponent(controllerId)}/events`;
 
 const NOTHING_PRESSED: ReadonlySet<Direction> = new Set();

@@ -23,7 +23,7 @@ export const weakened = (value: number, plain: number): number => plain + (value
  * and for a dial whose plain value is none at all, half the quality ("bounces less"). A dial that
  * softens never crosses its plain value: "less cold" is halfway from cold back to mild.
  */
-export const lessened = (value: number, plain: number, compared: Comparatives | null): number => {
+const lessened = (value: number, plain: number, compared: Comparatives | null): number => {
   if (compared?.lessening === "softened") return weakened(value, plain);
   const opposite = value > plain ? compared?.less : value < plain ? compared?.more : undefined;
   if (opposite !== undefined) return opposite;

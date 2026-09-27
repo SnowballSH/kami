@@ -16,7 +16,6 @@ const HIP = { x: 3.5, y: 13 } as const;
 const HAND = { x: 8, y: 3 } as const;
 const TOE = 3.5;
 
-/** Where her feet rest in her own frame. */
 export const ALICE_FOOT = { x: 4, y: 28.5 } as const;
 export const ALICE_HEIGHT = ALICE_FOOT.y - (HEAD.y - HEAD.radius);
 export const ALICE_HALF_WIDTH = 12.5;

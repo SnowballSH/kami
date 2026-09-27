@@ -22,7 +22,7 @@ export type PeerId = string & { readonly __brand: "PeerId" };
 export type Ghost = AliceSnapshot;
 
 /** A drawn body stays on its own page: ghosts always wear Kami's sketch on the wire. */
-export const GHOST_LOOK: AliceLook = { kind: "alice" };
+const GHOST_LOOK: AliceLook = { kind: "alice" };
 
 export const ghostOf = (alice: AliceSnapshot): Ghost => ({ ...alice, look: GHOST_LOOK });
 

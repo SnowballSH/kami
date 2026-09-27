@@ -31,7 +31,7 @@ export const NEGATION = vocabulary(`
 `);
 
 /** Words that end a doing, so a negation before one says the doing goes on: "doesn't stop". */
-export const HALTING = vocabulary(`
+const HALTING = vocabulary(`
   stop, stops, stopped, stopping, quit, quits, quitting, cease, ceases, ceased, halt, halts,
   halted, lose, loses, lost, forget, forgets
 `);
