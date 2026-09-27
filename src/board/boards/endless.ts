@@ -1,5 +1,6 @@
 import type { Rect } from "../../core/geometry";
-import type { BoardDefinition, SolidDef } from "../types";
+import { marker } from "../solids";
+import type { BoardDefinition } from "../types";
 
 /** The floor of the page: wide enough that a demo never walks off it. Its top is y = 0. */
 export const ENDLESS_GROUND = { x: -6000, y: 0, width: 12_000, height: 36 } as const;
@@ -44,8 +45,6 @@ export const ENDLESS_HIGH_GROUNDS: readonly Rect[] = [
   rising(-3150, 60, 320),
   rising(-3400, 60, 440),
 ];
-
-const marker = (rect: Rect): SolidDef => ({ rect, material: "marker" });
 
 /** A page with no edges whose only paper is `solids`: beyond them, nothing until someone draws. */
 export const endlessPage = (id: string, solids: readonly Rect[]): BoardDefinition => ({

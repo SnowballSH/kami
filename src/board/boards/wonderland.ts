@@ -1,5 +1,6 @@
 import type { Rect } from "../../core/geometry";
-import type { BoardDefinition, SolidDef, Zone } from "../types";
+import { glass, marker } from "../solids";
+import type { BoardDefinition, Zone } from "../types";
 
 const GROUND_TOP = 560;
 const PLATEAU_TOP = 340;
@@ -14,9 +15,6 @@ const slab = (x: number, width: number, top: number, bottom = top + DEPTH): Rect
   width,
   height: bottom - top,
 });
-
-const marker = (rect: Rect): SolidDef => ({ rect, material: "marker" });
-const glass = (rect: Rect): SolidDef => ({ rect, material: "glass" });
 
 /** The riverbank: two banks and the ditch the Rabbit hopped, under a willow bough. */
 export const RIVERBANK = {

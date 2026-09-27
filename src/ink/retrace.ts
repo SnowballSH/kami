@@ -1,4 +1,4 @@
-import type { PenPoint, Stroke } from "../core/geometry";
+import { clamp, lerpVec, type PenPoint, type Stroke } from "../core/geometry";
 import type { Drawing } from "./types";
 
 /** A drawing on its way from the player's ink to Kami's tidied version of it. */
@@ -14,9 +14,11 @@ const easeInOut = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2)
 
 const between = (a: PenPoint, b: PenPoint, t: number): PenPoint => ({
   ...(a.pressure === undefined ? {} : { pressure: a.pressure }),
-  x: a.x + (b.x - a.x) * t,
-  y: a.y + (b.y - a.y) * t,
+  ...lerpVec(a, b, t),
 });
+
+const progressSince = (startedAtMs: number, durationMs: number, nowMs: number): number =>
+  clamp((nowMs - startedAtMs) / durationMs, 0, 1);
 
 /** Each player's stroke once fully tidied, kept so a settled stroke is the same array frame after frame. */
 const landedStrokes = new WeakMap<Stroke, { readonly goal: Stroke; readonly landed: Stroke }>();
@@ -34,7 +36,7 @@ const sameShape = (from: readonly Stroke[], to: readonly Stroke[]): boolean =>
   from.length <= to.length && from.every((stroke, index) => stroke.length === to[index]?.length);
 
 export const retraceProgress = (retrace: Retrace, nowMs: number): number =>
-  Math.min(1, Math.max(0, (nowMs - retrace.startedAtMs) / RETRACE_MS));
+  progressSince(retrace.startedAtMs, RETRACE_MS, nowMs);
 
 /**
  * The strokes to show at `progress` (0–1): first the player's own strokes glide point for point
@@ -58,7 +60,7 @@ export const drawnIn = (strokes: readonly Stroke[], progress: number): readonly 
   if (progress >= 1) return strokes;
   const reached = progress * strokes.length;
   return strokes.flatMap((stroke, index) => {
-    const share = Math.min(1, Math.max(0, reached - index));
+    const share = clamp(reached - index, 0, 1);
     const points = share >= 1 ? stroke : stroke.slice(0, Math.ceil(share * stroke.length));
     return points.length > 1 ? [points] : [];
   });
@@ -72,7 +74,7 @@ export interface Arrival {
 export const ARRIVAL_MS = 1800;
 
 const arrivalProgress = (arrival: Arrival, nowMs: number): number =>
-  Math.min(1, Math.max(0, (nowMs - arrival.startedAtMs) / ARRIVAL_MS));
+  progressSince(arrival.startedAtMs, ARRIVAL_MS, nowMs);
 
 /**
  * How a drawing is still coming into its strokes: Kami inking one of his own in (`arrival`), or the

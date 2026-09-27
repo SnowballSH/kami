@@ -6,7 +6,8 @@ const inkPassesNear = ({ drawing, pose }: PosedDrawing, point: Vec, tolerance: n
   return drawing.strokes.some((stroke) => distanceToStroke(drawnPoint, stroke) <= tolerance);
 };
 
-export const findTopmostDrawingAt = (
+/** The topmost (last-drawn) drawing whose ink passes within `tolerance` px of `point`. */
+export const findDrawingAt = (
   point: Vec,
   drawings: readonly PosedDrawing[],
   tolerance: number,

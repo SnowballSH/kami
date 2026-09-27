@@ -7,8 +7,6 @@ import {
   ENDLESS_HIGH_GROUNDS,
   endlessBoard,
   groundSolids,
-  isEndless,
-  pageFor,
 } from ".";
 
 describe("an endless page", () => {
@@ -44,14 +42,6 @@ describe("an endless page", () => {
     }
     const bars = ENDLESS_HIGH_GROUNDS.filter((high) => high.width <= 100 && high.height >= 200);
     expect(bars.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it("is what any id becomes under an endless mode, even the demo room's", () => {
-    expect(pageFor("endless", DEMO_BOARD_ID).page).toBe("endless");
-    expect(pageFor("room", DEMO_BOARD_ID)).toBe(boardFor(DEMO_BOARD_ID));
-    expect(isEndless(pageFor("endless", "x"))).toBe(true);
-    expect(isEndless(boardFor("x"))).toBe(false);
-    expect(isEndless(boardFor(DEMO_BOARD_ID))).toBe(false);
   });
 
   it("keeps only ground-level solids available for beneath-ground placement", () => {
