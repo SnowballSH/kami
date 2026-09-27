@@ -266,7 +266,7 @@ player's own ink. `morph_review.py` measures the morph on held-out drawings draw
 | `model.py` | `SketchNet`: torchvision `resnet18` with a 3×3 stride-2 stem and no max-pool, `forward -> (logits, embedding)`; `resnet18d`, `resnet34` |
 | `metrics.py`, `calibrate.py`, `folding.py`, `selective.py`, `retrieval.py`, `selection.py` | bucketed top-1/top-3, temperature scaling per regime, alias folding, ECE and coverage at 95 % precision, own-drawing recall@10, the selection metric S |
 | `export.py`, `artifacts.py`, `checkpoint.py` | ONNX export, `golden.json` and the release; bundle validation and atomic publication; a release back as a PyTorch model |
-| `recognizer.py`, `sidecar.py` | artefact directory → recogniser; the stdlib HTTP server over it |
+| `recognizer.py`, `sidecar.py`, `sidecar_input.py` | artefact directory → recogniser; the stdlib HTTP server over it; the input limits it checks first |
 | `exemplars.py`, `exemplar_set.py`, `completion.py`, `likeness.py`, `pose.py`, `morph.py`, `morph_review.py` | `/complete`: the exemplar set, choosing an exemplar and pose, the morph, and its review |
 | `latency.py` | a model's ONNX and `/recognize` latency against another's, interleaved in one process |
 

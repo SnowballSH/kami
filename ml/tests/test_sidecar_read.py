@@ -12,7 +12,8 @@ from test_sidecar import SQUARE, call
 
 from handwriting.reader import Transcript
 from render import Point
-from sidecar import DEFAULT_HANDWRITING_DIR, MAX_STROKES, ReadsHandwriting, serve
+from sidecar import DEFAULT_HANDWRITING_DIR, ReadsHandwriting, serve
+from sidecar_input import MAX_STROKES
 
 FIXTURES = Path(__file__).parent / "fixtures" / "handwriting"
 
