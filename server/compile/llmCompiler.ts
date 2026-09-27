@@ -6,8 +6,6 @@ import { rawRuleEffectSchema } from "../schemas";
 import { clampEffect, describeEffect } from "./effectRanges";
 import { BESIDE_PREFIX, COMPILER_SYSTEM_PROMPT } from "./prompt";
 
-export { chatCompletionsUrl, type FetchLike, type LlmConfig } from "../llm/chatClient";
-
 const REQUEST_TIMEOUT_MS = 30_000;
 const WARM_UP_TIMEOUT_MS = 120_000;
 const MAX_REPLY_TOKENS = 1500;
@@ -31,7 +29,7 @@ const parseModelReply = (content: string): CompiledRule | null => {
 const besideLine = (text: string, { referent }: CompileContext): string =>
   `${text}\n${BESIDE_PREFIX} ${referent}`;
 
-export class LlmRuleCompiler implements RuleCompiler {
+class LlmRuleCompiler implements RuleCompiler {
   readonly #chat: ChatClient;
 
   constructor(config: LlmConfig, fetchFn: FetchLike = fetch) {

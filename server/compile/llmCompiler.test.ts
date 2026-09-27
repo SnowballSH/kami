@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { chatCompletionsUrl, createLlmCompiler, type FetchLike } from "./llmCompiler";
+import { chatCompletionsUrl, type FetchLike } from "../llm/chatClient";
+import { createLlmCompiler } from "./llmCompiler";
 import { BESIDE_PREFIX, COMPILER_SYSTEM_PROMPT } from "./prompt";
 
 const CONFIG = { url: "http://llm.example:8000", model: "kami-rules", apiKey: "secret" } as const;

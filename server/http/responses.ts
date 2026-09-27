@@ -56,7 +56,7 @@ export const parseJsonBody = async <Schema extends z.ZodType>(
   }
 };
 
-export class BodyTimeoutError extends Error {
+class BodyTimeoutError extends Error {
   constructor(deadlineMs: number) {
     super(`Body did not arrive within ${deadlineMs} ms.`);
     this.name = "BodyTimeoutError";

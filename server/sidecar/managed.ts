@@ -1,7 +1,7 @@
 import type { Env } from "../env/env";
 
 /** The sidecar the server starts itself only ever listens on loopback. */
-export const SIDECAR_HOST = "127.0.0.1";
+const SIDECAR_HOST = "127.0.0.1";
 
 /** How to run `ml/sidecar.py` as a child of the server (`KAMI_SIDECAR=auto`). */
 export interface ManagedSidecarConfig {

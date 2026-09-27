@@ -1,7 +1,7 @@
 import type { Db } from "mongodb";
 
 /** Collections earlier versions kept and nothing reads any more: `quickdraw` became a file. */
-export const RETIRED_COLLECTIONS = ["quickdraw"] as const;
+const RETIRED_COLLECTIONS = ["quickdraw"] as const;
 
 /** Drops whichever retired collections a database still holds; names what it dropped. */
 export const dropRetiredCollections = async (db: Db): Promise<readonly string[]> => {

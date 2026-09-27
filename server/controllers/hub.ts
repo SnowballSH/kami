@@ -14,8 +14,8 @@ import {
   type Unsubscribe,
 } from "./types";
 
-export const PRESS_AT = 40;
-export const RELEASE_BELOW = 30;
+const PRESS_AT = 40;
+const RELEASE_BELOW = 30;
 export const STALE_AFTER_MS = 1_000;
 export const FORGET_AFTER_MS = 60_000;
 
@@ -24,7 +24,7 @@ const JUMP_DIRECTION: Direction = "up";
 
 const AT_REST: ControllerState = { x: 0, y: 0, held: [], buttons: [] };
 
-export const systemClock: HubClock = {
+const systemClock: HubClock = {
   now: () => Date.now(),
   schedule: (task, delayMs) => {
     const timer = setTimeout(task, delayMs);

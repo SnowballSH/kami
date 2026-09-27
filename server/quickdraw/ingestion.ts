@@ -28,7 +28,7 @@ const fetchCategorySketches = async (
 };
 
 /** Downloads every category a few at a time, handing each one over as soon as it has arrived. */
-export const fetchQuickdrawSketches = async (
+const fetchQuickdrawSketches = async (
   categories: readonly string[],
   samplesPerCategory: number,
   onCategory: (fetched: CategorySketches) => Promise<void>,

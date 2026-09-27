@@ -7,7 +7,7 @@ export interface DoubtFloors {
   readonly unknown: number;
 }
 
-export const DEFAULT_DOUBT: DoubtFloors = { english: 0.8, unknown: 0.9 };
+const DEFAULT_DOUBT: DoubtFloors = { english: 0.8, unknown: 0.9 };
 
 const SHORTEST_UNKNOWN = 3;
 const HAS_LETTER = /\p{L}/u;

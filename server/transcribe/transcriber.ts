@@ -1,5 +1,5 @@
-import type { LlmConfig } from "../compile/llmCompiler";
 import type { AuthenticatedEndpoint } from "../http/endpoint";
+import type { LlmConfig } from "../llm/chatClient";
 import type { FetchLike } from "../recognition/types";
 import { FirstReadyTranscriber, type NamedTranscriber } from "./chain";
 import { LlmTranscriber } from "./llmTranscriber";

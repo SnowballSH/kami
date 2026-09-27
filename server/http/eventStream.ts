@@ -3,8 +3,8 @@
  * keep-alive comment has to come well inside that.
  */
 export const KEEP_ALIVE_MS = 5_000;
-export const DEFAULT_MAX_BACKLOG_BYTES = 1024 * 1024;
-export const STALL_MS = 30_000;
+const DEFAULT_MAX_BACKLOG_BYTES = 1024 * 1024;
+const STALL_MS = 30_000;
 const RECONNECT_AFTER_MS = 1_000;
 const BACKPRESSURE_SINCE = [1, 4, 2] as const;
 

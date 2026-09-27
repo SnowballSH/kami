@@ -18,9 +18,9 @@ import { floorFor } from "../certainty";
 import type { InProcessSketchRanker, RankOptions, Reading } from "../types";
 import type { FromWorker, SpawnWorker, WorkerPort } from "./protocol";
 
-export const DEFAULT_MAX_QUEUED = 32;
+const DEFAULT_MAX_QUEUED = 32;
 /** Live sketches go stale in a long queue, so only this many wait; a newer one replaces the oldest. */
-export const DEFAULT_MAX_QUEUED_PARTIALS = 4;
+const DEFAULT_MAX_QUEUED_PARTIALS = 4;
 
 export class RecognizerBusyError extends Error {
   constructor() {

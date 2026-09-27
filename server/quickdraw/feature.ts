@@ -1,6 +1,6 @@
 import type { Stroke, Vec } from "../../src/core/geometry";
 
-export const FEATURE_GRID_SIZE = 24;
+const FEATURE_GRID_SIZE = 24;
 export const FEATURE_LENGTH = FEATURE_GRID_SIZE * FEATURE_GRID_SIZE;
 
 const GRID_MARGIN = 1.5;

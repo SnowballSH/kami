@@ -3,7 +3,7 @@ import type { Note } from "../../src/notes/types";
 import type { BoardSnapshot, BoardSummary, StoredDrawing } from "../../src/persistence/types";
 import type { Rule } from "../../src/rules/types";
 
-export const ENTITY_KINDS = ["drawings", "notes", "rules"] as const;
+const ENTITY_KINDS = ["drawings", "notes", "rules"] as const;
 
 export type EntityKind = (typeof ENTITY_KINDS)[number];
 

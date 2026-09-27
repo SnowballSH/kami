@@ -49,7 +49,7 @@ export interface CorrectorTuning {
   readonly nearbyCount: number;
 }
 
-export const DEFAULT_TUNING: CorrectorTuning = {
+const DEFAULT_TUNING: CorrectorTuning = {
   shortestWord: 3,
   costPerLetter: 0.3,
   maxCost: 1.5,

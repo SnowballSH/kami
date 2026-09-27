@@ -82,7 +82,7 @@ export const parseSceneReply = (
 };
 
 /** Asks the model to make a place of "teleport us to a chocolate factory"; never for the atlas's own. */
-export class LlmSceneCompiler implements SceneCompiler {
+class LlmSceneCompiler implements SceneCompiler {
   readonly #chat: ChatClient;
 
   constructor(

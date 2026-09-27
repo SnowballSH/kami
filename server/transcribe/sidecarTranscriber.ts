@@ -22,7 +22,7 @@ export interface SidecarTranscriberTiming {
   readonly pollMs: number;
 }
 
-export const DEFAULT_SIDECAR_TIMING: SidecarTranscriberTiming = {
+const DEFAULT_SIDECAR_TIMING: SidecarTranscriberTiming = {
   requestTimeoutMs: 10_000,
   warmUpTimeoutMs: 120_000,
   pollMs: 1_000,

@@ -29,7 +29,7 @@ export interface Backoff {
   readonly healthyAfterMs: number;
 }
 
-export const DEFAULT_BACKOFF: Backoff = { initialMs: 1_000, maxMs: 60_000, healthyAfterMs: 60_000 };
+const DEFAULT_BACKOFF: Backoff = { initialMs: 1_000, maxMs: 60_000, healthyAfterMs: 60_000 };
 
 export interface SupervisorOptions {
   readonly spawn: SpawnSidecar;
@@ -54,7 +54,7 @@ const forwardLines = async (
   if (pending.trim() !== "") onLine(pending.trimEnd());
 };
 
-export const spawnWithBun: SpawnSidecar = ({ command, env, cwd, onLine }) => {
+const spawnWithBun: SpawnSidecar = ({ command, env, cwd, onLine }) => {
   const child = Bun.spawn([...command], {
     env,
     cwd,
