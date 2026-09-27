@@ -4,7 +4,7 @@ import type { BoardDefinition } from "../board/types";
 import type { Ruling } from "../cat/types";
 import { distanceToRect, type Rect, type Stroke, type Vec } from "../core/geometry";
 import { FIXED_STEP_MS } from "../core/world";
-import type { Drawing, DrawingId } from "../ink/types";
+import type { Drawing, DrawingId, InkProvenance } from "../ink/types";
 import { validPhysics } from "../rules/effectDomains";
 import { EARTH, type WorldPhysics } from "../rules/types";
 import { AliceController, type AliceSurroundings } from "./alice";
@@ -40,14 +40,13 @@ import { moveOfItself } from "./motion";
 import { NATURES, type NatureWorld, stepOf } from "./natures";
 import { seesHerWay } from "./nightfall";
 import { isLooseInk } from "./paper";
-import { centreOf, Portals } from "./portals";
+import { Portals } from "./portals";
 import { restingFeet } from "./restingFeet";
 import {
   ALICE_HERSELF,
   type AliceIndex,
   type AliceSnapshot,
   type BounceArc,
-  type InkProvenance,
   type Ride,
   type SimEvent,
   type Simulation,
@@ -554,7 +553,7 @@ export class MatterSimulation implements Simulation {
           engine.timing.timestamp,
           (event) => this.events.push(event),
         );
-        if (exit !== null) alice.warpTo(centreOf(exit));
+        if (exit !== null) alice.warpTo(exit.centre);
       },
     };
   }

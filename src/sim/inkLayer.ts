@@ -3,7 +3,7 @@ import { heedOf } from "../cat/temper";
 import { type Ruling, STRENGTH_RANGE } from "../cat/types";
 import { type Rect, type Stroke, scaleAbout, type Vec } from "../core/geometry";
 import { bearingStrokes } from "../ink/bearing";
-import type { Drawing, DrawingId } from "../ink/types";
+import type { Drawing, DrawingId, InkProvenance } from "../ink/types";
 import { motionOf } from "../rules/motion";
 import { STILL, type WorldPhysics } from "../rules/types";
 import { countAnchorClusters } from "./anchoring";
@@ -13,7 +13,7 @@ import { freshMind } from "./creatures";
 import { buildInkBody } from "./inkBody";
 import { InkEntity, ownMotion } from "./inkEntity";
 import { holdsStill, NATURES } from "./natures";
-import type { DrawingPose, InkProvenance } from "./types";
+import type { DrawingPose } from "./types";
 import { type BodyMaterial, materialMoved, materialUnder, retune } from "./worldPhysics";
 
 type InkState = Pick<InkEntity, "nature" | "strength" | "frozen" | "motion">;

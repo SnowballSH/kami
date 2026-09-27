@@ -1,5 +1,5 @@
 import Matter from "matter-js";
-import { clamp, type Rect, type Stroke, type Vec } from "../core/geometry";
+import { approach, clamp, type Rect, type Stroke, type Vec } from "../core/geometry";
 import { inEffectDomain } from "../rules/effectDomains";
 import type { WorldPhysics } from "../rules/types";
 import {
@@ -78,9 +78,6 @@ interface ResizeTween {
   readonly to: number;
   elapsedMs: number;
 }
-
-const approach = (value: number, target: number, maxChange: number): number =>
-  value + clamp(target - value, -maxChange, maxChange);
 
 const holdBack = (velocityX: number, direction: Axis): number =>
   direction > 0 ? Math.min(velocityX, 0) : Math.max(velocityX, 0);

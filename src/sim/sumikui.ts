@@ -1,7 +1,6 @@
 import type Matter from "matter-js";
-import { clamp, distance, distanceToRect, rectCenter, type Vec } from "../core/geometry";
+import { clamp, distance, distanceToRect, type Vec } from "../core/geometry";
 import type { AliceController } from "./alice";
-import { boundsRect } from "./bodyBounds";
 import {
   SUMIKUI_BASE_SPEED,
   SUMIKUI_BITE_MS,
@@ -67,10 +66,6 @@ export const edible = (ink: InkEntity, namelessOnly = false): boolean =>
   !NATURES[ink.nature].pinned && ink.provenance !== "scenery" && (!namelessOnly || ink.name === "");
 
 const nearness = (gap: number): number => 1 / (1 + gap / SUMIKUI_NEAR_PX);
-
-const centreOf = (ink: InkEntity): Vec => rectCenter(boundsRect(ink.body.bounds));
-
-const feetOf = (alice: AliceController): Vec => alice.feet();
 
 const towards = (from: Vec, to: Vec, step: number): Vec => {
   const gap = distance(from, to);
@@ -183,9 +178,9 @@ export class Sumikui {
   private mouthfulOf(quarry: Quarry): Vec {
     switch (quarry.kind) {
       case "ink":
-        return centreOf(quarry.ink);
+        return quarry.ink.centre;
       case "paper":
-        return feetOf(quarry.alice);
+        return quarry.alice.feet();
       case "alice":
         return quarry.alice.body.position;
     }
@@ -252,12 +247,12 @@ export class Sumikui {
         return (
           ground.alices.includes(quarry.alice) &&
           this.standsOnPaper(quarry.alice, ground) &&
-          !this.isHallowed(feetOf(quarry.alice))
+          !this.isHallowed(quarry.alice.feet())
         );
       case "alice":
         return (
           ground.alices.includes(quarry.alice) &&
-          !this.isHallowed(feetOf(quarry.alice)) &&
+          !this.isHallowed(quarry.alice.feet()) &&
           distance(this.centre, quarry.alice.body.position) <= SUMIKUI_LOSES_HER_PX
         );
     }
@@ -291,12 +286,12 @@ export class Sumikui {
       case "ink":
         return this.worthOfInk(quarry.ink, ground);
       case "paper": {
-        const feet = feetOf(quarry.alice);
+        const feet = quarry.alice.feet();
         return this.isHallowed(feet) ? null : WORTH.paper + this.nearnessOf(feet);
       }
       case "alice": {
         const { alice } = quarry;
-        if (this.isHallowed(feetOf(alice))) return null;
+        if (this.isHallowed(alice.feet())) return null;
         const gap = distanceToRect(this.centre, alice.bounds());
         return gap <= SUMIKUI_LUNGE_PX
           ? WORTH.lunge
@@ -312,7 +307,7 @@ export class Sumikui {
 
   /** Ink she stands on first, then ink near her, then whatever is nearest to it. */
   private worthOfInk(ink: InkEntity, ground: HuntingGround): number {
-    const centre = centreOf(ink);
+    const { centre } = ink;
     const standingOn = ground.alices.some((alice) => alice.standsOn(ink.body));
     const nearestAlice = Math.min(
       ...ground.alices.map((alice) => distanceToRect(centre, alice.bounds())),

@@ -1,4 +1,3 @@
-import type { Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 import { PORTAL_LONELY_COOLDOWN_MS } from "./constants";
 import type { InkEntity } from "./inkEntity";
@@ -10,11 +9,6 @@ export const exitOf = (portal: InkEntity, inks: readonly InkEntity[]): InkEntity
   const at = portals.indexOf(portal);
   if (at < 0 || portals.length < 2) return null;
   return portals[(at + 1) % portals.length] ?? null;
-};
-
-export const centreOf = (ink: InkEntity): Vec => {
-  const { min, max } = ink.body.bounds;
-  return { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2 };
 };
 
 /**

@@ -1,4 +1,4 @@
-import { boundsOf, poseToWorld, rectCenter, type Vec } from "../core/geometry";
+import { boundsOfAll, poseToWorld, rectCenter, type Vec } from "../core/geometry";
 import { LANTERN_LIGHT_PX } from "../sim/constants";
 import type { AliceSnapshot } from "../sim/types";
 import { applyDeviceTransform, type DeviceTransform, type Size } from "./camera";
@@ -28,7 +28,7 @@ export const lightsOf = (
   ...inks
     .filter((ink) => ink.lit)
     .map((ink) => ({
-      center: poseToWorld(rectCenter(boundsOf(ink.drawing.strokes.flat())), ink.pose),
+      center: poseToWorld(rectCenter(boundsOfAll(ink.drawing.strokes)), ink.pose),
       radius: LANTERN_LIGHT_PX,
     })),
 ];

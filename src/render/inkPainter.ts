@@ -1,4 +1,4 @@
-import { boundsOf, type Rect, type Stroke, type Vec } from "../core/geometry";
+import { boundsOfAll, type Rect, type Stroke, type Vec } from "../core/geometry";
 import { INK_THICKNESS } from "../core/world";
 import type { Drawing, DrawingId, PlacementVerdict } from "../ink/types";
 import type { SimEvent } from "../sim/types";
@@ -184,7 +184,7 @@ export class InkPainter {
     if (cached?.strokes === drawing.strokes) return cached;
     const ink: SettledInk = {
       strokes: drawing.strokes,
-      bounds: boundsOf(drawing.strokes.flat()),
+      bounds: boundsOfAll(drawing.strokes),
       path: null,
     };
     this.settled.set(drawing.id, ink);

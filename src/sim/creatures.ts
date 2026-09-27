@@ -1,5 +1,5 @@
 import Matter from "matter-js";
-import type { Vec } from "../core/geometry";
+import { rectCenter, type Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 import {
   CREATURE_EDGE_DROP,
@@ -102,14 +102,9 @@ const carryAlice = (ink: InkEntity, world: NatureWorld, velocity: Vec): void => 
  */
 export type Urge = "heel" | "toward" | "away" | "roam";
 
-const aliceCentre = (world: NatureWorld): Vec => {
-  const bounds = world.alice.bounds();
-  return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
-};
-
 export const urgeOf = (ink: InkEntity, world: NatureWorld): Urge => {
   if (ink.temper === null) return "roam";
-  const gap = aliceCentre(world).x - ink.body.position.x;
+  const gap = rectCenter(world.alice.bounds()).x - ink.body.position.x;
   if (ink.temper === "follows") {
     if (Math.abs(gap) <= HEEL_PX) return "heel";
     face(ink, gap);
