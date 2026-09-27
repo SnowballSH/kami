@@ -64,6 +64,9 @@ export const HOP_REACH = 90;
 export const FLY_SPEED = 1.5;
 export const VEHICLE_SPEED = 4.5;
 export const VEHICLE_ACCELERATION = 0.25;
+/** On the ground a vehicle rights itself: spin kept per tick, and the tilt within which it levels out. */
+export const VEHICLE_KEEL = 0.9;
+export const VEHICLE_LEVELS_WITHIN_RAD = 0.35;
 export const FLY_BOB_SPEED = 0.7;
 export const FLY_BOB_PERIOD_TICKS = 90;
 export const FLY_ROAM_PX = 320;

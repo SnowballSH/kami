@@ -1,7 +1,7 @@
 import type { Vec } from "../core/geometry";
 import type { SumikuiPhase, SumikuiQuarry, SumikuiSnapshot } from "../sim/types";
 import { TAU } from "./canvas2d";
-import { MARKER, rgbCss } from "./palette";
+import { BOARD_COLORS, MARKER, rgbCss } from "./palette";
 
 const BODY_RADIUS = 22;
 const LOBES = 7;
@@ -77,7 +77,7 @@ const paintEye = (ctx: CanvasRenderingContext2D, squint: number, pupil: number):
   ctx.save();
   ctx.translate(EYE.x, EYE.y);
   ctx.scale(1, Math.max(squint, 0.08));
-  ctx.fillStyle = "#f4f1ea";
+  ctx.fillStyle = BOARD_COLORS.eyeWhite;
   ctx.beginPath();
   ctx.arc(0, 0, EYE.radius, 0, TAU);
   ctx.fill();

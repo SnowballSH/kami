@@ -1,5 +1,5 @@
 import Matter from "matter-js";
-import { clamp, type Rect, type Stroke, type Vec } from "../core/geometry";
+import { approach, clamp, type Rect, type Stroke, type Vec } from "../core/geometry";
 import { inEffectDomain } from "../rules/effectDomains";
 import type { WorldPhysics } from "../rules/types";
 import {
@@ -79,9 +79,6 @@ interface ResizeTween {
   elapsedMs: number;
 }
 
-const approach = (value: number, target: number, maxChange: number): number =>
-  value + clamp(target - value, -maxChange, maxChange);
-
 const holdBack = (velocityX: number, direction: Axis): number =>
   direction > 0 ? Math.min(velocityX, 0) : Math.max(velocityX, 0);
 
@@ -92,6 +89,7 @@ export class AliceController {
   /** How much bigger than Kami's Alice she was drawn; 1 for Alice herself. */
   private readonly innate: number;
   private form: DrawnBody | null = null;
+  private can: Abilities = EVERY_ABILITY;
   private shuffleAllowed = false;
   private name = "";
   private clock = 0;
@@ -156,7 +154,11 @@ export class AliceController {
   }
 
   get abilities(): Abilities {
-    return this.form === null ? EVERY_ABILITY : abilitiesOf(this.form);
+    return this.can;
+  }
+
+  get riding(): Ride | null {
+    return this.mount;
   }
 
   get drawnBody(): DrawnBody | null {
@@ -176,9 +178,8 @@ export class AliceController {
 
   /** The strokes a player drew become her; she is `name` from now on. */
   wear(body: DrawnBody, name: string): void {
-    this.form = body;
-    this.shuffleAllowed =
-      !abilitiesOf(body).walk && body.strokes.some(({ part }) => part === "torso");
+    this.become(body);
+    this.shuffleAllowed = !this.can.walk && body.strokes.some(({ part }) => part === "torso");
     this.name = name;
   }
 
@@ -194,7 +195,7 @@ export class AliceController {
       },
       part,
     );
-    this.form = result.body;
+    this.become(result.body);
     return result;
   }
 
@@ -204,8 +205,13 @@ export class AliceController {
     const space = this.bodySpace();
     const local = worldStrokes.map((stroke) => stroke.map((point) => toBodySpace(point, space)));
     const result = graft(this.form, local, this.clock, namesWings(this.name));
-    if (result !== null) this.form = result.body;
+    if (result !== null) this.become(result.body);
     return result;
+  }
+
+  private become(form: DrawnBody): void {
+    this.form = form;
+    this.can = abilitiesOf(form);
   }
 
   get contacts(): readonly Contact[] {
@@ -279,7 +285,7 @@ export class AliceController {
   }
 
   control(wanted: WalkIntent, surroundings: AliceSurroundings, timeScale: number): void {
-    const can = this.abilities;
+    const { can } = this;
     const shuffles = this.shuffleAllowed && !can.walk;
     const intent: WalkIntent = {
       x: can.walk || shuffles ? wanted.x : 0,

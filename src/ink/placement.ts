@@ -3,7 +3,6 @@ import { INK_THICKNESS } from "../core/world";
 import type { PlacementRules, PlacementVerdict } from "./types";
 
 type Interval = readonly [enter: number, exit: number];
-type Segment = readonly [start: Vec, end: Vec];
 
 const WHOLE_SEGMENT: Interval = [0, 1];
 const NO_OVERLAP: Interval = [1, 0];
@@ -16,21 +15,26 @@ const axisInterval = (start: number, end: number, min: number, max: number): Int
   return [Math.min(toMin, toMax), Math.max(toMin, toMax)];
 };
 
-export const segmentCrossesRect = ([start, end]: Segment, rect: Rect): boolean => {
+const segmentCrossesRect = (start: Vec, end: Vec, rect: Rect): boolean => {
   const [enterX, exitX] = axisInterval(start.x, end.x, rect.x, rect.x + rect.width);
   const [enterY, exitY] = axisInterval(start.y, end.y, rect.y, rect.y + rect.height);
   return Math.max(0, enterX, enterY) <= Math.min(1, exitX, exitY);
 };
 
-const segmentsOf = (stroke: Stroke): readonly Segment[] => {
+const strokeCrossesRect = (stroke: Stroke, rect: Rect): boolean => {
   const [first] = stroke;
-  if (first === undefined) return [];
-  if (stroke.length === 1) return [[first, first]];
-  return stroke.slice(1).map((end, i): Segment => [stroke[i] ?? end, end]);
+  if (first === undefined) return false;
+  if (stroke.length === 1) return segmentCrossesRect(first, first, rect);
+  for (let at = 1; at < stroke.length; at++) {
+    const [start, end] = [stroke[at - 1], stroke[at]];
+    if (start !== undefined && end !== undefined && segmentCrossesRect(start, end, rect))
+      return true;
+  }
+  return false;
 };
 
 const crossesRect = (strokes: readonly Stroke[], rect: Rect): boolean =>
-  strokes.some((stroke) => segmentsOf(stroke).some((segment) => segmentCrossesRect(segment, rect)));
+  strokes.some((stroke) => strokeCrossesRect(stroke, rect));
 
 /** A quick flick samples few points, so the line between them is judged, not only the points. */
 const touchesZone = (strokes: readonly Stroke[], zones: readonly Rect[]): boolean =>

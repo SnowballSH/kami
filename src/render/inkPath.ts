@@ -7,7 +7,7 @@ export type Pen = StrokeOptions & { readonly size: number };
 
 export const NOTE_THICKNESS = 2.2;
 /** Drawn thinner than the ink's physical thickness: a fine pen over a body that stays as solid as before. */
-export const PEN_THICKNESS = INK_THICKNESS / 2;
+const PEN_THICKNESS = INK_THICKNESS / 2;
 
 /**
  * A pen that reports pressure draws with it, here, after a reload and on every other device on the

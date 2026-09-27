@@ -24,7 +24,6 @@ import type {
 } from "./types";
 
 const IDLE: WalkIntent = { x: 0, y: 0 };
-/** She re-reads the board this often even when nothing told her it changed. */
 /**
  * A re-plan reads the whole board (tens of ms on a tablet). On her way it is worth doing twice a
  * second, because ink moves under her. While she waits, nothing she does can change the answer —
@@ -354,13 +353,15 @@ export class Pilot implements Autopilot {
   ): Plan | null {
     const feet = feetOfScene(scene);
     const meals = scene.inks
-      .filter((ink) => sizeAfterEating(ink) !== null && sizeAfterEating(ink) !== scene.alice.size)
-      .sort((a, b) => distance(a.pose.position, feet) - distance(b.pose.position, feet));
-    for (const meal of meals) {
+      .flatMap((ink) => {
+        const size = sizeAfterEating(ink);
+        return size === null || size === scene.alice.size ? [] : [{ ink, size }];
+      })
+      .sort((a, b) => distance(a.ink.pose.position, feet) - distance(b.ink.pose.position, feet));
+    for (const { ink: meal, size: newSize } of meals) {
       const route = finder.route(start, { kind: "eat", drawingId: meal.drawing.id });
       const last = route?.at(-1);
-      const newSize = sizeAfterEating(meal);
-      if (route === null || last === undefined || newSize === null) continue;
+      if (route === null || last === undefined) continue;
       const after: Scene = {
         ...scene,
         inks: scene.inks.filter((ink) => ink.drawing.id !== meal.drawing.id),
@@ -490,17 +491,19 @@ export class Pilot implements Autopilot {
   /** At the last node: keep leaning into whatever she came for, so touching it registers. */
   private nudge(scene: Scene, errand: Errand): WalkIntent {
     const towards = (x: number): WalkIntent => ({ x: sign(x - scene.alice.center.x), y: 0 });
-    if (errand.kind === "wait" || errand.kind === "idle") return IDLE;
-    if (errand.kind === "flee" || errand.kind === "explore") return IDLE;
-    if (errand.kind === "wander") {
-      this.lookAbout();
-      return IDLE;
+    switch (errand.kind) {
+      case "wander":
+        this.lookAbout();
+        return IDLE;
+      case "eat": {
+        const meal = scene.inks.find((ink) => ink.drawing.id === errand.drawingId);
+        return meal === undefined ? IDLE : towards(meal.pose.position.x);
+      }
+      case "objective":
+        return towards(pointOf(scene, errand.objective).x);
+      default:
+        return IDLE;
     }
-    if (errand.kind === "eat") {
-      const meal = scene.inks.find((ink) => ink.drawing.id === errand.drawingId);
-      return meal === undefined ? IDLE : towards(meal.pose.position.x);
-    }
-    return towards(pointOf(scene, errand.objective).x);
   }
 
   /** At the end of a stroll she stands a while, then turns and strolls back the other way. */

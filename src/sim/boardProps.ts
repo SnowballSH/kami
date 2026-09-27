@@ -42,6 +42,11 @@ export class BoardProps {
   private pieces: readonly Piece[] = [];
   private scars: Scar[] = [];
   private door: Matter.Body | null;
+  private markers: ReadonlySet<Matter.Body> = new Set();
+  private cachedAnchorRects: readonly Rect[] = [];
+  private cachedSolidRects: readonly Rect[] = [];
+  private cachedPaper: Matter.Body[] = [];
+  private cachedSolidBodies: readonly Matter.Body[] = [];
 
   constructor(
     private readonly world: Matter.World,
@@ -54,20 +59,20 @@ export class BoardProps {
 
   /** Where ink may anchor: marker solids as they stand now, bites and all. */
   get anchorRects(): readonly Rect[] {
-    return this.pieces.filter((piece) => piece.material === "marker").map(({ rect }) => rect);
+    return this.cachedAnchorRects;
   }
 
   get solidRects(): readonly Rect[] {
-    return this.pieces.map(({ rect }) => rect);
+    return this.cachedSolidRects;
   }
 
   get solidBodies(): readonly Matter.Body[] {
-    return this.door === null ? this.paper : [...this.paper, this.door];
+    return this.cachedSolidBodies;
   }
 
   /** The sketched solids as they stand now: the paper the Sumikui may bite through. */
   get paper(): readonly Matter.Body[] {
-    return this.pieces.map((piece) => piece.body);
+    return this.cachedPaper;
   }
 
   /** Holes bitten out of the paper that have not healed yet. */
@@ -80,7 +85,7 @@ export class BoardProps {
   }
 
   isMarker(body: Matter.Body): boolean {
-    return this.pieces.some((piece) => piece.body === body && piece.material === "marker");
+    return this.markers.has(body);
   }
 
   isDoor(body: Matter.Body): boolean {
@@ -91,6 +96,7 @@ export class BoardProps {
     if (this.door === null) return;
     Matter.Composite.remove(this.world, this.door);
     this.door = null;
+    this.cachedSolidBodies = this.cachedPaper;
   }
 
   /**
@@ -130,10 +136,7 @@ export class BoardProps {
   }
 
   private rebuildPieces(): void {
-    Matter.Composite.remove(
-      this.world,
-      this.pieces.map((piece) => piece.body),
-    );
+    Matter.Composite.remove(this.world, this.cachedPaper);
     const cuts = this.bites;
     this.pieces = this.board.solids.flatMap((solid) =>
       remainingColumns(solid.rect, cuts).map((rect) => ({
@@ -142,9 +145,13 @@ export class BoardProps {
         material: solid.material,
       })),
     );
-    Matter.Composite.add(
-      this.world,
-      this.pieces.map((piece) => piece.body),
-    );
+    const markers = this.pieces.filter((piece) => piece.material === "marker");
+    this.markers = new Set(markers.map(({ body }) => body));
+    this.cachedAnchorRects = markers.map(({ rect }) => rect);
+    this.cachedSolidRects = this.pieces.map(({ rect }) => rect);
+    this.cachedPaper = this.pieces.map(({ body }) => body);
+    this.cachedSolidBodies =
+      this.door === null ? this.cachedPaper : [...this.cachedPaper, this.door];
+    Matter.Composite.add(this.world, this.cachedPaper);
   }
 }

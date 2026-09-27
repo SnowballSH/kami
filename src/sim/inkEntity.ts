@@ -2,10 +2,9 @@ import type Matter from "matter-js";
 import { temperOfHeed } from "../cat/temper";
 import type { Nature, Temper } from "../cat/types";
 import { type Pose, poseToWorld, type Stroke, type Vec } from "../core/geometry";
-import type { Drawing, DrawingId } from "../ink/types";
+import type { Drawing, DrawingId, InkProvenance } from "../ink/types";
 import { type Motion, type MotionEdit, STILL } from "../rules/types";
 import { freshMind, type Mind } from "./creatures";
-import type { InkProvenance } from "./types";
 
 /** What a nature does of itself, as motion a law can override: "the lamp stops glowing" puts it out. */
 const MOTION_BY_NATURE: Readonly<Partial<Record<Nature, MotionEdit>>> = {
@@ -51,6 +50,12 @@ export class InkEntity {
   /** Whether it lights its patch at night: a lantern unless a law puts it out, or anything given the `glow` power. */
   get lit(): boolean {
     return this.motion.glow > 0;
+  }
+
+  /** The middle of its bounding box in the world. */
+  get centre(): Vec {
+    const { min, max } = this.body.bounds;
+    return { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2 };
   }
 
   get pose(): Pose {

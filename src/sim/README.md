@@ -6,7 +6,8 @@
 
 | File | Holds |
 |---|---|
-| `simulation.ts` | `MatterSimulation`: owns one `BoardWorld` (engine, props, ink, Alice, checkpoints) per loaded board, the standing `WorldPhysics`, and the tick order below |
+| `simulation.ts` | `MatterSimulation`: owns one `BoardWorld` per loaded board, the standing `WorldPhysics`, and the tick order below |
+| `boardWorld.ts` | `BoardWorld` (engine, props, ink, Alice, checkpoints) and the questions asked of it: off the board, where to respawn, headroom to grow |
 | `alice.ts` | `AliceController`: walking, blocking, step-assist, climbing, resize, respawn, traction |
 | `contacts.ts` | Collision categories, `Contact`, slope classification, the probe helpers |
 | `inkLayer.ts` / `inkEntity.ts` | Live drawings ↔ matter bodies; rebuilds a body when a ruling changes it |
@@ -28,6 +29,10 @@ A drawing is a side view, so whatever is drawn *above* a span and *within* it �
 `step()` is one fixed step of game time. The effective time scale is `bulletTime × physics.timeScale`. matter-js is only stable up to one fixed step per update, so a scale above 1 is split into `ceil(scale)` equal **ticks**, each at a scale ≤ 1; a scale at or below 1 is a single tick. Events from every tick are returned together.
 
 Tick order: `alice.control` → nature `beforeStep` hooks → wind → `Engine.update` → resize tween → `alice.sense` → Alice touches (door, `onAliceTouch`) → ink touches (`onSurfaceTouch`) → key, goal → lost-and-respawn → zone arrival.
+
+## What a tick reuses
+
+The tick is the hot path, so nothing in it rebuilds what has not changed. `InkLayer` and `BoardProps` keep their body and rect lists (all, dynamic, held, solid-to-Alice, passable; paper, markers, solid rects) until a drawing is added, removed, rebuilt or re-ruled, or the paper is bitten or heals. Within one tick the simulation builds Alice's `AliceSurroundings` once (ink cannot come or go between her control and her senses) and one `NatureWorld` per Alice, on first use. Contact probes loop instead of chaining arrays.
 
 ## The endless board
 

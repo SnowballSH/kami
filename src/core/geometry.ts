@@ -18,10 +18,6 @@ export interface PenPoint extends Vec {
 
 export type Stroke = readonly PenPoint[];
 
-/**
- * Where a rigid thing is now relative to where it was made.
- * A point drawn at `p` is currently at `position + rotate(p - origin, angle)`.
- */
 /** Where a drawing is now: drawn points are scaled about `origin`, turned by `angle`, and set at `position`. */
 export interface Pose {
   readonly origin: Vec;
@@ -33,7 +29,22 @@ export interface Pose {
 export const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
+/** Moves `value` toward `target` by at most `maxChange`. */
+export const approach = (value: number, target: number, maxChange: number): number =>
+  value + clamp(target - value, -maxChange, maxChange);
+
 export const distance = (a: Vec, b: Vec): number => Math.hypot(b.x - a.x, b.y - a.y);
+
+export const lerpVec = (from: Vec, to: Vec, t: number): Vec => ({
+  x: from.x + (to.x - from.x) * t,
+  y: from.y + (to.y - from.y) * t,
+});
+
+/** `step` along the line from `from` to `to`, stopping at `to`. */
+export const towards = (from: Vec, to: Vec, step: number): Vec => {
+  const gap = distance(from, to);
+  return gap <= step ? to : lerpVec(from, to, step / gap);
+};
 
 export const strokeLength = (stroke: Stroke): number =>
   stroke.slice(1).reduce((total, point, i) => total + distance(stroke[i] ?? point, point), 0);
@@ -41,13 +52,23 @@ export const strokeLength = (stroke: Stroke): number =>
 export const strokesLength = (strokes: readonly Stroke[]): number =>
   strokes.reduce((total, stroke) => total + strokeLength(stroke), 0);
 
-export const boundsOf = (points: readonly Vec[]): Rect => {
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  const x = Math.min(...xs);
-  const y = Math.min(...ys);
-  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+export const boundsOfAll = (groups: readonly (readonly Vec[])[]): Rect => {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const points of groups) {
+    for (const { x, y } of points) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 };
+
+export const boundsOf = (points: readonly Vec[]): Rect => boundsOfAll([points]);
 
 export const rectCenter = (rect: Rect): Vec => ({
   x: rect.x + rect.width / 2,
@@ -100,12 +121,6 @@ export const rectGap = (a: Rect, b: Rect): number =>
     Math.max(a.y - (b.y + b.height), 0, b.y - (a.y + a.height)),
   );
 
-export const translateRect = (rect: Rect, by: Vec): Rect => ({
-  ...rect,
-  x: rect.x + by.x,
-  y: rect.y + by.y,
-});
-
 export const distanceToSegment = (point: Vec, a: Vec, b: Vec): number => {
   const lengthSquared = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
   if (lengthSquared === 0) return distance(point, a);
@@ -120,16 +135,20 @@ export const distanceToSegment = (point: Vec, a: Vec, b: Vec): number => {
 export const distanceToStroke = (point: Vec, stroke: Stroke): number => {
   const [first] = stroke;
   if (first === undefined) return Number.POSITIVE_INFINITY;
-  if (stroke.length === 1) return distance(point, first);
-  return Math.min(
-    ...stroke.slice(1).map((end, i) => distanceToSegment(point, stroke[i] ?? end, end)),
-  );
+  let nearest = distance(point, first);
+  for (let at = 1; at < stroke.length; at++) {
+    const [from, to] = [stroke[at - 1], stroke[at]];
+    if (from !== undefined && to !== undefined)
+      nearest = Math.min(nearest, distanceToSegment(point, from, to));
+  }
+  return nearest;
 };
 
-const rotate = (v: Vec, angle: number): Vec => ({
-  x: v.x * Math.cos(angle) - v.y * Math.sin(angle),
-  y: v.x * Math.sin(angle) + v.y * Math.cos(angle),
-});
+const rotate = (v: Vec, angle: number): Vec => {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return { x: v.x * cos - v.y * sin, y: v.x * sin + v.y * cos };
+};
 
 export const IDENTITY_POSE: Pose = {
   origin: { x: 0, y: 0 },

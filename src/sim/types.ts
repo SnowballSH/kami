@@ -1,15 +1,17 @@
 import type { BoardDefinition } from "../board/types";
 import type { Nature, Ruling } from "../cat/types";
 import type { Pose, Rect, Stroke, Vec } from "../core/geometry";
-import type { Drawing, DrawingId } from "../ink/types";
+import type { Drawing, DrawingId, InkProvenance } from "../ink/types";
 import type { WorldPhysics } from "../rules/types";
 import type { Abilities, BodyPartKind, DrawnBody } from "./body/types";
 import type { TearSnapshot } from "./boss/tear";
 import type { SnipperRank } from "./boss/tuning";
 
+export type { InkProvenance } from "../ink/types";
+
 export type AliceSize = "small" | "normal" | "big";
 
-export const ALICE_SCALE: Readonly<Record<AliceSize, number>> = { small: 0.5, normal: 1, big: 2 };
+const ALICE_SCALE: Readonly<Record<AliceSize, number>> = { small: 0.5, normal: 1, big: 2 };
 
 export const ALICE_BASE = { width: 28, height: 60 } as const;
 
@@ -185,10 +187,6 @@ export type SimEvent =
   /** The heart was cut with nothing around it; the body is gone and only the soul remains. */
   | { readonly type: "heart-swallowed" }
   | { readonly type: "part-restored"; readonly parts: readonly BodyPartKind[] };
-
-import type { InkProvenance } from "../ink/types";
-
-export type { InkProvenance };
 
 export interface Simulation {
   /** Discards the whole world and rebuilds it with Alice standing at `board.spawn`. */

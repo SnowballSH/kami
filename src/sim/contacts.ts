@@ -48,21 +48,25 @@ export const toContact = (subject: Matter.Body, collision: Matter.Collision): Co
   };
 };
 
-const collidingParts = (body: Matter.Body): readonly Matter.Body[] =>
-  body.parts.length > 1 ? body.parts.slice(1) : [body];
-
 /** Unlike `Matter.Query.collides`, reports every touching part of a compound, not just the first. */
 export const contactsWith = (
   subject: Matter.Body,
   others: readonly Matter.Body[],
   exclude?: Matter.Body,
-): readonly Contact[] =>
-  others
-    .filter((other) => other !== exclude && Matter.Bounds.overlaps(other.bounds, subject.bounds))
-    .flatMap(collidingParts)
-    .filter((part) => Matter.Bounds.overlaps(part.bounds, subject.bounds))
-    .flatMap((part) => Matter.Collision.collides(part, subject) ?? [])
-    .map((collision) => toContact(subject, collision));
+): readonly Contact[] => {
+  const contacts: Contact[] = [];
+  for (const other of others) {
+    if (other === exclude || !Matter.Bounds.overlaps(other.bounds, subject.bounds)) continue;
+    const { parts } = other;
+    for (let at = parts.length > 1 ? 1 : 0; at < parts.length; at++) {
+      const part = parts[at];
+      if (part === undefined || !Matter.Bounds.overlaps(part.bounds, subject.bounds)) continue;
+      const collision = Matter.Collision.collides(part, subject);
+      if (collision !== null) contacts.push(toContact(subject, collision));
+    }
+  }
+  return contacts;
+};
 
 export const contactsAt = (
   subject: Matter.Body,

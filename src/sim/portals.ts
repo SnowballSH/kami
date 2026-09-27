@@ -1,20 +1,14 @@
-import type { Vec } from "../core/geometry";
 import type { DrawingId } from "../ink/types";
 import { PORTAL_LONELY_COOLDOWN_MS } from "./constants";
 import type { InkEntity } from "./inkEntity";
 import type { AliceIndex, SimEvent } from "./types";
 
 /** Portals let out into the next portal drawn after them, and the last one back into the first. */
-export const exitOf = (portal: InkEntity, inks: readonly InkEntity[]): InkEntity | null => {
+const exitOf = (portal: InkEntity, inks: readonly InkEntity[]): InkEntity | null => {
   const portals = inks.filter((ink) => ink.nature === "portal");
   const at = portals.indexOf(portal);
   if (at < 0 || portals.length < 2) return null;
   return portals[(at + 1) % portals.length] ?? null;
-};
-
-export const centreOf = (ink: InkEntity): Vec => {
-  const { min, max } = ink.body.bounds;
-  return { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2 };
 };
 
 /**

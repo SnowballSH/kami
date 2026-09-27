@@ -47,6 +47,7 @@ export const BOARD_COLORS = {
   noInk: "#e76a6a",
   eraserRing: rgbCss(MARKER.black, 0.6),
   eraserVeil: "rgba(255, 255, 255, 0.45)",
+  eyeWhite: "#f4f1ea",
 } as const;
 
 const NOTE_INK: Readonly<Record<NoteAuthor | Exclude<NoteTone, "plain">, Rgb>> = {
@@ -57,7 +58,7 @@ const NOTE_INK: Readonly<Record<NoteAuthor | Exclude<NoteTone, "plain">, Rgb>> =
 };
 
 /** What handwriting fades toward as the board darkens: chalk under moonlight. */
-export const MOONLIT_INK: Rgb = [226, 230, 250];
+const MOONLIT_INK: Rgb = [226, 230, 250];
 const MOONLIT_AT_NIGHT = 0.85;
 
 export const mixRgb = (from: Rgb, to: Rgb, amount: number): Rgb => [

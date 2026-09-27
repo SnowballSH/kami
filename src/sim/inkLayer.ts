@@ -3,7 +3,7 @@ import { heedOf } from "../cat/temper";
 import { type Ruling, STRENGTH_RANGE } from "../cat/types";
 import { type Rect, type Stroke, scaleAbout, type Vec } from "../core/geometry";
 import { bearingStrokes } from "../ink/bearing";
-import type { Drawing, DrawingId } from "../ink/types";
+import type { Drawing, DrawingId, InkProvenance } from "../ink/types";
 import { motionOf } from "../rules/motion";
 import { STILL, type WorldPhysics } from "../rules/types";
 import { countAnchorClusters } from "./anchoring";
@@ -13,7 +13,7 @@ import { freshMind } from "./creatures";
 import { buildInkBody } from "./inkBody";
 import { InkEntity, ownMotion } from "./inkEntity";
 import { holdsStill, NATURES } from "./natures";
-import type { DrawingPose, InkProvenance } from "./types";
+import type { DrawingPose } from "./types";
 import { type BodyMaterial, materialMoved, materialUnder, retune } from "./worldPhysics";
 
 type InkState = Pick<InkEntity, "nature" | "strength" | "frozen" | "motion">;
@@ -37,6 +37,8 @@ export class InkLayer {
   private cachedAll: readonly InkEntity[] | null = null;
   private cachedDynamicBodies: readonly Matter.Body[] | null = null;
   private cachedHeldBodies: readonly Matter.Body[] | null = null;
+  private cachedSolidToAlice: readonly Matter.Body[] | null = null;
+  private cachedPassable: readonly Matter.Body[] | null = null;
 
   constructor(
     private readonly world: Matter.World,
@@ -45,7 +47,7 @@ export class InkLayer {
   ) {}
 
   get all(): readonly InkEntity[] {
-    if (this.cachedAll === null) this.cachedAll = [...this.inks.values()];
+    this.cachedAll ??= [...this.inks.values()];
     return this.cachedAll;
   }
 
@@ -54,17 +56,29 @@ export class InkLayer {
   }
 
   get dynamicBodies(): readonly Matter.Body[] {
-    if (this.cachedDynamicBodies === null) {
-      this.cachedDynamicBodies = this.all.map((ink) => ink.body).filter((body) => !body.isStatic);
-    }
+    this.cachedDynamicBodies ??= this.all.map((ink) => ink.body).filter((body) => !body.isStatic);
     return this.cachedDynamicBodies;
   }
 
   get heldBodies(): readonly Matter.Body[] {
-    if (this.cachedHeldBodies === null) {
-      this.cachedHeldBodies = this.all.map((ink) => ink.body).filter((body) => body.isStatic);
-    }
+    this.cachedHeldBodies ??= this.all.map((ink) => ink.body).filter((body) => body.isStatic);
     return this.cachedHeldBodies;
+  }
+
+  /** Ink Alice stands on and walks into. */
+  get solidToAlice(): readonly Matter.Body[] {
+    this.cachedSolidToAlice ??= this.all
+      .filter((ink) => NATURES[ink.nature].solidToAlice)
+      .map((ink) => ink.body);
+    return this.cachedSolidToAlice;
+  }
+
+  /** Ink she walks through: ladders, goals, spawn marks, portals. */
+  get passable(): readonly Matter.Body[] {
+    this.cachedPassable ??= this.all
+      .filter((ink) => !NATURES[ink.nature].solidToAlice)
+      .map((ink) => ink.body);
+    return this.cachedPassable;
   }
 
   /** Read fresh each time: a held drawing that is not pinned still turns in place under a spin law. */
@@ -118,6 +132,7 @@ export class InkLayer {
     const ink = this.inks.get(id);
     if (ink === undefined) return;
     ink.nature = ruling.nature;
+    this.invalidate();
     ink.name = ruling.name;
     ink.strength = ruling.strength;
     ink.own = ownMotion(ruling.nature, { ...ruling.motion, ...heedOf(ruling.temper) });
@@ -195,6 +210,8 @@ export class InkLayer {
     this.cachedAll = null;
     this.cachedDynamicBodies = null;
     this.cachedHeldBodies = null;
+    this.cachedSolidToAlice = null;
+    this.cachedPassable = null;
   }
 
   private attach(ink: InkEntity): void {

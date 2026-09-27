@@ -3,13 +3,21 @@ import { arenaHeight } from "../board/boards/arena";
 import type { BoardDefinition } from "../board/types";
 import type { Ruling } from "../cat/types";
 import { distanceToRect, type Rect, type Stroke, type Vec } from "../core/geometry";
-import { FIXED_STEP_MS, LOST_DISTANCE } from "../core/world";
-import type { Drawing, DrawingId } from "../ink/types";
+import { FIXED_STEP_MS } from "../core/world";
+import type { Drawing, DrawingId, InkProvenance } from "../ink/types";
 import { validPhysics } from "../rules/effectDomains";
 import { EARTH, type WorldPhysics } from "../rules/types";
 import { AliceController, type AliceSurroundings } from "./alice";
 import { pullToward } from "./attraction";
-import { BoardProps } from "./boardProps";
+import {
+  type BoardWorld,
+  buildWorld,
+  hasHeadroom,
+  isOffTheBoard,
+  respawnPoint,
+  seatUnder,
+  sumikuiFor,
+} from "./boardWorld";
 import { cutCrosses, incarnate } from "./body/drawnBody";
 import type { BodyPartKind, Cut } from "./body/types";
 import { exactBounds } from "./bodyBounds";
@@ -17,9 +25,7 @@ import type { Prey } from "./boss/snipper";
 import { Tear, type TearDeed } from "./boss/tear";
 import { SOUL_HOVER_PX, TEAR_TUNING } from "./boss/tuning";
 import { blowFrom } from "./boss/weapons";
-import { Checkpoints } from "./checkpoints";
 import {
-  GRAVITY_SCALE,
   GROW_REFUSAL_COOLDOWN_MS,
   MIN_TIME_SCALE,
   SUMIKUI_BITE_DEPTH,
@@ -29,23 +35,18 @@ import { type Contact, contactsAt, contactsWith, toContact } from "./contacts";
 import type { Feelers } from "./creatures";
 import { EMPTY_BOARD } from "./emptyBoard";
 import { bounceArcUnder, jumpArcUnder, walkSpeedAt } from "./flight";
-import { Footings, type LastFooting } from "./footing";
 import type { InkEntity } from "./inkEntity";
-import { InkLayer } from "./inkLayer";
 import { moveOfItself } from "./motion";
 import { NATURES, type NatureWorld, stepOf } from "./natures";
 import { seesHerWay } from "./nightfall";
-import { isLooseInk, PaperTurn } from "./paper";
-import { centreOf, Portals } from "./portals";
+import { isLooseInk } from "./paper";
+import { Portals } from "./portals";
 import { restingFeet } from "./restingFeet";
-import { Sumikui } from "./sumikui";
-import { Twins } from "./twins";
 import {
   ALICE_HERSELF,
   type AliceIndex,
   type AliceSnapshot,
   type BounceArc,
-  type InkProvenance,
   type Ride,
   type SimEvent,
   type Simulation,
@@ -65,82 +66,9 @@ const mouthAt = (feet: Vec): Rect => ({
   width: SUMIKUI_BITE_WIDTH,
   height: SUMIKUI_BITE_DEPTH,
 });
-const HEADROOM_INSET = 1;
 
 /** Every Alice on the board, Alice herself first, then her twins in order. */
 type Roster = readonly [AliceController, ...AliceController[]];
-
-interface BoardWorld {
-  readonly board: BoardDefinition;
-  readonly engine: Matter.Engine;
-  readonly props: BoardProps;
-  readonly inks: InkLayer;
-  /** How far this page is turned; a board opens upright, whatever the last one did. */
-  readonly paper: PaperTurn;
-  alice: AliceController;
-  /** Where the heart hovers while she has no body; null once she is embodied. */
-  soul: Vec | null;
-  tear: Tear | null;
-  readonly twins: Twins;
-  readonly checkpoints: Checkpoints;
-  readonly footings: Footings;
-  readonly activePairs: Matter.Pair[];
-  readonly growthRefusedAt: Map<DrawingId, number>;
-  readonly portals: Map<AliceController, Portals>;
-  sumikui: Sumikui | null;
-  readonly goalReachedBy: Set<AliceController>;
-  readonly lost: Set<AliceController>;
-  benighted: boolean;
-}
-
-/** Where Kami sets Alice down: the Sumikui will not eat there. */
-const hallowedOf = (board: BoardDefinition): readonly Vec[] => [
-  board.spawn,
-  ...board.zones.map((zone) => zone.checkpoint),
-];
-
-const buildWorld = (board: BoardDefinition, physics: WorldPhysics): BoardWorld => {
-  const engine = Matter.Engine.create();
-  engine.gravity.scale = GRAVITY_SCALE;
-  const props = new BoardProps(engine.world, board);
-  const alice = new AliceController(board.spawn, physics);
-  Matter.Composite.add(engine.world, alice.body);
-  const twins = new Twins(engine.world);
-  twins.match(physics.clones, alice, physics);
-  const paper = new PaperTurn();
-  paper.obey(physics);
-
-  const activePairs: Matter.Pair[] = [];
-  const collectPairs = (event: Matter.IEventCollision<Matter.Engine>): void => {
-    activePairs.push(...event.pairs);
-  };
-  Matter.Events.on(engine, "collisionStart", collectPairs);
-  Matter.Events.on(engine, "collisionActive", collectPairs);
-
-  return {
-    board,
-    engine,
-    props,
-    inks: new InkLayer(engine.world, props, physics),
-    paper,
-    alice,
-    soul: null,
-    tear: null,
-    twins,
-    checkpoints: new Checkpoints(board),
-    footings: new Footings(board.spawn),
-    activePairs,
-    growthRefusedAt: new Map(),
-    portals: new Map(),
-    sumikui:
-      physics.inkEater > 0
-        ? new Sumikui(alice, hallowedOf(board), board.killY, { bides: true })
-        : null,
-    goalReachedBy: new Set(),
-    lost: new Set(),
-    benighted: false,
-  };
-};
 
 export class MatterSimulation implements Simulation {
   private physics: WorldPhysics = EARTH;
@@ -154,6 +82,14 @@ export class MatterSimulation implements Simulation {
   private underway = false;
   /** Everything a creature's feelers might touch this tick, built once and reused across probes. */
   private tickBodies: readonly Matter.Body[] = [];
+  private readonly natureWorlds = new Map<AliceController, NatureWorld>();
+  private readonly feelers: Feelers = {
+    touches: (ink, offset) => contactsAt(ink.body, offset, this.tickBodies, ink.body),
+    groundBelow: (ink, foot, drop) => {
+      const probe = Matter.Bodies.rectangle(foot.x, foot.y + drop / 2, 2, drop);
+      return contactsWith(probe, this.tickBodies, ink.body).length > 0;
+    },
+  };
 
   loadBoard(board: BoardDefinition): void {
     Matter.Engine.clear(this.world.engine);
@@ -177,10 +113,8 @@ export class MatterSimulation implements Simulation {
   }
 
   private matchSumikui(inkEater: number, { bides }: { readonly bides: boolean }): void {
-    const { sumikui, alice, board } = this.world;
-    if (inkEater > 0 && sumikui === null)
-      this.world.sumikui = new Sumikui(alice, hallowedOf(board), board.killY, { bides });
     if (inkEater <= 0) this.world.sumikui = null;
+    else this.world.sumikui ??= sumikuiFor(this.world, bides);
   }
 
   addDrawing(drawing: Drawing, provenance: InkProvenance = "drawn"): void {
@@ -196,38 +130,36 @@ export class MatterSimulation implements Simulation {
   }
 
   disembody(): void {
-    const { alice, engine, board, twins } = this.world;
+    const { alice, engine, board } = this.world;
     const heart = alice.heart();
     const seat = this.world.soul ?? { x: heart.x, y: heart.y - SOUL_HOVER_PX };
     Matter.Composite.remove(engine.world, alice.body);
     const soul = new AliceController(board.spawn, this.physics);
     soul.placeAt({ x: seat.x, y: seat.y + soul.bounds().height / 2 });
-    this.world.alice = soul;
     this.world.soul = seat;
-    twins.match(0, soul, this.physics);
-    this.rosterChanged();
-    this.world.sumikui = null;
-    this.matchSumikui(this.physics.inkEater, { bides: true });
+    this.takeOver(soul, 0);
   }
 
   incarnate(id: DrawingId, name: string, strokes?: readonly Stroke[]): boolean {
-    const { inks, engine, alice, twins, props } = this.world;
+    const { inks, engine, alice, props } = this.world;
     const ink = inks.all.find((each) => each.id === id);
     if (ink === undefined) return false;
     const seat = this.world.soul ?? alice.heart();
     const born = incarnate(strokes ?? ink.worldStrokes, seat, name, engine.timing.timestamp);
     this.forgetInk(id);
     Matter.Composite.remove(engine.world, alice.body);
+    const { width, height } = born.body.frame;
     const bornFrame = {
-      x: born.centre.x - born.body.frame.width / 2,
-      y: born.centre.y - born.body.frame.height / 2,
-      width: born.body.frame.width,
-      height: born.body.frame.height,
+      x: born.centre.x - width / 2,
+      y: born.centre.y - height / 2,
+      width,
+      height,
     };
-    const solidInk = inks.all.filter((each) => NATURES[each.nature].solidToAlice);
     const feet = restingFeet(bornFrame, [
       ...props.solidRects,
-      ...solidInk.map((each) => exactBounds(each.body)),
+      ...inks.all
+        .filter((each) => NATURES[each.nature].solidToAlice)
+        .map((each) => exactBounds(each.body)),
     ]);
     const embodied = new AliceController(
       { x: born.centre.x, y: feet },
@@ -236,13 +168,18 @@ export class MatterSimulation implements Simulation {
     );
     embodied.wear(born.body, name);
     Matter.Composite.add(engine.world, embodied.body);
-    this.world.alice = embodied;
     this.world.soul = null;
-    twins.match(this.physics.clones, embodied, this.physics);
+    this.takeOver(embodied, this.physics.clones);
+    return true;
+  }
+
+  /** `alice` becomes the one the player is, with `clones` twins beside her and a Sumikui that has yet to notice her. */
+  private takeOver(alice: AliceController, clones: number): void {
+    this.world.alice = alice;
+    this.world.twins.match(clones, alice, this.physics);
     this.rosterChanged();
     this.world.sumikui = null;
     this.matchSumikui(this.physics.inkEater, { bides: true });
-    return true;
   }
 
   graft(strokes: readonly Stroke[]): boolean {
@@ -361,10 +298,11 @@ export class MatterSimulation implements Simulation {
   }
 
   private tick(timeScale: number): void {
-    const { engine, inks, activePairs, paper } = this.world;
+    const { engine, inks, props, activePairs, paper } = this.world;
     const alices = this.bodied();
     const elapsedMs = FIXED_STEP_MS * timeScale;
     activePairs.length = 0;
+    this.natureWorlds.clear();
     engine.gravity.x = this.physics.gravity.x;
     engine.gravity.y = this.physics.gravity.y;
     engine.timing.timeScale = timeScale;
@@ -372,19 +310,18 @@ export class MatterSimulation implements Simulation {
     this.growLawfully();
     this.tickBodies = [
       ...alices.map((each) => each.body),
-      ...this.world.props.solidBodies,
+      ...props.solidBodies,
       ...inks.all.map((ink) => ink.body),
     ];
     const surroundings = this.surroundings();
     for (const alice of alices) {
-      const ride = alice.snapshot().ride;
-      if (ride !== null) this.rides.set(alice, ride);
+      if (alice.riding !== null) this.rides.set(alice, alice.riding);
       else if (alice.grounded) this.rides.delete(alice);
     }
     for (const alice of alices) {
       alice.control(this.intentSheCanFollow(alice), surroundings, timeScale);
     }
-    for (const ink of inks.all) stepOf(ink)?.(ink, this.natureWorld(this.nearestAliceTo(ink)));
+    this.stepInks();
     moveOfItself(inks.all, timeScale);
     this.blowWind();
     this.tumbleLooseInk();
@@ -393,10 +330,9 @@ export class MatterSimulation implements Simulation {
     }
     Matter.Engine.update(engine, FIXED_STEP_MS);
     paper.advance(this.physics, elapsedMs);
-    const settled = this.surroundings();
     for (const alice of alices) {
       alice.advanceResize(elapsedMs);
-      alice.sense(settled, this.intentSheCanFollow(alice));
+      alice.sense(surroundings, this.intentSheCanFollow(alice));
     }
 
     this.resolveWeather(elapsedMs);
@@ -461,22 +397,17 @@ export class MatterSimulation implements Simulation {
       return;
     }
     const snipped = this.embodied ? this.world.alice.snip(cut, part) : null;
-    if (snipped === null) {
+    if (snipped === null || (!snipped.heartCut && snipped.removed.length === 0)) {
       this.events.push({ type: "snip-missed" });
       return;
     }
+    tear.landed(cut);
     if (snipped.heartCut) {
-      tear.landed(cut);
       this.disembody();
       this.world.tear = null;
       this.events.push({ type: "heart-swallowed" });
       return;
     }
-    if (snipped.removed.length === 0) {
-      this.events.push({ type: "snip-missed" });
-      return;
-    }
-    tear.landed(cut);
     this.events.push({ type: "snipped", part, lost: snipped.lost });
   }
 
@@ -491,18 +422,25 @@ export class MatterSimulation implements Simulation {
     }
   }
 
-  private nearestAliceTo(ink: InkEntity): AliceController {
-    const { position } = ink.body;
-    let nearest = this.world.alice;
-    let gap = Number.POSITIVE_INFINITY;
-    for (const alice of this.everyAlice()) {
-      const d = distanceToRect(position, alice.bounds());
-      if (d < gap) {
-        gap = d;
-        nearest = alice;
+  /** Each drawing's own doings this tick, on behalf of whichever Alice is nearest it. */
+  private stepInks(): void {
+    let standing: readonly { readonly alice: AliceController; readonly bounds: Rect }[] | null =
+      null;
+    for (const ink of this.world.inks.all) {
+      const step = stepOf(ink);
+      if (step === undefined) continue;
+      standing ??= this.everyAlice().map((alice) => ({ alice, bounds: alice.bounds() }));
+      let nearest = this.world.alice;
+      let gap = Number.POSITIVE_INFINITY;
+      for (const { alice, bounds } of standing) {
+        const d = distanceToRect(ink.body.position, bounds);
+        if (d < gap) {
+          gap = d;
+          nearest = alice;
+        }
       }
+      step(ink, this.natureWorld(nearest));
     }
-    return nearest;
   }
 
   private intentSheCanFollow(alice: AliceController): WalkIntent {
@@ -520,15 +458,18 @@ export class MatterSimulation implements Simulation {
     const { x, y } = this.physics.wind;
     if (x === 0 && y === 0) return;
     const wind = accelerationOf(this.physics.wind);
-    const bodies = [...this.bodied().map((alice) => alice.body), ...this.world.inks.dynamicBodies];
-    for (const body of bodies) push(body, wind);
+    for (const alice of this.bodied()) push(alice.body, wind);
+    for (const body of this.world.inks.dynamicBodies) push(body, wind);
   }
 
   private tumbleLooseInk(): void {
-    const loose = this.world.inks.all
-      .filter((ink) => !ink.body.isStatic && isLooseInk(ink.nature))
-      .map((ink) => ink.body);
-    this.world.paper.tumble(this.physics.gravity, loose);
+    this.world.paper.tumble(this.physics.gravity, this.looseBodies());
+  }
+
+  private *looseBodies(): Generator<Matter.Body> {
+    for (const ink of this.world.inks.all) {
+      if (!ink.body.isStatic && isLooseInk(ink.nature)) yield ink.body;
+    }
   }
 
   private forgetInk(id: DrawingId): void {
@@ -544,39 +485,28 @@ export class MatterSimulation implements Simulation {
   }
 
   private resolveWeather(elapsedMs: number): void {
-    const { inks } = this.world;
-    const { perished } = weather(this.physics.temperature, inks.all, elapsedMs);
+    const { perished } = weather(this.physics.temperature, this.world.inks.all, elapsedMs);
     for (const ink of perished) {
       this.events.push({ type: "perished", drawingId: ink.id, nature: ink.nature });
       this.forgetInk(ink.id);
     }
   }
 
-  private feelers(): Feelers {
-    return {
-      touches: (ink, offset) => this.feltBy(ink, offset),
-      groundBelow: (ink, foot, drop) => this.groundBelow(ink, foot, drop),
-    };
-  }
-
   private surroundings(): AliceSurroundings {
     const { inks, props } = this.world;
-    const feelers = this.feelers();
-    const solidInk = inks.all.filter((ink) => NATURES[ink.nature].solidToAlice);
-    const passableInk = inks.all.filter((ink) => !NATURES[ink.nature].solidToAlice);
     const natureOf = (body: Matter.Body) => {
       const ink = inks.find(body);
       return ink === undefined ? undefined : NATURES[ink.nature];
     };
     return {
-      obstacles: [...props.solidBodies, ...solidInk.map((ink) => ink.body)],
-      passables: passableInk.map((ink) => ink.body),
+      obstacles: [...props.solidBodies, ...inks.solidToAlice],
+      passables: inks.passable,
       isInk: (body) => inks.find(body) !== undefined,
       isSlippery: (body) => natureOf(body)?.slippery ?? false,
       isClimbable: (body) => natureOf(body)?.climbable ?? false,
       liftsHer: (body) => {
         const ink = inks.find(body);
-        return ink !== undefined && ink.nature === "vehicle" && liftsHer(ink, feelers);
+        return ink !== undefined && ink.nature === "vehicle" && liftsHer(ink, this.feelers);
       },
       rideOn: (body) => {
         const ink = inks.find(body);
@@ -585,7 +515,16 @@ export class MatterSimulation implements Simulation {
     };
   }
 
+  /** The board as the natures see it on behalf of `alice`; one per Alice per tick. */
   private natureWorld(alice: AliceController): NatureWorld {
+    const known = this.natureWorlds.get(alice);
+    if (known !== undefined) return known;
+    const made = this.makeNatureWorld(alice);
+    this.natureWorlds.set(alice, made);
+    return made;
+  }
+
+  private makeNatureWorld(alice: AliceController): NatureWorld {
     const { engine, inks, growthRefusedAt } = this.world;
     return {
       alice,
@@ -593,7 +532,7 @@ export class MatterSimulation implements Simulation {
       gravity: accelerationOf(this.physics.gravity),
       temperature: this.physics.temperature,
       intentOf: (each) => this.intentOf(each),
-      feelers: this.feelers(),
+      feelers: this.feelers,
       emit: (event) => this.events.push(event),
       reachGoal: () => this.reachGoal(alice),
       loseAlice: () => {
@@ -608,7 +547,7 @@ export class MatterSimulation implements Simulation {
         if (lastRefusedAt !== undefined && now - lastRefusedAt <= GROW_REFUSAL_COOLDOWN_MS) return;
         this.events.push({ type: "grow-blocked", drawingId: ink.id });
       },
-      hasHeadroomFor: (size, meal) => this.hasHeadroomFor(alice, alice.scaleFor(size), meal),
+      hasHeadroomFor: (size, meal) => hasHeadroom(this.world, alice, alice.scaleFor(size), meal),
       pullToward: (ink, strengthInG) => {
         const loose = inks.dynamicBodies.filter((body) => body !== ink.body);
         const bodies = this.everyAlice().map((each) => each.body);
@@ -621,23 +560,13 @@ export class MatterSimulation implements Simulation {
           engine.timing.timestamp,
           (event) => this.events.push(event),
         );
-        if (exit !== null) alice.warpTo(centreOf(exit));
+        if (exit !== null) alice.warpTo(exit.centre);
       },
     };
   }
 
-  private feltBy(ink: InkEntity, offset: Vec): readonly Contact[] {
-    return contactsAt(ink.body, offset, this.tickBodies, ink.body);
-  }
-
-  private groundBelow(ink: InkEntity, foot: Vec, drop: number): boolean {
-    const probe = Matter.Bodies.rectangle(foot.x, foot.y + drop / 2, 2, drop);
-    return contactsWith(probe, this.tickBodies, ink.body).length > 0;
-  }
-
   private aliceContacts(alice: AliceController): readonly Contact[] {
-    const { activePairs } = this.world;
-    const pairContacts = activePairs
+    const pairContacts = this.world.activePairs
       .filter(
         ({ collision }) => collision.parentA === alice.body || collision.parentB === alice.body,
       )
@@ -696,17 +625,15 @@ export class MatterSimulation implements Simulation {
     const { inks, props, activePairs } = this.world;
     const holdsInk = (surface: Matter.Body): boolean =>
       props.isMarker(surface) || (surface.isStatic && inks.find(surface) !== undefined);
-    for (const { collision } of activePairs) {
-      const sides = [
-        [collision.parentA, collision.parentB],
-        [collision.parentB, collision.parentA],
-      ] as const;
-      for (const [body, surface] of sides) {
-        const ink = inks.find(body);
-        if (ink !== undefined && holdsInk(surface)) {
-          NATURES[ink.nature].onSurfaceTouch?.(ink, natureWorld);
-        }
+    const touch = (body: Matter.Body, surface: Matter.Body): void => {
+      const ink = inks.find(body);
+      if (ink !== undefined && holdsInk(surface)) {
+        NATURES[ink.nature].onSurfaceTouch?.(ink, natureWorld);
       }
+    };
+    for (const { collision } of activePairs) {
+      touch(collision.parentA, collision.parentB);
+      touch(collision.parentB, collision.parentA);
     }
   }
 
@@ -729,27 +656,16 @@ export class MatterSimulation implements Simulation {
       const footing = footings.of(who);
       const stood = each.footingPoint();
       if (stood !== null) footing.stood(stood);
-      if (lost.has(each) || this.isOffTheBoard(each, footing)) {
-        const ride = each.snapshot().ride ?? this.rides.get(each);
-        const respawn = this.respawnPoint(footing);
-        lost.delete(each);
-        this.events.push({ type: "fell", who });
-        each.placeAt(respawn);
-        this.rides.delete(each);
-        if (ride?.gait === "vehicle") {
-          const vehicle = inks.all.find((ink) => ink.id === ride.id);
-          if (vehicle !== undefined) {
-            Matter.Body.setAngle(vehicle.body, 0);
-            const bounds = exactBounds(vehicle.body);
-            Matter.Body.setPosition(vehicle.body, {
-              x: vehicle.body.position.x + respawn.x - (bounds.x + bounds.width / 2),
-              y: vehicle.body.position.y + respawn.y - bounds.y,
-            });
-            Matter.Body.setVelocity(vehicle.body, { x: 0, y: 0 });
-            Matter.Body.setAngularVelocity(vehicle.body, 0);
-          }
-        }
-      }
+      if (!lost.has(each) && !isOffTheBoard(this.world, each.body.position, footing)) continue;
+      const ride = each.riding ?? this.rides.get(each);
+      const respawn = respawnPoint(this.world, footing);
+      lost.delete(each);
+      this.events.push({ type: "fell", who });
+      each.placeAt(respawn);
+      this.rides.delete(each);
+      const vehicle =
+        ride?.gait === "vehicle" ? inks.all.find((ink) => ink.id === ride.id) : undefined;
+      if (vehicle !== undefined) seatUnder(vehicle, respawn);
     }
     twins.recallStrays(alice);
     const zone = checkpoints.visit(Math.max(...alices.map((each) => each.body.position.x)));
@@ -763,54 +679,13 @@ export class MatterSimulation implements Simulation {
     this.events.push({ type: "goal-reached", who: this.everyAlice().indexOf(alice) });
   }
 
-  private isOffTheBoard(alice: AliceController, footing: LastFooting): boolean {
-    const { board, inks, props } = this.world;
-    const { position } = alice.body;
-    if (position.y > board.killY) return true;
-    if (board.page === "endless" && footing.fallen(position)) return true;
-    const isNear = (rect: Rect): boolean => distanceToRect(position, rect) <= LOST_DISTANCE;
-    return !props.solidRects.some(isNear) && !inks.heldBounds.some(isNear);
-  }
-
-  private respawnPoint(footing: LastFooting): Vec {
-    const { board, checkpoints, inks } = this.world;
-    const marker = inks.spawnMarker;
-    if (marker === undefined) {
-      return board.page === "endless" ? footing.respawn() : checkpoints.respawn;
-    }
-    const bounds = exactBounds(marker.body);
-    return { x: bounds.x + bounds.width / 2, y: bounds.y };
-  }
-
   /** Grants each Alice the size the laws ask for; growing waits until nothing is overhead. */
   private growLawfully(): void {
-    const { alice, twins } = this.world;
-    for (const each of [alice, ...twins.all]) {
+    for (const each of this.everyAlice()) {
       const wanted = each.lawfulScale;
       if (wanted === each.headingScale) continue;
-      if (wanted < each.headingScale || this.hasHeadroomFor(each, wanted))
+      if (wanted < each.headingScale || hasHeadroom(this.world, each, wanted))
         each.beginResize(each.size);
     }
-  }
-
-  private hasHeadroomFor(alice: AliceController, scale: number, meal?: InkEntity): boolean {
-    const { inks, props } = this.world;
-    const current = alice.bounds();
-    const factor = scale / alice.scale;
-    const target = { width: current.width * factor, height: current.height * factor };
-    if (target.height <= current.height && target.width <= current.width) return true;
-    const headroom = Matter.Bodies.rectangle(
-      current.x + current.width / 2,
-      current.y + current.height - target.height / 2,
-      target.width - 2 * HEADROOM_INSET,
-      target.height - 2 * HEADROOM_INSET,
-    );
-    const ceilings = [
-      ...props.solidBodies,
-      ...inks.all
-        .filter((ink) => ink !== meal && ink.body.isStatic && NATURES[ink.nature].solidToAlice)
-        .map((ink) => ink.body),
-    ];
-    return contactsWith(headroom, ceilings).length === 0;
   }
 }

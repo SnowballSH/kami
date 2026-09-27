@@ -1,9 +1,11 @@
 import {
-  boundsOf,
+  boundsOfAll,
   distanceToSegment,
   distanceToStroke,
+  expandRect,
   type Rect,
   rectCenter,
+  rectContains,
   type Stroke,
   strokeLength,
   type Vec,
@@ -74,14 +76,18 @@ const encloses = (stroke: Stroke, point: Vec): boolean => {
 const torsoOf = (stroke: Stroke, heart: Vec, hug: number): boolean =>
   encloses(stroke, heart) || distanceToStroke(heart, stroke) <= hug;
 
-const bandPartOf = (stroke: Stroke, frame: BodyFrame, winged: boolean): BodyPartKind => {
-  const centroid = centroidOf(stroke);
-  if (centroid.y > BODY_TUNING.legsBelow * frame.height) return "legs";
-  if (centroid.y < -BODY_TUNING.headAbove * frame.height) {
-    const out = (winged ? BODY_TUNING.namedWingsOut : BODY_TUNING.wingsOut) * frame.width;
-    return Math.abs(centroid.x) > out ? "wings" : "head";
-  }
-  return "arms";
+/** A stroke's part by where its centroid sits against the band [top, bottom] the torso spans. */
+const partBy = (
+  centroid: Vec,
+  top: number,
+  bottom: number,
+  frame: BodyFrame,
+  winged: boolean,
+): BodyPartKind => {
+  if (centroid.y > bottom) return "legs";
+  if (centroid.y >= top) return "arms";
+  const out = (winged ? BODY_TUNING.namedWingsOut : BODY_TUNING.wingsOut) * frame.width;
+  return Math.abs(centroid.x) > out ? "wings" : "head";
 };
 
 export const classifyParts = (
@@ -93,29 +99,29 @@ export const classifyParts = (
   const hug = BODY_TUNING.torsoHug * Math.min(frame.width, frame.height);
   const torso = strokes.map((stroke) => torsoOf(stroke, heart, hug));
   const torsoStrokes = strokes.filter((_, index) => torso[index]);
-  const torsoBox = torsoStrokes.length > 0 ? boundsOf(torsoStrokes.flat()) : null;
-  return strokes.map((stroke, index) => {
-    if (torso[index]) return "torso";
-    if (torsoBox === null) return bandPartOf(stroke, frame, winged);
-    const centroid = centroidOf(stroke);
-    if (centroid.y > torsoBox.y + torsoBox.height) return "legs";
-    if (centroid.y < torsoBox.y) {
-      const out = (winged ? BODY_TUNING.namedWingsOut : BODY_TUNING.wingsOut) * frame.width;
-      return Math.abs(centroid.x) > out ? "wings" : "head";
-    }
-    return "arms";
-  });
+  const torsoBox = torsoStrokes.length > 0 ? boundsOfAll(torsoStrokes) : null;
+  const top = torsoBox?.y ?? -BODY_TUNING.headAbove * frame.height;
+  const bottom =
+    torsoBox === null ? BODY_TUNING.legsBelow * frame.height : torsoBox.y + torsoBox.height;
+  return strokes.map((stroke, index) =>
+    torso[index] ? "torso" : partBy(centroidOf(stroke), top, bottom, frame, winged),
+  );
 };
 
-export const partOf = (
-  stroke: Stroke,
-  heart: Vec,
-  frame: BodyFrame,
-  winged: boolean,
-): BodyPartKind => classifyParts([stroke], heart, frame, winged)[0] ?? "arms";
+type PerPart = Readonly<Record<BodyPartKind, number>>;
 
-const inkOf = (strokes: readonly BodyStroke[]): Readonly<Record<BodyPartKind, number>> => {
-  const ink = { head: 0, torso: 0, arms: 0, legs: 0, wings: 0 };
+const perPart = (value: (part: BodyPartKind) => number): PerPart => ({
+  head: value("head"),
+  torso: value("torso"),
+  arms: value("arms"),
+  legs: value("legs"),
+  wings: value("wings"),
+});
+
+const NO_INK: PerPart = perPart(() => 0);
+
+const inkOf = (strokes: readonly BodyStroke[]): PerPart => {
+  const ink = { ...NO_INK };
   for (const { stroke, part } of strokes) ink[part] += strokeLength(stroke);
   return ink;
 };
@@ -161,26 +167,9 @@ const heartWithin = (heart: Vec, frame: BodyFrame): Vec =>
     ? heart
     : { x: 0, y: -frame.height * 0.1 };
 
-const fullestOf = (
-  was: Readonly<Record<BodyPartKind, number>>,
-  strokes: readonly BodyStroke[],
-): Readonly<Record<BodyPartKind, number>> => {
+const fullestOf = (was: PerPart, strokes: readonly BodyStroke[]): PerPart => {
   const ink = inkOf(strokes);
-  return {
-    head: Math.max(was.head, ink.head),
-    torso: Math.max(was.torso, ink.torso),
-    arms: Math.max(was.arms, ink.arms),
-    legs: Math.max(was.legs, ink.legs),
-    wings: Math.max(was.wings, ink.wings),
-  };
-};
-
-const NO_INK: Readonly<Record<BodyPartKind, number>> = {
-  head: 0,
-  torso: 0,
-  arms: 0,
-  legs: 0,
-  wings: 0,
+  return perPart((part) => Math.max(was[part], ink[part]));
 };
 
 /** The strokes drawn for her become her: sized within what the laws allow, segmented about the heart. */
@@ -190,7 +179,7 @@ export const incarnate = (
   name: string,
   nowMs: number,
 ): Incarnated => {
-  const bounds = boundsOf(worldStrokes.flat());
+  const bounds = boundsOfAll(worldStrokes);
   const fit = fitInto(bounds);
   const centre = rectCenter(bounds);
   const frame: BodyFrame = { width: bounds.width * fit, height: bounds.height * fit };
@@ -252,18 +241,11 @@ export const snip = (body: DrawnBody, cut: Cut, part: BodyPartKind): Snipped => 
 
 const touchesBody = (body: DrawnBody, stroke: Stroke): boolean => {
   const reach = BODY_TUNING.graftReach;
-  const within: Rect = {
-    x: -body.frame.width / 2 - reach,
-    y: -body.frame.height / 2 - reach,
-    width: body.frame.width + 2 * reach,
-    height: body.frame.height + 2 * reach,
-  };
+  const { width, height } = body.frame;
+  const within = expandRect({ x: -width / 2, y: -height / 2, width, height }, reach);
   return stroke.some(
     (point) =>
-      (point.x >= within.x &&
-        point.x <= within.x + within.width &&
-        point.y >= within.y &&
-        point.y <= within.y + within.height) ||
+      rectContains(within, point) ||
       body.strokes.some((own) => distanceToStroke(point, own.stroke) <= reach),
   );
 };
@@ -296,12 +278,6 @@ export const graft = (
     restored: aliveParts(after).filter((part) => !wasAlive.has(part)),
   };
 };
-
-export const heartInWorld = (body: DrawnBody, space: BodySpace): Vec =>
-  toWorldSpace(body.heart, space);
-
-export const bodyStrokesInWorld = (body: DrawnBody, space: BodySpace): readonly Stroke[] =>
-  body.strokes.map(({ stroke }) => stroke.map((point) => toWorldSpace(point, space)));
 
 /** The far end of a part from the heart, and how far out it reaches, in body space. */
 export const partReach = (

@@ -24,7 +24,7 @@ const HALF_TURN_DEGREES = 180;
 export const zoomOf = (camera: Camera): number =>
   Number.isFinite(camera.zoom) ? Math.max(camera.zoom, MIN_ZOOM) : FALLBACK_ZOOM;
 
-export const turnOf = (camera: Camera): number =>
+const turnOf = (camera: Camera): number =>
   Number.isFinite(camera.angle) ? (camera.angle * Math.PI) / HALF_TURN_DEGREES : 0;
 
 const turned = ({ x, y }: Vec, radians: number): Vec => {

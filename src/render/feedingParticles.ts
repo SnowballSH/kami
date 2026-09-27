@@ -1,5 +1,6 @@
 import { poseToWorld, type Stroke, type Vec } from "../core/geometry";
 import type { AliceSnapshot, SumikuiSnapshot, WorldSnapshot } from "../sim/types";
+import { lerp } from "./animation/easing";
 import { TAU } from "./canvas2d";
 import { MARKER, rgbCss } from "./palette";
 import type { InkView } from "./types";
@@ -32,8 +33,6 @@ const hash = (seed: number): number => {
   const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
   return x - Math.floor(x);
 };
-
-const lerp = (from: number, to: number, t: number): number => from + (to - from) * t;
 
 /** The point where the teeth are: strokes go from the last drawn backwards, so this is the frontier of what is left. */
 export const biteFrontier = (strokes: readonly Stroke[], bite: number): Vec | null => {

@@ -8,7 +8,7 @@ const FULL_TURN = 360;
 const HALF_TURN = 180;
 const MS_PER_SECOND = 1000;
 
-/** Drawings with a mind or a driver walk the paper; only these tumble toward the room's down. */
+/** Drawings with a mind or a driver walk the paper; everything else tumbles toward the room's down. */
 const OF_THE_PAPER: ReadonlySet<Nature> = new Set<Nature>(["walker", "hopper", "flier", "vehicle"]);
 
 export const isLooseInk = (nature: Nature): boolean => !OF_THE_PAPER.has(nature);

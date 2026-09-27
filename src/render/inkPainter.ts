@@ -1,4 +1,4 @@
-import { boundsOf, type Rect, type Stroke, type Vec } from "../core/geometry";
+import { boundsOfAll, clamp, type Rect, rectCenter, type Stroke, type Vec } from "../core/geometry";
 import { INK_THICKNESS } from "../core/world";
 import type { Drawing, DrawingId, PlacementVerdict } from "../ink/types";
 import type { SimEvent } from "../sim/types";
@@ -27,6 +27,7 @@ const LIVE_CSS = rgbCss(MARKER.black);
 const REJECTED_CSS = rgbCss(MARKER.red);
 const SOLID_EXTRA_WIDTH = 4;
 const CULL_MARGIN = INK_THICKNESS * 2;
+const PORTAL_PULSE_MS = 400;
 
 /** The strokes still standing while the Sumikui chews: eaten from the last stroke drawn backwards. */
 const uneaten = (strokes: readonly Stroke[], bite: number): Stroke[] => {
@@ -69,7 +70,7 @@ export class InkPainter {
     }
     for (const ink of inks) this.paintInk(ctx, ink, view, nowMs, chew);
     for (const [id, startedAt] of this.portalPulses) {
-      if (nowMs - startedAt > 400) this.portalPulses.delete(id);
+      if (nowMs - startedAt > PORTAL_PULSE_MS) this.portalPulses.delete(id);
     }
   }
 
@@ -165,13 +166,14 @@ export class InkPainter {
   ): void {
     const startedAt = this.portalPulses.get(ink.drawing.id);
     if (!motionAllowed() || ink.nature !== "portal" || startedAt === undefined) return;
-    const progress = Math.max(0, Math.min(1, (nowMs - startedAt) / 400));
+    const progress = clamp((nowMs - startedAt) / PORTAL_PULSE_MS, 0, 1);
     const pulse = Math.sin(Math.PI * progress);
     if (pulse <= 0) return;
+    const centre = rectCenter(bounds);
     ctx.save();
-    ctx.translate(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    ctx.translate(centre.x, centre.y);
     ctx.scale(1 + pulse * 0.15, 1 + pulse * 0.15);
-    ctx.translate(-(bounds.x + bounds.width / 2), -(bounds.y + bounds.height / 2));
+    ctx.translate(-centre.x, -centre.y);
     ctx.globalAlpha = pulse * 0.7;
     ctx.strokeStyle = SETTLED_CSS[ink.nature];
     ctx.lineWidth = 3 + pulse * 4;
@@ -184,7 +186,7 @@ export class InkPainter {
     if (cached?.strokes === drawing.strokes) return cached;
     const ink: SettledInk = {
       strokes: drawing.strokes,
-      bounds: boundsOf(drawing.strokes.flat()),
+      bounds: boundsOfAll(drawing.strokes),
       path: null,
     };
     this.settled.set(drawing.id, ink);

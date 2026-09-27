@@ -9,7 +9,6 @@ export const BODY_TUNING = {
   headAbove: 0.18,
   wingsOut: 0.3,
   namedWingsOut: 0.15,
-  armsOut: 0.12,
   partAliveRatio: 0.5,
   graftReach: 36,
   graftGlowMs: 1_400,
@@ -17,7 +16,7 @@ export const BODY_TUNING = {
 
 export const SOUL_HOVER_PX = 40;
 
-export const SNIPPER_RANKS = ["servant", "lesser"] as const;
+const SNIPPER_RANKS = ["servant", "lesser"] as const;
 export type SnipperRank = (typeof SNIPPER_RANKS)[number];
 
 export interface SnipperTuning {

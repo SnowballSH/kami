@@ -1,15 +1,16 @@
 import Matter from "matter-js";
+import { approach } from "../core/geometry";
 import type { AliceController } from "./alice";
-import { VEHICLE_ACCELERATION, VEHICLE_SPEED } from "./constants";
+import {
+  VEHICLE_ACCELERATION,
+  VEHICLE_KEEL,
+  VEHICLE_LEVELS_WITHIN_RAD,
+  VEHICLE_SPEED,
+} from "./constants";
 import { type Feelers, footing } from "./creatures";
 import type { InkEntity } from "./inkEntity";
 import type { NatureWorld } from "./natures";
 import type { Gait, Ride } from "./types";
-
-export const VEHICLE_KEEL = 0.9;
-
-const approach = (current: number, target: number, step: number): number =>
-  Math.abs(target - current) <= step ? target : current + Math.sign(target - current) * step;
 
 /**
  * Boarding takes both feet over it; once aboard she stays the driver until she steps or jumps off.
@@ -63,8 +64,8 @@ export const drive = (ink: InkEntity, world: NatureWorld): void => {
       ink.body,
       Matter.Body.getAngularVelocity(ink.body) * VEHICLE_KEEL,
     );
-    if (Math.abs(ink.body.angle) < 0.35 && ink.motion.spin === 0)
-      Matter.Body.setAngle(ink.body, ink.body.angle * 0.9);
+    if (Math.abs(ink.body.angle) < VEHICLE_LEVELS_WITHIN_RAD && ink.motion.spin === 0)
+      Matter.Body.setAngle(ink.body, ink.body.angle * VEHICLE_KEEL);
   }
   const alice = driverOf(ink, world);
   if (alice === null) {

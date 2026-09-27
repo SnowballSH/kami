@@ -29,8 +29,8 @@ interface Props {
 const NO_PAINT = "none";
 const WAITING_KEY = { length: 38, angle: -Math.PI / 5 } as const;
 /** The door swings away on its hinge and the key is snatched up, rather than just being gone. */
-export const DOOR_SWING_MS = 400;
-export const KEY_SNATCH_MS = 200;
+const DOOR_SWING_MS = 400;
+const KEY_SNATCH_MS = 200;
 const SETTLED = 1;
 const KEYHOLE = { radiusRatio: 0.09, skirtRatio: 0.22, heightRatio: 0.5 } as const;
 

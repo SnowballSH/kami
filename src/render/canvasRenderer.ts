@@ -1,18 +1,28 @@
 import type { BoardDefinition } from "../board/types";
-import { boundsOf, distanceToRect, poseToWorld, type Rect, type Vec } from "../core/geometry";
+import {
+  boundsOf,
+  distanceToRect,
+  poseToWorld,
+  type Rect,
+  rectCenter,
+  type Vec,
+} from "../core/geometry";
 import type { Handwriting } from "../handwriting/types";
-import { ALICE_HERSELF, type AliceSnapshot, type SumikuiSnapshot } from "../sim/types";
+import {
+  ALICE_HERSELF,
+  type AliceIndex,
+  type AliceSnapshot,
+  type SimEvent,
+  type SumikuiSnapshot,
+} from "../sim/types";
 import { type AliceBadge, paintAlice, paintAliceFigure } from "./alicePainter";
 import type { AliceFigure } from "./animation/aliceFigure";
 import { AliceTroupe } from "./animation/aliceTroupe";
 import { BoardPainter } from "./boardPainter";
 import {
   paintCutMark,
-  paintDimVeil,
-  paintDrawnAlice,
   paintHealthBar,
   paintSnipper,
-  paintSoul,
   paintTear,
   paintTelegraph,
 } from "./bossPainter";
@@ -28,6 +38,7 @@ import {
 } from "./camera";
 import { context2d } from "./canvas2d";
 import { paintDotGrid } from "./dotGrid";
+import { paintDimVeil, paintDrawnAlice, paintSoul } from "./drawnAlicePainter";
 import { paintEraserRing } from "./eraserRing";
 import { paintFeeding } from "./feedingParticles";
 import { InkPainter } from "./inkPainter";
@@ -65,6 +76,26 @@ const paintHer = (
 ): void => {
   if (alice.look.kind === "drawn") paintDrawnAlice(ctx, alice, nowMs, badge);
   else paintAliceFigure(ctx, alice, figure, badge);
+};
+
+/** Where each portal is, but only on a frame someone warps: nothing else needs them. */
+const portalCentersFor = (
+  inks: readonly InkView[],
+  events: readonly SimEvent[],
+): ReadonlyMap<string, Vec> | undefined => {
+  if (!events.some((event) => event.type === "warped")) return undefined;
+  return new Map(
+    inks
+      .filter((ink) => ink.nature === "portal")
+      .map((ink) => [
+        ink.drawing.id,
+        rectCenter(
+          boundsOf(
+            ink.drawing.strokes.flatMap((stroke) => stroke.map((p) => poseToWorld(p, ink.pose))),
+          ),
+        ),
+      ]),
+  );
 };
 
 const cannotSee = (alice: AliceSnapshot | null): boolean =>
@@ -130,54 +161,29 @@ export class CanvasRenderer implements Renderer {
     applyDeviceTransform(ctx, transform);
     paintDotGrid(ctx, view, zoomOf(camera));
     this.boardPainter.paint(ctx, view, world, nowMs);
-    const portalCenters = new Map<string, Vec>();
-    for (const ink of frame.inks) {
-      if (ink.nature !== "portal") continue;
-      const bounds = boundsOf(
-        ink.drawing.strokes.flatMap((stroke) =>
-          stroke.map((point) => poseToWorld(point, ink.pose)),
-        ),
-      );
-      portalCenters.set(ink.drawing.id, {
-        x: bounds.x + bounds.width / 2,
-        y: bounds.y + bounds.height / 2,
-      });
-    }
+    const portalCenters = portalCentersFor(frame.inks, events);
     this.inkPainter.paintInks(ctx, frame.inks, view, nowMs, chewOf(world.sumikui), events);
     this.inkPainter.retain(new Set(frame.inks.map(({ drawing }) => drawing.id)));
     const moonlit = frame.daylight < 1;
     if (!moonlit) this.notePainter.paintNotes(ctx, frame.notes, view, nowMs);
     this.paintGhosts(ctx, frame.ghosts ?? [], view, nowMs);
     if (world.tear !== null) paintTear(ctx, world.tear, nowMs);
-    const several = world.twins.length > 0;
     this.troupe.count(world.twins.length + 1);
-    for (const [index, twin] of world.twins.entries()) {
-      const who = index + 1;
-      const figure = this.troupe.figureOf(who, twin, events, nowMs, portalCenters);
-      if (!aliceInView(twin, view)) continue;
+    const paintOne = (who: AliceIndex, alice: AliceSnapshot): void => {
+      const figure = this.troupe.figureOf(who, alice, events, nowMs, portalCenters);
+      if (!aliceInView(alice, view)) return;
       ctx.save();
       ctx.globalAlpha = 1 - swallowOf(world.sumikui, who);
-      paintHer(ctx, twin, figure, nowMs, {
-        ribbon: who,
-        selected: several && frame.selectedAlice === who,
+      paintHer(ctx, alice, figure, nowMs, {
+        ribbon: who === ALICE_HERSELF ? null : who,
+        selected: world.twins.length > 0 && (frame.selectedAlice ?? ALICE_HERSELF) === who,
       });
-      this.paintRideOver(ctx, twin, frame.inks, view, nowMs);
+      this.paintRideOver(ctx, alice, frame.inks, view, nowMs);
       ctx.restore();
-    }
+    };
+    for (const [index, twin] of world.twins.entries()) paintOne(index + 1, twin);
     if (world.soul !== null) paintSoul(ctx, world.soul, nowMs);
-    if (world.soul === null && world.alice !== null) {
-      const figure = this.troupe.figureOf(ALICE_HERSELF, world.alice, events, nowMs, portalCenters);
-      if (aliceInView(world.alice, view)) {
-        ctx.save();
-        ctx.globalAlpha = 1 - swallowOf(world.sumikui, ALICE_HERSELF);
-        paintHer(ctx, world.alice, figure, nowMs, {
-          ribbon: null,
-          selected: several && (frame.selectedAlice ?? ALICE_HERSELF) === ALICE_HERSELF,
-        });
-        this.paintRideOver(ctx, world.alice, frame.inks, view, nowMs);
-        ctx.restore();
-      }
-    }
+    else if (world.alice !== null) paintOne(ALICE_HERSELF, world.alice);
     if (world.sumikui !== null) {
       paintFeeding(ctx, world, frame.inks, nowMs);
       paintSumikui(ctx, world.sumikui, nowMs);
@@ -189,14 +195,14 @@ export class CanvasRenderer implements Renderer {
     }
     this.inkPainter.paintHeld(ctx, frame.heldInks);
     this.inkPainter.paintActive(ctx, frame.activeStrokes, frame.activeVerdict);
-    this.nightPainter.paint(
-      ctx,
-      frame.daylight,
-      lightsOf(world.alice === null ? world.twins : [world.alice, ...world.twins], frame.inks),
-      { width: this.canvas.width, height: this.canvas.height },
-      transform,
-    );
     if (moonlit) {
+      this.nightPainter.paint(
+        ctx,
+        frame.daylight,
+        lightsOf(world.alice === null ? world.twins : [world.alice, ...world.twins], frame.inks),
+        { width: this.canvas.width, height: this.canvas.height },
+        transform,
+      );
       applyDeviceTransform(ctx, transform);
       this.notePainter.paintNotes(ctx, frame.notes, view, nowMs, frame.daylight);
     }
