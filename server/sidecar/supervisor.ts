@@ -2,7 +2,7 @@ import { dirname } from "node:path";
 import type { Env } from "../env/env";
 import { reasonOf } from "../errors";
 import type { FetchLike } from "../http/endpoint";
-import { fetchSidecarCapabilities, type SidecarCapabilities } from "./health";
+import { pause, type SidecarCapabilities, waitForSidecar } from "./health";
 import { type ManagedSidecarConfig, managedSidecarUrl, sidecarEnvironment } from "./managed";
 
 export interface SidecarProcess {
@@ -78,8 +78,7 @@ export class SidecarSupervisor {
   readonly #config: ManagedSidecarConfig;
   readonly #options: SupervisorOptions;
   #child: SidecarProcess | null = null;
-  #stopping = false;
-  readonly #wakers = new Set<() => void>();
+  readonly #stopping = new AbortController();
   #supervising: Promise<void> | null = null;
 
   constructor(config: ManagedSidecarConfig, options: Partial<SupervisorOptions> = {}) {
@@ -104,20 +103,17 @@ export class SidecarSupervisor {
   }
 
   /** Resolves with what the sidecar can do once it answers /health, or null if it never does. */
-  async whenUp(timeoutMs = 120_000, pollMs = 500): Promise<SidecarCapabilities | null> {
-    const deadline = this.#options.now() + timeoutMs;
-    while (!this.#stopping) {
-      const capabilities = await fetchSidecarCapabilities({ url: this.url }, this.#options.fetchFn);
-      if (capabilities !== null) return capabilities;
-      if (this.#options.now() + pollMs > deadline) return null;
-      await this.#pause(pollMs);
-    }
-    return null;
+  whenUp(timeoutMs = 120_000, pollMs = 500): Promise<SidecarCapabilities | null> {
+    return waitForSidecar({ url: this.url }, this.#options.fetchFn, {
+      timeoutMs,
+      pollMs,
+      now: this.#options.now,
+      signal: this.#stopping.signal,
+    });
   }
 
   async stop(graceMs = 2_000): Promise<void> {
-    this.#stopping = true;
-    for (const wake of this.#wakers) wake();
+    this.#stopping.abort();
     const child = this.#child;
     if (child !== null) {
       child.kill("SIGINT");
@@ -133,17 +129,17 @@ export class SidecarSupervisor {
   async #supervise(): Promise<void> {
     const { backoff, log, now } = this.#options;
     let delayMs = backoff.initialMs;
-    while (!this.#stopping) {
+    while (!this.#stopping.signal.aborted) {
       const started = now();
       const child = this.#launch();
       if (child === null) return;
       this.#child = child;
       const code = await child.exited;
       this.#child = null;
-      if (this.#stopping) break;
+      if (this.#stopping.signal.aborted) break;
       if (now() - started >= backoff.healthyAfterMs) delayMs = backoff.initialMs;
       log(`${SIDECAR_PREFIX}exited with ${code ?? "a signal"}; restarting in ${delayMs / 1000} s`);
-      await this.#pause(delayMs);
+      await pause(delayMs, this.#stopping.signal);
       delayMs = Math.min(delayMs * 2, backoff.maxMs);
     }
   }
@@ -162,18 +158,5 @@ export class SidecarSupervisor {
       log(`${SIDECAR_PREFIX}cannot start ${python} ${script}: ${reasonOf(error)}`);
       return null;
     }
-  }
-
-  /** A pause that `stop` cuts short. */
-  #pause(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-      const done = (): void => {
-        clearTimeout(timer);
-        this.#wakers.delete(done);
-        resolve();
-      };
-      const timer = setTimeout(done, ms);
-      this.#wakers.add(done);
-    });
   }
 }

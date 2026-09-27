@@ -1,4 +1,5 @@
 /** What a Kami sidecar (ml/sidecar.py) says it can do, from one look at its GET /health. */
+import { setTimeout as sleep } from "node:timers/promises";
 import { z } from "zod";
 import { type AuthenticatedEndpoint, endpointHeaders, type FetchLike } from "../http/endpoint";
 import { sidecarUrl } from "../recognition/sidecarUrl";
@@ -36,4 +37,32 @@ export const fetchSidecarCapabilities = async (
   } catch {
     return null;
   }
+};
+
+export interface SidecarWait {
+  readonly timeoutMs: number;
+  readonly pollMs: number;
+  readonly now?: () => number;
+  /** Stops waiting at once, as if the sidecar never came up. */
+  readonly signal?: AbortSignal;
+}
+
+/** Resolves even when `signal` aborts, so a stopped wait just ends. */
+export const pause = (ms: number, signal?: AbortSignal): Promise<void> =>
+  sleep(ms, undefined, signal === undefined ? {} : { signal }).catch(() => {});
+
+/** Asks `/health` every `pollMs` until the sidecar answers; null when `timeoutMs` passes first. */
+export const waitForSidecar = async (
+  sidecar: AuthenticatedEndpoint,
+  fetchFn: FetchLike,
+  { timeoutMs, pollMs, now = Date.now, signal }: SidecarWait,
+): Promise<SidecarCapabilities | null> => {
+  const deadline = now() + timeoutMs;
+  while (signal?.aborted !== true) {
+    const capabilities = await fetchSidecarCapabilities(sidecar, fetchFn);
+    if (capabilities !== null) return capabilities;
+    if (now() + pollMs > deadline) return null;
+    await pause(pollMs, signal);
+  }
+  return null;
 };
