@@ -30,6 +30,10 @@ A drawing is a side view, so whatever is drawn *above* a span and *within* it �
 
 Tick order: `alice.control` → nature `beforeStep` hooks → wind → `Engine.update` → resize tween → `alice.sense` → Alice touches (door, `onAliceTouch`) → ink touches (`onSurfaceTouch`) → key, goal → lost-and-respawn → zone arrival.
 
+## What a tick reuses
+
+The tick is the hot path, so nothing in it rebuilds what has not changed. `InkLayer` and `BoardProps` keep their body and rect lists (all, dynamic, held, solid-to-Alice, passable; paper, markers, solid rects) until a drawing is added, removed, rebuilt or re-ruled, or the paper is bitten or heals. Within one tick the simulation builds Alice's `AliceSurroundings` once (ink cannot come or go between her control and her senses) and one `NatureWorld` per Alice, on first use. Contact probes loop instead of chaining arrays.
+
 ## The endless board
 
 There are no walls and nothing clamps. Alice is lost when she is below `board.killY`, or further than `LOST_DISTANCE` from every board solid **and** every piece of held (static) ink — so a game sketched far from the blank board's patch is still somewhere. Lost ink is simply left alone: it keeps falling, costs next to nothing, and the renderer culls it. Floaty ink rises for ever.
