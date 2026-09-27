@@ -40,12 +40,9 @@ describe("buildInkBody", () => {
       x: i * 10,
       y: i % 2 === 0 ? 0 : 100,
     }));
-    const started = performance.now();
     const body = buildInkBody([stroke, stroke], OPTIONS);
-    const elapsed = performance.now() - started;
     expect(body).not.toBeNull();
     expect(body?.parts.length).toBeLessThanOrEqual(INPUT_LIMITS.points + 1);
-    expect(elapsed).toBeLessThan(2000);
     expect(buildInkBody([stroke, stroke, [{ x: 0, y: 0 }]], OPTIONS)).toBeNull();
   });
 

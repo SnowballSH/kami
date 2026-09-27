@@ -159,7 +159,8 @@ const fitInto = (bounds: Rect): number => {
   const width = Math.max(bounds.width, 1);
   const grow = Math.max(1, (ALICE_BASE.height * min) / height, (ALICE_BASE.width * min) / width);
   if (grow > 1) return grow;
-  return Math.min(1, (ALICE_BASE.height * max) / height, (ALICE_BASE.height * max) / width);
+  const tallest = ALICE_BASE.height * max;
+  return Math.min(1, tallest / Math.max(height, width));
 };
 
 const heartWithin = (heart: Vec, frame: BodyFrame): Vec =>
