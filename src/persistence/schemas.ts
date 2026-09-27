@@ -4,7 +4,17 @@ import { penStrokesSchema, textSchema, vecSchema } from "../core/input";
 import { type Drawing, type DrawingId, INK_PROVENANCES } from "../ink/types";
 import type { Note, NoteAction, NoteId } from "../notes/types";
 import { validEffect } from "../rules/effectDomains";
-import type { CompiledRule, MotionEdit, Rule, RuleEffect, RuleId, Target } from "../rules/types";
+import type { BodyScalarGoverns, ScalarGoverns } from "../rules/effects";
+import type {
+  BodyGoverns,
+  CompiledRule,
+  MotionEdit,
+  Rule,
+  RuleEffect,
+  RuleId,
+  Target,
+  WorldGoverns,
+} from "../rules/types";
 import type { BoardSnapshot, BoardSummary, FeedCursor, StoredDrawing } from "./types";
 
 const MAX_ID_LENGTH = 200;
@@ -21,9 +31,7 @@ export {
 const isId = (value: unknown): boolean =>
   typeof value === "string" && value.length > 0 && value.length <= MAX_ID_LENGTH;
 
-const brandedId = <Id extends string>() => z.custom<Id>(isId, "expected a non-empty id");
-
-const text = textSchema;
+export const brandedId = <Id extends string>() => z.custom<Id>(isId, "expected a non-empty id");
 
 export const boardIdSchema = z.string().min(1).max(MAX_ID_LENGTH);
 
@@ -49,11 +57,11 @@ export const motionEditSchema = z.object({
 }) satisfies z.ZodType<MotionEdit>;
 
 export const rulingSchema = z.looseObject({
-  name: text,
+  name: textSchema,
   nature: z.enum(NATURES),
   strength: z.number().min(STRENGTH_RANGE.min).max(STRENGTH_RANGE.max),
-  tags: z.array(text),
-  line: text,
+  tags: z.array(textSchema),
+  line: textSchema,
   motion: motionEditSchema.exactOptional(),
   temper: z.enum(TEMPERS).exactOptional(),
 }) satisfies z.ZodType<Ruling>;
@@ -67,14 +75,14 @@ export const storedDrawingSchema = z.looseObject({
 const noteActionSchema = z.looseObject({
   type: z.literal("name-drawing"),
   drawingId: brandedId<DrawingId>(),
-  name: text,
+  name: textSchema,
   ruling: rulingSchema.exactOptional(),
 }) satisfies z.ZodType<NoteAction>;
 
 export const noteSchema = z.looseObject({
   id: brandedId<NoteId>(),
   author: z.enum(["player", "kami"]),
-  text,
+  text: textSchema,
   position: vecSchema,
   tone: z.enum(["plain", "understood", "confused"]),
   createdAt: z.number(),
@@ -83,42 +91,23 @@ export const noteSchema = z.looseObject({
   fleeting: z.boolean(),
 }) satisfies z.ZodType<Note>;
 
-const vectorEffect = <Governs extends "gravity" | "wind">(governs: Governs) =>
-  z.object({ governs: z.literal(governs), x: z.number(), y: z.number() });
-
-const scalarEffect = <
-  Governs extends
-    | "timeScale"
-    | "airDrag"
-    | "friction"
-    | "bounciness"
-    | "temperature"
-    | "daylight"
-    | "flight"
-    | "walkSpeed"
-    | "aliceSize"
-    | "attraction"
-    | "clones"
-    | "inkEater"
-    | "tilt"
-    | "worldSpin",
->(
-  governs: Governs,
-) => z.object({ governs: z.literal(governs), value: z.number() });
-
 const targetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("all") }),
-  z.object({ kind: z.literal("named"), name: text.min(1) }),
+  z.object({ kind: z.literal("named"), name: textSchema.min(1) }),
 ]) satisfies z.ZodType<Target>;
 
-const bodyVectorEffect = <Governs extends "thrust">(governs: Governs) =>
-  z.object({ governs: z.literal(governs), of: targetSchema, x: z.number(), y: z.number() });
+const vectorEffect = <Governs extends Exclude<WorldGoverns, ScalarGoverns>>(governs: Governs) =>
+  z.object({ governs: z.literal(governs), x: z.number(), y: z.number() });
 
-const bodyScalarEffect = <
-  Governs extends "spin" | "mass" | "bounce" | "grip" | "pace" | "wings" | "size" | "heed" | "glow",
->(
+const scalarEffect = <Governs extends ScalarGoverns>(governs: Governs) =>
+  z.object({ governs: z.literal(governs), value: z.number() });
+
+const bodyVectorEffect = <Governs extends Exclude<BodyGoverns, BodyScalarGoverns>>(
   governs: Governs,
-) => z.object({ governs: z.literal(governs), of: targetSchema, value: z.number() });
+) => z.object({ governs: z.literal(governs), of: targetSchema, x: z.number(), y: z.number() });
+
+const bodyScalarEffect = <Governs extends BodyScalarGoverns>(governs: Governs) =>
+  z.object({ governs: z.literal(governs), of: targetSchema, value: z.number() });
 
 export const rawRuleEffectSchema = z.discriminatedUnion("governs", [
   vectorEffect("gravity"),
@@ -155,18 +144,18 @@ export const ruleEffectSchema = rawRuleEffectSchema.refine(validEffect, {
 
 export const compiledRuleSchema = z.object({
   effect: ruleEffectSchema,
-  explanation: text,
+  explanation: textSchema,
 }) satisfies z.ZodType<CompiledRule>;
 
 export const ruleSchema = z.looseObject({
   id: brandedId<RuleId>(),
   effect: ruleEffectSchema,
-  explanation: text,
-  sourceText: text,
+  explanation: textSchema,
+  sourceText: textSchema,
   noteId: brandedId<NoteId>(),
   position: vecSchema,
   createdAt: z.number(),
-  scene: text.exactOptional(),
+  scene: textSchema.exactOptional(),
 }) satisfies z.ZodType<Rule>;
 
 export const FEED_BOOT_PATTERN = /^[a-z0-9]{1,32}$/;

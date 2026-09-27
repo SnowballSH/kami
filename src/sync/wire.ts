@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { DrawingId } from "../ink/types";
 import type { Note, NoteId } from "../notes/types";
 import {
+  brandedId,
   entityIdSchema,
   FEED_BOOT_PATTERN,
   noteSchema,
@@ -43,9 +44,11 @@ export const parseCursor = (raw: string): FeedCursor | null => {
   const seq = Number(match[2]);
   return Number.isSafeInteger(seq) ? { boot: match[1] ?? null, seq } : null;
 };
-export const peerIdSchema = z.string().regex(PEER_ID_PATTERN) as unknown as z.ZodType<PeerId>;
+export const peerIdSchema = z.custom<PeerId>(
+  (value) => typeof value === "string" && PEER_ID_PATTERN.test(value),
+  "expected a peer id",
+);
 
-const brandedId = <Id extends string>() => entityIdSchema as unknown as z.ZodType<Id>;
 const vecSchema = z.object({ x: z.number(), y: z.number() });
 const gaitSchema = z.enum(["vehicle", "walker", "hopper", "flier"]);
 

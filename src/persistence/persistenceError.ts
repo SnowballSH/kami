@@ -1,3 +1,4 @@
+import { BoardResponseError } from "./boardResponse";
 import type { PersistenceFailure } from "./types";
 
 export class PersistenceError extends Error {
@@ -15,10 +16,7 @@ export const persistenceFailure = (
   if (error instanceof Error && error.name === "TimeoutError") {
     return { operation, reason: "timeout" };
   }
-  if (
-    error instanceof SyntaxError ||
-    (error instanceof Error && error.name === "BoardResponseError")
-  ) {
+  if (error instanceof SyntaxError || error instanceof BoardResponseError) {
     return { operation, reason: "invalid-response" };
   }
   return { operation, reason: "network" };

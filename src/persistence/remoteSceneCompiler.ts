@@ -1,26 +1,18 @@
-import type { Prop, Scene, SceneCompiler } from "../rules/types";
+import { z } from "zod";
+import type { Scene, SceneCompiler } from "../rules/types";
 import { browserFetch, type FetchLike, JSON_HEADERS, scenePath } from "./api";
-import { isCompiledRule, isFiniteNumber, isRecord } from "./remoteRuleCompiler";
+import { compiledRuleSchema, textSchema, vecSchema } from "./schemas";
 
 const SCENE_TIMEOUT_MS = 45_000;
 
-const isProp = (value: unknown): value is Prop =>
-  isRecord(value) &&
-  typeof value.word === "string" &&
-  isRecord(value.at) &&
-  isFiniteNumber(value.at.x) &&
-  isFiniteNumber(value.at.y) &&
-  isFiniteNumber(value.size);
+const sceneSchema = z.object({
+  place: textSchema,
+  line: textSchema,
+  laws: z.array(compiledRuleSchema),
+  props: z.array(z.object({ word: textSchema, at: vecSchema, size: z.number() })),
+}) satisfies z.ZodType<Scene>;
 
-const everyOne = <Item>(value: unknown, isItem: (item: unknown) => item is Item): value is Item[] =>
-  Array.isArray(value) && value.every(isItem);
-
-export const isScene = (value: unknown): value is Scene =>
-  isRecord(value) &&
-  typeof value.place === "string" &&
-  typeof value.line === "string" &&
-  everyOne(value.laws, isCompiledRule) &&
-  everyOne(value.props, isProp);
+const answerSchema = z.object({ scene: sceneSchema });
 
 /** Asks the server's model to make a place the offline atlas does not know. */
 export class RemoteSceneCompiler implements SceneCompiler {
@@ -39,8 +31,8 @@ export class RemoteSceneCompiler implements SceneCompiler {
         signal: AbortSignal.timeout(SCENE_TIMEOUT_MS),
       });
       if (!response.ok) return null;
-      const body: unknown = await response.json();
-      return isRecord(body) && isScene(body.scene) ? body.scene : null;
+      const answer = answerSchema.safeParse(await response.json());
+      return answer.success ? answer.data.scene : null;
     } catch {
       return null;
     }

@@ -71,6 +71,10 @@ describe("RemoteRuleCompiler", () => {
       async () => Response.json({ rule: { ...MARS, effect: { governs: "gravity", x: 0 } } }),
     ],
     ["the gloss is missing", async () => Response.json({ rule: { effect: MARS.effect } })],
+    [
+      "the value is outside its domain",
+      async () => Response.json({ rule: { ...MARS, effect: { governs: "timeScale", value: 40 } } }),
+    ],
   ])("returns null when %s", async (_what, fetchFn) => {
     expect(await new RemoteRuleCompiler(fetchFn).compile("g = moon")).toBeNull();
   });
