@@ -16,7 +16,7 @@ export interface WheelTurn {
   readonly zooming: boolean;
 }
 
-export const TAP_SLOP_PX = 6;
+const TAP_SLOP_PX = 6;
 export const WHEEL_ZOOM_RATE = 0.01;
 export const WHEEL_ZOOM_MAX_DELTA = 40;
 /** Longest a two-finger tap may last, first finger down to last finger up. */

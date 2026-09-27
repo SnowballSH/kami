@@ -72,7 +72,7 @@ describe("Party cadence", () => {
       };
     };
     for (; tick < TICKS; tick++) {
-      party.drive(sim, page(), true, tick * FIXED_STEP_MS);
+      party.drive(sim, page, true, tick * FIXED_STEP_MS);
       sim.step();
     }
 

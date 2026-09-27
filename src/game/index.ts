@@ -24,19 +24,28 @@ import { Summoner } from "../summoning";
 import { createBoardLink } from "../sync";
 import { attachCanvasInput, createHud, createLawsPanel } from "../ui";
 import { ForgetfulBoardStore } from "./forgetfulStore";
-import { DEFAULT_TIDINESS, Game } from "./game";
+import { Game } from "./game";
+import { DEFAULT_TIDINESS } from "./kami/tidier";
 import { BOARD_PARAM, boardInUrl, modeInUrl, shareLink } from "./launch";
 
 const AUTOPILOT_PARAM = "autopilot";
 const AUTOPILOT_MEMORY = "kami.autopilot";
+const TIDINESS_MEMORY = "kami.tidiness";
 const ON = "on";
 
-const remembered = (): string | null => {
+/** Storage can be refused (private browsing, blocked site data): then nothing is remembered. */
+const recall = (key: string): string | null => {
   try {
-    return window.localStorage.getItem(AUTOPILOT_MEMORY);
+    return window.localStorage.getItem(key);
   } catch {
     return null;
   }
+};
+
+const remember = (key: string, value: string): void => {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {}
 };
 
 /**
@@ -46,29 +55,11 @@ const remembered = (): string | null => {
  */
 const startsSelfDriving = (mode: GameMode): boolean =>
   (new URLSearchParams(window.location.search).get(AUTOPILOT_PARAM) ??
-    (mode.id === PUZZLE_MODE_ID ? ON : remembered())) === ON;
-
-const rememberSelfDriving = (enabled: boolean): void => {
-  try {
-    window.localStorage.setItem(AUTOPILOT_MEMORY, enabled ? ON : "off");
-  } catch {}
-};
-
-const TIDINESS_MEMORY = "kami.tidiness";
+    (mode.id === PUZZLE_MODE_ID ? ON : recall(AUTOPILOT_MEMORY))) === ON;
 
 const rememberedTidiness = (): number => {
-  try {
-    const kept = Number.parseFloat(window.localStorage.getItem(TIDINESS_MEMORY) ?? "");
-    return Number.isFinite(kept) ? kept : DEFAULT_TIDINESS;
-  } catch {
-    return DEFAULT_TIDINESS;
-  }
-};
-
-const rememberTidiness = (tidiness: number): void => {
-  try {
-    window.localStorage.setItem(TIDINESS_MEMORY, String(tidiness));
-  } catch {}
+  const kept = Number.parseFloat(recall(TIDINESS_MEMORY) ?? "");
+  return Number.isFinite(kept) ? kept : DEFAULT_TIDINESS;
 };
 
 const rememberBoardInUrl = (boardId: string): void => {
@@ -125,9 +116,9 @@ export function startGame(root: HTMLElement, connection: Connection): void {
         : {}),
       mode,
       selfDriving: startsSelfDriving(mode),
-      onSelfDrivingChanged: rememberSelfDriving,
+      onSelfDrivingChanged: (enabled) => remember(AUTOPILOT_MEMORY, enabled ? ON : "off"),
       tidiness: rememberedTidiness(),
-      onTidinessChanged: rememberTidiness,
+      onTidinessChanged: (tidiness) => remember(TIDINESS_MEMORY, String(tidiness)),
     },
     boardInUrl(window.location.search, mode),
   );

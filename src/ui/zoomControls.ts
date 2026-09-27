@@ -17,7 +17,7 @@ export class ZoomControls {
       label: "Alice walks herself",
       className: "kami-autopilot",
       icon: "walker",
-      onClick: () => handlers.onAutopilotToggled(this.autopilot.getAttribute(PRESSED) !== "true"),
+      onTap: () => handlers.onAutopilotToggled(this.autopilot.getAttribute(PRESSED) !== "true"),
     });
     this.element = el(
       "div",
@@ -28,19 +28,19 @@ export class ZoomControls {
           label: "Zoom out",
           className: "kami-zoom-out",
           icon: "minus",
-          onClick: () => handlers.onZoom(1 / ZOOM_STEP),
+          onTap: () => handlers.onZoom(1 / ZOOM_STEP),
         }),
         iconButton({
           label: "Zoom in",
           className: "kami-zoom-in",
           icon: "plus",
-          onClick: () => handlers.onZoom(ZOOM_STEP),
+          onTap: () => handlers.onZoom(ZOOM_STEP),
         }),
         iconButton({
           label: "Back to Alice",
           className: "kami-recenter",
           icon: "recenter",
-          onClick: () => handlers.onRecenter(),
+          onTap: () => handlers.onRecenter(),
         }),
       ],
     );

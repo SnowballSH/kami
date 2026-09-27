@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ALICE_HERSELF } from "../sim/types";
-import { createDirector, EmbodiedDirector } from "./embodiedDirector";
+import { createDirector } from "./director";
+import { EmbodiedDirector } from "./embodiedDirector";
 import { EMBODIED_MODE, GAME_MODES, modeFor } from "./modes";
 import { allowsLaw, opensWithAlice, refusalLine } from "./policy";
 import { NOTHING_HUNGRY_LINE, SANDBOX_MODE, SANDBOX_MODE_ID } from "./sandboxMode";

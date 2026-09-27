@@ -4,7 +4,7 @@ export type ToolChangeSource = "player" | "game";
 
 export type ToolChangeListener = (tool: Tool, source: ToolChangeSource) => void;
 
-export const DEFAULT_TOOL: Tool = "draw";
+const DEFAULT_TOOL: Tool = "draw";
 
 const TEMPORARY_PAN: Tool = "pan";
 

@@ -56,3 +56,19 @@ describe("RuleBook.repeal", () => {
     expect(book.all).toEqual([MOON]);
   });
 });
+
+describe("RuleBook.physics", () => {
+  it("folds the laws once, and again only after they change", () => {
+    let folds = 0;
+    const book = new RuleBook((rules) => {
+      folds += 1;
+      return resolvePhysics(rules);
+    });
+    book.enact(MOON);
+    expect(book.physics).toBe(book.physics);
+    expect(folds).toBe(1);
+    book.repealByNote(MOON.noteId);
+    expect(book.physics.gravity).not.toEqual({ x: 0, y: 0.165 });
+    expect(folds).toBe(2);
+  });
+});

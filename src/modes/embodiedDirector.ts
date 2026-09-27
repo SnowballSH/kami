@@ -3,7 +3,6 @@ import type { Ruling } from "../cat/types";
 import type { DrawingId } from "../ink/types";
 import { ALICE_HERSELF, type SimEvent } from "../sim/types";
 import { wonBy } from "./policy";
-import { SpiritDirector } from "./spiritDirector";
 import type {
   EmbodimentTransition,
   GameMode,
@@ -49,12 +48,3 @@ export class EmbodiedDirector implements ModeDirector {
 
   close(): void {}
 }
-
-export const createDirector = (mode: GameMode): ModeDirector => {
-  switch (mode.opening.player) {
-    case "body":
-      return new EmbodiedDirector(mode);
-    case "spirit":
-      return new SpiritDirector(mode, mode.opening.incarnation);
-  }
-};

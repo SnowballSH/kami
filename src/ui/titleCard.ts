@@ -1,82 +1,61 @@
 import type { ModeCard } from "../modes/types";
-import { motionAllowed } from "../render/animation/motion";
 import { el } from "./dom";
-import { activateOnTap } from "./tap";
+import { FadingCard } from "./fadingCard";
 
 export const TITLE_CARD_SHOWN_MS = 4500;
+const ROLES_READ_MS = 2_000;
+
+/** How long a mode's card stays: longer when it lists the players' roles. */
 export const titleCardShownMs = (card: ModeCard, shownMs = TITLE_CARD_SHOWN_MS): number =>
-  shownMs + ((card.roles?.length ?? 0) > 0 ? 2_000 : 0);
-const FADING_CLASS = "is-fading";
-export const TITLE_CARD_FADE_MS = 150;
+  shownMs + ((card.roles?.length ?? 0) > 0 ? ROLES_READ_MS : 0);
 
 /**
  * The mode's name and its one line, over the page for a moment when it opens, then gone: a tap
  * or a few seconds dismisses it. Nothing to choose; the page underneath is already live.
  */
 export class TitleCard {
-  readonly element: HTMLElement;
-  private readonly title = el("h1", { className: "kami-title-card-title" });
-  private readonly tagline = el("p", { className: "kami-title-card-tagline" });
+  private readonly title = el("h1", {
+    className: "kami-title-card-title",
+    attrs: { id: "kami-title-card-title" },
+  });
+  private readonly tagline = el("p", {
+    className: "kami-title-card-tagline",
+    attrs: { id: "kami-title-card-tagline", "aria-live": "polite" },
+  });
   private readonly roles = el("ul", { className: "kami-title-card-roles" });
-  private hideAt: ReturnType<typeof setTimeout> | null = null;
-  private goneAt: ReturnType<typeof setTimeout> | null = null;
-
-  constructor(private readonly shownMs: number = TITLE_CARD_SHOWN_MS) {
-    this.element = el(
+  private readonly card = new FadingCard(
+    el(
       "div",
       {
         className: "kami-title-card",
-        attrs: { role: "dialog", "aria-modal": "false", tabindex: "0" },
+        attrs: {
+          role: "dialog",
+          "aria-modal": "false",
+          tabindex: "0",
+          "aria-labelledby": this.title.id,
+          "aria-describedby": this.tagline.id,
+        },
       },
       [this.title, this.tagline, this.roles],
-    );
-    this.title.id = "kami-title-card-title";
-    this.tagline.id = "kami-title-card-tagline";
-    this.element.setAttribute("aria-labelledby", this.title.id);
-    this.element.setAttribute("aria-describedby", this.tagline.id);
-    this.tagline.setAttribute("aria-live", "polite");
-    this.element.hidden = true;
-    activateOnTap(this.element, () => this.fade());
-    this.element.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      this.fade();
-    });
+    ),
+  );
+
+  constructor(private readonly shownMs: number = TITLE_CARD_SHOWN_MS) {}
+
+  get element(): HTMLElement {
+    return this.card.element;
   }
 
   get showing(): boolean {
-    return !this.element.hidden;
+    return this.card.showing;
   }
 
   show(card: ModeCard): void {
-    this.clearTimers();
+    const roles = card.roles ?? [];
     this.title.textContent = card.title;
     this.tagline.textContent = card.tagline;
-    this.roles.replaceChildren(...(card.roles ?? []).map((role) => el("li", { text: role })));
-    this.roles.hidden = (card.roles?.length ?? 0) === 0;
-    this.element.classList.remove(FADING_CLASS);
-    this.element.hidden = false;
-    this.hideAt = setTimeout(() => this.fade(), titleCardShownMs(card, this.shownMs));
-  }
-
-  private fade(): void {
-    if (this.element.hidden || this.element.classList.contains(FADING_CLASS)) return;
-    this.clearTimers();
-    this.element.classList.add(FADING_CLASS);
-    this.goneAt = setTimeout(
-      () => {
-        this.element.hidden = true;
-        this.element.classList.remove(FADING_CLASS);
-        this.goneAt = null;
-      },
-      motionAllowed() ? TITLE_CARD_FADE_MS : 0,
-    );
-  }
-
-  private clearTimers(): void {
-    if (this.hideAt !== null) clearTimeout(this.hideAt);
-    if (this.goneAt !== null) clearTimeout(this.goneAt);
-    this.hideAt = null;
-    this.goneAt = null;
+    this.roles.replaceChildren(...roles.map((role) => el("li", { text: role })));
+    this.roles.hidden = roles.length === 0;
+    this.card.show(titleCardShownMs(card, this.shownMs));
   }
 }
