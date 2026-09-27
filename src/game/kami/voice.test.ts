@@ -22,17 +22,18 @@ describe("Voice", () => {
     clock = new GameClock();
     announced = [];
     tear = null;
-    voice = new Voice({
-      notes,
-      camera: new CameraRig(),
-      ids: new IdMint(),
-      clock,
-      board: boardFor("wonderland"),
-      hud: { announce: (line) => announced.push(line), toolbarBottom: () => 64 },
-      renderer: new FakeRenderer(),
-      aliceBounds: () => ALICE,
-      tearAt: () => tear,
-    });
+    voice = new Voice(
+      {
+        notes,
+        camera: new CameraRig(),
+        ids: new IdMint(),
+        clock,
+        board: boardFor("wonderland"),
+        hud: { announce: (line) => announced.push(line), toolbarBottom: () => 64 },
+        modules: { renderer: new FakeRenderer() },
+      },
+      { aliceBounds: () => ALICE, tearAt: () => tear },
+    );
   });
 
   const fleeting = (): readonly string[] => notes.fleetingBy("kami").map(({ text }) => text);

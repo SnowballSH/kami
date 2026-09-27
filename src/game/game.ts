@@ -137,16 +137,7 @@ export class Game implements CanvasInputSink, InkSessionListener, HudHandlers, L
         return game.board;
       },
     };
-    this.voice = new Voice({
-      notes: this.notes,
-      camera: this.camera,
-      ids: this.ids,
-      clock: this.clock,
-      hud: this.hud,
-      renderer: modules.renderer,
-      get board() {
-        return game.board;
-      },
+    this.voice = new Voice(context, {
       aliceBounds: () => sim.aliceBounds(this.party.selected),
       tearAt: () => sim.snapshot().tear?.at ?? null,
     });
