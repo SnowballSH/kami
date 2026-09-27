@@ -14,7 +14,8 @@ import {
   type BounceArc,
   KEY_PICKUP,
 } from "../sim/types";
-import { CELL_PX, CellFlag, type CellRange, type Chart } from "./chart";
+import { CELL_PX, CellFlag, type CellRange, type Chart, grow } from "./chart";
+import { MinHeap } from "./minHeap";
 import { NodeGrid, type NodeKey, NodeMemo } from "./nodeMemo";
 import type { Objective, Scene } from "./types";
 
@@ -116,13 +117,6 @@ const bodyRect = (node: Node, footprint: Footprint): Rect => ({
   height: footprint.rows * CELL_PX,
 });
 
-const grow = (range: CellRange, by: number): CellRange => ({
-  c0: range.c0 - by,
-  c1: range.c1 + by,
-  r0: range.r0 - by,
-  r1: range.r1 + by,
-});
-
 interface Edge {
   readonly to: Node;
   readonly via: Move;
@@ -147,64 +141,6 @@ export interface PathfinderOptions {
 }
 
 const MEMOISED: PathfinderOptions = { memoise: true };
-
-/** A binary heap of nodes by cost, kept in parallel arrays so pushing allocates nothing. */
-class MinHeap {
-  private readonly nodes: Node[] = [];
-  private readonly costs: number[] = [];
-
-  get size(): number {
-    return this.nodes.length;
-  }
-
-  push(node: Node, cost: number): void {
-    const { nodes, costs } = this;
-    let i = nodes.length;
-    while (i > 0) {
-      const parent = (i - 1) >> 1;
-      const above = costs[parent] ?? Number.NEGATIVE_INFINITY;
-      if (above <= cost) break;
-      this.move(parent, i);
-      i = parent;
-    }
-    nodes[i] = node;
-    costs[i] = cost;
-  }
-
-  pop(): { node: Node; cost: number } | undefined {
-    const { nodes, costs } = this;
-    const node = nodes[0];
-    const cost = costs[0];
-    const last = nodes.pop();
-    const lastCost = costs.pop();
-    if (node === undefined || cost === undefined) return undefined;
-    if (last === undefined || lastCost === undefined || nodes.length === 0) return { node, cost };
-    const count = nodes.length;
-    let i = 0;
-    for (;;) {
-      const left = 2 * i + 1;
-      if (left >= count) break;
-      const right = left + 1;
-      const leftCost = costs[left] ?? Number.POSITIVE_INFINITY;
-      const rightCost = costs[right] ?? Number.POSITIVE_INFINITY;
-      const child = right < count && rightCost < leftCost ? right : left;
-      if ((costs[child] ?? Number.POSITIVE_INFINITY) >= lastCost) break;
-      this.move(child, i);
-      i = child;
-    }
-    nodes[i] = last;
-    costs[i] = lastCost;
-    return { node, cost };
-  }
-
-  private move(from: number, to: number): void {
-    const node = this.nodes[from];
-    const cost = this.costs[from];
-    if (node === undefined || cost === undefined) return;
-    this.nodes[to] = node;
-    this.costs[to] = cost;
-  }
-}
 
 /** Reads the chart with a given body size and finds ways across it. */
 export class Pathfinder {
@@ -409,14 +345,14 @@ export class Pathfinder {
     )
       return null;
     const best = new Map<NodeKey, number>([[this.key(start), 0]]);
-    const open = new MinHeap();
+    const open = new MinHeap<Node>();
     open.push(start, 0);
     let opened = 0;
 
     while (open.size > 0 && opened < SEARCH_BUDGET) {
       const top = open.pop();
       if (top === undefined) break;
-      const { node, cost } = top;
+      const { item: node, cost } = top;
       if ((best.get(this.key(node)) ?? Number.POSITIVE_INFINITY) < cost) continue;
       opened++;
       if (accept(node)) return node;

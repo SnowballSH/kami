@@ -68,7 +68,7 @@ const union = (a: CellRange, b: CellRange): CellRange => ({
   r1: Math.max(a.r1, b.r1),
 });
 
-const grow = (range: CellRange, by: number): CellRange => ({
+export const grow = (range: CellRange, by: number): CellRange => ({
   c0: range.c0 - by,
   c1: range.c1 + by,
   r0: range.r0 - by,
