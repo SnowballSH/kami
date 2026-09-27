@@ -33,11 +33,6 @@ export const DEFAULT_RECOGNIZER_OPTIONS: RecognizerOptions = {
   certainAbove: { finished: 0.8, partial: null },
 };
 
-/** What any sketch recogniser, local or remote, looks like to the route. */
-export interface AsyncSketchRecognizer {
-  rank(strokes: readonly Stroke[], options?: RankOptions): Promise<readonly RankedCategory[]>;
-}
-
 interface Neighbour {
   readonly index: number;
   readonly similarity: number;
@@ -155,7 +150,3 @@ export class QuickdrawRecognizer {
     return nearest;
   }
 }
-
-export const asAsyncRecognizer = (recognizer: QuickdrawRecognizer): AsyncSketchRecognizer => ({
-  rank: async (strokes, options) => recognizer.rank(strokes, options),
-});

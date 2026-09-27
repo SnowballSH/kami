@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { reasonOf } from "../errors";
+import { errorCodeOf, reasonOf } from "../errors";
 import { buildCorpusIndex, type CorpusIndex, corpusIndexKey } from "./corpusIndex";
 import { buildFeatureMatrix } from "./featureMatrix";
 import { readIndexFile, writeIndexFile } from "./indexFile";
@@ -114,7 +114,7 @@ export const loadQuickdrawCorpus = async (
   try {
     return await loadFrom(snapshot, indexPaths);
   } catch (error) {
-    const missing = (error as NodeJS.ErrnoException).code === "ENOENT";
+    const missing = errorCodeOf(error) === "ENOENT";
     return {
       corpus: QuickdrawCorpus.empty,
       description: missing

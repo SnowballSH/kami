@@ -1,7 +1,7 @@
 import { constants, type ReadStream } from "node:fs";
 import { type FileHandle, open, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { reasonOf } from "../errors";
+import { errorCodeOf, reasonOf } from "../errors";
 import { LineBuffer, reportLines } from "./lines";
 import { prepareSerialDevice } from "./tty";
 import { AUTO_SERIAL_DEVICE, type ControllerHub, type ControllerInput, type Log } from "./types";
@@ -24,11 +24,8 @@ export interface SerialListenerSettings {
 const openWithoutAdoptingTheTty = (path: string): Promise<FileHandle> =>
   open(path, READ_WITHOUT_ADOPTING_THE_TTY);
 
-const codeOf = (failure: unknown): unknown =>
-  failure instanceof Error && "code" in failure ? failure.code : undefined;
-
 const complaintAbout = (path: string, failure: unknown): string => {
-  const code = codeOf(failure);
+  const code = errorCodeOf(failure);
   if (NO_PERMISSION_CODES.includes(code)) {
     return `controllers: no permission to read ${path} — add this user to the dialout group (sudo usermod -aG dialout $USER), then log in again`;
   }
