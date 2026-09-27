@@ -13,7 +13,7 @@ export const stemWord = (word: string): string => {
   return word;
 };
 
-export const tokenize = (text: string): readonly string[] =>
+const tokenize = (text: string): readonly string[] =>
   text
     .toLowerCase()
     .replace(/['’]/g, "")

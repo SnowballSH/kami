@@ -1,13 +1,11 @@
 import { resolveNature } from "./natureResolver";
-import { isAllowed } from "./natures";
+import { isHonoured } from "./natures";
 import { parsePhrase } from "./phrase";
 import type { Guesses } from "./shapeGuesser";
 import type { AllowedNatures } from "./types";
 
-const wouldBeHonoured = (name: string, allowed: AllowedNatures): boolean => {
-  const nature = resolveNature(parsePhrase(name))?.nature ?? "ink";
-  return nature === "ink" || isAllowed(nature, allowed);
-};
+const wouldBeHonoured = (name: string, allowed: AllowedNatures): boolean =>
+  isHonoured(resolveNature(parsePhrase(name))?.nature ?? "ink", allowed);
 
 /** What was seen comes first, in order; the geometric hunch fills whatever is left of three. */
 export const mergeGuesses = (

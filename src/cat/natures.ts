@@ -13,3 +13,7 @@ export const isCreature = (nature: Nature): boolean => CREATURES.has(nature);
 
 export const isAllowed = (nature: Nature, allowed: AllowedNatures): boolean =>
   allowed === "all" || allowed.includes(nature);
+
+/** Plain ink goes anywhere; any other nature only where the room allows it. */
+export const isHonoured = (nature: Nature, allowed: AllowedNatures): boolean =>
+  nature === "ink" || isAllowed(nature, allowed);

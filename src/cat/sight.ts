@@ -1,19 +1,13 @@
 import type { Sighting } from "../recognition/types";
 import { REFUSALS } from "./lines";
-import { isAllowed } from "./natures";
+import { isHonoured } from "./natures";
 import { parsePhrase } from "./phrase";
 import { namesForRecognized } from "./recognizedNames";
 import { temperOf } from "./temper";
 import type { AllowedNatures, Ruling } from "./types";
 
-/** The server marks the one sighting it would stake a label on. */
-export const isCertain = (sighting: Sighting): boolean => sighting.certain;
-
-const honoured = (sighting: Sighting, allowed: AllowedNatures): boolean =>
-  sighting.nature === "ink" || isAllowed(sighting.nature, allowed);
-
 const canOffer = (sighting: Sighting, allowed: AllowedNatures): boolean =>
-  honoured(sighting, allowed) && namesForRecognized([sighting.word]).length > 0;
+  isHonoured(sighting.nature, allowed) && namesForRecognized([sighting.word]).length > 0;
 
 /** The best sighting the room would honour, or null when there is nothing worth saying. */
 export const bestSighting = (
@@ -30,7 +24,7 @@ export const offeredRulings = (
     .map((sighting) => rulingOf(sighting, allowed));
 
 export const honourRuling = (ruling: Ruling, allowed: AllowedNatures): Ruling =>
-  ruling.nature === "ink" || isAllowed(ruling.nature, allowed)
+  isHonoured(ruling.nature, allowed)
     ? ruling
     : { ...ruling, nature: "ink", strength: 1, line: REFUSALS.forbidden };
 

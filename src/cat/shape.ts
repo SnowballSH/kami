@@ -1,4 +1,4 @@
-import { boundsOf, distance, type Stroke, strokeLength } from "../core/geometry";
+import { boundsOf, distance, type Rect, type Stroke, strokeLength } from "../core/geometry";
 import type { Drawing } from "../ink/types";
 
 export type ShapeKind = "dot" | "tall" | "flat" | "round" | "blob";
@@ -26,22 +26,25 @@ const isClosedLoop = (stroke: Stroke, span: number): boolean => {
   );
 };
 
-export const spanOf = (drawing: Drawing): number => {
+const extentOf = (drawing: Drawing): Rect | null => {
   const points = drawing.strokes.flat();
-  if (points.length === 0) return 0;
-  const { width, height } = boundsOf(points);
-  return Math.hypot(width, height);
+  return points.length === 0 ? null : boundsOf(points);
 };
 
-export const isDot = (drawing: Drawing): boolean => spanOf(drawing) < DOT_SPAN;
+const spanOf = ({ width, height }: Rect): number => Math.hypot(width, height);
+
+export const isDot = (drawing: Drawing): boolean => {
+  const extent = extentOf(drawing);
+  return extent === null || spanOf(extent) < DOT_SPAN;
+};
 
 export const classifyShape = (drawing: Drawing): ShapeKind => {
-  const points = drawing.strokes.flat();
-  if (points.length === 0) return "blob";
-  if (isDot(drawing)) return "dot";
-  const { width, height } = boundsOf(points);
-  const aspect = height / Math.max(width, MIN_EXTENT);
+  const extent = extentOf(drawing);
+  if (extent === null) return "blob";
+  const span = spanOf(extent);
+  if (span < DOT_SPAN) return "dot";
+  const aspect = extent.height / Math.max(extent.width, MIN_EXTENT);
   if (aspect >= TALL_ASPECT) return "tall";
   if (aspect <= FLAT_ASPECT) return "flat";
-  return isClosedLoop(longestOf(drawing.strokes), spanOf(drawing)) ? "round" : "blob";
+  return isClosedLoop(longestOf(drawing.strokes), span) ? "round" : "blob";
 };
