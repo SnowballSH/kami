@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Stroke } from "../core/geometry";
 import { INPUT_LIMITS, isInputStrokes } from "../core/inputLimits";
 import { readBoundedText } from "../core/readBody";
@@ -6,16 +7,10 @@ import type { Handwriting, HandwritingReader, ReadOptions } from "./types";
 
 const READ_TIMEOUT_MS = 40_000;
 
-interface Transcription {
-  readonly text: string | null;
-  readonly unsure?: unknown;
-}
-
-const isTranscription = (body: unknown): body is Transcription =>
-  typeof body === "object" &&
-  body !== null &&
-  "text" in body &&
-  (typeof body.text === "string" || body.text === null);
+const transcriptionSchema = z.object({
+  text: z.string().min(1).max(INPUT_LIMITS.text).nullable(),
+  unsure: z.boolean().catch(false),
+});
 
 const withTimeout = (signal: AbortSignal | undefined): AbortSignal =>
   signal === undefined
@@ -42,13 +37,11 @@ export class HttpHandwritingReader implements HandwritingReader {
         signal: withTimeout(signal),
       });
       if (!response.ok) return null;
-      const body: unknown = JSON.parse(await readBoundedText(response, INPUT_LIMITS.textBytes));
-      return isTranscription(body) &&
-        body.text !== null &&
-        body.text.length > 0 &&
-        body.text.length <= INPUT_LIMITS.text
-        ? { text: body.text, unsure: body.unsure === true }
-        : null;
+      const answer = transcriptionSchema.safeParse(
+        JSON.parse(await readBoundedText(response, INPUT_LIMITS.textBytes)),
+      );
+      if (!answer.success || answer.data.text === null) return null;
+      return { text: answer.data.text, unsure: answer.data.unsure };
     } catch {
       return null;
     }
