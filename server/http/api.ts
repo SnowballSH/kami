@@ -17,6 +17,7 @@ import { type NatureTable, quickdrawNatureTable } from "../natures/natureTable";
 import { isCertain } from "../recognition/certainty";
 import { RecognizerBusyError } from "../recognition/ranking/workerPool";
 import type { Reading } from "../recognition/types";
+import { NO_SCENES } from "../scene/llmSceneCompiler";
 import {
   beautifyRequestSchema,
   boardIdSchema,
@@ -93,7 +94,6 @@ export interface ApiDependencies {
 }
 
 const NO_EXEMPLARS: ExemplarSource = { categories: [], exemplar: () => Promise.resolve(null) };
-const NO_SCENES: SceneCompiler = { compile: () => Promise.resolve(null) };
 
 const INVALID_CONTROLLER_ID = "a controller id is 1–32 of a-z, 0-9 and '-'";
 const INVALID_CONTROLLER_STATE = "the body is '<x> <y> [buttons]', e.g. '100 0 A'";

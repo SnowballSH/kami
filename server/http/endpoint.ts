@@ -1,3 +1,5 @@
+export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+
 /** Somewhere Kami talks to over HTTP that may sit behind an authenticating proxy. */
 export interface AuthenticatedEndpoint {
   readonly url: string;

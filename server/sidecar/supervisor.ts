@@ -1,7 +1,7 @@
 import { dirname } from "node:path";
 import type { Env } from "../env/env";
 import { reasonOf } from "../errors";
-import type { FetchLike } from "../recognition/types";
+import type { FetchLike } from "../http/endpoint";
 import { fetchSidecarCapabilities, type SidecarCapabilities } from "./health";
 import { type ManagedSidecarConfig, managedSidecarUrl, sidecarEnvironment } from "./managed";
 

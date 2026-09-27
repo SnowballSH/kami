@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { FetchLike } from "../http/endpoint";
 import {
   DEFAULT_REQUEST_SHAPE,
   degradeAfterRejection,
@@ -14,8 +15,6 @@ export interface LlmConfig {
   /** What to ask for as `reasoning_effort`; `null` never sends the field. Unset means `none`. */
   readonly reasoningEffort?: ReasoningEffort | null;
 }
-
-export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 export type ChatPart =
   | { readonly type: "text"; readonly text: string }

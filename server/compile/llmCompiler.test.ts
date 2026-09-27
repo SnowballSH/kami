@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { chatCompletionsUrl, type FetchLike } from "../llm/chatClient";
+import type { FetchLike } from "../http/endpoint";
+import { chatCompletionsUrl } from "../llm/chatClient";
 import { createLlmCompiler } from "./llmCompiler";
 import { BESIDE_PREFIX, COMPILER_SYSTEM_PROMPT } from "./prompt";
 

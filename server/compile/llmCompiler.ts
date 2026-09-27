@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { CompileContext, CompiledRule, RuleCompiler } from "../../src/rules/types";
-import { ChatClient, type FetchLike, type LlmConfig, lastJsonObject } from "../llm/chatClient";
+import type { FetchLike } from "../http/endpoint";
+import { ChatClient, type LlmConfig, lastJsonObject } from "../llm/chatClient";
 import { strictJsonSchema } from "../llm/strictJsonSchema";
 import { rawRuleEffectSchema } from "../schemas";
 import { clampEffect, describeEffect } from "./effectRanges";

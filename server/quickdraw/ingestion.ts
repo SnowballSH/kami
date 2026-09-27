@@ -1,5 +1,6 @@
+import type { FetchLike } from "../http/endpoint";
 import { QUICKDRAW_CATEGORIES } from "./categories";
-import { type FetchLike, fetchCategoryDrawings } from "./dataset";
+import { fetchCategoryDrawings } from "./dataset";
 import { type StoredSketch, writeSnapshot } from "./snapshotFile";
 
 export const DEFAULT_SAMPLES_PER_CATEGORY = 300;

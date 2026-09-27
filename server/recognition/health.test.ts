@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { FetchLike } from "../http/endpoint";
 import { checkEyeHealth, describeEye } from "./health";
-import type { FetchLike } from "./types";
 
 const SIDECAR = "http://127.0.0.1:8790";
 

@@ -1,8 +1,7 @@
 /** One look at the sidecar's GET /health, so the start-up log can say whose eyes Kami is using. */
 import { z } from "zod";
-import { type AuthenticatedEndpoint, endpointHeaders } from "../http/endpoint";
+import { type AuthenticatedEndpoint, endpointHeaders, type FetchLike } from "../http/endpoint";
 import { sidecarUrl } from "./sidecarUrl";
-import type { FetchLike } from "./types";
 
 export interface EyeHealth {
   readonly model: string;

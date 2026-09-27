@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLlmCompiler } from "../compile/llmCompiler";
+import type { FetchLike } from "../http/endpoint";
 import { createLlmTranscriber } from "../transcribe/llmTranscriber";
-import type { FetchLike } from "./chatClient";
 
 const CONFIG = { url: "http://localhost:11434", model: "local" };
 const LOAD_TIME_MS = 45_000;

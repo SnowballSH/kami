@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createLlmCompiler } from "../compile/llmCompiler";
+import type { FetchLike } from "../http/endpoint";
 import { createLlmSceneCompiler } from "../scene/llmSceneCompiler";
 import { HI_STROKES } from "../transcribe/hiStrokes";
 import { createLlmTranscriber } from "../transcribe/llmTranscriber";
-import type { FetchLike } from "./chatClient";
 import { type JsonSchema, strictJsonSchema } from "./strictJsonSchema";
 
 const CONFIG = { url: "http://llm.example:8000", model: "gpt-like" } as const;

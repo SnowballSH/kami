@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createBeautifier, type FetchLike } from "./beautifier";
+import type { FetchLike } from "../http/endpoint";
+import { createBeautifier } from "./beautifier";
 
 const STROKES = [
   [

@@ -1,6 +1,5 @@
-import type { AuthenticatedEndpoint } from "../http/endpoint";
+import type { AuthenticatedEndpoint, FetchLike } from "../http/endpoint";
 import type { LlmConfig } from "../llm/chatClient";
-import type { FetchLike } from "../recognition/types";
 import { FirstReadyTranscriber, type NamedTranscriber } from "./chain";
 import { LlmTranscriber } from "./llmTranscriber";
 import { VocabularyCorrector } from "./proofread/corrector";

@@ -1,5 +1,6 @@
+import type { FetchLike } from "../http/endpoint";
 import { QUICKDRAW_CATEGORIES } from "../quickdraw/categories";
-import { type FetchLike, fetchCategoryDrawings, toStrokes } from "../quickdraw/dataset";
+import { fetchCategoryDrawings, toStrokes } from "../quickdraw/dataset";
 import type { Sketch, SketchLibrary } from "./types";
 
 const DRAWINGS_PER_CATEGORY = 32;

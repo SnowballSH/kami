@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FetchLike } from "../recognition/types";
+import type { FetchLike } from "../http/endpoint";
 import type { ManagedSidecarConfig } from "./managed";
 import {
   type Backoff,

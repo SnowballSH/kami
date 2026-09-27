@@ -1,8 +1,7 @@
 /** What a Kami sidecar (ml/sidecar.py) says it can do, from one look at its GET /health. */
 import { z } from "zod";
-import { type AuthenticatedEndpoint, endpointHeaders } from "../http/endpoint";
+import { type AuthenticatedEndpoint, endpointHeaders, type FetchLike } from "../http/endpoint";
 import { sidecarUrl } from "../recognition/sidecarUrl";
-import type { FetchLike } from "../recognition/types";
 
 export interface SidecarCapabilities {
   readonly eye: boolean;

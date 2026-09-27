@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FetchLike } from "../../llm/chatClient";
+import type { FetchLike } from "../../http/endpoint";
 import { DEFAULT_REPAIR_LIMITS, LlmRepairer } from "./repairer";
 import { REPAIR_SYSTEM_PROMPT } from "./repairPrompt";
 import { proofreadOf, TEST_LEXICON, wordOf } from "./testing";

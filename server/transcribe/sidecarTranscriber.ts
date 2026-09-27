@@ -1,8 +1,7 @@
 import { z } from "zod";
 import type { Stroke } from "../../src/core/geometry";
-import { type AuthenticatedEndpoint, endpointHeaders } from "../http/endpoint";
+import { type AuthenticatedEndpoint, endpointHeaders, type FetchLike } from "../http/endpoint";
 import { sidecarUrl } from "../recognition/sidecarUrl";
-import type { FetchLike } from "../recognition/types";
 import { fetchSidecarCapabilities } from "../sidecar/health";
 import { HI_STROKES } from "./hiStrokes";
 import { SerialQueue } from "./serialQueue";

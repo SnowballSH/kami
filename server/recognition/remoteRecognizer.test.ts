@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { FetchLike } from "../http/endpoint";
 import { lineSketch } from "../testing/sketches";
 import {
   DEFAULT_CERTAINTY_FLOORS,
@@ -7,7 +8,6 @@ import {
   REQUESTED_GUESSES,
   RemoteSketchRecognizer,
 } from "./remoteRecognizer";
-import type { FetchLike } from "./types";
 
 const SIDECAR = "http://127.0.0.1:8790/";
 const SKETCH = lineSketch({ x: 10, y: 20 }, { x: 300, y: 40 });

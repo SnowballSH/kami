@@ -1,6 +1,7 @@
 import { z } from "zod";
+import type { FetchLike } from "../../http/endpoint";
 import { WorkLimit } from "../../http/workLimit";
-import { ChatClient, type FetchLike, type LlmConfig, lastJsonObject } from "../../llm/chatClient";
+import { ChatClient, type LlmConfig, lastJsonObject } from "../../llm/chatClient";
 import { strictJsonSchema } from "../../llm/strictJsonSchema";
 import { Recent } from "../../recent";
 import { asWriting } from "../types";

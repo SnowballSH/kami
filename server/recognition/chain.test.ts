@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { FetchLike } from "../http/endpoint";
 import { createRecognizerChain } from "./chain";
-import type { FetchLike, InProcessSketchRanker, RankOptions, Reading } from "./types";
+import type { InProcessSketchRanker, RankOptions, Reading } from "./types";
 
 const SIDECAR = "http://127.0.0.1:8790";
 const SKETCH = [[{ x: 0, y: 0 }]];
