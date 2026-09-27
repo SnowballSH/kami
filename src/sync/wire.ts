@@ -56,7 +56,7 @@ const rideSchema: z.ZodType<Ride> = z.object({ id: brandedId<DrawingId>(), gait:
 
 const lookSchema: z.ZodType<AliceLook> = z.object({ kind: z.literal("alice") });
 
-export const ghostSchema: z.ZodType<Ghost> = z.object({
+const ghostSchema: z.ZodType<Ghost> = z.object({
   center: vecSchema,
   velocity: vecSchema,
   width: z.number().positive(),
@@ -145,7 +145,7 @@ export const storedEntitySchemas = {
   rules: ruleSchema,
 } as const;
 
-export const boardChangeSchema: z.ZodType<BoardChange> = z.discriminatedUnion("type", [
+const boardChangeSchema: z.ZodType<BoardChange> = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
     z.object({
       seq: seqSchema,

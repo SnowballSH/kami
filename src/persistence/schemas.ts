@@ -37,13 +37,13 @@ export const boardIdSchema = z.string().min(1).max(MAX_ID_LENGTH);
 
 export const entityIdSchema = z.string().min(1).max(MAX_ID_LENGTH);
 
-export const drawingSchema = z.looseObject({
+const drawingSchema = z.looseObject({
   id: brandedId<DrawingId>(),
   strokes: penStrokesSchema,
   cost: z.number().nonnegative(),
 }) satisfies z.ZodType<Drawing>;
 
-export const motionEditSchema = z.object({
+const motionEditSchema = z.object({
   spin: z.number().exactOptional(),
   thrust: vecSchema.exactOptional(),
   mass: z.number().exactOptional(),
@@ -160,7 +160,7 @@ export const ruleSchema = z.looseObject({
 
 export const FEED_BOOT_PATTERN = /^[a-z0-9]{1,32}$/;
 
-export const feedCursorSchema = z.object({
+const feedCursorSchema = z.object({
   boot: z.string().regex(FEED_BOOT_PATTERN).nullable(),
   seq: z.number().int().nonnegative(),
 }) satisfies z.ZodType<FeedCursor>;
@@ -183,7 +183,7 @@ export const boardSnapshotSchema = z.object({
   cursor: feedCursorSchema.exactOptional(),
 }) satisfies z.ZodType<BoardSnapshot>;
 
-export const boardSummarySchema = z.object({
+const boardSummarySchema = z.object({
   id: boardIdSchema,
   drawings: z.number().int().nonnegative(),
   rules: z.number().int().nonnegative(),

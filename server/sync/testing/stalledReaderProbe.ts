@@ -23,8 +23,8 @@ export interface StalledReaderReport {
   readonly resyncedFromStart: boolean;
 }
 
-export const PROBE_LIMIT_BYTES = 64 * 1024 * 1024;
-export const PROBE_STALL_MS = 1_000;
+const PROBE_LIMIT_BYTES = 64 * 1024 * 1024;
+const PROBE_STALL_MS = 1_000;
 const CHANGE_BYTES = 256 * 1024;
 const BOARD = "board";
 

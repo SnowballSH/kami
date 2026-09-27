@@ -10,9 +10,9 @@ import "./screen.css";
 import { StageWatcher } from "./watcher";
 import { stageNameOf, stageSocketUrl } from "./wire";
 
-export const SCREEN_PARAM = "screen";
+const SCREEN_PARAM = "screen";
 /** `?join=<address>`: where the audience points a device to play; shown as words and a QR code. */
-export const JOIN_PARAM = "join";
+const JOIN_PARAM = "join";
 
 export const isScreen = (search: string): boolean => new URLSearchParams(search).has(SCREEN_PARAM);
 

@@ -1,6 +1,6 @@
 import { CONTROLLER_ID_PATTERN, DEFAULT_CONTROLLER_ID } from "./types";
 
-export const CONTROLLER_PARAM = "controller";
+const CONTROLLER_PARAM = "controller";
 
 const OFF = "off";
 
