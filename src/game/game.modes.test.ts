@@ -14,7 +14,7 @@ import {
 } from "../modes";
 import { figureAround, legsBelow, ringAround } from "../sim/boss/figure.testSupport";
 import { drawingOf } from "../sim/testSupport";
-import { roomCardShownMs } from "../ui/roomCard";
+import { ROOM_CARD_SHOWN_MS } from "../ui/roomCard";
 import { titleCardShownMs } from "../ui/titleCard";
 import {
   HEART_SWALLOWED_LINE,
@@ -64,9 +64,9 @@ describe("Game in puzzle mode", () => {
     expect(player.laws.laws).toHaveLength(0);
     const opening = "Too tall to climb. She could fall up, if something threw her.";
     expect(player.written.filter((text) => text === opening)).toHaveLength(0);
-    await player.wait(roomCardShownMs() - 100);
+    await player.wait(ROOM_CARD_SHOWN_MS - 100);
     expect(player.written.filter((text) => text === opening)).toHaveLength(0);
-    await player.wait(roomCardShownMs() + 600);
+    await player.wait(ROOM_CARD_SHOWN_MS + 600);
     expect(player.written.filter((text) => text === opening)).toHaveLength(1);
 
     await player.write("we are on the moon", { x: 200, y: 200 });

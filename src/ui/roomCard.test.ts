@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RoomCard } from "../modes/types";
-import { ROOM_CARD_FADE_MS, RoomCardView } from "./roomCard";
+import { CARD_FADE_MS } from "./fadingCard";
+import { RoomCardView } from "./roomCard";
 
 const CARD: RoomCard = {
   mode: "Puzzle",
@@ -27,7 +28,7 @@ describe("the room card", () => {
 
     vi.advanceTimersByTime(5_000);
     expect(view.card.classList.contains("is-fading")).toBe(true);
-    vi.advanceTimersByTime(ROOM_CARD_FADE_MS);
+    vi.advanceTimersByTime(CARD_FADE_MS);
     expect(view.card.hidden).toBe(true);
     expect(view.mark.hidden).toBe(false);
   });
@@ -37,11 +38,11 @@ describe("the room card", () => {
     const view = new RoomCardView();
     view.show(CARD);
     view.card.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    vi.advanceTimersByTime(ROOM_CARD_FADE_MS);
+    vi.advanceTimersByTime(CARD_FADE_MS);
     expect(view.card.hidden).toBe(true);
     view.show(CARD);
     view.card.dispatchEvent(new KeyboardEvent("keydown", { key: " " }));
-    vi.advanceTimersByTime(ROOM_CARD_FADE_MS);
+    vi.advanceTimersByTime(CARD_FADE_MS);
     expect(view.card.hidden).toBe(true);
   });
 

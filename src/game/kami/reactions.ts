@@ -5,7 +5,7 @@ import { EMBODIED_MODE_ID } from "../../modes";
 import type { EmbodimentTransition, ModeDirector } from "../../modes/types";
 import { BODY_TUNING } from "../../sim/boss/tuning";
 import type { SimEvent } from "../../sim/types";
-import { roomCardShownMs } from "../../ui/roomCard";
+import { ROOM_CARD_SHOWN_MS } from "../../ui/roomCard";
 import type { GameContext } from "../context";
 import type { Eraser } from "../eraser";
 import { bodyCluster } from "../inkNearby";
@@ -261,7 +261,12 @@ export class Reactions {
     };
     if (director.room === null) this.voice.remark(zone.intro, HINT_LIFETIME_MS, position);
     else
-      this.voice.recite([zone.intro], HINT_LIFETIME_MS, roomCardShownMs() + CARD_READ_MS, position);
+      this.voice.recite(
+        [zone.intro],
+        HINT_LIFETIME_MS,
+        ROOM_CARD_SHOWN_MS + CARD_READ_MS,
+        position,
+      );
   }
 
   /** The room is won: Kami's closing line, and in a run of rooms the next one opens once it has been read. */

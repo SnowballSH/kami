@@ -1,6 +1,8 @@
 import wordmarkUrl from "../brand/assets/kami-wordmark.gif";
 import { MODE_PARAM } from "../game/launch";
 import { BOSS_MODE_ID, type GameModeId, PUZZLE_MODE_ID, SANDBOX_MODE_ID } from "../modes";
+import { el } from "./dom";
+import { activateOnTap } from "./tap";
 import "./styles/start.css";
 
 interface Choice {
@@ -27,28 +29,18 @@ export const START_CHOICES: readonly Choice[] = [
 const DATASET_URL = "https://github.com/googlecreativelab/quickdraw-dataset";
 const DATASET_LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/";
 
-const linkTo = (href: string, text: string): HTMLAnchorElement => {
-  const link = document.createElement("a");
-  link.href = href;
-  link.target = "_blank";
-  link.rel = "noreferrer";
-  link.textContent = text;
-  return link;
-};
+const linkTo = (href: string, text: string): HTMLAnchorElement =>
+  el("a", { text, attrs: { href, target: "_blank", rel: "noreferrer" } });
 
 /** The drawings Kami learnt from, summons and tidies with are other people's: CC BY 4.0 asks that we say so. */
-const datasetCredit = (): HTMLElement => {
-  const credit = document.createElement("p");
-  credit.className = "start-credit";
-  credit.append(
+const datasetCredit = (): HTMLElement =>
+  el("p", { className: "start-credit" }, [
     "Kami learnt to see from ",
     linkTo(DATASET_URL, "The Quick, Draw! Dataset"),
     ", made available by Google under ",
     linkTo(DATASET_LICENCE_URL, "CC BY 4.0"),
     ".",
-  );
-  return credit;
-};
+  ]);
 
 /** Whether the address already says how to play. */
 export const modeChosen = (search: string): boolean => new URLSearchParams(search).has(MODE_PARAM);
@@ -63,38 +55,33 @@ export const chooseMode = (
     start(root);
     return;
   }
-  const screen = document.createElement("div");
-  screen.className = "start-screen";
-  const heading = document.createElement("h1");
-  const wordmark = document.createElement("img");
-  wordmark.className = "start-wordmark";
-  wordmark.width = 960;
-  wordmark.height = 446;
-  wordmark.src = wordmarkUrl;
-  wordmark.alt = "kami";
-  heading.append(wordmark);
-  const choices = document.createElement("div");
-  choices.className = "start-choices";
-  for (const choice of START_CHOICES) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.mode = choice.id;
-    button.setAttribute("aria-label", `Start ${choice.name}`);
-    if (choices.childElementCount === 0) button.autofocus = true;
-    const name = document.createElement("strong");
-    name.textContent = choice.name;
-    const line = document.createElement("span");
-    line.textContent = choice.line;
-    button.append(name, line);
-    button.addEventListener("click", () => {
-      const url = new URL(host.location.href);
-      url.searchParams.set(MODE_PARAM, choice.id);
-      host.history.replaceState(null, "", url);
-      screen.remove();
-      start(root);
-    });
-    choices.append(button);
-  }
-  screen.append(heading, choices, datasetCredit());
+  const choose = (id: GameModeId): void => {
+    const url = new URL(host.location.href);
+    url.searchParams.set(MODE_PARAM, id);
+    host.history.replaceState(null, "", url);
+    screen.remove();
+    start(root);
+  };
+  const buttons = START_CHOICES.map(({ id, name, line }) => {
+    const button = el(
+      "button",
+      { attrs: { type: "button", "data-mode": id, "aria-label": `Start ${name}` } },
+      [el("strong", { text: name }), el("span", { text: line })],
+    );
+    activateOnTap(button, () => choose(id));
+    return button;
+  });
+  const [first] = buttons;
+  if (first !== undefined) first.autofocus = true;
+  const screen = el("div", { className: "start-screen" }, [
+    el("h1", {}, [
+      el("img", {
+        className: "start-wordmark",
+        attrs: { width: "960", height: "446", src: wordmarkUrl, alt: "kami" },
+      }),
+    ]),
+    el("div", { className: "start-choices" }, buttons),
+    datasetCredit(),
+  ]);
   root.append(screen);
 };

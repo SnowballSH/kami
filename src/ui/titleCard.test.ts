@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SANDBOX_MODE } from "../modes/sandboxMode";
-import { TITLE_CARD_FADE_MS, TITLE_CARD_SHOWN_MS, TitleCard } from "./titleCard";
+import { CARD_FADE_MS } from "./fadingCard";
+import { TITLE_CARD_SHOWN_MS, TitleCard } from "./titleCard";
 
 const pointer = (type: string): PointerEvent =>
   new PointerEvent(type, {
@@ -73,7 +74,7 @@ describe("TitleCard", () => {
       "polite",
     );
     card.element.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
-    vi.advanceTimersByTime(TITLE_CARD_FADE_MS);
+    vi.advanceTimersByTime(CARD_FADE_MS);
     expect(card.element.hidden).toBe(true);
   });
 

@@ -5,6 +5,7 @@ import {
   type ParsedSessionStatus,
   type SecretKind,
 } from "../persistence/session";
+import { el } from "./dom";
 import "./styles/access.css";
 
 interface SecretWording {
@@ -42,27 +43,28 @@ const selectScope = (status: ParsedSessionStatus): void => {
 };
 
 const secretInput = (): HTMLInputElement => {
-  const input = document.createElement("input");
-  input.type = "password";
-  input.id = "kami-secret";
+  const input = el("input", {
+    attrs: {
+      type: "password",
+      id: "kami-secret",
+      maxlength: "1024",
+      spellcheck: "false",
+      autocapitalize: "off",
+      enterkeyhint: "go",
+    },
+  });
   input.required = true;
   input.disabled = true;
-  input.maxLength = 1024;
-  input.spellcheck = false;
-  input.autocapitalize = "off";
-  input.enterKeyHint = "go";
   return input;
 };
 
 const usernameInput = (): HTMLInputElement => {
-  const input = document.createElement("input");
-  input.type = "text";
-  input.name = "username";
-  input.autocomplete = "username";
+  const input = el("input", {
+    attrs: { type: "text", name: "username", autocomplete: "username", tabindex: "-1" },
+  });
   input.value = MANAGER_USERNAME;
   input.readOnly = true;
   input.hidden = true;
-  input.tabIndex = -1;
   return input;
 };
 
@@ -72,33 +74,26 @@ export const enterGame = async (
   session: ApiSession = new ApiSession(),
 ): Promise<void> => {
   let kind: SecretKind = "token";
-  const panel = document.createElement("form");
-  panel.className = "access-gate";
-  panel.noValidate = true;
-  const heading = document.createElement("h1");
-  heading.textContent = "Kami";
   const username = usernameInput();
-  const label = document.createElement("label");
-  label.htmlFor = "kami-secret";
-  const caption = document.createElement("span");
+  const caption = el("span");
   const input = secretInput();
-  label.append(caption, input);
+  const label = el("label", { attrs: { for: input.id } }, [caption, input]);
   label.hidden = true;
-  const submit = document.createElement("button");
-  submit.type = "submit";
-  submit.textContent = "Retry";
-  const message = document.createElement("p");
-  message.setAttribute("role", "status");
-  message.setAttribute("aria-live", "polite");
-  const offline = document.createElement("button");
-  offline.type = "button";
-  offline.textContent = "Play without server";
+  const submit = el("button", { text: "Retry", attrs: { type: "submit" } });
+  const message = el("p", { attrs: { role: "status", "aria-live": "polite" } });
+  const offline = el("button", { text: "Play without server", attrs: { type: "button" } });
   offline.hidden = true;
+  const panel = el("form", { className: "access-gate", attrs: { novalidate: "" } }, [
+    el("h1", { text: "Kami" }),
+    label,
+    message,
+    submit,
+    offline,
+  ]);
   offline.addEventListener("click", () => {
     panel.remove();
     start(root, OFFLINE);
   });
-  panel.append(heading, label, message, submit, offline);
   root.append(panel);
 
   const ask = (secret: SecretKind): void => {

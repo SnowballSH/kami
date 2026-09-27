@@ -4,7 +4,7 @@ import type { ModeCard, RoomCard } from "../modes/types";
 import type { PersistenceState } from "../persistence/types";
 import { BoardMenu } from "./boardMenu";
 import { el } from "./dom";
-import { HintHotkey } from "./hintHotkey";
+import { attachHotkey, isHint, isUndo } from "./hotkeys";
 import { Joystick } from "./joystick";
 import { KeyboardWalk } from "./keyboard";
 import { homeUrl, PageActions } from "./pageActions";
@@ -30,7 +30,6 @@ import type {
   ShareInfo,
   Tool,
 } from "./types";
-import { UndoHotkey } from "./undoHotkey";
 import { WalkIntentMerger } from "./walkIntent";
 import { ZoomControls } from "./zoomControls";
 
@@ -107,8 +106,8 @@ export class DomHud implements Hud {
       ...(remoteStick === null ? [] : [remoteStick.attach()]),
       this.stick.attach(host),
       new ToolHotkeys(this.tools).attach(host),
-      new UndoHotkey(() => handlers.onUndo()).attach(host),
-      new HintHotkey(() => handlers.onAskForHint()).attach(host),
+      attachHotkey(host, isUndo, () => handlers.onUndo()),
+      attachHotkey(host, isHint, () => handlers.onAskForHint()),
       this.boards.attach(owner),
       this.share.attach(owner),
       this.prompt.attach(),

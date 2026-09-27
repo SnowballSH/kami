@@ -1,5 +1,6 @@
+import { iconButton } from "./controls";
 import { el } from "./dom";
-import { icon } from "./icons";
+import { Popover } from "./popover";
 import type { QrPainter } from "./qr";
 import { activateOnTap } from "./tap";
 import type { Detach, ShareInfo } from "./types";
@@ -8,7 +9,6 @@ const OPEN_LABEL = "Share this page";
 const COPY_LABEL = "copy link";
 const COPIED_LABEL = "copied";
 const COPIED_FOR_MS = 1600;
-const CLOSE_KEY = "Escape";
 
 const companyLine = (company: number): string =>
   company === 0
@@ -27,13 +27,16 @@ const clipboardCopy: CopyText = (text) => navigator.clipboard.writeText(text);
  */
 export class SharePanel {
   readonly element: HTMLElement;
-  private readonly toggle: HTMLButtonElement;
-  private readonly popover: HTMLElement;
   private readonly qr = el("canvas", { className: "kami-share-qr" });
   private readonly link = el("a", { className: "kami-share-link", attrs: { target: "_blank" } });
   private readonly page = el("span", { className: "kami-share-page" });
   private readonly company = el("span", { className: "kami-share-company" });
-  private readonly copy: HTMLButtonElement;
+  private readonly copy = el("button", {
+    className: "kami-menu-item kami-share-copy",
+    text: COPY_LABEL,
+    attrs: { type: "button" },
+  });
+  private readonly popover: Popover;
   private share: ShareInfo | null = null;
   private copiedUntil: ReturnType<typeof setTimeout> | null = null;
 
@@ -41,22 +44,14 @@ export class SharePanel {
     private readonly paintQr: QrPainter,
     private readonly copyText: CopyText = clipboardCopy,
   ) {
-    this.toggle = el(
-      "button",
-      {
-        className: "kami-control kami-share-toggle",
-        attrs: { type: "button", "aria-haspopup": "dialog", "aria-label": OPEN_LABEL },
-      },
-      [icon("share")],
-    );
-    activateOnTap(this.toggle, () => this.setOpen(!this.open));
-    this.copy = el("button", {
-      className: "kami-menu-item kami-share-copy",
-      text: COPY_LABEL,
-      attrs: { type: "button" },
+    const toggle = iconButton({
+      className: "kami-share-toggle",
+      icon: "share",
+      label: OPEN_LABEL,
+      attrs: { "aria-haspopup": "dialog" },
     });
     activateOnTap(this.copy, () => void this.copyLink());
-    this.popover = el(
+    const panel = el(
       "div",
       {
         className: "kami-island kami-share-popover",
@@ -64,27 +59,17 @@ export class SharePanel {
       },
       [this.qr, this.page, this.link, this.company, this.copy],
     );
-    this.element = el("div", { className: "kami-share" }, [this.toggle, this.popover]);
-    this.setOpen(false);
+    this.element = el("div", { className: "kami-share" }, [toggle, panel]);
+    this.popover = new Popover(this.element, toggle, panel);
     this.show(null);
   }
 
   get open(): boolean {
-    return !this.popover.hidden;
+    return this.popover.open;
   }
 
   attach(owner: Document): Detach {
-    const listeners = new AbortController();
-    const options = { signal: listeners.signal, capture: true };
-    owner.addEventListener("pointerdown", (event) => this.closeIfOutside(event.target), options);
-    owner.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key === CLOSE_KEY) this.setOpen(false);
-      },
-      options,
-    );
-    return () => listeners.abort();
+    return this.popover.attach(owner);
   }
 
   show(share: ShareInfo | null): void {
@@ -92,7 +77,7 @@ export class SharePanel {
     this.share = share;
     this.element.hidden = share === null;
     if (share === null) {
-      this.setOpen(false);
+      this.popover.setOpen(false);
       return;
     }
     this.company.textContent = companyLine(share.company);
@@ -116,16 +101,5 @@ export class SharePanel {
       this.copy.textContent = COPY_LABEL;
       this.copiedUntil = null;
     }, COPIED_FOR_MS);
-  }
-
-  private setOpen(open: boolean): void {
-    this.popover.hidden = !open;
-    this.toggle.setAttribute("aria-expanded", String(open));
-  }
-
-  private closeIfOutside(target: EventTarget | null): void {
-    if (!this.open) return;
-    if (target instanceof Node && this.element.contains(target)) return;
-    this.setOpen(false);
   }
 }
