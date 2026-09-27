@@ -112,8 +112,14 @@ export class Party {
    * moves, and only under the player's hand. Returns who has just now run out of ideas, taken
    * flight from the Sumikui or been cornered by it, so Kami can say so.
    */
-  drive(sim: Simulation, page: Page, selfDriving: boolean, nowMs: number): readonly News[] {
+  drive(
+    sim: Simulation,
+    pageNow: () => Page,
+    selfDriving: boolean,
+    nowMs: number,
+  ): readonly News[] {
     const alices = sim.alices();
+    let page: Page | null = null;
     this.match(alices.length);
     this.charts.clear();
     this.cadence.nextTick();
@@ -130,6 +136,7 @@ export class Party {
         sim.setWalkIntent(IDLE, who);
         continue;
       }
+      page ??= pageNow();
       sim.setWalkIntent(pilot.drive(this.scene(sim, page, alices, who, alice)), who);
       const { stuck, errand } = pilot.status;
       if (errand.kind === "flee") this.fleeCalmAtMs[who] = nowMs + FLEE_CALM_MS;

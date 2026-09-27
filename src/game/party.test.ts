@@ -127,7 +127,12 @@ const outing = (
   const events: SimEvent[] = [];
   const stuck: AliceIndex[] = [];
   for (let step = 0; step < steps && !done(events); step++) {
-    for (const { who, kind } of party.drive(sim, table.page(board), true, step * FIXED_STEP_MS)) {
+    for (const { who, kind } of party.drive(
+      sim,
+      () => table.page(board),
+      true,
+      step * FIXED_STEP_MS,
+    )) {
       if (kind === "stuck") stuck.push(who);
     }
     events.push(...sim.step());
@@ -159,14 +164,16 @@ describe("Party", () => {
     const page = new Table(sim).page(meadow);
     const news: string[] = [];
     for (let step = 0; step < 5000 / FIXED_STEP_MS; step++)
-      news.push(...party.drive(sim, page, true, step * FIXED_STEP_MS).map(({ kind }) => kind));
+      news.push(
+        ...party.drive(sim, () => page, true, step * FIXED_STEP_MS).map(({ kind }) => kind),
+      );
     expect(news).toEqual(["flees"]);
 
     fleeing = false;
     for (let step = 0; step < 6000 / FIXED_STEP_MS; step++)
-      party.drive(sim, page, true, 5000 + step * FIXED_STEP_MS);
+      party.drive(sim, () => page, true, 5000 + step * FIXED_STEP_MS);
     fleeing = true;
-    expect(party.drive(sim, page, true, 11_000)).toEqual([{ who: 0, kind: "flees" }]);
+    expect(party.drive(sim, () => page, true, 11_000)).toEqual([{ who: 0, kind: "flees" }]);
   });
 
   it("lets two Alices reach one goal up different drawn ladders", () => {
@@ -250,7 +257,7 @@ describe("Party", () => {
     const before = [centreX(sim, 0), centreX(sim, 1)];
     party.steer(RIGHT);
     for (let step = 0; step < 60; step++) {
-      party.drive(sim, table.page(meadow), false, step * FIXED_STEP_MS);
+      party.drive(sim, () => table.page(meadow), false, step * FIXED_STEP_MS);
       sim.step();
     }
     expect(centreX(sim, 0) - (before[0] ?? 0)).toBeGreaterThan(50);

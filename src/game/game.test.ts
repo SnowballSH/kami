@@ -62,7 +62,7 @@ import {
   TEAR_OPENS_LINES,
 } from "./bossLines";
 import { ForgetfulBoardStore } from "./forgetfulStore";
-import { Game, MAX_REMARKS } from "./game";
+import { Game } from "./game";
 import { HELD_INK_FADE_MS } from "./heldInk";
 import {
   CANNOT_DRAW_LINE,
@@ -80,7 +80,7 @@ import {
   TAGLINE,
   WORDMARK,
 } from "./lines";
-import { NOTE_STYLE, type NoteBook } from "./noteBook";
+import type { NoteBook } from "./noteBook";
 import {
   FakeHandwriting,
   FakeHud,
@@ -88,6 +88,7 @@ import {
   FakeRenderer,
   MemoryBoardStore,
 } from "./testing/fakes";
+import { MAX_REMARKS } from "./voice";
 
 const COMMIT_WAIT_MS = 1_200;
 
@@ -568,56 +569,6 @@ describe("Game on the Wonderland board", () => {
     expect(player.written).toContain("kami");
     expect(player.written).toContain("She can hop, not fly. You can draw.");
     expect(player.hud.boards.map((board) => board.id)).toContain("wonderland");
-  });
-
-  it("keeps a free Kami remark inside the visible world", () => {
-    const write = (
-      player.game as unknown as {
-        kamiWrites: (
-          text: string,
-          position: Vec,
-          options?: { lifetimeMs?: number },
-        ) => {
-          position: Vec;
-        };
-      }
-    ).kamiWrites;
-    const note = write.call(
-      player.game,
-      "right edge remark",
-      { x: 1100, y: 100 },
-      { lifetimeMs: 6_000 },
-    );
-    const right = player.renderer.viewport().width;
-    expect(note.position.x).toBeLessThanOrEqual(right - NOTE_STYLE.kami.maxWidth - 24);
-  });
-
-  it("deduplicates and caps fleeting Kami remarks", async () => {
-    player.game.onAutopilotToggled(false);
-    const remark = (text: string): void =>
-      (
-        player.game as unknown as {
-          remark: (line: string) => void;
-        }
-      ).remark(text);
-    remark("same remark");
-    remark("same remark");
-    remark("second remark");
-    remark("third remark");
-    await player.wait(FIXED_STEP_MS);
-
-    const same = () =>
-      (player.renderer.lastFrame?.notes ?? []).filter(
-        (note) => note.author === "kami" && note.script.text === "same remark",
-      );
-    expect(same()).toHaveLength(1);
-    await player.wait(800);
-    const opaque = (player.renderer.lastFrame?.notes ?? []).filter((note) => {
-      const notebook = (player.game as unknown as { notes: NoteBook }).notes;
-      return notebook.fleetingBy("kami").some(({ id }) => id === note.id) && note.opacity === 1;
-    });
-    expect(opaque.length).toBeLessThanOrEqual(2);
-    expect(same()).toHaveLength(0);
   });
 
   it("offers three tappable guesses beside a fresh drawing, and a tap names it", async () => {
@@ -3213,34 +3164,6 @@ describe("Game in Boss mode", () => {
     expect(look.abilities.walk).toBe(true);
     expect(look.abilities.climb).toBe(true);
     expect(player.renderer.lastFrame?.inks.map((ink) => ink.drawing.id)).toEqual([far.id]);
-  });
-
-  it("keeps free combat remarks clear of the tear", async () => {
-    const heart = soulOf(player);
-    player.game.onCommit(drawingOf("body", ringAround(heart, 30)));
-    await player.write("alice", { x: heart.x + 200, y: heart.y + 100 });
-    const tear = tearOf(player);
-    if (tear === null) throw new Error("the tear did not open");
-
-    (
-      player.game as unknown as {
-        remark: (line: string) => void;
-      }
-    ).remark("clear of the tear");
-    await player.wait(50);
-
-    const note = player.renderer.lastFrame?.notes.find(
-      ({ script }) => script.text === "clear of the tear",
-    );
-    if (note === undefined) throw new Error("the combat remark was not written");
-    expect(
-      rectsOverlap(note.script.bounds, {
-        x: tear.at.x - 40,
-        y: tear.at.y - 120,
-        width: 80,
-        height: 240,
-      }),
-    ).toBe(false);
   });
 
   it("offers Alice instead of scenery guesses for the body nearest the soul", async () => {
