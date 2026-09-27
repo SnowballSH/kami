@@ -1,18 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { aliceSvg } from "./alice";
 import { animatedGif, WORDMARK_GIF } from "./gif";
-import {
-  aliceSvg,
-  lockupSvg,
-  markSvg,
-  sumikuiSvg,
-  WORDMARK_FRAMES,
-  WORDMARK_TEXT,
-  wordmarkFrames,
-  wordmarkSvg,
-  writeWord,
-} from "./logo";
+import { lockupSvg, markSvg } from "./mark";
+import { sumikuiSvg } from "./sumikui";
+import { WORDMARK_FRAMES, WORDMARK_TEXT, wordmarkFrames, wordmarkSvg, writeWord } from "./wordmark";
 
 interface ViewBox {
   readonly x: number;

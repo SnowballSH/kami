@@ -1,7 +1,7 @@
 import { Resvg } from "@resvg/resvg-js";
 import { applyPalette, GIFEncoder, quantize } from "gifenc";
 
-export const GIF_COLOURS = 64;
+const GIF_COLOURS = 64;
 
 /** How the committed animated wordmark is rendered: one breath of the Sumikui at 12.5 fps. */
 export const WORDMARK_GIF = { width: 960, frameMs: 80, background: "#ffffff" } as const;

@@ -1,7 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { animatedGif, WORDMARK_GIF } from "./gif";
-import { lockupSvg, markSvg, wordmarkFrames, wordmarkSvg } from "./logo";
+import { lockupSvg, markSvg } from "./mark";
+import { wordmarkFrames, wordmarkSvg } from "./wordmark";
 
 const ASSETS_DIR = process.argv[2] ?? "src/brand/assets";
 const FAVICON = process.argv[3] ?? "public/kami-mark.svg";
